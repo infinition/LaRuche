@@ -102,8 +102,7 @@ pub(crate) async fn ws_chat_connection(
             Err(_) => {
                 let _ = sender
                     .send(ws::Message::Text(
-                        serde_json::json!({"type":"error","message":"Invalid JSON"})
-                            .to_string(),
+                        serde_json::json!({"type":"error","message":"Invalid JSON"}).to_string(),
                     ))
                     .await;
                 continue;
@@ -300,6 +299,7 @@ pub(crate) async fn ws_chat_connection(
         // qui y est tape est une intervention en cours de route, exactement ce
         // que le steering sait deja faire.
         laruche_essaim::abeilles::navigateur::brancher_pilotage(steer_tx.clone());
+        laruche_essaim::abeilles::ordinateur::brancher_pilotage(steer_tx.clone());
         let actor_react = actor.clone();
 
         let react_handle = tokio::spawn(async move {
@@ -364,15 +364,13 @@ pub(crate) async fn ws_chat_connection(
                                         mirror.ajouter_observation(name, result);
                                         true
                                     }
-                                    Ev::Plan { items } => {
-                                        match serde_json::to_string(items) {
-                                            Ok(json) => {
-                                                mirror.ajouter_thought("plan", "plan", &json);
-                                                true
-                                            }
-                                            Err(_) => continue,
+                                    Ev::Plan { items } => match serde_json::to_string(items) {
+                                        Ok(json) => {
+                                            mirror.ajouter_thought("plan", "plan", &json);
+                                            true
                                         }
-                                    }
+                                        Err(_) => continue,
+                                    },
                                     Ev::Thought { phase, kind, text } => {
                                         mirror.ajouter_thought(phase, kind, text);
                                         false
@@ -416,7 +414,10 @@ pub(crate) async fn ws_chat_connection(
                         n.manifest.node_id.map(|id| {
                             format!(
                                 "- {} - {}",
-                                n.manifest.node_name.clone().unwrap_or_else(|| "ruche".into()),
+                                n.manifest
+                                    .node_name
+                                    .clone()
+                                    .unwrap_or_else(|| "ruche".into()),
                                 id
                             )
                         })
@@ -542,8 +543,8 @@ pub(crate) async fn ws_chat_connection(
             // in the BACKGROUND. OPT-IN (disabled by default) so as not to pollute the library.
             // Activation: Settings toggle (config.curateur_actif, persistent) OR env RUCHE_CURATEUR=1.
             // Conservative (most missions => nothing).
-            let curateur_on = config.curateur_actif
-                || std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1");
+            let curateur_on =
+                config.curateur_actif || std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1");
             if laruche_essaim::butinage_pont::moteur_butinage_actif()
                 && curateur_on
                 && session.messages.len() >= 6
@@ -560,7 +561,11 @@ pub(crate) async fn ws_chat_connection(
                     // node's state; the guard covers the whole pass either way.
                     let _garde = ouvrir_travail(&cur_state, "curateur", "review", &cfg, None);
                     laruche_essaim::butinage_pont::lancer_curateur_arriere_plan(
-                        msgs, reg, cfg.clone(), txc, mem,
+                        msgs,
+                        reg,
+                        cfg.clone(),
+                        txc,
+                        mem,
                     )
                     .await;
                 });
@@ -602,6 +607,7 @@ pub(crate) async fn ws_chat_connection(
                             // quand une page est pilotee. Sans page ouverte,
                             // c'est un test d'un booleen et rien d'autre.
                             laruche_essaim::abeilles::navigateur::narrer(&event);
+                            laruche_essaim::abeilles::ordinateur::narrer(&event);
                             let json = event_json_avec_session(&event, session_id);
                             if sender.send(ws::Message::Text(json)).await.is_err() {
                                 done = true;
@@ -768,6 +774,7 @@ pub(crate) async fn ws_chat_connection(
         // Le tour est fini: ce qui serait tape dans la page apres coup n'a plus
         // de destination, et le panneau le dira plutot que de l'avaler.
         laruche_essaim::abeilles::navigateur::debrancher_pilotage();
+        laruche_essaim::abeilles::ordinateur::debrancher_pilotage();
 
         // Stay tuned to this session until the next turn: LaReine sending the work back,
         // or any other background push, has somewhere to arrive.

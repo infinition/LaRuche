@@ -104,13 +104,21 @@ pub fn intention_pour_emoji(emoji: &str) -> Option<&'static Reaction> {
     let nu: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
     let cle = match nu.as_str() {
         "👍" | "👌" | "🤝" | "💯" | "🆒" | "✍" | "🏆" => "up",
-        "👎" | "🤬" | "🤮" | "💩" | "🖕" | "😡" | "💔" | "😢" | "😭" | "💊" => "down",
-        "❤" | "🥰" | "😍" | "😘" | "💘" | "💋" | "❤‍🔥" | "🤗" | "🙏" | "🌚" | "😇" => "love",
+        "👎" | "🤬" | "🤮" | "💩" | "🖕" | "😡" | "💔" | "😢" | "😭" | "💊" => {
+            "down"
+        }
+        "❤" | "🥰" | "😍" | "😘" | "💘" | "💋" | "❤‍🔥" | "🤗" | "🙏" | "🌚" | "😇" => {
+            "love"
+        }
         "😁" | "🤣" | "🤡" | "😈" | "🤪" | "🙈" | "🙉" | "🙊" | "💅" | "🗿" | "🥴" | "🍌"
         | "🍓" | "🍾" | "🌭" | "🐳" | "🦄" | "🎃" | "👻" | "👾" | "🎅" | "🎄" | "☃" | "😎"
         | "🤓" | "👨‍💻" | "🕊" => "haha",
-        "🔥" | "👏" | "🤯" | "😱" | "🎉" | "🤩" | "⚡" | "👀" | "😨" | "🫡" => "wow",
-        "🤔" | "🤨" | "😐" | "🤷" | "🤷‍♂" | "🤷‍♀" | "🥱" | "😴" => "confused",
+        "🔥" | "👏" | "🤯" | "😱" | "🎉" | "🤩" | "⚡" | "👀" | "😨" | "🫡" => {
+            "wow"
+        }
+        "🤔" | "🤨" | "😐" | "🤷" | "🤷‍♂" | "🤷‍♀" | "🥱" | "😴" => {
+            "confused"
+        }
         _ => return None,
     };
     trouver(cle)
@@ -172,7 +180,11 @@ mod tests {
         // from it, so the mapping is not decoration: without it, half the palette fails
         // quietly on Telegram.
         for r in REACTIONS {
-            assert!(!r.emoji_telegram.is_empty(), "no Telegram emoji for {}", r.cle);
+            assert!(
+                !r.emoji_telegram.is_empty(),
+                "no Telegram emoji for {}",
+                r.cle
+            );
             // U+FE0F is the trap. Telegram lists U+2764 bare, and the variation selector
             // makes the string a different one that the API refuses.
             assert!(
@@ -292,9 +304,18 @@ pub fn demande_de_reaction(prompt: &str) -> bool {
     let p = prompt.to_lowercase();
     // The verb, in the two languages this runs in, plus a bare emote the user typed to
     // show what they want.
-    ["reagis", "réagis", "reagir", "réagir", "reaction", "réaction", "react", "emote"]
-        .iter()
-        .any(|m| p.contains(m))
+    [
+        "reagis",
+        "réagis",
+        "reagir",
+        "réagir",
+        "reaction",
+        "réaction",
+        "react",
+        "emote",
+    ]
+    .iter()
+    .any(|m| p.contains(m))
         || REACTIONS.iter().any(|r| p.contains(&format!("/{}", r.cle)))
 }
 
@@ -339,7 +360,9 @@ pub fn extraire_reaction(texte: &str) -> (String, Option<String>) {
         if reste.is_empty() || reste.split_whitespace().count() != 1 {
             return None;
         }
-        let cle = reste.trim_end_matches(['.', ',', '!', ':', ';']).to_lowercase();
+        let cle = reste
+            .trim_end_matches(['.', ',', '!', ':', ';'])
+            .to_lowercase();
         est_connue(&cle).then_some(cle)
     };
 
@@ -421,10 +444,16 @@ mod tests_agent {
         let c = consigne_prompt();
         // A `<key>` placeholder with no example got copied literally or ignored. The
         // marker must appear ready to paste.
-        assert!(c.contains("/haha"), "no usable example:
-{c}");
-        assert!(!c.contains("<key>"), "placeholder syntax invites a literal copy:
-{c}");
+        assert!(
+            c.contains("/haha"),
+            "no usable example:
+{c}"
+        );
+        assert!(
+            !c.contains("<key>"),
+            "placeholder syntax invites a literal copy:
+{c}"
+        );
         // The keys carry their emoji, so the model knows what it is choosing.
         assert!(c.contains("down = "));
         // The failure observed live: asked to react, it answered that it would react.
@@ -441,7 +470,9 @@ mod tests_agent {
         assert!(demande_de_reaction("ecris /sad et /love ?"));
         assert!(demande_de_reaction("pas de reaction comme ca ?"));
         // An ordinary message costs nothing: no nudge, no tokens.
-        assert!(!demande_de_reaction("explique-moi l'architecture du projet"));
+        assert!(!demande_de_reaction(
+            "explique-moi l'architecture du projet"
+        ));
         assert!(!demande_de_reaction("allume la lumiere du bureau"));
 
         let r = rappel_volatil();

@@ -74,9 +74,7 @@ impl Abeille for MemoireSearch {
                     Ok(ResultatAbeille::ok(format!("Relevant memory:\n{text}")))
                 }
             }
-            Err(e) => Ok(ResultatAbeille::err(format!(
-                "Memory search failed: {e}"
-            ))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory search failed: {e}"))),
         }
     }
 }
@@ -240,7 +238,9 @@ impl Abeille for MemoireDelete {
             .ok_or_else(|| anyhow::anyhow!("'item_id' required"))?;
         let reason = args["reason"].as_str();
         match self.mem.delete_item(item_id, reason).await {
-            Ok(_) => Ok(ResultatAbeille::ok(format!("Memory item deleted: {item_id}"))),
+            Ok(_) => Ok(ResultatAbeille::ok(format!(
+                "Memory item deleted: {item_id}"
+            ))),
             Err(e) => Ok(ResultatAbeille::err(format!("Memory delete failed: {e}"))),
         }
     }
@@ -485,7 +485,9 @@ impl Abeille for MemoireMutations {
             .await
         {
             Ok(v) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&v)?)),
-            Err(e) => Ok(ResultatAbeille::err(format!("Memory audit log failed: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!(
+                "Memory audit log failed: {e}"
+            ))),
         }
     }
 }
@@ -694,8 +696,16 @@ impl Abeille for MemoireDoctor {
         _args: serde_json::Value,
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
-        let stats = self.mem.stats().await.unwrap_or_else(|_| serde_json::json!({}));
-        let dream = self.mem.dream().await.unwrap_or_else(|_| serde_json::json!({}));
+        let stats = self
+            .mem
+            .stats()
+            .await
+            .unwrap_or_else(|_| serde_json::json!({}));
+        let dream = self
+            .mem
+            .dream()
+            .await
+            .unwrap_or_else(|_| serde_json::json!({}));
         let sugg = self
             .mem
             .suggest_nodes("", Some(200))
@@ -731,7 +741,10 @@ impl Abeille for MemoireDoctor {
         }
         if let Some(sug) = dream.get("suggestions").and_then(|s| s.as_array()) {
             if !sug.is_empty() {
-                out.push_str(&format!("Suggestions (duplicates/overloads): {}\n", sug.len()));
+                out.push_str(&format!(
+                    "Suggestions (duplicates/overloads): {}\n",
+                    sug.len()
+                ));
                 for s in sug.iter().take(10) {
                     if let Some(msg) = s.get("message").and_then(|m| m.as_str()) {
                         out.push_str(&format!("- {msg}\n"));
@@ -842,14 +855,20 @@ impl Abeille for MemoireConsolidate {
 
 fn str_array(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
-        .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
 /// Sync SQL -> disk: writes the skill's `SKILL.md` under `skills/<slug>/` (flat-file,
 /// compatible with agentskills.io: editable, versionable, re-importable).
 pub fn ecrire_skill_md(node_id: &str, content: &str) {
-    let slug = node_id.strip_prefix("capacities.skills.").unwrap_or(node_id);
+    let slug = node_id
+        .strip_prefix("capacities.skills.")
+        .unwrap_or(node_id);
     if slug.is_empty() {
         return;
     }
@@ -870,7 +889,10 @@ fn build_skill_okf(
     let mut s = String::from("---\ntype: skill\n");
     s.push_str(&format!("name: {name}\n"));
     if !description.is_empty() {
-        s.push_str(&format!("description: {}\n", description.replace('\n', " ")));
+        s.push_str(&format!(
+            "description: {}\n",
+            description.replace('\n', " ")
+        ));
     }
     if !tools.is_empty() {
         s.push_str(&format!("tools: [{}]\n", tools.join(", ")));

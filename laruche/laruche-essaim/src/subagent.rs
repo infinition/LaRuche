@@ -1,4 +1,4 @@
-﻿use crate::abeille::AbeilleRegistry;
+use crate::abeille::AbeilleRegistry;
 use crate::brain::{boucle_react, ChatEvent, EssaimConfig};
 use crate::session::Session;
 use anyhow::Result;
@@ -262,10 +262,7 @@ pub async fn lancer_sous_agent(
 /// Lightweight dispatcher: minimal LLM call for a binary decision.
 /// Always uses the smallest available model to filter
 /// events before launching an expensive agent.
-pub async fn dispatcher_pertinent(
-    event_description: &str,
-    config: &EssaimConfig,
-) -> f32 {
+pub async fn dispatcher_pertinent(event_description: &str, config: &EssaimConfig) -> f32 {
     let dispatcher_cfg = EssaimConfig {
         model: "gemma4:e4b".into(),
         provider: "ollama".into(),
@@ -366,14 +363,24 @@ async fn evaluer_qualite_reponse(response: &str) -> f32 {
         return 0.0;
     }
     let mut score = 0.5f32;
-    if response.len() > 100 { score += 0.1; }
+    if response.len() > 100 {
+        score += 0.1;
+    }
     if response.contains('-') || response.contains('*') || response.contains("1.") {
         score += 0.1;
     }
-    if response.contains("```") { score += 0.1; }
-    if response.contains('\u{2705}') || response.contains("terminé") { score += 0.1; }
-    if response.len() < 20 { score -= 0.3; }
-    if response.contains("je ne peux pas") || response.contains("désolé") { score -= 0.2; }
+    if response.contains("```") {
+        score += 0.1;
+    }
+    if response.contains('\u{2705}') || response.contains("terminé") {
+        score += 0.1;
+    }
+    if response.len() < 20 {
+        score -= 0.3;
+    }
+    if response.contains("je ne peux pas") || response.contains("désolé") {
+        score -= 0.2;
+    }
     score.clamp(0.0, 1.0)
 }
 
@@ -393,7 +400,9 @@ mod tests {
             "the scout must be allowed to enumerate"
         );
         assert!(
-            AgentRole::Recherche.system_prompt().contains("web_discover"),
+            AgentRole::Recherche
+                .system_prompt()
+                .contains("web_discover"),
             "allowing it is not enough: the role prompt must point at it"
         );
     }
@@ -436,8 +445,14 @@ mod tests {
 
     #[test]
     fn agent_role_from_str() {
-        assert_eq!(AgentRole::depuis_etiquette("research"), AgentRole::Recherche);
-        assert_eq!(AgentRole::depuis_etiquette("code"), AgentRole::Experimentation);
+        assert_eq!(
+            AgentRole::depuis_etiquette("research"),
+            AgentRole::Recherche
+        );
+        assert_eq!(
+            AgentRole::depuis_etiquette("code"),
+            AgentRole::Experimentation
+        );
         assert_eq!(AgentRole::depuis_etiquette("review"), AgentRole::Critique);
         assert_eq!(AgentRole::depuis_etiquette("report"), AgentRole::Synthese);
         assert_eq!(AgentRole::depuis_etiquette("filter"), AgentRole::Dispatcher);

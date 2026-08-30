@@ -255,7 +255,10 @@ fn parser_lignes(s: &str) -> Option<Scorecard> {
     let mut champs: HashMap<String, String> = HashMap::new();
     for ligne in s.lines() {
         if let Some((k, v)) = ligne.split_once(':') {
-            let raw = k.trim().trim_start_matches(['-', '*', '#', '`', ' ']).to_lowercase();
+            let raw = k
+                .trim()
+                .trim_start_matches(['-', '*', '#', '`', ' '])
+                .to_lowercase();
             // Take the leading alphabetic run as the key, dropping trailing decorations
             // like "(0-100)". A key starting with a non-letter (e.g. JSON `{"x"`) yields
             // an empty key and is skipped, so JSON lines still do not pollute the map.
@@ -538,15 +541,21 @@ mod tests {
         // zeros then drove five rework rounds.
         assert!(parser_scorecard(r#"{"avis":"escalader"}"#).is_err());
         assert!(parser_scorecard("VERDICT: escalate").is_err());
-        assert!(parser_scorecard("VERDICT: escalate
-REASON: unclear").is_err());
+        assert!(parser_scorecard(
+            "VERDICT: escalate
+REASON: unclear"
+        )
+        .is_err());
     }
 
     #[test]
     fn un_axe_absent_prend_la_moyenne_des_axes_lus() {
-        let c = parser_scorecard("RELEVANCE: 90
+        let c = parser_scorecard(
+            "RELEVANCE: 90
 OBJECTIVE: 70
-VERDICT: approve").unwrap();
+VERDICT: approve",
+        )
+        .unwrap();
         assert_eq!(c.pertinence, 90);
         assert_eq!(c.objectif, 70);
         assert_eq!(c.methodologie, 80, "an unread axis must not read as zero");
@@ -568,7 +577,13 @@ VERDICT: approve",
         )
         .unwrap();
         assert_eq!(
-            (c.pertinence, c.methodologie, c.objectif, c.conformite_marque, c.confiance),
+            (
+                c.pertinence,
+                c.methodologie,
+                c.objectif,
+                c.conformite_marque,
+                c.confiance
+            ),
             (95, 90, 95, 98, 95)
         );
         assert_eq!(c.avis, Avis::Approuver);

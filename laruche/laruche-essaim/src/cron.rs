@@ -329,8 +329,8 @@ mod tests {
 ///
 /// `should_fire_cron` silently returns false on anything that is not five
 /// whitespace-separated fields. A model that writes "every evening at 20:00" therefore
-/// creates a job that LOOKS scheduled — it shows a cadence in the UI, it sits in the
-/// timeline — and never runs once. Observed twice in a row on real use. Validating at the
+/// creates a job that LOOKS scheduled - it shows a cadence in the UI, it sits in the
+/// timeline - and never runs once. Observed twice in a row on real use. Validating at the
 /// door turns an invisible no-op into an error the model can act on.
 pub fn valider_cron(expr: &str) -> Result<(), String> {
     let champs: Vec<&str> = expr.split_whitespace().collect();
@@ -368,12 +368,21 @@ mod tests_validation {
         // Exactly what an agent produced, and what silently never fired.
         let e = valider_cron("every evening at 20:00").unwrap_err();
         assert!(e.contains("4 field(s)"), "{e}");
-        assert!(e.contains("0 20 * * *"), "l'erreur doit montrer la forme correcte: {e}");
+        assert!(
+            e.contains("0 20 * * *"),
+            "l'erreur doit montrer la forme correcte: {e}"
+        );
     }
 
     #[test]
     fn les_expressions_reelles_passent() {
-        for ok in ["0 9 * * *", "0 20 * * *", "0 10 1 * *", "*/15 * * * *", "30 8 * * 1-5"] {
+        for ok in [
+            "0 9 * * *",
+            "0 20 * * *",
+            "0 10 1 * *",
+            "*/15 * * * *",
+            "30 8 * * 1-5",
+        ] {
             assert!(valider_cron(ok).is_ok(), "refuse a tort: {ok}");
         }
     }

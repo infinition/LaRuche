@@ -43,9 +43,7 @@ fn check_timestamp_lock(path: &Path) -> Result<Option<String>> {
     };
 
     if current != previous {
-        anyhow::bail!(
-            "Edit refused: file has changed since the last file_read in this session."
-        );
+        anyhow::bail!("Edit refused: file has changed since the last file_read in this session.");
     }
     Ok(None)
 }
@@ -225,10 +223,11 @@ impl Abeille for FileWrite {
         // half-written file behind.
         let tmp = path.with_extension(format!(
             "{}.tmp",
-            path.extension().and_then(|e| e.to_str()).unwrap_or("laruche")
+            path.extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("laruche")
         ));
-        let ecriture = std::fs::write(&tmp, content)
-            .and_then(|()| std::fs::rename(&tmp, path));
+        let ecriture = std::fs::write(&tmp, content).and_then(|()| std::fs::rename(&tmp, path));
         match ecriture {
             Ok(()) => Ok(ResultatAbeille::ok(format!(
                 "File written successfully: {} ({} bytes)",
@@ -601,14 +600,21 @@ fn lister_trie(dir: &Path, depth: usize, max_depth: usize, out: &mut Vec<String>
         let ignore = DOSSIERS_IGNORES.contains(&name.as_str());
         out.push(format!(
             "{indent}[DIR] {name}/{}",
-            if ignore && depth < max_depth { " (skipped)" } else { "" }
+            if ignore && depth < max_depth {
+                " (skipped)"
+            } else {
+                ""
+            }
         ));
         if depth < max_depth && !ignore && !name.starts_with('.') {
             lister_trie(p, depth + 1, max_depth, out);
         }
     }
     for (name, taille) in &fichiers {
-        out.push(format!("{indent}[FILE] {name} ({})", taille_humaine(*taille)));
+        out.push(format!(
+            "{indent}[FILE] {name} ({})",
+            taille_humaine(*taille)
+        ));
     }
 }
 

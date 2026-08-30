@@ -229,7 +229,10 @@ mod tests {
         let mut valeurs = HashMap::new();
         valeurs.insert("page".to_string(), "https://laruche.dev".to_string());
         let extras = instancier_extras(&bp, &valeurs);
-        assert_eq!(extras.get("target").map(String::as_str), Some("https://laruche.dev"));
+        assert_eq!(
+            extras.get("target").map(String::as_str),
+            Some("https://laruche.dev")
+        );
         assert_eq!(extras.get("watcher_type").map(String::as_str), Some("url"));
     }
 

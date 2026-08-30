@@ -127,7 +127,11 @@ async fn les_logs_ct_revelent_les_sites_voisins() {
         .output;
 
     println!("{sortie}");
-    for voisin in ["bg2.lordtry.com", "daoc.lordtry.com", "planescape.lordtry.com"] {
+    for voisin in [
+        "bg2.lordtry.com",
+        "daoc.lordtry.com",
+        "planescape.lordtry.com",
+    ] {
         assert!(sortie.contains(voisin), "missing sibling host {voisin}");
     }
 }

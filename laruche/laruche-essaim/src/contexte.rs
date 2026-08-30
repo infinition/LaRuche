@@ -655,11 +655,11 @@ pub(crate) fn rappels_utilises(rappeles: &[(String, String)], reponse: &str) -> 
     // Significant tokens: >=4 chars (so model numbers like `5080` or `vram`
     // count) minus the most common fr/en filler words of that length.
     const VIDES: &[&str] = &[
-        "pour", "dans", "avec", "sans", "sont", "vous", "nous", "mais", "plus", "tout",
-        "toute", "comme", "leur", "elle", "cette", "fait", "etre", "être", "aussi", "donc",
-        "alors", "meme", "même", "bien", "peut", "vers", "chez", "this", "that", "with",
-        "from", "your", "have", "will", "been", "were", "they", "than", "then", "when",
-        "what", "which", "there", "their", "about", "would", "could",
+        "pour", "dans", "avec", "sans", "sont", "vous", "nous", "mais", "plus", "tout", "toute",
+        "comme", "leur", "elle", "cette", "fait", "etre", "être", "aussi", "donc", "alors", "meme",
+        "même", "bien", "peut", "vers", "chez", "this", "that", "with", "from", "your", "have",
+        "will", "been", "were", "they", "than", "then", "when", "what", "which", "there", "their",
+        "about", "would", "could",
     ];
     let jetons = |s: &str| -> HashSet<String> {
         s.to_lowercase()
@@ -829,7 +829,11 @@ pub async fn boucle_react_memoire_multimodal(
         let utilises = rappels_utilises(&rappels_du_tour, &reponse);
         if !utilises.is_empty() {
             if let Ok(n) = memoire.renforcer(&utilises).await {
-                tracing::debug!(utilises = n, rappeles = rappels_du_tour.len(), "hebbian level 2");
+                tracing::debug!(
+                    utilises = n,
+                    rappeles = rappels_du_tour.len(),
+                    "hebbian level 2"
+                );
             }
         }
     }
@@ -913,10 +917,8 @@ async fn rafraichir_projections(
             continue;
         };
         for item in items {
-            let (Some(item_id), Some(contenu)) = (
-                item["id"].as_str(),
-                item["content"].as_str(),
-            ) else {
+            let (Some(item_id), Some(contenu)) = (item["id"].as_str(), item["content"].as_str())
+            else {
                 continue;
             };
             if !contenu.starts_with("Tool `") || contenu.contains(MARQUEUR_PROJECTION) {
@@ -940,7 +942,10 @@ async fn rafraichir_projections(
         }
     }
     if refaits > 0 {
-        tracing::info!(items = refaits, "Tool projections rewritten in the current format");
+        tracing::info!(
+            items = refaits,
+            "Tool projections rewritten in the current format"
+        );
     }
     refaits
 }
@@ -1341,7 +1346,10 @@ async fn construire_index_skills(
         };
         // Displayed name = SLUG (node_id suffix): the identifier that `skill_view(name)` resolves.
         // (The frontmatter name may differ, e.g. `arxiv-search` vs node `arxiv_search`.)
-        let Some(name) = node_id.strip_prefix("capacities.skills.").map(str::to_string) else {
+        let Some(name) = node_id
+            .strip_prefix("capacities.skills.")
+            .map(str::to_string)
+        else {
             continue;
         };
         if name.is_empty() || name.contains('.') {
@@ -1384,7 +1392,11 @@ async fn construire_index_skills(
     // catalog for any non-trivial request, whatever the context width; `dynamic`
     // only keeps the smalltalk shortcut (pointer alone, zero listing).
     if dynamic {
-        let q = query.split("[SYSTEM]").next().unwrap_or(query).to_lowercase();
+        let q = query
+            .split("[SYSTEM]")
+            .next()
+            .unwrap_or(query)
+            .to_lowercase();
         if requete_triviale(&q) {
             return Some(format!(
                 "## Available skills\n\n{total} reusable skill procedures are available - call \
@@ -1546,8 +1558,8 @@ pub(crate) fn requete_triviale(q: &str) -> bool {
         .collect();
     const SMALLTALK: &[&str] = &[
         "salut", "bonjour", "bonsoir", "coucou", "hello", "hi", "hey", "yo", "test", "merci",
-        "thanks", "thx", "ok", "oui", "non", "cc", "slt", "ca", "ça", "va", "comment", "vas",
-        "tu", "bien", "yep", "nope", "stp", "svp",
+        "thanks", "thx", "ok", "oui", "non", "cc", "slt", "ca", "ça", "va", "comment", "vas", "tu",
+        "bien", "yep", "nope", "stp", "svp",
     ];
     !toks.is_empty() && toks.iter().all(|t| SMALLTALK.contains(t))
 }
@@ -1781,9 +1793,15 @@ mod tests {
 
         // Folded over several lines joins with spaces; literal keeps the breaks.
         let plie = "---\ndescription: >-\n  one\n  two\n---\n";
-        assert_eq!(yaml_frontmatter_field(plie, "description").as_deref(), Some("one two"));
+        assert_eq!(
+            yaml_frontmatter_field(plie, "description").as_deref(),
+            Some("one two")
+        );
         let litteral = "---\ndescription: |\n  one\n  two\n---\n";
-        assert_eq!(yaml_frontmatter_field(litteral, "description").as_deref(), Some("one\ntwo"));
+        assert_eq!(
+            yaml_frontmatter_field(litteral, "description").as_deref(),
+            Some("one\ntwo")
+        );
 
         // Inline form keeps working, quotes stripped.
         let inline = "---\ndescription: \"Plain one liner\"\n---\n";

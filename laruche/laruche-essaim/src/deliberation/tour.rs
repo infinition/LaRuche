@@ -160,8 +160,7 @@ pub fn lire(specialiste: &str, tour: u8, brut: &str) -> Option<Intervention> {
         // de champ laisse un fragment comme `CHANGEM`, qui n'est pas une position: le
         // prendre pour telle transformerait une troncature en intervention vide.
         let recolte = hors_champs.join("\n");
-        let ressemble_a_une_phrase =
-            recolte.contains(' ') && recolte.trim().chars().count() >= 12;
+        let ressemble_a_une_phrase = recolte.contains(' ') && recolte.trim().chars().count() >= 12;
         if ressemble_a_une_phrase {
             position = recolte;
         }

@@ -73,11 +73,16 @@ impl Abeille for PlanModeTool {
                  user approval.{}",
                 path.display(),
                 match ecarte {
-                    Some(p) => format!(" The plan that was already there was moved to '{}'.", p.display()),
+                    Some(p) => format!(
+                        " The plan that was already there was moved to '{}'.",
+                        p.display()
+                    ),
                     None => String::new(),
                 }
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Failed to create plan.md: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!(
+                "Failed to create plan.md: {e}"
+            ))),
         }
     }
 }

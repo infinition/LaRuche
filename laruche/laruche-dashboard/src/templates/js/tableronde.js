@@ -141,7 +141,7 @@ LaRuche.TableRonde = (function(){
              d.map(function(id){
                var pos='';
                (dernier.interventions||[]).forEach(function(iv){ if(iv.specialiste===id) pos=iv.position; });
-               return '<div class="tr-dissident"><strong>'+esc(nomDe(id))+'</strong> — '+
+               return '<div class="tr-dissident"><strong>'+esc(nomDe(id))+'</strong> - '+
                       esc(String(pos).slice(0,400))+'</div>';
              }).join('')+
            '</div>';
@@ -235,7 +235,7 @@ LaRuche.TableRonde = (function(){
                   LaRuche.i18n.t('tr.question')+'</span>'+esc(question)+'</div>' : '')+
       (enCours && etapeNom
         ? '<div class="tr-etape">'+esc(LaRuche.i18n.t(etapes[etapeNom]||'tr.encours'))+
-          (actifs.length ? ' — '+actifs.map(function(id){ return esc(nomDe(id)); }).join(', ') : '')+
+          (actifs.length ? ' - '+actifs.map(function(id){ return esc(nomDe(id)); }).join(', ') : '')+
           '</div>'
         : '')+
       tableHtml()+

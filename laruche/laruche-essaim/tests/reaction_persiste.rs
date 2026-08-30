@@ -10,7 +10,10 @@ fn la_reaction_agent_survit_a_un_aller_retour_disque() {
     let mut s = Session::new_with_path("m", &dir);
     s.messages.push(Message::User("ceci est un test".into()));
     s.messages.push(Message::Assistant("reponse".into()));
-    assert!(s.definir_reaction_agent("joie"), "aucun message utilisateur trouve");
+    assert!(
+        s.definir_reaction_agent("joie"),
+        "aucun message utilisateur trouve"
+    );
     // Anchored on the USER message (index 0), not on the answer.
     assert_eq!(s.reactions_agent.get(&0).map(String::as_str), Some("joie"));
     s.sauvegarder().unwrap();

@@ -26,8 +26,12 @@ pub struct Creds {
 #[async_trait]
 pub trait Appel: Send + Sync {
     /// Rend le texte produit et le nombre de jetons consommes.
-    async fn demander(&self, creds: &Creds, systeme: &str, utilisateur: &str)
-        -> Result<(String, u32)>;
+    async fn demander(
+        &self,
+        creds: &Creds,
+        systeme: &str,
+        utilisateur: &str,
+    ) -> Result<(String, u32)>;
 }
 
 /// Resout le profil d'un specialiste en identifiants utilisables.
@@ -225,8 +229,16 @@ mod tests {
             let n = self.appels.fetch_add(1, Ordering::SeqCst);
             // On distingue les etapes par leur consigne, comme le ferait un modele.
             let change = n < self.tours_mouvants;
-            let changement = if change { "l'argument de l'ingenieur" } else { "aucun" };
-            let quoi = if u.contains("attaquer") { "objection" } else { "position" };
+            let changement = if change {
+                "l'argument de l'ingenieur"
+            } else {
+                "aucun"
+            };
+            let quoi = if u.contains("attaquer") {
+                "objection"
+            } else {
+                "position"
+            };
             Ok((
                 format!(
                     "ACCORD: reserve\nCONFIANCE: 60\nCHANGEMENT: {changement}\n\
@@ -261,7 +273,10 @@ mod tests {
     #[tokio::test]
     async fn une_deliberation_converge_et_se_termine() {
         let mut d = deli(&["scientifique", "ingenieur"], 4);
-        let appel = Stub { appels: AtomicUsize::new(0), tours_mouvants: 2 };
+        let appel = Stub {
+            appels: AtomicUsize::new(0),
+            tours_mouvants: 2,
+        };
         deliberer(&mut d, &appel, &ProfilsStub, "CONSTITUTION").await;
 
         assert!(!d.interventions.is_empty());
@@ -273,7 +288,10 @@ mod tests {
     #[tokio::test]
     async fn le_transcript_ne_montre_que_la_derniere_position_de_chacun() {
         let mut d = deli(&["scientifique"], 4);
-        let appel = Stub { appels: AtomicUsize::new(0), tours_mouvants: 99 };
+        let appel = Stub {
+            appels: AtomicUsize::new(0),
+            tours_mouvants: 99,
+        };
         // Deux tours pour le meme specialiste.
         let e = d.prochaine_etape();
         let lot = jouer_etape(&d, &e, &appel, &ProfilsStub, "C").await;
@@ -293,13 +311,19 @@ mod tests {
     #[tokio::test]
     async fn un_specialiste_est_exclu_de_son_propre_transcript() {
         let mut d = deli(&["scientifique", "ingenieur"], 4);
-        let appel = Stub { appels: AtomicUsize::new(0), tours_mouvants: 99 };
+        let appel = Stub {
+            appels: AtomicUsize::new(0),
+            tours_mouvants: 99,
+        };
         let e = d.prochaine_etape();
         let lot = jouer_etape(&d, &e, &appel, &ProfilsStub, "C").await;
         d.deposer(lot);
 
         let t = transcript(&d, Some("scientifique"));
-        assert!(!t.contains("## Scientifique"), "on ne se relit pas soi-meme");
+        assert!(
+            !t.contains("## Scientifique"),
+            "on ne se relit pas soi-meme"
+        );
         assert!(t.contains("## Ingenieur"));
     }
 
@@ -321,7 +345,11 @@ mod tests {
     #[tokio::test]
     async fn la_consigne_solo_ne_montre_aucune_autre_position() {
         let d = deli(&["scientifique", "ingenieur"], 4);
-        let c = consigne(&Etape::Solo(vec!["scientifique".into()]), &d, "scientifique");
+        let c = consigne(
+            &Etape::Solo(vec!["scientifique".into()]),
+            &d,
+            "scientifique",
+        );
         assert!(c.contains("SEUL"));
         assert!(!c.contains("##"), "aucun transcript au premier tour");
     }
@@ -329,7 +357,10 @@ mod tests {
     #[tokio::test]
     async fn la_synthese_voit_tout_le_monde_y_compris_l_arbitre_exclu_de_rien() {
         let mut d = deli(&["scientifique", "ingenieur"], 4);
-        let appel = Stub { appels: AtomicUsize::new(0), tours_mouvants: 0 };
+        let appel = Stub {
+            appels: AtomicUsize::new(0),
+            tours_mouvants: 0,
+        };
         let e = d.prochaine_etape();
         let lot = jouer_etape(&d, &e, &appel, &ProfilsStub, "C").await;
         d.deposer(lot);
@@ -350,11 +381,17 @@ mod tests {
                 tours_max: 4,
                 raison: "test".into(),
             },
-            Reglages { jetons_max: 250, ..Default::default() },
+            Reglages {
+                jetons_max: 250,
+                ..Default::default()
+            },
             catalogue(),
         );
         // Le stub fait toujours changer d'avis: sans plafond, ca ne convergerait jamais.
-        let appel = Stub { appels: AtomicUsize::new(0), tours_mouvants: usize::MAX };
+        let appel = Stub {
+            appels: AtomicUsize::new(0),
+            tours_mouvants: usize::MAX,
+        };
         deliberer(&mut d, &appel, &ProfilsStub, "C").await;
         assert!(matches!(d.prochaine_etape(), Etape::Fini(_)));
         assert!(

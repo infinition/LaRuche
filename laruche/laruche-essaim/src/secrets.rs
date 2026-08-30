@@ -41,7 +41,9 @@ pub fn retirer(nom: &str) {
 
 /// List of secret **NAMES** (never the values), for the system prompt and the UI.
 pub fn noms() -> Vec<String> {
-    let Ok(c) = coffre().read() else { return Vec::new() };
+    let Ok(c) = coffre().read() else {
+        return Vec::new();
+    };
     let mut v: Vec<String> = c.keys().cloned().collect();
     v.sort();
     v
@@ -63,7 +65,9 @@ pub fn substituer(texte: &str) -> String {
     if !texte.contains("${") && !texte.contains("{{") && !texte.contains("@@") {
         return texte.to_string();
     }
-    let Ok(c) = coffre().read() else { return texte.to_string() };
+    let Ok(c) = coffre().read() else {
+        return texte.to_string();
+    };
     let mut paires: Vec<(&String, &String)> = c.iter().collect();
     paires.sort_by_key(|p| std::cmp::Reverse(p.0.len())); // les plus longs d abord
     let mut out = texte.to_string();

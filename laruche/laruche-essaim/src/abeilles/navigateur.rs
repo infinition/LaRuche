@@ -349,7 +349,7 @@ const SCRIPT_GLOW: &str = r##"
   // nothing rearms it and the frame, badge and cursor fade out on their own.
   // This is how "LaRuche is no longer working here" shows without the tool
   // needing to know when the chat turn ended.
-  const IDLE_MS = 12000;
+  const IDLE_MS = 24000;
   // Cursor position survives across runs (each action re-runs this IIFE), so the
   // cursor does not jump back to centre between two actions.
   let cursorX = window.__lrcx ?? window.innerWidth / 2;
@@ -383,7 +383,7 @@ const SCRIPT_GLOW: &str = r##"
       .cursor.down .ring{animation:lr-press .5s ease-out;}
       .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;}
       .flash.go{animation:lr-flash .45s ease-out;}
-      .hud{position:fixed;left:14px;bottom:14px;width:380px;height:330px;
+      .hud{position:fixed;left:14px;bottom:14px;width:380px;height:480px;
         min-width:260px;min-height:170px;max-width:92vw;max-height:88vh;
         display:flex;flex-direction:column;
         background:rgba(14,12,9,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
@@ -563,6 +563,25 @@ const SCRIPT_GLOW: &str = r##"
     });
   };
 
+  // Recoller la narration au dernier message.
+  //
+  // Deux rendus peuvent decaler ce qu'on voit, et un seul le savait. `renderChat`
+  // recollait apres avoir ecrit le texte, mais `renderHud` grandit le journal
+  // au-dessus, qui monte jusqu'a 32% de la hauteur et ROGNE d'autant la zone de
+  // narration. Le recollage precedent devient alors faux: la fenetre a retreci
+  // sous le texte, et la fin repasse hors champ sans que rien n'ait defile.
+  //
+  // Deux images d'attente plutot qu'une: la premiere laisse le navigateur
+  // recalculer la mise en page apres l'insertion, la seconde apres le
+  // redimensionnement que cette mise en page a pu provoquer.
+  const collerEnBas = (root) => {
+    const r = root || shadow();
+    const na = r && r.getElementById('lr-hud-na');
+    if (!na) return;
+    const bas = () => { na.scrollTop = na.scrollHeight; };
+    requestAnimationFrame(() => { bas(); requestAnimationFrame(bas); });
+  };
+
   const renderHud = (root) => {
     const bd = (root || shadow()) && (root || shadow()).getElementById('lr-hud-bd');
     if (!bd) return;
@@ -578,6 +597,7 @@ const SCRIPT_GLOW: &str = r##"
       d.appendChild(document.createTextNode(l.m));
       bd.appendChild(d);
     }
+    collerEnBas(root);
   };
 
   // La narration du modele, poussee par le noeud toutes les demi-secondes. On
@@ -678,9 +698,6 @@ const SCRIPT_GLOW: &str = r##"
     const r = root || shadow();
     const na = r && r.getElementById('lr-hud-na');
     if (!na) return;
-    // Ne recoller au bas que si on y etait deja: sinon relire un passage plus
-    // haut est impossible, le jeton suivant ramene la vue en bas.
-    const colle = na.scrollHeight - na.scrollTop - na.clientHeight < 28;
     const dit = window.__lrDit || [];
     na.textContent = '';
     if (window.__lrChat) na.appendChild(md(window.__lrChat));
@@ -690,7 +707,10 @@ const SCRIPT_GLOW: &str = r##"
       d.textContent = 'vous: ' + m;
       na.appendChild(d);
     }
-    if (colle) requestAnimationFrame(() => { na.scrollTop = na.scrollHeight; });
+    // Ce panneau sert a suivre l'agent en direct, pas de transcript. Toujours
+    // recoller au dernier message: le contenu est reconstruit a chaque morceau
+    // de narration et l'ancien test de proximite pouvait rester bloque plus haut.
+    collerEnBas(r);
   };
 
   // La reponse tapee dans la page. Elle est DEPOSEE ici, et le noeud la releve
@@ -736,6 +756,17 @@ const SCRIPT_GLOW: &str = r##"
     const now = new Date();
     const t = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
     window.__lrHudLog = [{ t, m: String(msg) }, ...(window.__lrHudLog || [])].slice(0, 40);
+    touch();
+    renderHud(shadow());
+  };
+
+  // Repose un journal entier, horodatages compris. Le panneau vit dans le DOM
+  // de la page: une navigation le detruit, et il repartait vide alors que
+  // l'agent, lui, se souvient parfaitement de ce qu'il vient de faire. Le
+  // journal est donc garde du cote de LaRuche et repose ici.
+  window.__larucheHudRestore = (lignes) => {
+    if (!Array.isArray(lignes) || !lignes.length) return;
+    window.__lrHudLog = lignes.slice(0, 40);
     touch();
     renderHud(shadow());
   };
@@ -1070,9 +1101,12 @@ impl Cdp {
             .await
             .ok();
         }
-        self.eval("window.__larucheGlowOff && window.__larucheGlowOff()", false)
-            .await
-            .ok();
+        self.eval(
+            "window.__larucheGlowOff && window.__larucheGlowOff()",
+            false,
+        )
+        .await
+        .ok();
     }
 
     /// Repond au dialogue qui vient de bloquer la page, et note ce qu'il disait.
@@ -1244,6 +1278,38 @@ impl Cdp {
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
     }
+
+    /// Switch this connection to another page target and bring its tab forward.
+    async fn select_target(&mut self, want: &str) -> Result<Value> {
+        let list: Vec<Value> = reqwest::Client::new()
+            .get(format!("http://127.0.0.1:{}/json/list", self.port))
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await?
+            .json()
+            .await?;
+        let target = list
+            .iter()
+            .find(|t| t.get("id").and_then(Value::as_str) == Some(want));
+        let Some(target) = target else {
+            return Err(anyhow!("no tab {want} (list them with the tabs action)"));
+        };
+        let ws = target
+            .get("webSocketDebuggerUrl")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("that tab exposes no debugger URL"))?;
+        let mut fresh = Cdp::connect(ws, self.port).await?;
+        fresh.call("Page.enable", json!({})).await.ok();
+        fresh.call("Runtime.enable", json!({})).await.ok();
+        fresh.call("Page.bringToFront", json!({})).await.ok();
+        let url = target
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        *self = fresh;
+        Ok(json!({ "tabId": want, "url": url }))
+    }
 }
 
 /// The live connection, whichever transport carries it.
@@ -1403,9 +1469,41 @@ impl Canal {
     /// Push one line into the on-page panel. Best effort throughout: the panel
     /// is a comfort for the human, never a reason to fail an action.
     async fn hud(&mut self, message: &str) {
+        journal_hud_ajouter(message);
+        // On repose le journal ENTIER, pas la seule ligne nouvelle.
+        //
+        // Le panneau vit dans le DOM de la page et meurt avec elle. Restaurer
+        // uniquement apres `navigate` ne suffisait pas: une page change aussi
+        // quand l'agent CLIQUE sur un lien, quand la page se redirige seule,
+        // quand un formulaire est soumis. Dans tous ces cas le panneau
+        // repartait vide et l'humain perdait le fil au moment ou il en avait le
+        // plus besoin, celui ou l'agent venait de changer de page.
+        //
+        // Envoyer tout le journal a chaque ligne coute une chaine de quelques
+        // centaines d'octets sur un appel qui a de toute facon lieu, et rend la
+        // question "d'ou vient cette page" sans objet: le panneau est juste
+        // toujours a jour.
         let js = format!(
-            "window.__larucheHud && window.__larucheHud({})",
-            serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into())
+            "window.__larucheHudRestore && window.__larucheHudRestore({})",
+            serde_json::to_string(&journal_hud()).unwrap_or_else(|_| "[]".into())
+        );
+        self.eval(&js, false).await.ok();
+    }
+
+    /// Repose le journal dans une page fraiche.
+    ///
+    /// A appeler apres toute navigation et apres tout changement d'onglet: c'est
+    /// exactement la ou le panneau reapparaissait vide, et ou l'humain qui suit
+    /// le travail perdait le fil au pire moment, celui ou l'agent vient de
+    /// changer de page.
+    async fn hud_restaurer(&mut self) {
+        let lignes = journal_hud();
+        if lignes.is_empty() {
+            return;
+        }
+        let js = format!(
+            "window.__larucheHudRestore && window.__larucheHudRestore({})",
+            serde_json::to_string(&lignes).unwrap_or_else(|_| "[]".into())
         );
         self.eval(&js, false).await.ok();
     }
@@ -1438,34 +1536,36 @@ impl Canal {
         }
     }
 
+    /// Open a tab in the current browser and immediately drive it.
+    async fn open_tab(&mut self, url: &str) -> Result<Value> {
+        match self {
+            Canal::Cdp(cdp) => {
+                let r = cdp
+                    .call("Target.createTarget", json!({ "url": url }))
+                    .await?;
+                let id = r["targetId"]
+                    .as_str()
+                    .ok_or_else(|| anyhow!("Chrome returned no target id for the new tab"))?
+                    .to_string();
+                cdp.select_target(&id).await
+            }
+            Canal::Extension => {
+                PontNavigateur::global()
+                    .appeler("open_tab", json!({ "url": url }))
+                    .await
+            }
+        }
+    }
+
     /// Adopt an existing tab as the one being driven.
     async fn select_tab(&mut self, id: &Value) -> Result<Value> {
         match self {
             Canal::Cdp(cdp) => {
-                let want = id.as_str().map(str::to_string).unwrap_or_else(|| id.to_string());
-                let list: Vec<Value> = reqwest::Client::new()
-                    .get(format!("http://127.0.0.1:{}/json/list", cdp.port))
-                    .timeout(Duration::from_secs(5))
-                    .send()
-                    .await?
-                    .json()
-                    .await?;
-                let target = list.iter().find(|t| {
-                    t.get("id").and_then(Value::as_str) == Some(want.as_str())
-                });
-                let Some(target) = target else {
-                    return Err(anyhow!("no tab {want} (list them with the tabs action)"));
-                };
-                let ws = target
-                    .get("webSocketDebuggerUrl")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| anyhow!("that tab exposes no debugger URL"))?;
-                let mut fresh = Cdp::connect(ws, cdp.port).await?;
-                fresh.call("Page.enable", json!({})).await.ok();
-                fresh.call("Runtime.enable", json!({})).await.ok();
-                let url = target.get("url").and_then(Value::as_str).unwrap_or("").to_string();
-                **cdp = fresh;
-                Ok(json!({ "tabId": want, "url": url }))
+                let want = id
+                    .as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| id.to_string());
+                cdp.select_target(&want).await
             }
             Canal::Extension => {
                 PontNavigateur::global()
@@ -1503,9 +1603,13 @@ impl Canal {
 /// Ce que le modele est en train de dire, et ce qu'il faut en pousser.
 #[derive(Default)]
 struct Narration {
+    /// Reponse visible plus, pendant un bloc protocolaire en cours, les octets
+    /// caches qu'il faut garder jusqu'a la balise fermante.
+    brut: String,
     texte: String,
     sale: bool,
     fini: bool,
+    separer_prochain_message: bool,
 }
 
 static NARRATION: OnceLock<std::sync::Mutex<Narration>> = OnceLock::new();
@@ -1539,7 +1643,7 @@ static PANNEAU_VIVANT: std::sync::atomic::AtomicBool = std::sync::atomic::Atomic
 /// Au-dela de ce delai sans appel `browser`, la narration cesse d'etre poussee.
 /// Cale sur `IDLE_MS` de `SCRIPT_GLOW`: le panneau commence a s'effacer au meme
 /// moment, et deux horloges differentes donneraient un panneau visible et muet.
-const FENETRE_NARRATION_MS: i64 = 12_000;
+const FENETRE_NARRATION_MS: i64 = 24_000;
 
 const MASQUER_OVERLAY: &str =
     "window.__larucheOverlayVisible && window.__larucheOverlayVisible(false)";
@@ -1562,6 +1666,68 @@ fn marquer_appel_navigateur() {
 /// Longueur de narration gardee. Le panneau montre la fin d'une phrase en
 /// cours, pas un transcript: le chat complet est dans sa propre fenetre.
 const NARRATION_MAX: usize = 700;
+
+/// Retire de la narration utilisateur les blocs de protocole destines aux UI
+/// structurees. Le booleen indique qu'une balise ouvrante ou partielle attend
+/// encore sa suite; dans ce cas `Narration::brut` ne doit pas etre compacte.
+pub(crate) fn nettoyer_narration(brut: &str) -> (String, bool) {
+    let mut propre = brut.to_string();
+    let mut incomplet = false;
+    for (ouvrante, fermante) in [
+        ("<plan>", "</plan>"),
+        ("<tool_call>", "</tool_call>"),
+        ("<think>", "</think>"),
+    ] {
+        while let Some(debut) = propre.find(ouvrante) {
+            let apres_ouvrante = debut + ouvrante.len();
+            if let Some(rel_fin) = propre[apres_ouvrante..].find(fermante) {
+                let fin = apres_ouvrante + rel_fin + fermante.len();
+                propre.replace_range(debut..fin, "");
+            } else {
+                propre.truncate(debut);
+                incomplet = true;
+                break;
+            }
+        }
+    }
+
+    // Variante emise par certains modeles locaux: toutes les donnees sont dans
+    // les attributs de la balise, sans corps a afficher.
+    while let Some(debut) = propre.find("<tool_call ") {
+        if let Some(rel_fin) = propre[debut..].find('>') {
+            propre.replace_range(debut..debut + rel_fin + 1, "");
+        } else {
+            propre.truncate(debut);
+            incomplet = true;
+            break;
+        }
+    }
+    propre = propre.replace("</tool_call>", "");
+
+    // Une balise peut etre coupee entre deux jetons, par exemple `<pla` puis
+    // `n>`. Ne jamais laisser ce fragment clignoter dans le panneau.
+    if let Some(debut) = propre.rfind('<') {
+        let fin = &propre[debut..];
+        let balises = [
+            "<plan>",
+            "</plan>",
+            "<tool_call>",
+            "</tool_call>",
+            "<think>",
+            "</think>",
+        ];
+        if balises.iter().any(|balise| balise.starts_with(fin)) {
+            propre.truncate(debut);
+            incomplet = true;
+        }
+    }
+    (propre, incomplet)
+}
+
+pub(crate) fn fin_texte(texte: &str, max: usize) -> String {
+    let compte = texte.chars().count();
+    texte.chars().skip(compte.saturating_sub(max)).collect()
+}
 
 fn narration() -> &'static std::sync::Mutex<Narration> {
     NARRATION.get_or_init(|| std::sync::Mutex::new(Narration::default()))
@@ -1604,28 +1770,44 @@ pub fn narrer(evenement: &crate::evenements::ChatEvent) {
     };
     match evenement {
         ChatEvent::Token { text } => {
-            n.texte.push_str(text);
+            if n.separer_prochain_message && !n.brut.is_empty() {
+                if !n.brut.ends_with('\n') {
+                    n.brut.push_str("\n\n");
+                } else if !n.brut.ends_with("\n\n") {
+                    n.brut.push('\n');
+                }
+            }
+            n.separer_prochain_message = false;
+            n.brut.push_str(text);
+            let (visible, incomplet) = nettoyer_narration(&n.brut);
+            n.texte = visible;
             let compte = n.texte.chars().count();
             if compte > NARRATION_MAX * 2 {
-                n.texte = n.texte.chars().skip(compte - NARRATION_MAX).collect();
+                n.texte = fin_texte(&n.texte, NARRATION_MAX);
+            }
+            if !incomplet {
+                // Une fois les blocs fermes, garder seulement la fenetre utile.
+                n.brut = n.texte.clone();
             }
             n.sale = true;
             n.fini = false;
         }
         ChatEvent::Done { full_response } => {
-            let compte = full_response.chars().count();
-            n.texte = full_response
-                .chars()
-                .skip(compte.saturating_sub(NARRATION_MAX))
-                .collect();
+            let (visible, _) = nettoyer_narration(full_response);
+            n.texte = fin_texte(&visible, NARRATION_MAX);
+            n.brut = n.texte.clone();
             n.sale = true;
             n.fini = true;
+            n.separer_prochain_message = false;
         }
         ChatEvent::Error { message } => {
             n.texte = format!("erreur: {message}");
+            n.brut.clear();
             n.sale = true;
             n.fini = true;
+            n.separer_prochain_message = false;
         }
+        ChatEvent::ToolCall { .. } => n.separer_prochain_message = !n.texte.is_empty(),
         _ => {}
     }
     drop(n);
@@ -1695,7 +1877,10 @@ fn lancer_releve() {
                 let Some(canal) = garde.as_mut() else {
                     continue;
                 };
-                match canal.eval(&script_releve(&texte, fini, pousser), false).await {
+                match canal
+                    .eval(&script_releve(&texte, fini, pousser), false)
+                    .await
+                {
                     Ok(v) => {
                         let rendu: serde_json::Value =
                             serde_json::from_str(v.as_str().unwrap_or("{}")).unwrap_or_default();
@@ -2150,6 +2335,37 @@ fn truncate(text: &str, max: usize) -> String {
     )
 }
 
+/// Le journal du panneau, garde ici et non dans la page.
+///
+/// Une ligne est un `{ t, m }`, exactement la forme que le script de la page
+/// manipule, pour que la restauration soit une affectation et non une
+/// traduction. Plafonne a quarante comme cote page: le panneau est un coup
+/// d'oeil, pas un historique.
+static JOURNAL_HUD: std::sync::Mutex<Vec<Value>> = std::sync::Mutex::new(Vec::new());
+
+fn journal_hud_ajouter(message: &str) {
+    let Ok(mut j) = JOURNAL_HUD.lock() else {
+        return;
+    };
+    // En tete, comme le panneau qui affiche le plus recent en premier.
+    j.insert(
+        0,
+        json!({ "t": chrono::Local::now().format("%H:%M:%S").to_string(), "m": message }),
+    );
+    j.truncate(40);
+}
+
+fn journal_hud() -> Vec<Value> {
+    JOURNAL_HUD.lock().map(|j| j.clone()).unwrap_or_default()
+}
+
+/// Vide le journal: une nouvelle session part d'un panneau vide.
+fn journal_hud_effacer() {
+    if let Ok(mut j) = JOURNAL_HUD.lock() {
+        j.clear();
+    }
+}
+
 pub struct Browser;
 
 impl Browser {
@@ -2194,13 +2410,7 @@ impl Browser {
 
     /// Un vrai clic: press puis release au meme point, avec le compteur que
     /// Chrome attend pour reconnaitre un double clic.
-    async fn clic_reel(
-        canal: &mut Canal,
-        x: f64,
-        y: f64,
-        bouton: &str,
-        fois: u32,
-    ) -> Result<()> {
+    async fn clic_reel(canal: &mut Canal, x: f64, y: f64, bouton: &str, fois: u32) -> Result<()> {
         // Un survol prealable: beaucoup de menus n'apparaissent qu'au passage,
         // et un clic droit sur un element jamais survole rate son menu.
         canal
@@ -2306,7 +2516,7 @@ impl Abeille for Browser {
                 "action": {
                     "type": "string",
                     "enum": ["navigate", "read", "find", "overlays", "click", "right_click", "double_click", "middle_click", "drag", "fill", "upload", "key", "hover", "scroll", "wait", "eval", "screenshot", "console", "network", "back", "forward", "cookies", "download", "tabs", "open_tab", "select", "resize", "dialog", "close"],
-                    "description": "navigate: go to url. read: numbered map of interactive elements plus page text. find: the same map filtered to what matches text, for a page too big to read whole. overlays: what is COVERING the page, cookie banners, modals and sign-up walls, with the refs of their buttons; run it the moment a click seems to do nothing. click/fill: act on a ref from read. right_click, double_click and middle_click send REAL mouse events at the element, which el.click() cannot: a context menu, a map, an editor, or opening a link in a background tab. drag moves ref onto to_ref, pressing and stepping so HTML5 and sortable lists actually arm. upload puts a local file into a file input, which no script is allowed to do. key: press a real key (Enter, Tab, Escape, Arrow*, Control+a), optionally in a ref. hover: move the mouse onto a ref, which is what opens menus that click does not. scroll: move the page (or a ref) up/down. wait: block until text or a selector appears. eval: run JavaScript. screenshot: capture the page. console: what the page logged. network: what the page requested. cookies: the names and sizes of this page's cookies, never their values. dialog: decide what to answer the NEXT alert, confirm or prompt, once. open_tab: open another tab. download: allow downloads and choose the folder they land in, then click the link; the filename comes back with the next action. back/forward: move in history. resize emulates a viewport, preset mobile, tablet or desktop, or width and height, which is the only way to actually check a responsive layout. tabs: list every open browser tab. select: drive one of those tabs by tab_id. close: end the session."
+                    "description": "navigate: go to url. read: numbered map of interactive elements plus page text. find: the same map filtered to what matches text, for a page too big to read whole. overlays: what is COVERING the page, cookie banners, modals and sign-up walls, with the refs of their buttons; run it the moment a click seems to do nothing. click/fill: act on a ref from read. right_click, double_click and middle_click send REAL mouse events at the element, which el.click() cannot: a context menu, a map, an editor, or opening a link in a background tab. drag moves ref onto to_ref, pressing and stepping so HTML5 and sortable lists actually arm. upload puts a local file into a file input, which no script is allowed to do. key: press a real key (Enter, Tab, Escape, Arrow*, Control+a), optionally in a ref. hover: move the mouse onto a ref, which is what opens menus that click does not. scroll: move the page (or a ref) up/down. wait: block until text or a selector appears. eval: run JavaScript. screenshot: capture the page. console: what the page logged. network: what the page requested. cookies: the names and sizes of this page's cookies, never their values. dialog: decide what to answer the NEXT alert, confirm or prompt, once. open_tab: open and immediately drive another tab in the current browser; extension mode keeps it in the same Chrome window. download: allow downloads and choose the folder they land in, then click the link; the filename comes back with the next action. back/forward: move in history. resize emulates a viewport, preset mobile, tablet or desktop, or width and height, which is the only way to actually check a responsive layout. tabs: list every open browser tab. select: drive one of those tabs by tab_id and bring it to the front. close: end the session."
                 },
                 "url": { "type": "string", "description": "For navigate" },
                 "to_ref": { "type": "integer", "description": "For drag: the element to drop onto, a ref from read" },
@@ -2353,17 +2563,26 @@ impl Abeille for Browser {
         let mode = args["mode"].as_str().unwrap_or("auto");
         let port = args["port"].as_u64().unwrap_or(DEFAULT_PORT as u64) as u16;
         let headless = args["headless"].as_bool().unwrap_or(false);
-        let glow = args["glow"].as_bool().unwrap_or(true);
+        // Le reglage du noeud decide, l'appel peut encore trancher au cas par cas:
+        // une capture propre veut `glow: false` meme quand le decor est actif.
+        let glow = args["glow"]
+            .as_bool()
+            .unwrap_or_else(crate::config::halo_actif);
         // Cursor motion, progressive typing and smooth scroll, on by default so a
         // human watching can follow. It rides on the indicator, so it only shows
         // when glow is on; turn either off for speed or a clean screenshot.
         let animate = glow && args["animate"].as_bool().unwrap_or(true);
         let speed = args["speed"].as_f64().filter(|s| *s > 0.0).unwrap_or(1.0);
-        let max_chars = args["max_chars"].as_u64().unwrap_or(DEFAULT_MAX_CHARS as u64) as usize;
+        let max_chars = args["max_chars"]
+            .as_u64()
+            .unwrap_or(DEFAULT_MAX_CHARS as u64) as usize;
 
         let mut guard = session().lock().await;
 
         if action == "close" {
+            // Le journal appartient a la session: le garder ferait reapparaitre
+            // les lignes de la mission precedente dans la suivante.
+            journal_hud_effacer();
             let had = match guard.as_mut() {
                 Some(canal) => {
                     canal.glow_off().await;
@@ -2442,7 +2661,9 @@ impl Abeille for Browser {
                     return Ok(ResultatAbeille::err("navigate needs a 'url'."));
                 };
                 if !url.starts_with("http://") && !url.starts_with("https://") {
-                    return Ok(ResultatAbeille::err("URL must start with http:// or https://"));
+                    return Ok(ResultatAbeille::err(
+                        "URL must start with http:// or https://",
+                    ));
                 }
                 match canal.navigate(url).await {
                     Err(e) => Err(e),
@@ -2451,6 +2672,7 @@ impl Abeille for Browser {
                             // The registered script covers the new document, but
                             // it runs before <body> exists on a slow page.
                             canal.eval(SCRIPT_GLOW, false).await.ok();
+                            canal.hud_restaurer().await;
                         }
                         let title = canal
                             .eval("return document.title", true)
@@ -2494,7 +2716,9 @@ impl Abeille for Browser {
 
             "click" => {
                 let Some(r) = args["ref"].as_u64() else {
-                    return Ok(ResultatAbeille::err("click needs a 'ref' number from read."));
+                    return Ok(ResultatAbeille::err(
+                        "click needs a 'ref' number from read.",
+                    ));
                 };
                 let script = format!(
                     r#"{helper}window.__lrSpeed = {speed};
@@ -2773,7 +2997,10 @@ impl Abeille for Browser {
                             tabs.len()
                         ),
                     };
-                    Ok(ResultatAbeille::ok(format!("{entete}\n{}", lignes.join("\n"))))
+                    Ok(ResultatAbeille::ok(format!(
+                        "{entete}\n{}",
+                        lignes.join("\n")
+                    )))
                 }
             },
 
@@ -2789,6 +3016,7 @@ impl Abeille for Browser {
                     Ok(v) => {
                         if glow {
                             canal.eval(SCRIPT_GLOW, false).await.ok();
+                            canal.hud_restaurer().await;
                         }
                         Ok(ResultatAbeille::ok(format!(
                             "Now driving tab {} ({}). Run read to map it.",
@@ -2848,7 +3076,10 @@ impl Abeille for Browser {
                         _ => MOD_META,
                     };
                     canal
-                        .input("Input.dispatchKeyEvent", evenement_touche("rawKeyDown", m, held))
+                        .input(
+                            "Input.dispatchKeyEvent",
+                            evenement_touche("rawKeyDown", m, held),
+                        )
                         .await
                         .ok();
                 }
@@ -2904,7 +3135,9 @@ impl Abeille for Browser {
 
             "hover" => {
                 let Some(r) = args["ref"].as_u64() else {
-                    return Ok(ResultatAbeille::err("hover needs a 'ref' number from read."));
+                    return Ok(ResultatAbeille::err(
+                        "hover needs a 'ref' number from read.",
+                    ));
                 };
                 // The real mouse move is what triggers :hover and the menus that
                 // only open on it; the animation is only there to be watchable.
@@ -2980,9 +3213,7 @@ impl Abeille for Browser {
                     )));
                 }
                 if !p.is_file() {
-                    return Ok(ResultatAbeille::err(format!(
-                        "No file at \"{chemin}\"."
-                    )));
+                    return Ok(ResultatAbeille::err(format!("No file at \"{chemin}\".")));
                 }
                 // `returnByValue: false` pour recevoir une POIGNEE sur l'element
                 // et non sa copie: `DOM.setFileInputFiles` veut designer le noeud
@@ -3053,8 +3284,7 @@ impl Abeille for Browser {
             // modernes en depend: reordonner une liste, deposer sur une zone,
             // deplacer une carte de kanban.
             "drag" => {
-                let (Some(de), Some(vers)) = (args["ref"].as_u64(), args["to_ref"].as_u64())
-                else {
+                let (Some(de), Some(vers)) = (args["ref"].as_u64(), args["to_ref"].as_u64()) else {
                     return Ok(ResultatAbeille::err(
                         "drag needs 'ref' (what to grab) and 'to_ref' (what to drop it on), \
                          both numbers from read."
@@ -3124,7 +3354,11 @@ impl Abeille for Browser {
                      window: it survives navigation and stays until you resize again. \
                      Reload if the page decided its layout at load time, then screenshot. \
                      Use preset desktop to get back to something ordinary.",
-                    if mobile { ", emulating a touch device" } else { "" }
+                    if mobile {
+                        ", emulating a touch device"
+                    } else {
+                        ""
+                    }
                 )))
             }
 
@@ -3172,25 +3406,18 @@ impl Abeille for Browser {
                         "URL must start with http:// or https://".to_string(),
                     ));
                 }
-                match canal {
-                    Canal::Cdp(cdp) => {
-                        let r = cdp
-                            .call("Target.createTarget", json!({ "url": cible }))
-                            .await?;
-                        let id = r["targetId"].as_str().unwrap_or("");
-                        Ok(ResultatAbeille::ok(format!(
-                            "Opened a tab on {cible}, tabId {id}. You are still driving the \
-                             previous one: select that tabId to move over, and remember refs \
-                             belong to a page, not to you."
-                        )))
-                    }
-                    Canal::Extension => Ok(ResultatAbeille::err(
-                        "Opening a tab is not available through the extension: it would put a \
-                         window in front of the user without warning. Ask them to open it, or \
-                         navigate the tab you already have."
-                            .to_string(),
-                    )),
-                }
+                let ouvert = canal.open_tab(cible).await?;
+                let id = ouvert
+                    .get("tabId")
+                    .map(Value::to_string)
+                    .unwrap_or_else(|| String::from("unknown"));
+                canal.glow_on().await;
+                canal.tap_on().await;
+                Ok(ResultatAbeille::ok(format!(
+                    "Opened and selected a tab on {cible}, tabId {id}, in the current browser. \
+                     This new tab is now the one being driven; refs from the previous page no \
+                     longer apply."
+                )))
             }
 
             // Ouvrir la porte des telechargements, et dire ou ils tombent.
@@ -3256,9 +3483,7 @@ impl Abeille for Browser {
                 let vides = Vec::new();
                 let liste = r["cookies"].as_array().unwrap_or(&vides);
                 if liste.is_empty() {
-                    return Ok(ResultatAbeille::ok(
-                        "This page has no cookies.".to_string(),
-                    ));
+                    return Ok(ResultatAbeille::ok("This page has no cookies.".to_string()));
                 }
                 let filtre = args["text"].as_str().unwrap_or("").to_lowercase();
                 let mut lignes: Vec<String> = liste
@@ -3392,9 +3617,9 @@ impl Abeille for Browser {
                     ),
                     _ => unreachable!("one of the two is Some"),
                 };
-                let quoi = selector.map(|s| format!("selector {s}")).unwrap_or_else(|| {
-                    format!("text \"{}\"", text.unwrap_or_default())
-                });
+                let quoi = selector
+                    .map(|s| format!("selector {s}"))
+                    .unwrap_or_else(|| format!("text \"{}\"", text.unwrap_or_default()));
                 let debut = std::time::Instant::now();
                 let limite = Duration::from_secs(timeout);
                 loop {
@@ -3566,6 +3791,7 @@ impl Abeille for Browser {
                 }
                 if glow {
                     canal.eval(SCRIPT_GLOW, false).await.ok();
+                    canal.hud_restaurer().await;
                 }
                 if apres == avant {
                     return Ok(ResultatAbeille::ok(format!(
@@ -3710,7 +3936,10 @@ mod tests {
         assert!(lu.contains("JSON.stringify"));
         // Le helper doit reellement etre injecte, sinon `__lrRacines` est
         // appele sans etre defini et TOUTE lecture leve une ReferenceError.
-        assert!(lu.contains("__lrRacines = ()"), "helper de traversee absent");
+        assert!(
+            lu.contains("__lrRacines = ()"),
+            "helper de traversee absent"
+        );
         assert!(!lu.contains("__RACINES__"), "marqueur non substitue");
     }
 
@@ -3774,7 +4003,10 @@ mod tests {
         // Position, folded state and log are read back from window on each run,
         // otherwise the panel would jump home at every single action.
         for state in ["__lrHudPos", "__lrHudMin", "__lrHudLog"] {
-            assert!(SCRIPT_GLOW.contains(state), "{state} not carried across runs");
+            assert!(
+                SCRIPT_GLOW.contains(state),
+                "{state} not carried across runs"
+            );
         }
     }
 
@@ -3783,6 +4015,20 @@ mod tests {
         // Narration poussee, reponse deposee: les deux moities du compagnon.
         assert!(SCRIPT_GLOW.contains("__larucheChat"));
         assert!(SCRIPT_GLOW.contains("__lrSorties"));
+        // Le panneau doit laisser assez de place a la narration et suivre le
+        // dernier morceau meme si l'ancien rendu etait reste plus haut.
+        assert!(SCRIPT_GLOW.contains("height:480px"));
+        // Les DEUX rendus doivent recoller. Le journal grandit au-dessus de la
+        // narration et lui prend sa hauteur: recoller seulement apres avoir
+        // ecrit le texte laissait la fin hors champ des que le journal montait.
+        assert!(SCRIPT_GLOW.contains("na.scrollTop = na.scrollHeight"));
+        assert!(SCRIPT_GLOW.contains("const collerEnBas ="), "collerEnBas non defini");
+        assert_eq!(
+            SCRIPT_GLOW.matches("collerEnBas(").count(),
+            2,
+            "renderHud ET renderChat doivent recoller: le journal grandit              au-dessus de la narration et lui prend sa hauteur"
+        );
+        assert!(!SCRIPT_GLOW.contains("const colle ="));
         // La saisie doit prendre les evenements souris ET arreter les touches:
         // le shadow DOM ne cloisonne pas les evenements clavier, et taper ici
         // declencherait sinon les raccourcis de la page hote.
@@ -3841,6 +4087,68 @@ mod tests {
         // Et c'est bien la FIN qui est gardee: le debut d'une reponse longue
         // n'interesse plus personne au moment ou on la lit.
         assert!(n.texte.ends_with("chaque jeton compte "));
+        drop(n);
+        GLOW_ACTIF.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    #[test]
+    fn la_narration_masque_plan_outils_et_raisonnement() {
+        let (visible, incomplet) = nettoyer_narration(
+            "Je regarde.<plan>[{\"task\":\"lire\",\"status\":\"pending\"}]</plan>\
+             <think>secret</think><tool_call>{\"name\":\"read\"}</tool_call>Je continue.",
+        );
+        assert!(!incomplet);
+        assert_eq!(visible, "Je regarde.Je continue.");
+        for cache in ["pending", "task", "secret", "tool_call", "</plan>"] {
+            assert!(!visible.contains(cache), "bloc interne visible: {cache}");
+        }
+    }
+
+    #[test]
+    fn un_plan_coupe_entre_jetons_ne_fuit_pas_dans_le_panneau() {
+        use crate::evenements::ChatEvent;
+        let _garde = verrou_narration();
+        GLOW_ACTIF.store(true, std::sync::atomic::Ordering::Relaxed);
+        *narration().lock().unwrap() = Narration::default();
+
+        for morceau in [
+            "Debut lisible.<pla",
+            "n>[{\"task\":\"interne\",\"status\":\"pending\"}]",
+            "</plan>Suite lisible.",
+        ] {
+            narrer(&ChatEvent::Token {
+                text: morceau.into(),
+            });
+        }
+        let n = narration().lock().unwrap();
+        assert_eq!(n.texte, "Debut lisible.Suite lisible.");
+        assert!(!n.texte.contains("pending"));
+        drop(n);
+        GLOW_ACTIF.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    #[test]
+    fn deux_messages_du_modele_sont_separes_apres_un_outil() {
+        use crate::evenements::ChatEvent;
+        let _garde = verrou_narration();
+        GLOW_ACTIF.store(true, std::sync::atomic::Ordering::Relaxed);
+        *narration().lock().unwrap() = Narration::default();
+
+        narrer(&ChatEvent::Token {
+            text: "Premier message.".into(),
+        });
+        narrer(&ChatEvent::ToolCall {
+            name: "browser".into(),
+            args: json!({ "action": "read" }),
+            iteration: Some(1),
+            agent: None,
+        });
+        narrer(&ChatEvent::Token {
+            text: "Deuxieme message.".into(),
+        });
+
+        let n = narration().lock().unwrap();
+        assert_eq!(n.texte, "Premier message.\n\nDeuxieme message.");
         drop(n);
         GLOW_ACTIF.store(false, std::sync::atomic::Ordering::Relaxed);
     }
@@ -3957,7 +4265,11 @@ mod tests {
             .await
             .unwrap();
         assert!(out.success, "scroll failed: {:?}", out.error);
-        assert!(out.output.contains("bottom"), "scroll wrong: {}", out.output);
+        assert!(
+            out.output.contains("bottom"),
+            "scroll wrong: {}",
+            out.output
+        );
 
         // find must return only what matches, addressed the same way as read.
         let out = Browser
@@ -3968,7 +4280,11 @@ mod tests {
             .await
             .unwrap();
         assert!(out.success, "find failed: {:?}", out.error);
-        assert!(out.output.contains("ref_2"), "find missed it:\n{}", out.output);
+        assert!(
+            out.output.contains("ref_2"),
+            "find missed it:\n{}",
+            out.output
+        );
         assert!(
             !out.output.contains("search field"),
             "find returned the whole map:\n{}",
@@ -4084,7 +4400,11 @@ mod tests {
             .await
             .unwrap();
         assert!(out.success, "tabs failed: {:?}", out.error);
-        assert!(out.output.contains("open tab"), "tabs wrong: {}", out.output);
+        assert!(
+            out.output.contains("open tab"),
+            "tabs wrong: {}",
+            out.output
+        );
 
         // The indicator must be present, in a shadow root, and click-through.
         let out = Browser

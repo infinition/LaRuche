@@ -21,6 +21,6 @@ pub use crate::curation::{
 pub use crate::evenements::{
     ApprovalReceiver, ApprovalResponse, ChatEvent, PlanItem, SteerReceiver,
 };
-pub use crate::parsing::{parse_plan, parse_tool_calls, ToolCall};
 pub(crate) use crate::parsing::parse_tool_calls_json_brut;
+pub use crate::parsing::{parse_plan, parse_tool_calls, ToolCall};
 pub use crate::permissions::{decision_permission, garde_injection, timeout_for_tool};

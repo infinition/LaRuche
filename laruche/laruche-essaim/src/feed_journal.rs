@@ -77,7 +77,11 @@ pub fn record(
     // Disk append (best-effort: never blocks on a write error).
     if let Ok(ligne) = serde_json::to_string(&ev) {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&j.path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&j.path)
+        {
             let _ = writeln!(f, "{ligne}");
         }
     }
@@ -89,8 +93,12 @@ pub fn record(
 
 /// Returns the `limit` most recent events (from oldest to newest).
 pub fn recent(limit: usize) -> Vec<FeedEvent> {
-    let Some(lock) = JOURNAL.get() else { return Vec::new() };
-    let Ok(j) = lock.lock() else { return Vec::new() };
+    let Some(lock) = JOURNAL.get() else {
+        return Vec::new();
+    };
+    let Ok(j) = lock.lock() else {
+        return Vec::new();
+    };
     let n = j.events.len();
     let start = n.saturating_sub(limit);
     j.events.iter().skip(start).cloned().collect()
@@ -103,7 +111,13 @@ mod tests {
     #[test]
     fn record_sans_init_est_un_noop() {
         // Must not panic even if JOURNAL is not initialized in this test.
-        record("LaRuche", "cron", "created the cron", "x", chrono::Utc::now());
+        record(
+            "LaRuche",
+            "cron",
+            "created the cron",
+            "x",
+            chrono::Utc::now(),
+        );
         // recent() returns empty while not initialized (or events from another test: we only test the absence of panic).
         let _ = recent(10);
     }

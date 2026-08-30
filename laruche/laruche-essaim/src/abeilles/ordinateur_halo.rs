@@ -24,6 +24,7 @@
 
 #![allow(unsafe_code)]
 
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
@@ -32,12 +33,13 @@ use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows::Win32::Graphics::Gdi::{
     CreateCompatibleDC, CreateDIBSection, CreateFontW, DeleteDC, DeleteObject, SelectObject,
-    SetBkMode, SetTextColor, TextOutW, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
-    AC_SRC_ALPHA, AC_SRC_OVER, BLENDFUNCTION, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
-    DEFAULT_PITCH, DEFAULT_QUALITY, FF_DONTCARE, FW_BOLD, FW_NORMAL, HBITMAP, HDC, HGDIOBJ,
-    OUT_DEFAULT_PRECIS, TRANSPARENT,
+    SetBkMode, SetTextColor, TextOutW, AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER,
+    BI_RGB, BLENDFUNCTION, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH, DEFAULT_QUALITY,
+    DIB_RGB_COLORS, FF_DONTCARE, FW_BOLD, FW_NORMAL, HBITMAP, HDC, HGDIOBJ, OUT_DEFAULT_PRECIS,
+    TRANSPARENT,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 /// Teinte de la ruche, la meme que dans le navigateur.
@@ -47,17 +49,21 @@ const TEXTE: (u8, u8, u8) = (240, 230, 210);
 const TITRE: (u8, u8, u8) = (245, 209, 139);
 
 const EPAISSEUR_BARRE: i32 = 6;
-const PANNEAU_L: i32 = 320;
-const PANNEAU_H: i32 = 168;
+const PANNEAU_L: i32 = 430;
+const PANNEAU_H: i32 = 420;
 const ANNEAU: i32 = 72;
-const LIGNES_MAX: usize = 6;
+const LIGNES_MAX: usize = 4;
 /// Apres ce silence, le decor s'efface tout seul. Meme raison que dans la page:
 /// l'outil ne sait pas quand le tour du modele se termine, mais l'absence
 /// d'action, elle, se mesure.
-const REPOS_MS: u128 = 12_000;
+const REPOS_MS: u128 = 24_000;
+const FENETRE_NARRATION_MS: i64 = 24_000;
+const NARRATION_MAX: usize = 1_400;
 
 enum Msg {
     Ligne(String),
+    Narration { texte: String, fini: bool },
+    Reveiller,
     Curseur { x: i32, y: i32, presse: bool },
     Ecran(RECT),
     Flash,
@@ -65,6 +71,39 @@ enum Msg {
 }
 
 static CANAL: OnceLock<Mutex<Option<Sender<Msg>>>> = OnceLock::new();
+static DERNIER_APPEL_MS: AtomicI64 = AtomicI64::new(0);
+static ENTREE: OnceLock<Mutex<String>> = OnceLock::new();
+static STEER: OnceLock<Mutex<Option<tokio::sync::mpsc::Sender<String>>>> = OnceLock::new();
+
+#[derive(Default)]
+struct Narration {
+    brut: String,
+    texte: String,
+    separer_prochain_message: bool,
+}
+
+static NARRATION: OnceLock<Mutex<Narration>> = OnceLock::new();
+
+fn narration() -> &'static Mutex<Narration> {
+    NARRATION.get_or_init(|| Mutex::new(Narration::default()))
+}
+
+fn entree() -> &'static Mutex<String> {
+    ENTREE.get_or_init(|| Mutex::new(String::new()))
+}
+
+fn steer() -> &'static Mutex<Option<tokio::sync::mpsc::Sender<String>>> {
+    STEER.get_or_init(|| Mutex::new(None))
+}
+
+fn marquer_appel() {
+    DERNIER_APPEL_MS.store(chrono::Utc::now().timestamp_millis(), Ordering::Relaxed);
+}
+
+fn actif_recent() -> bool {
+    let dernier = DERNIER_APPEL_MS.load(Ordering::Relaxed);
+    dernier != 0 && chrono::Utc::now().timestamp_millis() - dernier < FENETRE_NARRATION_MS
+}
 
 fn canal() -> &'static Mutex<Option<Sender<Msg>>> {
     CANAL.get_or_init(|| Mutex::new(None))
@@ -96,7 +135,113 @@ fn envoyer(m: Msg) {
 /// Annonce une action dans le panneau. Appele AVANT le geste, pour que l'humain
 /// sache ce qui est vise pendant que le curseur s'y rend.
 pub fn ligne(texte: &str) {
+    marquer_appel();
     envoyer(Msg::Ligne(texte.to_string()));
+}
+
+/// Repart d'un panneau de dialogue propre au debut d'un nouveau tour.
+pub fn brancher_pilotage(tx: tokio::sync::mpsc::Sender<String>) {
+    DERNIER_APPEL_MS.store(0, Ordering::Relaxed);
+    if let Ok(mut s) = steer().lock() {
+        *s = Some(tx);
+    }
+    if let Ok(mut texte) = entree().lock() {
+        texte.clear();
+    }
+    if let Ok(mut n) = narration().lock() {
+        *n = Narration::default();
+    }
+}
+
+pub fn debrancher_pilotage() {
+    if let Ok(mut s) = steer().lock() {
+        *s = None;
+    }
+}
+
+fn envoyer_entree() {
+    let texte = {
+        let Ok(mut e) = entree().lock() else {
+            return;
+        };
+        let texte = e.trim().to_string();
+        if texte.is_empty() {
+            return;
+        }
+        e.clear();
+        texte
+    };
+    let transmis = steer()
+        .lock()
+        .ok()
+        .and_then(|s| s.clone())
+        .map(|s| s.try_send(texte).is_ok())
+        .unwrap_or(false);
+    envoyer(Msg::Ligne(if transmis {
+        "message utilisateur envoye".to_string()
+    } else {
+        "tour termine, message non envoye".to_string()
+    }));
+}
+
+/// Ajoute uniquement le texte destine a l'utilisateur au panneau du bureau.
+/// Les plans, appels d'outil et raisonnements restent dans l'interface detaillee.
+pub fn narrer(evenement: &crate::evenements::ChatEvent) {
+    use crate::evenements::ChatEvent;
+
+    if !actif_recent() {
+        return;
+    }
+    // Tant que le modele repond, le panneau reste vivant. Le delai ne compte
+    // qu'a partir du dernier signe d'activite, pas du dernier clic de l'agent.
+    marquer_appel();
+    let Ok(mut n) = narration().lock() else {
+        return;
+    };
+    let mut fini = false;
+    match evenement {
+        ChatEvent::Token { text } => {
+            if n.separer_prochain_message && !n.brut.is_empty() {
+                if !n.brut.ends_with('\n') {
+                    n.brut.push_str("\n\n");
+                } else if !n.brut.ends_with("\n\n") {
+                    n.brut.push('\n');
+                }
+            }
+            n.separer_prochain_message = false;
+            n.brut.push_str(text);
+            let (visible, incomplet) = super::navigateur::nettoyer_narration(&n.brut);
+            n.texte = visible;
+            if n.texte.chars().count() > NARRATION_MAX * 2 {
+                n.texte = super::navigateur::fin_texte(&n.texte, NARRATION_MAX);
+            }
+            if !incomplet {
+                n.brut = n.texte.clone();
+            }
+        }
+        ChatEvent::Done { full_response } => {
+            let (visible, _) = super::navigateur::nettoyer_narration(full_response);
+            n.texte = super::navigateur::fin_texte(&visible, NARRATION_MAX);
+            n.brut = n.texte.clone();
+            n.separer_prochain_message = false;
+            fini = true;
+        }
+        ChatEvent::Error { message } => {
+            n.texte = format!("erreur: {message}");
+            n.brut.clear();
+            n.separer_prochain_message = false;
+            fini = true;
+        }
+        ChatEvent::ToolCall { .. } => {
+            n.separer_prochain_message = !n.texte.is_empty();
+            return;
+        }
+        _ => return,
+    }
+    envoyer(Msg::Narration {
+        texte: n.texte.clone(),
+        fini,
+    });
 }
 
 /// Deplace l'anneau. `presse` joue l'animation de clic.
@@ -235,8 +380,12 @@ impl Toile {
             for x in x0.max(0)..x1.min(self.l) {
                 // Distance au rectangle interieur, nulle partout sauf dans les
                 // quatre coins, ou elle dessine l'arrondi.
-                let dx = ((x0 + rayon - x) as f32).max((x - (x1 - 1 - rayon)) as f32).max(0.0);
-                let dy = ((y0 + rayon - y) as f32).max((y - (y1 - 1 - rayon)) as f32).max(0.0);
+                let dx = ((x0 + rayon - x) as f32)
+                    .max((x - (x1 - 1 - rayon)) as f32)
+                    .max(0.0);
+                let dy = ((y0 + rayon - y) as f32)
+                    .max((y - (y1 - 1 - rayon)) as f32)
+                    .max(0.0);
                 let d = (dx * dx + dy * dy).sqrt();
                 let couverture = (r + 0.5 - d).clamp(0.0, 1.0);
                 if couverture > 0.0 {
@@ -279,7 +428,11 @@ impl Toile {
             0,
             0,
             0,
-            if gras { FW_BOLD.0 as i32 } else { FW_NORMAL.0 as i32 },
+            if gras {
+                FW_BOLD.0 as i32
+            } else {
+                FW_NORMAL.0 as i32
+            },
             0,
             0,
             0,
@@ -348,17 +501,54 @@ impl Drop for Toile {
     }
 }
 
-unsafe extern "system" fn proc_fenetre(
-    hwnd: HWND,
-    msg: u32,
-    wp: WPARAM,
-    lp: LPARAM,
-) -> LRESULT {
+unsafe extern "system" fn proc_fenetre(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match msg {
-        // Le panneau est la seule fenetre qui prend la souris, et le seul geste
-        // qu'elle accepte est d'etre deplacee: repondre HTCAPTION donne le
-        // glisser complet sans une ligne de gestion de la souris.
-        WM_NCHITTEST => LRESULT(HTCAPTION as isize),
+        // La barre de titre deplace le panneau. Le reste devient client pour que
+        // la zone de reponse puisse recevoir un clic et le clavier.
+        WM_NCHITTEST => {
+            let y_ecran = ((lp.0 >> 16) & 0xffff) as u16 as i16 as i32;
+            let mut r = RECT::default();
+            if GetWindowRect(hwnd, &mut r).is_ok() && y_ecran - r.top < 31 {
+                LRESULT(HTCAPTION as isize)
+            } else {
+                LRESULT(HTCLIENT as isize)
+            }
+        }
+        WM_LBUTTONDOWN => {
+            let _ = SetFocus(Some(hwnd));
+            envoyer(Msg::Reveiller);
+            LRESULT(0)
+        }
+        WM_LBUTTONUP => {
+            let x = (lp.0 & 0xffff) as u16 as i16 as i32;
+            let y = ((lp.0 >> 16) & 0xffff) as u16 as i16 as i32;
+            if y >= PANNEAU_H - 54 && x >= PANNEAU_L - 102 {
+                envoyer_entree();
+            }
+            LRESULT(0)
+        }
+        WM_CHAR => {
+            match wp.0 as u32 {
+                8 => {
+                    if let Ok(mut texte) = entree().lock() {
+                        texte.pop();
+                    }
+                }
+                13 => envoyer_entree(),
+                code if code >= 32 => {
+                    if let Some(c) = char::from_u32(code) {
+                        if let Ok(mut texte) = entree().lock() {
+                            if texte.chars().count() < 500 {
+                                texte.push(c);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+            envoyer(Msg::Reveiller);
+            LRESULT(0)
+        }
         WM_DESTROY => LRESULT(0),
         _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
@@ -368,9 +558,9 @@ unsafe extern "system" fn proc_fenetre(
 /// au-dessus. `traversante` la rend invisible aux clics, ce que toutes les
 /// pieces du decor veulent sauf le panneau.
 unsafe fn fenetre(classe: PCWSTR, l: i32, h: i32, traversante: bool) -> Option<HWND> {
-    let mut style = WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+    let mut style = WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
     if traversante {
-        style |= WS_EX_TRANSPARENT;
+        style |= WS_EX_TRANSPARENT | WS_EX_NOACTIVATE;
     }
     CreateWindowExW(
         style,
@@ -399,6 +589,8 @@ struct Decor {
     panneau_pose: bool,
     ecran: RECT,
     lignes: Vec<(String, String)>,
+    narration: String,
+    narration_finie: bool,
     curseur: (i32, i32),
     presse_a: Option<Instant>,
     flash_a: Option<Instant>,
@@ -455,6 +647,8 @@ unsafe fn boucle(rx: std::sync::mpsc::Receiver<Msg>) {
         panneau_pose: false,
         ecran: ecran_defaut,
         lignes: Vec::new(),
+        narration: String::new(),
+        narration_finie: false,
         curseur: (l / 2, h / 2),
         presse_a: None,
         flash_a: None,
@@ -477,6 +671,17 @@ unsafe fn boucle(rx: std::sync::mpsc::Receiver<Msg>) {
                     d.derniere_activite = Instant::now();
                     allumer(&mut d);
                 }
+                Msg::Narration { texte, fini } => {
+                    d.narration = texte;
+                    d.narration_finie = fini;
+                    d.derniere_activite = Instant::now();
+                    allumer(&mut d);
+                }
+                Msg::Reveiller => {
+                    marquer_appel();
+                    d.derniere_activite = Instant::now();
+                    allumer(&mut d);
+                }
                 Msg::Curseur { x, y, presse } => {
                     d.curseur = (x, y);
                     if presse {
@@ -486,7 +691,26 @@ unsafe fn boucle(rx: std::sync::mpsc::Receiver<Msg>) {
                     allumer(&mut d);
                 }
                 Msg::Ecran(r) => {
+                    let change_ecran = d.ecran.left != r.left
+                        || d.ecran.top != r.top
+                        || d.ecran.right != r.right
+                        || d.ecran.bottom != r.bottom;
                     d.ecran = r;
+                    if change_ecran {
+                        // Le panneau suit l'ecran que l'agent vient de capturer.
+                        // Sans ce replacement, il restait sur le premier ecran
+                        // utilise pendant toute la session.
+                        d.panneau_pose = false;
+                        let _ = SetWindowPos(
+                            d.panneau,
+                            Some(HWND_TOPMOST),
+                            d.ecran.left + 24,
+                            d.ecran.bottom - PANNEAU_H - 48,
+                            PANNEAU_L,
+                            PANNEAU_H,
+                            SWP_NOACTIVATE,
+                        );
+                    }
                     d.derniere_activite = Instant::now();
                     allumer(&mut d);
                     poser_barres(&d);
@@ -542,6 +766,8 @@ unsafe fn allumer(d: &mut Decor) {
 unsafe fn eteindre_decor(d: &mut Decor) {
     d.visible = false;
     d.lignes.clear();
+    d.narration.clear();
+    d.narration_finie = false;
     for w in d.barres {
         let _ = ShowWindow(w, SW_HIDE);
     }
@@ -563,6 +789,52 @@ unsafe fn poser_barres(d: &Decor) {
     for (w, (px, py, pl, ph)) in d.barres.iter().zip(places) {
         let _ = SetWindowPos(*w, Some(HWND_TOPMOST), px, py, pl, ph, SWP_NOACTIVATE);
     }
+}
+
+/// Retourne des lignes assez courtes pour le panneau, en gardant les retours a
+/// la ligne emis par le modele. Le rendu prend ensuite la fin de cette liste,
+/// ce qui equivaut au suivi automatique du dernier message.
+fn envelopper(texte: &str, largeur: usize) -> Vec<String> {
+    let mut lignes = Vec::new();
+    for source in texte.lines() {
+        if source.trim().is_empty() {
+            lignes.push(String::new());
+            continue;
+        }
+        let mut courante = String::new();
+        for mot in source.split_whitespace() {
+            let taille =
+                courante.chars().count() + usize::from(!courante.is_empty()) + mot.chars().count();
+            if taille > largeur && !courante.is_empty() {
+                lignes.push(std::mem::take(&mut courante));
+            }
+            if mot.chars().count() > largeur {
+                if !courante.is_empty() {
+                    lignes.push(std::mem::take(&mut courante));
+                }
+                let mut reste = mot;
+                while reste.chars().count() > largeur {
+                    let coupe = reste
+                        .char_indices()
+                        .nth(largeur)
+                        .map(|(i, _)| i)
+                        .unwrap_or(reste.len());
+                    lignes.push(reste[..coupe].to_string());
+                    reste = &reste[coupe..];
+                }
+                courante.push_str(reste);
+            } else {
+                if !courante.is_empty() {
+                    courante.push(' ');
+                }
+                courante.push_str(mot);
+            }
+        }
+        if !courante.is_empty() {
+            lignes.push(courante);
+        }
+    }
+    lignes
 }
 
 unsafe fn peindre(d: &mut Decor) {
@@ -644,7 +916,18 @@ unsafe fn peindre(d: &mut Decor) {
         toile.rect(0, 30, PANNEAU_L, 31, AMBRE, 90);
         toile.anneau(18.0, 15.0, 3.5, 3.0, AMBRE, (255.0 * souffle) as u8);
         toile.texte(32, 6, "LaRuche", TITRE, true, 15);
-        toile.texte(PANNEAU_L - 96, 8, "controle actif", TITRE, false, 12);
+        toile.texte(
+            PANNEAU_L - 96,
+            8,
+            if d.narration_finie {
+                "termine"
+            } else {
+                "controle actif"
+            },
+            TITRE,
+            false,
+            12,
+        );
 
         let mut y = 40;
         for (heure, texte) in d.lignes.iter() {
@@ -652,10 +935,61 @@ unsafe fn peindre(d: &mut Decor) {
             toile.texte(12, y, heure, (138, 127, 102), false, 12);
             toile.texte(70, y, texte, couleur, false, 13);
             y += 20;
-            if y > PANNEAU_H - 18 {
+            if y > 112 {
                 break;
             }
         }
+        toile.rect(12, 126, PANNEAU_L - 12, 127, AMBRE, 72);
+        toile.texte(12, 136, "Agent", TITRE, true, 13);
+        let lignes = envelopper(&d.narration, 58);
+        let visibles = 10usize;
+        let depart = lignes.len().saturating_sub(visibles);
+        let mut y_narration = 158;
+        for texte in lignes.iter().skip(depart) {
+            toile.texte(12, y_narration, texte, TEXTE, false, 13);
+            y_narration += 18;
+            if y_narration > PANNEAU_H - 18 {
+                break;
+            }
+        }
+
+        let saisie = entree().lock().map(|e| e.clone()).unwrap_or_default();
+        let connecte = steer().lock().map(|s| s.is_some()).unwrap_or(false);
+        toile.rect_arrondi((12, 360, PANNEAU_L - 12, PANNEAU_H - 12), 8, AMBRE, 155);
+        toile.rect_arrondi(
+            (13, 361, PANNEAU_L - 104, PANNEAU_H - 13),
+            7,
+            FOND_PANNEAU,
+            245,
+        );
+        toile.rect_arrondi(
+            (PANNEAU_L - 102, 361, PANNEAU_L - 13, PANNEAU_H - 13),
+            7,
+            AMBRE,
+            if connecte { 225 } else { 75 },
+        );
+        let contenu = if saisie.is_empty() {
+            if connecte {
+                "repondre a LaRuche...".to_string()
+            } else {
+                "tour termine".to_string()
+            }
+        } else {
+            super::navigateur::fin_texte(&saisie, 38)
+        };
+        toile.texte(
+            23,
+            375,
+            &contenu,
+            if saisie.is_empty() {
+                (138, 127, 102)
+            } else {
+                TEXTE
+            },
+            false,
+            13,
+        );
+        toile.texte(PANNEAU_L - 88, 375, "envoyer", FOND_PANNEAU, true, 13);
         let (mut px, mut py) = (d.ecran.left + 24, d.ecran.bottom - PANNEAU_H - 48);
         if d.panneau_pose {
             let mut r = RECT::default();
@@ -693,5 +1027,25 @@ unsafe fn peindre(d: &mut Decor) {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::envelopper;
+
+    #[test]
+    fn la_narration_garde_paragraphes_et_se_decoupe() {
+        let lignes = envelopper(
+            "Premier paragraphe assez long pour revenir a la ligne.\n\nDernier message visible.",
+            24,
+        );
+        assert!(lignes.len() >= 4);
+        assert!(lignes.iter().any(String::is_empty));
+        assert_eq!(
+            lignes.last().map(String::as_str),
+            Some("Dernier message visible.")
+        );
+        assert!(lignes.iter().all(|l| l.chars().count() <= 24));
     }
 }

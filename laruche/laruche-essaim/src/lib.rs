@@ -12,56 +12,56 @@
 //! - **Streaming** (`streaming.rs`): Ollama streaming response parser
 //! - **Prompt** (`prompt.rs`): System prompt builder with tools schema injection
 
-pub mod pont_navigateur;
 pub mod abeille;
 pub mod abeilles;
+pub mod approbation;
 pub mod background_review;
 pub mod blueprints;
 pub mod brain;
 pub mod budget;
 pub mod butinage_pont;
-pub mod texte_modele;
 pub mod codex_auth;
 pub mod config;
-pub mod approbation;
 pub mod contexte;
 pub mod credential_pool;
 pub mod cron;
 pub mod curation;
 pub mod deliberation;
 pub mod error_classifier;
-pub mod i18n;
 pub mod evenements;
 pub mod fatigue;
 pub mod feed_journal;
 pub mod hooks;
-pub mod secrets;
+pub mod i18n;
 pub mod job_queue;
 pub mod mcp_client;
+pub mod memoire_hotes;
 pub mod orchestration;
 pub mod parsing;
 pub mod permissions;
-pub mod reactions;
+pub mod pont_navigateur;
 pub mod prompt;
 pub mod providers;
 pub mod rag;
+pub mod reactions;
 pub mod reine_file;
 pub mod reine_juge;
 pub mod reine_live;
+pub mod reine_queue;
 #[cfg(test)]
 mod reine_tests;
-pub mod reine_queue;
+pub mod secrets;
 pub mod session;
-pub mod memoire_hotes;
 pub mod stats_outils;
-pub mod transport;
 pub mod stdout_filter;
 pub mod streaming;
 pub mod subagent;
+pub mod texte_modele;
 pub mod thought_stream;
 pub mod threat_patterns;
 pub mod tool_budget;
 pub mod tool_summary;
+pub mod transport;
 
 pub use abeille::{
     Abeille, AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille, ToolOrigin,

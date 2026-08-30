@@ -349,8 +349,12 @@ fn charge_utile(corps: &str) -> Result<Value> {
                 )
             })?
     };
-    let valeur: Value = serde_json::from_str(&document)
-        .with_context(|| format!("invalid MCP response: {}", document.chars().take(200).collect::<String>()))?;
+    let valeur: Value = serde_json::from_str(&document).with_context(|| {
+        format!(
+            "invalid MCP response: {}",
+            document.chars().take(200).collect::<String>()
+        )
+    })?;
     if let Some(err) = valeur.get("error") {
         return Err(anyhow::anyhow!("MCP Error: {err}"));
     }
@@ -425,7 +429,12 @@ pub async fn charger_mcp_servers(
 
         let args_ref: Vec<&str> = config.args.iter().map(|s| s.as_str()).collect();
         // A url means a remote server: nothing to spawn, we just talk to it.
-        let ouverture = match config.url.as_deref().map(str::trim).filter(|u| !u.is_empty()) {
+        let ouverture = match config
+            .url
+            .as_deref()
+            .map(str::trim)
+            .filter(|u| !u.is_empty())
+        {
             Some(url) => McpClient::start_http(url).await,
             None => McpClient::start(&config.command, &args_ref).await,
         };
@@ -462,7 +471,8 @@ mod tests {
     /// lets any server choose that form at any time.
     #[test]
     fn une_reponse_sse_est_lue_comme_du_json() {
-        let corps = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"tools\":[]}}\n\n";
+        let corps =
+            "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"tools\":[]}}\n\n";
         let r = charge_utile(corps).expect("payload readable");
         assert!(r["tools"].is_array());
     }

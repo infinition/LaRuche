@@ -43,8 +43,6 @@ impl Abeille for Clarify {
     ) -> Result<ResultatAbeille> {
         // Normally short-circuited by brain.rs; this fallback applies if called outside the loop.
         let q = args["question"].as_str().unwrap_or("(empty question)");
-        Ok(ResultatAbeille::ok(format!(
-            "Question sent to user: {q}"
-        )))
+        Ok(ResultatAbeille::ok(format!("Question sent to user: {q}")))
     }
 }

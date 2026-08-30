@@ -279,10 +279,7 @@ pub async fn refresh_codex_oauth(refresh_token: &str) -> Result<CodexTokens> {
         let body = resp.text().await.unwrap_or_default();
         bail!("Codex refresh failed (HTTP {status}): {body}");
     }
-    let payload: TokenResponse = resp
-        .json()
-        .await
-        .context("invalid Codex refresh JSON")?;
+    let payload: TokenResponse = resp.json().await.context("invalid Codex refresh JSON")?;
     let access = payload
         .access_token
         .filter(|s| !s.trim().is_empty())
@@ -306,9 +303,8 @@ pub async fn refresh_codex_oauth(refresh_token: &str) -> Result<CodexTokens> {
 pub async fn resolve_codex_access_token() -> Result<String> {
     let mut tokens = match read_codex_tokens() {
         Some(t) => t,
-        None => import_codex_cli_tokens().ok_or_else(|| {
-            anyhow!("No Codex credential. Run `laruche auth codex` to sign in.")
-        })?,
+        None => import_codex_cli_tokens()
+            .ok_or_else(|| anyhow!("No Codex credential. Run `laruche auth codex` to sign in."))?,
     };
 
     if !access_token_is_expiring(&tokens.access_token, ACCESS_TOKEN_REFRESH_SKEW_SECONDS) {

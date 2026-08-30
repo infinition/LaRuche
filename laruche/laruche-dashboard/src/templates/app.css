@@ -361,7 +361,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   white-space:nowrap; flex-shrink:0;
 }
 /* Handed over to the bottom tabs: the header is too narrow even for the icons. Measured,
-   so it also covers the case where the WINDOW is wide but the header is not — anchoring
+   so it also covers the case where the WINDOW is wide but the header is not - anchoring
    the feed takes 360px off the body without touching the viewport. */
 body.nav-en-bas .header-nav { display:none; }
 body.nav-en-bas .mobile-tabs { display:flex; }

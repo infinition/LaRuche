@@ -125,5 +125,5 @@ laruche/.agents/
 scripts/import_*_skills.py
 .tmp-harness/
 
-# Cle privee de signature de l extension Chrome: fige l identifiant, ne doit jamais partir dans le depot
-extension-chrome/cle-privee.pem
+# Cles privees locales, hors des dossiers charges et jamais versionnees
+.private/

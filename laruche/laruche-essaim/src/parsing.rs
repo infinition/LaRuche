@@ -241,7 +241,13 @@ pub(crate) fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
 struct ToolCallRaw {
     #[serde(alias = "tool", alias = "function", alias = "function_name")]
     name: String,
-    #[serde(default, alias = "arguments", alias = "args", alias = "parameters", alias = "input")]
+    #[serde(
+        default,
+        alias = "arguments",
+        alias = "args",
+        alias = "parameters",
+        alias = "input"
+    )]
     arguments: serde_json::Value,
 }
 

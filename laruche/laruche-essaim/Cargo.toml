@@ -51,14 +51,26 @@ xcap = { version = "0.9", optional = true }
 # Presse-papiers, texte seulement: `image-data` tirerait la caisse `image`
 # entiere pour une fonction que cet outil n'expose pas.
 arboard = { version = "3.6.1", default-features = false, optional = true }
+# Capture camera, une caisse par plateforme derriere une facade unique: Media
+# Foundation sur Windows, AVFoundation sur macOS, V4L2 sur Linux. Il n'existe
+# aucune API portable pour ca, donc c'est soit cette dependance soit trois
+# implementations a maintenir.
+#
+# DANS le defaut, comme `gui-control`: un outil qui n'est pas compile n'existe
+# pas, et personne ne pense a passer `--features` avant de demander a LaRuche de
+# regarder quelque chose. Le cout est mesure et modeste: douze caisses, 5 Mo
+# d'objets, 55 secondes de compilation. La CI Linux installe deja `clang`, dont
+# les liaisons V4L2 ont besoin.
+nokhwa = { version = "0.10.11", default-features = false, features = ["input-native", "decoding"], optional = true }
 
 [features]
-default = ["gui-control"]
+default = ["gui-control", "camera"]
 # Mouse, keyboard and screen. See `src/abeilles/ordinateur.rs`.
 gui-control = ["dep:enigo", "dep:xcap", "dep:uiautomation", "dep:windows", "dep:arboard"]
 # Browser-identical TLS handshake for hosts that fingerprint the connection.
 # Requires cmake, nasm and a C compiler. Build once before relying on it.
 tls-emulation = ["dep:wreq", "dep:wreq-util"]
+camera = ["dep:nokhwa"]
 
 [dev-dependencies]
 tempfile = "3.27.0"

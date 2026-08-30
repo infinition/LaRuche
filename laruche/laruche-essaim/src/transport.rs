@@ -69,9 +69,9 @@ pub const fn emulation_disponible() -> bool {
 pub fn note(pile: Pile) -> Option<&'static str> {
     match pile {
         Pile::Standard => None,
-        Pile::Emulee => Some(
-            "[browser-identical TLS handshake used: this host fingerprints the connection]",
-        ),
+        Pile::Emulee => {
+            Some("[browser-identical TLS handshake used: this host fingerprints the connection]")
+        }
     }
 }
 
@@ -136,7 +136,13 @@ mod tests {
 
     #[test]
     fn la_pile_emulee_sannonce() {
-        assert!(note(Pile::Standard).is_none(), "the ordinary route needs no note");
-        assert!(note(Pile::Emulee).is_some(), "an unusual route must be visible");
+        assert!(
+            note(Pile::Standard).is_none(),
+            "the ordinary route needs no note"
+        );
+        assert!(
+            note(Pile::Emulee).is_some(),
+            "an unusual route must be visible"
+        );
     }
 }

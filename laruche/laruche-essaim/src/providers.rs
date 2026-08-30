@@ -1,4 +1,4 @@
-﻿//! Multi-provider LLM streaming abstraction.
+//! Multi-provider LLM streaming abstraction.
 //!
 //! Supports:
 //! - **ollama** (default): local Ollama instance
@@ -35,19 +35,25 @@ impl std::error::Error for ProviderError {}
 /// Converts the LaRuche tool format (name, description, parameters)
 /// to the OpenAI `tools` format (type: function, function: {name, description, parameters}).
 pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Value> {
-    tools.iter().filter_map(|t| {
-        let name = t["name"].as_str()?;
-        let description = t["description"].as_str().unwrap_or("");
-        let parameters = t.get("parameters").cloned().unwrap_or(serde_json::json!({}));
-        Some(serde_json::json!({
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": description,
-                "parameters": parameters,
-            }
-        }))
-    }).collect()
+    tools
+        .iter()
+        .filter_map(|t| {
+            let name = t["name"].as_str()?;
+            let description = t["description"].as_str().unwrap_or("");
+            let parameters = t
+                .get("parameters")
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
+            Some(serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": description,
+                    "parameters": parameters,
+                }
+            }))
+        })
+        .collect()
 }
 
 /// Last gate before the wire: refuse a `tools` entry a provider will reject outright.
@@ -70,7 +76,11 @@ fn assainir_tools_openai(tools: Vec<serde_json::Value>) -> Vec<serde_json::Value
     let mut vus: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut propres = Vec::with_capacity(tools.len());
     for (i, t) in tools.into_iter().enumerate() {
-        let nom = t["function"]["name"].as_str().unwrap_or("").trim().to_string();
+        let nom = t["function"]["name"]
+            .as_str()
+            .unwrap_or("")
+            .trim()
+            .to_string();
         if nom.is_empty() {
             let cles: Vec<&str> = t["function"]
                 .as_object()
@@ -111,7 +121,9 @@ fn assainir_tools_openai(tools: Vec<serde_json::Value>) -> Vec<serde_json::Value
 fn client_openai() -> &'static reqwest::Client {
     static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     CLIENT.get_or_init(|| {
-        let h2 = std::env::var("LARUCHE_HTTP2").map(|v| v == "1").unwrap_or(false);
+        let h2 = std::env::var("LARUCHE_HTTP2")
+            .map(|v| v == "1")
+            .unwrap_or(false);
         let b = reqwest::Client::builder().timeout(std::time::Duration::from_secs(600));
         if h2 { b } else { b.http1_only() }
             .build()
@@ -188,7 +200,9 @@ fn json_ascii(brut: &str) -> String {
 fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_json::Value> {
     let mut reduit = body.clone();
     let taille = |v: &serde_json::Value| -> usize {
-        serde_json::to_string(v).map(|s| json_ascii(&s).len()).unwrap_or(0)
+        serde_json::to_string(v)
+            .map(|s| json_ascii(&s).len())
+            .unwrap_or(0)
     };
 
     if taille(&reduit) > limite {
@@ -217,7 +231,10 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
         // briefing), it has to give ground too: it is that or the call fails.
         if par_taille.is_empty() {
             if let Some(i) = premier_user {
-                let n = reduit["messages"][i]["content"].as_str().map(str::len).unwrap_or(0);
+                let n = reduit["messages"][i]["content"]
+                    .as_str()
+                    .map(str::len)
+                    .unwrap_or(0);
                 par_taille.push((i, n));
             }
         }
@@ -235,7 +252,9 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
                 if taille(&reduit) <= limite {
                     break;
                 }
-                let Some(texte) = reduit["messages"][*idx]["content"].as_str().map(str::to_string)
+                let Some(texte) = reduit["messages"][*idx]["content"]
+                    .as_str()
+                    .map(str::to_string)
                 else {
                     continue;
                 };
@@ -392,7 +411,9 @@ fn elaguer_les_plus_vieux(reduit: &mut serde_json::Value, limite: usize) {
             let ids: Vec<&str> = appels.iter().filter_map(|a| a["id"].as_str()).collect();
             for (j, m) in messages.iter().enumerate().skip(i + 1) {
                 if m["role"] == "tool"
-                    && m["tool_call_id"].as_str().is_some_and(|id| ids.contains(&id))
+                    && m["tool_call_id"]
+                        .as_str()
+                        .is_some_and(|id| ids.contains(&id))
                 {
                     groupe.push(j);
                 }
@@ -502,11 +523,7 @@ fn limite_corps(base: &str) -> usize {
 /// decidable: if that column equals the end of our body, they received a truncated
 /// upload; if it falls inside, the payload itself is the problem. When the provider
 /// names the offending message (`messages[14].content`), its size is reported too.
-fn diagnostiquer_corps(
-    erreur: &str,
-    corps_brut: &str,
-    messages: &[serde_json::Value],
-) -> String {
+fn diagnostiquer_corps(erreur: &str, corps_brut: &str, messages: &[serde_json::Value]) -> String {
     let mut notes = vec![format!(
         "we sent {} bytes / {} chars, {} messages",
         corps_brut.len(),
@@ -531,9 +548,15 @@ fn diagnostiquer_corps(
     // was written and the only evidence left was a byte count. Any complaint that names a
     // field, a path or the deserializer now dumps.
     let motif = erreur.to_lowercase();
-    let corps_en_cause = ["parse the request body", "deserialize", "invalid schema", "missing field", "invalid type"]
-        .iter()
-        .any(|m| motif.contains(m));
+    let corps_en_cause = [
+        "parse the request body",
+        "deserialize",
+        "invalid schema",
+        "missing field",
+        "invalid type",
+    ]
+    .iter()
+    .any(|m| motif.contains(m));
     if corps_en_cause {
         let chemin = std::env::temp_dir().join(format!(
             "laruche-corps-refuse-{}.json",
@@ -638,10 +661,18 @@ pub async fn provider_chat_stream(
     api_key: &str,
     api_base: Option<&str>,
     ollama_url: &str,
-    tools: Option<&[serde_json::Value]>,  // new parameter
+    tools: Option<&[serde_json::Value]>, // new parameter
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     provider_chat_stream_effort(
-        provider, model, messages, temperature, max_tokens, api_key, api_base, ollama_url, tools,
+        provider,
+        model,
+        messages,
+        temperature,
+        max_tokens,
+        api_key,
+        api_base,
+        ollama_url,
+        tools,
         None,
     )
     .await
@@ -689,7 +720,14 @@ pub async fn provider_chat_stream_effort(
     if let Some(reste) = provider.strip_prefix("peer:") {
         let base = format!("http://{reste}/v1");
         match openai_chat_stream(
-            model, messages, temperature, max_tokens, "", Some(&base), tools, effort,
+            model,
+            messages,
+            temperature,
+            max_tokens,
+            "",
+            Some(&base),
+            tools,
+            effort,
         )
         .await
         {
@@ -714,6 +752,7 @@ pub async fn provider_chat_stream_effort(
                     eval_duration: None,
                     prompt_eval_count: None,
                     tool_calls: None,
+                    reasoning: None,
                 };
                 // Forme qualifiee: `StreamExt` n'est pas importe ici, et l'importer
                 // entrerait en conflit avec celui de tokio_stream deja utilise.
@@ -726,29 +765,81 @@ pub async fn provider_chat_stream_effort(
     }
     match provider {
         "openai" | "miel" => {
-            openai_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools, effort).await
+            openai_chat_stream(
+                model,
+                messages,
+                temperature,
+                max_tokens,
+                api_key,
+                api_base,
+                tools,
+                effort,
+            )
+            .await
         }
         // llama.cpp `llama-server` (OpenAI-compatible, local, no key). Default base
         // matches the local launch scripts (port 8001); override via api_base.
         "llamacpp" | "llama.cpp" | "llama-server" => {
             let base = api_base.or(Some("http://127.0.0.1:8001"));
-            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools, effort).await
+            openai_chat_stream(
+                model,
+                messages,
+                temperature,
+                max_tokens,
+                api_key,
+                base,
+                tools,
+                effort,
+            )
+            .await
         }
         // LM Studio and vLLM both serve the OpenAI wire format, so they need no client of
         // their own: only their usual port. Named here rather than left to the catch-all,
         // which routes to Ollama and would have sent every request to the wrong server.
         "lmstudio" | "lm-studio" => {
             let base = api_base.or(Some("http://127.0.0.1:1234"));
-            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools, effort).await
+            openai_chat_stream(
+                model,
+                messages,
+                temperature,
+                max_tokens,
+                api_key,
+                base,
+                tools,
+                effort,
+            )
+            .await
         }
         "vllm" => {
             let base = api_base.or(Some("http://127.0.0.1:8000"));
-            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools, effort).await
+            openai_chat_stream(
+                model,
+                messages,
+                temperature,
+                max_tokens,
+                api_key,
+                base,
+                tools,
+                effort,
+            )
+            .await
         }
         "anthropic" => {
-            anthropic_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools, effort).await
+            anthropic_chat_stream(
+                model,
+                messages,
+                temperature,
+                max_tokens,
+                api_key,
+                api_base,
+                tools,
+                effort,
+            )
+            .await
         }
-        "codex" => codex_chat_stream(model, messages, temperature, max_tokens, api_base, effort).await,
+        "codex" => {
+            codex_chat_stream(model, messages, temperature, max_tokens, api_base, effort).await
+        }
         _ => ollama_chat_stream(ollama_url, model, messages, temperature, max_tokens, tools).await,
     }
 }
@@ -756,7 +847,22 @@ pub async fn provider_chat_stream_effort(
 // ─── Signer mesh ────────────────────────────────────────────────────────────
 pub type MeshSigner = std::sync::Arc<dyn Fn(&str) -> Vec<(String, String)> + Send + Sync>;
 static MESH_SIGNER: std::sync::OnceLock<MeshSigner> = std::sync::OnceLock::new();
-pub fn set_mesh_signer(s: MeshSigner) { let _ = MESH_SIGNER.set(s); }
+pub fn set_mesh_signer(s: MeshSigner) {
+    let _ = MESH_SIGNER.set(s);
+}
+/// Le raisonnement a rendre a ce modele, ou rien.
+///
+/// DeepSeek exige de recevoir son `reasoning_content` en retour; les autres
+/// backends compatibles OpenAI ne le connaissent pas, et les plus stricts
+/// refusent une requete qui porte une cle inconnue. On ne le rejoue donc
+/// qu'au modele qui l'a emis.
+fn rejouer_raisonnement<'a>(m: &'a serde_json::Value, model: &str) -> Option<&'a str> {
+    (m["reasoning_model"].as_str() == Some(model))
+        .then(|| m["reasoning_content"].as_str())
+        .flatten()
+        .filter(|r| !r.is_empty())
+}
+
 fn mesh_headers(path: &str) -> Vec<(String, String)> {
     MESH_SIGNER.get().map(|s| s(path)).unwrap_or_default()
 }
@@ -780,7 +886,11 @@ async fn openai_chat_stream(
     if api_key.is_empty() && !is_local_base_url(base) {
         anyhow::bail!("API key is required for OpenAI-compatible provider. Configure in Settings > Providers.");
     }
-    let bearer = if api_key.is_empty() { "local-no-key" } else { api_key };
+    let bearer = if api_key.is_empty() {
+        "local-no-key"
+    } else {
+        api_key
+    };
     // Build the chat-completions URL. Most OpenAI-compatible APIs (OpenAI, Groq,
     // Deepseek, Together) take a bare host and expect `/v1/chat/completions`. Some
     // (z.ai GLM at `/api/paas/v4`, OpenRouter at `/api/v1`) already carry a version
@@ -855,7 +965,23 @@ async fn openai_chat_stream(
             }
             serde_json::json!({"role": m["role"], "content": parts})
         } else {
-            serde_json::json!({"role": m["role"], "content": m["content"].as_str().unwrap_or("")})
+            let mut sortie = serde_json::json!({
+                "role": m["role"],
+                "content": m["content"].as_str().unwrap_or(""),
+            });
+            // Le raisonnement, rendu au fournisseur qui l'a produit.
+            //
+            // DeepSeek exige de le recevoir en retour; sans lui le deuxieme tour
+            // d'une conversation en mode thinking est rejete. Mais on ne le
+            // renvoie QU'AU MEME MODELE: un autre backend compatible OpenAI
+            // recevrait un champ qu'il ne connait pas, et les plus stricts
+            // refusent la requete entiere. Anthropic, Ollama et Codex
+            // construisent leurs messages ailleurs et ne voient jamais ce
+            // champ, donc ils ne sont pas concernes.
+            if let Some(r) = rejouer_raisonnement(m, model) {
+                sortie["reasoning_content"] = serde_json::json!(r);
+            }
+            sortie
         }
     }).collect();
 
@@ -885,11 +1011,14 @@ async fn openai_chat_stream(
     }
 
     let client = client_openai();
-    let mut req = client.post(&url)
+    let mut req = client
+        .post(&url)
         .header("Authorization", format!("Bearer {}", bearer))
         .header("Content-Type", "application/json");
     if is_local_base_url(base) {
-        for (k, v) in mesh_headers("/v1/chat/completions") { req = req.header(k, v); }
+        for (k, v) in mesh_headers("/v1/chat/completions") {
+            req = req.header(k, v);
+        }
     }
     // Serialize ONCE, so the bytes we measure are the bytes we send, and ship it
     // pure ASCII so no consumer can confuse our bytes with our characters.
@@ -947,7 +1076,9 @@ async fn openai_chat_stream(
                 "thinking mode requires replaying reasoning_content, which we cannot do yet: retrying without reasoning_effort"
             );
             let mut sans_pensee = body.clone();
-            sans_pensee.as_object_mut().map(|o| o.remove("reasoning_effort"));
+            sans_pensee
+                .as_object_mut()
+                .map(|o| o.remove("reasoning_effort"));
             let corps_sans = json_ascii(&serde_json::to_string(&sans_pensee)?);
             let mut rejeu = client
                 .post(&url)
@@ -991,7 +1122,12 @@ async fn openai_chat_stream(
             body = %body_text.chars().take(300).collect::<String>(),
             "openai-compatible request failed"
         );
-        return Err(ProviderError { status: status.as_u16(), body: diagnostic, retry_after: None }.into());
+        return Err(ProviderError {
+            status: status.as_u16(),
+            body: diagnostic,
+            retry_after: None,
+        }
+        .into());
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
@@ -1004,7 +1140,8 @@ async fn openai_chat_stream(
         let mut dbg_lines = 0u8;
         // tool_calls accumulator keyed by index (streaming delta)
         // Each entry: (id, name, partial_args_string)
-        let mut tool_call_acc: std::collections::HashMap<u32, (String, String, String)> = std::collections::HashMap::new();
+        let mut tool_call_acc: std::collections::HashMap<u32, (String, String, String)> =
+            std::collections::HashMap::new();
         // Actual usage (if the server includes it: OpenAI with stream_options, llama.cpp by default).
         let mut in_tok: Option<u64> = None;
         let mut out_tok: Option<u64> = None;
@@ -1040,60 +1177,92 @@ async fn openai_chat_stream(
                                         {
                                             reasoning_emitted = true;
                                         }
-                                        let _ = tx.send(OllamaChunk {
-                                            text: r.to_string(), done: false,
-                                            finish_reason: None, eval_count: None,
-                                            eval_duration: None, prompt_eval_count: None,
-                                            tool_calls: None,
-                                        }).await;
+                                        let _ = tx
+                                            .send(OllamaChunk {
+                                                text: r.to_string(),
+                                                done: false,
+                                                finish_reason: None,
+                                                eval_count: None,
+                                                eval_duration: None,
+                                                prompt_eval_count: None,
+                                                tool_calls: None,
+                                                reasoning: None,
+                                            })
+                                            .await;
                                     }
                                 }
                                 // Finalize the accumulated tool_calls (ordered by index).
                                 let tool_calls = finaliser_tool_calls(&mut tool_call_acc);
-                                let _ = tx.send(OllamaChunk {
-                                    text: String::new(), done: true,
-                                    finish_reason: Some("stop".to_string()),
-                                    eval_count: None, eval_duration: None,
-                                    prompt_eval_count: None,
-                                    tool_calls,
-                                }).await;
+                                let _ = tx
+                                    .send(OllamaChunk {
+                                        text: String::new(),
+                                        done: true,
+                                        finish_reason: Some("stop".to_string()),
+                                        eval_count: None,
+                                        eval_duration: None,
+                                        prompt_eval_count: None,
+                                        tool_calls,
+                                        reasoning: None,
+                                    })
+                                    .await;
                                 return;
                             }
                             continue;
                         }
-                        let json_str = if let Some(stripped) = line.strip_prefix("data: ") { stripped } else { &line };
+                        let json_str = if let Some(stripped) = line.strip_prefix("data: ") {
+                            stripped
+                        } else {
+                            &line
+                        };
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
                             // Actual usage (top-level, present on the final chunk or a dedicated chunk).
-                            if let Some(u) = parsed["usage"]["prompt_tokens"].as_u64() { in_tok = Some(u); }
-                            if let Some(u) = parsed["usage"]["completion_tokens"].as_u64() { out_tok = Some(u); }
+                            if let Some(u) = parsed["usage"]["prompt_tokens"].as_u64() {
+                                in_tok = Some(u);
+                            }
+                            if let Some(u) = parsed["usage"]["completion_tokens"].as_u64() {
+                                out_tok = Some(u);
+                            }
                             // With `stream_options.include_usage`, usage arrives in a DEDICATED
                             // final chunk (empty `choices`), AFTER the finish_reason chunk. That
                             // chunk has no content and no finish_reason, so the emission below
                             // would drop it and the gauge/budget would see 0 tokens. Emit a
                             // trailing done-chunk carrying the usage so it is never lost.
                             let usage_only = parsed["usage"].is_object()
-                                && parsed["choices"].as_array().map(|a| a.is_empty()).unwrap_or(true);
+                                && parsed["choices"]
+                                    .as_array()
+                                    .map(|a| a.is_empty())
+                                    .unwrap_or(true);
                             if usage_only && (in_tok.is_some() || out_tok.is_some()) {
-                                let _ = tx.send(OllamaChunk {
-                                    text: String::new(),
-                                    done: true,
-                                    finish_reason: Some("stop".to_string()),
-                                    eval_count: out_tok,
-                                    eval_duration: None,
-                                    prompt_eval_count: in_tok,
-                                    tool_calls: None,
-                                }).await;
+                                let _ = tx
+                                    .send(OllamaChunk {
+                                        text: String::new(),
+                                        done: true,
+                                        finish_reason: Some("stop".to_string()),
+                                        eval_count: out_tok,
+                                        eval_duration: None,
+                                        prompt_eval_count: in_tok,
+                                        tool_calls: None,
+                                        reasoning: None,
+                                    })
+                                    .await;
                                 continue;
                             }
-                            let mut text = parsed["choices"][0]["delta"]["content"].as_str().unwrap_or("").to_string();
+                            let mut text = parsed["choices"][0]["delta"]["content"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string();
                             if !text.is_empty() {
                                 content_streamed = true;
                             }
                             // Accumulate reasoning (chain-of-thought) without streaming it as the answer.
-                            if let Some(rc) = parsed["choices"][0]["delta"]["reasoning_content"].as_str() {
+                            if let Some(rc) =
+                                parsed["choices"][0]["delta"]["reasoning_content"].as_str()
+                            {
                                 reasoning_acc.push_str(rc);
                             }
-                            let finish_reason = parsed["choices"][0]["finish_reason"].as_str().map(str::to_string);
+                            let finish_reason = parsed["choices"][0]["finish_reason"]
+                                .as_str()
+                                .map(str::to_string);
                             let done = finish_reason.is_some();
 
                             // Last resort: if the model produced NO content at all, surface the
@@ -1107,7 +1276,9 @@ async fn openai_chat_stream(
                             }
 
                             // Parse the tool_calls delta (OpenAI streaming format)
-                            if let Some(tc_deltas) = parsed["choices"][0]["delta"]["tool_calls"].as_array() {
+                            if let Some(tc_deltas) =
+                                parsed["choices"][0]["delta"]["tool_calls"].as_array()
+                            {
                                 for tc_delta in tc_deltas {
                                     let idx = tc_delta["index"].as_u64().unwrap_or(0) as u32;
                                     let entry = tool_call_acc.entry(idx).or_insert_with(|| {
@@ -1118,14 +1289,23 @@ async fn openai_chat_stream(
                                         entry.0 = id_val.to_string();
                                     }
                                     if entry.0.is_empty() {
-                                        entry.0 = format!("call_{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("x"));
+                                        entry.0 = format!(
+                                            "call_{}",
+                                            uuid::Uuid::new_v4()
+                                                .to_string()
+                                                .split('-')
+                                                .next()
+                                                .unwrap_or("x")
+                                        );
                                     }
                                     // function.name: present on the first chunk
                                     if let Some(name_val) = tc_delta["function"]["name"].as_str() {
                                         entry.1 = name_val.to_string();
                                     }
                                     // function.arguments: concatenated across multiple chunks
-                                    if let Some(args_val) = tc_delta["function"]["arguments"].as_str() {
+                                    if let Some(args_val) =
+                                        tc_delta["function"]["arguments"].as_str()
+                                    {
                                         entry.2.push_str(args_val);
                                     }
                                 }
@@ -1133,22 +1313,41 @@ async fn openai_chat_stream(
 
                             if !text.is_empty() || done {
                                 // Send the accumulated tool_calls only on the final chunk
-                                let tool_calls = if done { finaliser_tool_calls(&mut tool_call_acc) } else { None };
+                                let tool_calls = if done {
+                                    finaliser_tool_calls(&mut tool_call_acc)
+                                } else {
+                                    None
+                                };
 
                                 let chunk = OllamaChunk {
-                                    text, done, finish_reason,
+                                    text,
+                                    done,
+                                    finish_reason,
                                     eval_count: if done { out_tok } else { None },
                                     eval_duration: None,
                                     prompt_eval_count: if done { in_tok } else { None },
                                     tool_calls,
+                                    // Sur le dernier morceau seulement: c'est la
+                                    // que le raisonnement est complet, et c'est
+                                    // ce que le tour suivant devra rendre.
+                                    reasoning: if done && !reasoning_acc.trim().is_empty() {
+                                        Some(reasoning_acc.trim().to_string())
+                                    } else {
+                                        None
+                                    },
                                 };
-                                if tx.send(chunk).await.is_err() { return; }
+                                if tx.send(chunk).await.is_err() {
+                                    return;
+                                }
                             }
                         }
                     }
                 }
                 Ok(None) => break,
-                Err(e) => { tracing::error!(error = %e, "Error reading OpenAI stream"); return; }
+                Err(e) => {
+                    tracing::error!(error = %e, "Error reading OpenAI stream");
+                    return;
+                }
             }
         }
     });
@@ -1286,13 +1485,16 @@ async fn anthropic_chat_stream(
 
     // Anthropic also supports native tool calling, with a slightly different format
     if let Some(tools_list) = tools {
-        let mut anthropic_tools: Vec<serde_json::Value> = tools_list.iter().filter_map(|t| {
-            Some(serde_json::json!({
-                "name": t["name"].as_str()?,
-                "description": t["description"].as_str().unwrap_or(""),
-                "input_schema": t.get("parameters").cloned().unwrap_or(serde_json::json!({})),
-            }))
-        }).collect();
+        let mut anthropic_tools: Vec<serde_json::Value> = tools_list
+            .iter()
+            .filter_map(|t| {
+                Some(serde_json::json!({
+                    "name": t["name"].as_str()?,
+                    "description": t["description"].as_str().unwrap_or(""),
+                    "input_schema": t.get("parameters").cloned().unwrap_or(serde_json::json!({})),
+                }))
+            })
+            .collect();
         if !anthropic_tools.is_empty() {
             // Cache the tool definitions too (stable across a conversation): mark the
             // last tool so the whole tools block is cached up to that point.
@@ -1313,7 +1515,8 @@ async fn _anthropic_send_request(
     body: serde_json::Value,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     let client = reqwest::Client::new();
-    let mut response = client.post(url)
+    let mut response = client
+        .post(url)
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .header("Content-Type", "application/json")
@@ -1324,7 +1527,12 @@ async fn _anthropic_send_request(
     if !response.status().is_success() {
         let status = response.status();
         let body_text = response.text().await.unwrap_or_default();
-        return Err(ProviderError { status: status.as_u16(), body: body_text, retry_after: None }.into());
+        return Err(ProviderError {
+            status: status.as_u16(),
+            body: body_text,
+            retry_after: None,
+        }
+        .into());
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
@@ -1345,12 +1553,15 @@ async fn _anthropic_send_request(
                     while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
                         let line_bytes: Vec<u8> = buffer.drain(..=newline_pos).collect();
                         let line = String::from_utf8_lossy(&line_bytes).trim().to_string();
-                        if line.is_empty() { continue; }
+                        if line.is_empty() {
+                            continue;
+                        }
 
                         // Anthropic SSE: event: ..., data: {...}
                         if let Some(data) = line.strip_prefix("data: ") {
                             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                                let chunk_type = parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                let chunk_type =
+                                    parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
                                 match chunk_type {
                                     "message_start" => {
                                         if let Some(u) = parsed["message"]["usage"]["input_tokens"].as_u64() {
@@ -1380,17 +1591,22 @@ async fn _anthropic_send_request(
                                         let idx = parsed["index"].as_u64().unwrap_or(0);
                                         tool_acc
                                             .entry(idx)
-                                            .or_insert_with(|| (String::new(), String::new(), String::new()))
+                                            .or_insert_with(|| {
+                                                (String::new(), String::new(), String::new())
+                                            })
                                             .2
                                             .push_str(pj);
                                     }
                                 }
                                 let text = match chunk_type {
-                                    "content_block_delta" => parsed["delta"]["text"].as_str().unwrap_or("").to_string(),
+                                    "content_block_delta" => {
+                                        parsed["delta"]["text"].as_str().unwrap_or("").to_string()
+                                    }
                                     _ => String::new(),
                                 };
                                 let done = chunk_type == "message_stop";
-                                let finish_reason = if done { Some("stop".to_string()) } else { None };
+                                let finish_reason =
+                                    if done { Some("stop".to_string()) } else { None };
                                 // Emit the accumulated tool_use blocks (ordered by index) on stop.
                                 let tool_calls = if done && !tool_acc.is_empty() {
                                     let mut calls: Vec<(u64, ToolCall)> = tool_acc
@@ -1399,9 +1615,17 @@ async fn _anthropic_send_request(
                                             let args = if args_str.trim().is_empty() {
                                                 serde_json::json!({})
                                             } else {
-                                                serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null)
+                                                serde_json::from_str(args_str)
+                                                    .unwrap_or(serde_json::Value::Null)
                                             };
-                                            (*idx, ToolCall { id: id.clone(), name: name.clone(), args })
+                                            (
+                                                *idx,
+                                                ToolCall {
+                                                    id: id.clone(),
+                                                    name: name.clone(),
+                                                    args,
+                                                },
+                                            )
                                         })
                                         .collect();
                                     calls.sort_by_key(|(idx, _)| *idx);
@@ -1411,20 +1635,28 @@ async fn _anthropic_send_request(
                                 };
 
                                 if !text.is_empty() || done {
-                                    let _ = tx.send(OllamaChunk {
-                                        text, done, finish_reason,
-                                        eval_count: if done { out_tok } else { None },
-                                        eval_duration: None,
-                                        prompt_eval_count: if done { in_tok } else { None },
-                                        tool_calls,
-                                    }).await;
+                                    let _ = tx
+                                        .send(OllamaChunk {
+                                            text,
+                                            done,
+                                            finish_reason,
+                                            eval_count: if done { out_tok } else { None },
+                                            eval_duration: None,
+                                            prompt_eval_count: if done { in_tok } else { None },
+                                            tool_calls,
+                                            reasoning: None,
+                                        })
+                                        .await;
                                 }
                             }
                         }
                     }
                 }
                 Ok(None) => break,
-                Err(e) => { tracing::error!(error = %e, "Error reading Anthropic stream"); return; }
+                Err(e) => {
+                    tracing::error!(error = %e, "Error reading Anthropic stream");
+                    return;
+                }
             }
         }
     });
@@ -1456,7 +1688,8 @@ async fn codex_chat_stream(
     use crate::codex_auth;
     let _ = (temperature, max_tokens);
     let access_token = codex_auth::resolve_codex_access_token()
-        .await.map_err(|e| anyhow::anyhow!("Auth Codex: {e}"))?;
+        .await
+        .map_err(|e| anyhow::anyhow!("Auth Codex: {e}"))?;
     let base = match api_base.map(|b| b.trim_end_matches('/').to_string()) {
         Some(b) if b.contains("backend-api/codex") => b,
         _ => codex_auth::DEFAULT_CODEX_BASE_URL.to_string(),
@@ -1467,7 +1700,9 @@ async fn codex_chat_stream(
     let mut input: Vec<serde_json::Value> = Vec::new();
     for m in messages {
         match m["role"].as_str().unwrap_or("user") {
-            "system" => instructions.push_str(&format!("{}\n", m["content"].as_str().unwrap_or(""))),
+            "system" => {
+                instructions.push_str(&format!("{}\n", m["content"].as_str().unwrap_or("")))
+            }
             // Text-only Responses API: native tool structures are re-rendered as text
             // so the transcript stays coherent.
             "tool" => {
@@ -1512,13 +1747,16 @@ async fn codex_chat_stream(
     }
 
     let client = reqwest::Client::new();
-    let mut req = client.post(&url)
+    let mut req = client
+        .post(&url)
         .header("Authorization", format!("Bearer {access_token}"))
         .header("Content-Type", "application/json")
         .header("Accept", "text/event-stream");
     // Anti-Cloudflare headers (User-Agent, originator, account id) required by the Codex
     // backend; without them requests are likely rejected with a 403.
-    for (k, v) in codex_auth::codex_headers(&access_token) { req = req.header(k, v); }
+    for (k, v) in codex_auth::codex_headers(&access_token) {
+        req = req.header(k, v);
+    }
     let mut response = req.json(&body).send().await?;
 
     let status = response.status();
@@ -1551,30 +1789,48 @@ async fn codex_chat_stream(
                     while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
                         let line_bytes: Vec<u8> = buffer.drain(..=newline_pos).collect();
                         let line = String::from_utf8_lossy(&line_bytes).trim().to_string();
-                        if line.is_empty() { continue; }
+                        if line.is_empty() {
+                            continue;
+                        }
                         if let Some(data) = line.strip_prefix("data: ") {
                             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                                let ctype = parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                let ctype =
+                                    parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
                                 let text = match ctype {
-                                    "response.output_text.delta" => parsed["delta"].as_str().unwrap_or("").to_string(),
+                                    "response.output_text.delta" => {
+                                        parsed["delta"].as_str().unwrap_or("").to_string()
+                                    }
                                     _ => String::new(),
                                 };
-                                let done = ctype == "response.completed" || ctype == "response.incomplete";
+                                let done =
+                                    ctype == "response.completed" || ctype == "response.incomplete";
                                 if !text.is_empty() || done {
-                                    let _ = tx.send(OllamaChunk {
-                                        text, done,
-                                        finish_reason: if done { Some("stop".to_string()) } else { None },
-                                        eval_count: None, eval_duration: None,
-                                        prompt_eval_count: None,
-                                        tool_calls: None,
-                                    }).await;
+                                    let _ = tx
+                                        .send(OllamaChunk {
+                                            text,
+                                            done,
+                                            finish_reason: if done {
+                                                Some("stop".to_string())
+                                            } else {
+                                                None
+                                            },
+                                            eval_count: None,
+                                            eval_duration: None,
+                                            prompt_eval_count: None,
+                                            tool_calls: None,
+                                            reasoning: None,
+                                        })
+                                        .await;
                                 }
                             }
                         }
                     }
                 }
                 Ok(None) => break,
-                Err(e) => { tracing::error!(error = %e, "Error reading Codex stream"); return; }
+                Err(e) => {
+                    tracing::error!(error = %e, "Error reading Codex stream");
+                    return;
+                }
             }
         }
     });
@@ -1586,7 +1842,9 @@ async fn codex_chat_stream(
 
 fn normalize_base_url(url: &str) -> String {
     let url = url.trim();
-    if url.is_empty() { return "https://api.openai.com".to_string(); }
+    if url.is_empty() {
+        return "https://api.openai.com".to_string();
+    }
     let lower = url.to_lowercase();
     // Handle "localhost" addresses by keeping http:// if explicitly set
     if lower.starts_with("http://") || lower.starts_with("https://") {
@@ -1598,7 +1856,10 @@ fn normalize_base_url(url: &str) -> String {
 
 pub fn is_local_base_url(url: &str) -> bool {
     let u = url.to_lowercase();
-    if u.contains("localhost") || u.contains("127.0.0.1") || u.contains("::1") || u.contains(".local")
+    if u.contains("localhost")
+        || u.contains("127.0.0.1")
+        || u.contains("::1")
+        || u.contains(".local")
     {
         return true;
     }
@@ -1626,6 +1887,33 @@ pub fn is_local_base_url(url: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn le_raisonnement_ne_repart_quau_modele_qui_la_produit() {
+        // La regle qui protege tous les AUTRES fournisseurs. Un backend
+        // compatible OpenAI qui ne fait pas de thinking recevrait une cle
+        // inconnue, et les plus stricts refusent la requete entiere. Anthropic,
+        // Ollama et Codex construisent leurs messages ailleurs et ne voient
+        // jamais ce champ; le seul risque est ici.
+        let m = serde_json::json!({
+            "role": "assistant",
+            "content": "ok",
+            "reasoning_content": "je reflechis",
+            "reasoning_model": "deepseek-v4-flash",
+        });
+
+        // Meme modele: le raisonnement repart.
+        let rendu = rejouer_raisonnement(&m, "deepseek-v4-flash");
+        assert_eq!(rendu.as_deref(), Some("je reflechis"));
+
+        // Autre modele: rien, meme si le champ est la.
+        assert!(rejouer_raisonnement(&m, "gpt-4o").is_none());
+        assert!(rejouer_raisonnement(&m, "llama3").is_none());
+
+        // Message ordinaire: rien non plus, et pas de panique.
+        let simple = serde_json::json!({ "role": "user", "content": "salut" });
+        assert!(rejouer_raisonnement(&simple, "deepseek-v4-flash").is_none());
+    }
     use super::*;
 
     #[test]
@@ -1680,24 +1968,23 @@ mod tests {
     /// pire que celle qu'on essayait de corriger.
     #[test]
     fn le_budget_rabote_les_arguments_dappels_doutils() {
-        let messages: Vec<serde_json::Value> = std::iter::once(
-            serde_json::json!({ "role": "system", "content": "s" }),
-        )
-        .chain(std::iter::once(
-            serde_json::json!({ "role": "user", "content": "mission" }),
-        ))
-        .chain((0..20).map(|i| {
-            serde_json::json!({
-                "role": "assistant",
-                "content": null,
-                "tool_calls": [{
-                    "id": format!("c{i}"),
-                    "type": "function",
-                    "function": { "name": "f", "arguments": "z".repeat(5_000) }
-                }]
-            })
-        }))
-        .collect();
+        let messages: Vec<serde_json::Value> =
+            std::iter::once(serde_json::json!({ "role": "system", "content": "s" }))
+                .chain(std::iter::once(
+                    serde_json::json!({ "role": "user", "content": "mission" }),
+                ))
+                .chain((0..20).map(|i| {
+                    serde_json::json!({
+                        "role": "assistant",
+                        "content": null,
+                        "tool_calls": [{
+                            "id": format!("c{i}"),
+                            "type": "function",
+                            "function": { "name": "f", "arguments": "z".repeat(5_000) }
+                        }]
+                    })
+                }))
+                .collect();
         let body = serde_json::json!({ "model": "m", "messages": messages });
 
         let apres = reduire_sous_budget(&body, 20_000).unwrap();
@@ -1745,7 +2032,10 @@ mod tests {
         let body = serde_json::json!({ "model": "m", "tools": outils, "messages": messages });
 
         let avant = json_ascii(&serde_json::to_string(&body).unwrap()).len();
-        assert!(avant > 76_800, "le cas de test doit deborder, il fait {avant}");
+        assert!(
+            avant > 76_800,
+            "le cas de test doit deborder, il fait {avant}"
+        );
 
         let apres = reduire_sous_budget(&body, 76_800).unwrap();
         let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
@@ -1764,7 +2054,11 @@ mod tests {
         );
         let mission = restants
             .iter()
-            .find(|m| m["content"].as_str().is_some_and(|c| c.starts_with("la mission")))
+            .find(|m| {
+                m["content"]
+                    .as_str()
+                    .is_some_and(|c| c.starts_with("la mission"))
+            })
             .expect("la mission a ete retiree");
         assert!(
             mission["content"]
@@ -1775,9 +2069,9 @@ mod tests {
         );
         // Et la queue recente est intacte: c'est elle qui porte le fil en cours.
         assert!(
-            restants
-                .iter()
-                .any(|m| m["content"].as_str().is_some_and(|c| c.starts_with("m189-"))),
+            restants.iter().any(|m| m["content"]
+                .as_str()
+                .is_some_and(|c| c.starts_with("m189-"))),
             "le message le plus recent a ete retire"
         );
     }
@@ -1896,13 +2190,23 @@ mod tests {
         let apres = reduire_sous_budget(&body, 76_800).unwrap();
         let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
         assert!(corps <= 76_800, "must fit, got {corps}");
-        assert_eq!(apres["messages"].as_array().unwrap().len(), 2, "no message dropped");
+        assert_eq!(
+            apres["messages"].as_array().unwrap().len(),
+            2,
+            "no message dropped"
+        );
         assert!(
-            apres["messages"][1]["content"].as_str().unwrap().contains("cut to fit"),
+            apres["messages"][1]["content"]
+                .as_str()
+                .unwrap()
+                .contains("cut to fit"),
             "the cut must be announced"
         );
         // The system prompt is never touched.
-        assert_eq!(apres["messages"][0]["content"].as_str().unwrap().len(), 4_951);
+        assert_eq!(
+            apres["messages"][0]["content"].as_str().unwrap().len(),
+            4_951
+        );
     }
 
     /// The shape that actually breaks a research run: a SHOAL, not a whale.
@@ -1937,7 +2241,10 @@ mod tests {
         ];
         let propres = assainir_tools_openai(outils);
         assert_eq!(propres.len(), 1);
-        assert_eq!(propres[0]["function"]["description"], "builtin", "the first one wins");
+        assert_eq!(
+            propres[0]["function"]["description"], "builtin",
+            "the first one wins"
+        );
     }
 
     /// The registry schema goes through the converter untouched: every entry named.
@@ -1948,10 +2255,16 @@ mod tests {
             serde_json::json!({"description": "sans nom", "parameters": {}}),
         ];
         let convertis = convertir_tools_openai(&schema);
-        assert_eq!(convertis.len(), 1, "a nameless schema entry is already dropped here");
+        assert_eq!(
+            convertis.len(),
+            1,
+            "a nameless schema entry is already dropped here"
+        );
         assert!(assainir_tools_openai(convertis)
             .iter()
-            .all(|t| t["function"]["name"].as_str().is_some_and(|n| !n.is_empty())));
+            .all(|t| t["function"]["name"]
+                .as_str()
+                .is_some_and(|n| !n.is_empty())));
     }
 
     /// The refused body carried 38 messages, 23 of them tool results of roughly 3000
@@ -1975,8 +2288,15 @@ mod tests {
         let apres = reduire_sous_budget(&body, 76_800).unwrap();
         let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
         assert!(corps <= 76_800, "must fit, got {corps}");
-        assert_eq!(apres["messages"].as_array().unwrap().len(), 25, "no message dropped");
-        assert_eq!(apres["messages"][1]["content"], "jepa 2026", "the question is untouched");
+        assert_eq!(
+            apres["messages"].as_array().unwrap().len(),
+            25,
+            "no message dropped"
+        );
+        assert_eq!(
+            apres["messages"][1]["content"], "jepa 2026",
+            "the question is untouched"
+        );
     }
 
     /// A conversation of fat tool results must still fit on the wire.
@@ -2004,7 +2324,11 @@ mod tests {
         body["tools"] = serde_json::json!(outils);
 
         let brut = json_ascii(&serde_json::to_string(&body).unwrap());
-        assert!(brut.len() > 76_800, "the fixture must exceed the guard: {}", brut.len());
+        assert!(
+            brut.len() > 76_800,
+            "the fixture must exceed the guard: {}",
+            brut.len()
+        );
 
         let apres = reduire_sous_budget(&body, 76_800).unwrap();
         let corps = json_ascii(&serde_json::to_string(&apres).unwrap());
@@ -2018,7 +2342,10 @@ mod tests {
         assert_eq!(apres["messages"][1]["content"], "explain the architecture");
         // And a truncated observation says so.
         let recolte = apres["messages"][2]["content"].as_str().unwrap();
-        assert!(recolte.contains("cut to fit the request budget"), "the cut must be announced");
+        assert!(
+            recolte.contains("cut to fit the request budget"),
+            "the cut must be announced"
+        );
     }
 
     /// A self-hosted model is recognised by its ADDRESS, never by its provider name.
@@ -2068,7 +2395,10 @@ mod tests {
             ]
         });
         let brut = serde_json::to_string(&doc).unwrap();
-        assert!(!brut.is_ascii(), "the fixture must actually contain accents");
+        assert!(
+            !brut.is_ascii(),
+            "the fixture must actually contain accents"
+        );
 
         let ascii = json_ascii(&brut);
         assert!(ascii.is_ascii(), "no multi-byte character may remain");
@@ -2081,7 +2411,10 @@ mod tests {
         // Escaping changes the encoding, never the meaning.
         let relu: serde_json::Value = serde_json::from_str(&ascii).unwrap();
         assert_eq!(relu, doc);
-        assert_eq!(relu["messages"][0]["content"], "Résumé d'une clé été à Cannes 🐝");
+        assert_eq!(
+            relu["messages"][0]["content"],
+            "Résumé d'une clé été à Cannes 🐝"
+        );
 
         // An already-ASCII document is returned untouched.
         let simple = "{\"a\":\"b\"}";
@@ -2094,11 +2427,19 @@ mod tests {
             std::collections::HashMap::new();
         acc.insert(
             1,
-            ("call_01_b".into(), "file_read".into(), r#"{"path":"a"}"#.into()),
+            (
+                "call_01_b".into(),
+                "file_read".into(),
+                r#"{"path":"a"}"#.into(),
+            ),
         );
         acc.insert(
             0,
-            ("call_00_a".into(), "web_deep_search".into(), r#"{"q":"x"}"#.into()),
+            (
+                "call_00_a".into(),
+                "web_deep_search".into(),
+                r#"{"q":"x"}"#.into(),
+            ),
         );
 
         let premier = finaliser_tool_calls(&mut acc).expect("first pass yields the calls");

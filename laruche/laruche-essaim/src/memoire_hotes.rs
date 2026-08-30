@@ -77,7 +77,12 @@ impl FicheHote {
     pub fn mure(&self) -> bool {
         self.essais >= MIN_ESSAIS_SIGNAL
             && self.murs * 2 > self.essais
-            && self.succes.get(Route::Directe.etiquette()).copied().unwrap_or(0) == 0
+            && self
+                .succes
+                .get(Route::Directe.etiquette())
+                .copied()
+                .unwrap_or(0)
+                == 0
     }
 }
 
@@ -143,7 +148,10 @@ impl MemoireHotes {
             .ok()
             .and_then(|j| serde_json::from_str(&j).ok())
             .unwrap_or_default();
-        Self { etat: Mutex::new((table, 0)), chemin }
+        Self {
+            etat: Mutex::new((table, 0)),
+            chemin,
+        }
     }
 
     /// Records that `route` got the page for `url`.
@@ -151,7 +159,10 @@ impl MemoireHotes {
         let Some(hote) = hote_de(url) else { return };
         let mut g = self.etat.lock().unwrap();
         let fiche = g.0.par_hote.entry(hote).or_default();
-        *fiche.succes.entry(route.etiquette().to_string()).or_default() += 1;
+        *fiche
+            .succes
+            .entry(route.etiquette().to_string())
+            .or_default() += 1;
         fiche.essais += 1;
         self.peut_etre_persister(g);
     }
@@ -227,8 +238,14 @@ mod tests {
 
     #[test]
     fn lhote_est_la_cle_pas_lurl() {
-        assert_eq!(hote_de("https://www.Example.com/a/b?x=1").unwrap(), "example.com");
-        assert_eq!(hote_de("http://ds.lordtry.com:80/file/").unwrap(), "ds.lordtry.com");
+        assert_eq!(
+            hote_de("https://www.Example.com/a/b?x=1").unwrap(),
+            "example.com"
+        );
+        assert_eq!(
+            hote_de("http://ds.lordtry.com:80/file/").unwrap(),
+            "ds.lordtry.com"
+        );
         assert!(hote_de("pas-une-url").is_none());
     }
 
@@ -246,7 +263,10 @@ mod tests {
         for _ in 0..3 {
             m.succes("https://mure.test/a", Route::Jina);
         }
-        assert_eq!(m.route_preferee("https://mure.test/x").unwrap(), Route::Jina);
+        assert_eq!(
+            m.route_preferee("https://mure.test/x").unwrap(),
+            Route::Jina
+        );
         // The note must be legible: a silent reordering is not auditable.
         let note = m.note("https://mure.test/x").unwrap();
         assert!(note.contains("jina") && note.contains("mure.test"));

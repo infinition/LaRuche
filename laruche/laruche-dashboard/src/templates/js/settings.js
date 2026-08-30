@@ -35,7 +35,7 @@ LaRuche.i18n.add({
   'settings.curDefault':         {fr:'En arrière-plan, conservateur (dédup auto). Off = ne crée rien.', en:'Background, conservative (auto-dedup). Off = creates nothing.'},
   'settings.system':             {fr:'System',           en:'System'},
   'settings.showTransparency':   {fr:'Outils et mémoires dans le fil', en:'Tools and memories in the thread'},
-  'settings.showTransparencyHint': {fr:"Dans le fil du chat, montre les outils que l'agent a choisis et le nombre de mémoires utilisées. Affichage seulement — ça ne change rien au fonctionnement de LaRuche.", en:'In the chat thread, show which tools the agent picked and how many memories it used. Display only — it changes nothing to how LaRuche works.'},
+  'settings.showTransparencyHint': {fr:"Dans le fil du chat, montre les outils que l'agent a choisis et le nombre de mémoires utilisées. Affichage seulement - ça ne change rien au fonctionnement de LaRuche.", en:'In the chat thread, show which tools the agent picked and how many memories it used. Display only - it changes nothing to how LaRuche works.'},
   'settings.codexLoading':       {fr:'Chargement…',     en:'Loading…'},
   'settings.codexConnected':     {fr:'✓ Connecté',      en:'✓ Connected'},
   'settings.codexExpiring':      {fr:'Token expiré: refresh auto au prochain appel.', en:'Token expired: auto-refresh on next call.'},
@@ -718,7 +718,7 @@ LaRuche.Settings = (function(){
   /* The ten endpoints are NOT equal. Eight read a local config file and answer instantly;
    * `/api/doctor` and `/api/voice/status` PROBE THE NETWORK (Ollama, the provider, STT,
    * TTS) with timeouts. Bundling them in one Promise.all made every section wait on the
-   * probes — including Generation and LaReine, which never look at that data. Split, so a
+   * probes - including Generation and LaReine, which never look at that data. Split, so a
    * tab waits only for what it actually renders. */
   function _loadConfigs() {
     return Promise.all([
@@ -851,7 +851,7 @@ LaRuche.Settings = (function(){
 
   /* ── CHAT section: what shows up in the thread ────────────────────────────
    * Both settings govern the conversation surface, and both used to sit in sections
-   * about something else — transparency under General (a system panel) and agent
+   * about something else - transparency under General (a system panel) and agent
    * reactions under Generation (model parameters), where nobody looked for them. */
   async function loadChat(el) {
     var transpOn = window.localStorage.getItem('laruche_hide_transparency') !== 'true';
@@ -916,6 +916,7 @@ LaRuche.Settings = (function(){
       '<button class="form-btn" onclick="LaRuche.Settings.saveContextCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.curateur')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.autoSkillCreate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgCurateur" '+(curCfg.enabled?'checked':'')+' '+(curCfg.env_forced?'disabled':'')+' onchange="LaRuche.Settings.toggleCurateur(this.checked)"><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.halo')+'<span style="color:var(--text-dim);font-size:10px;display:block;max-width:340px;line-height:1.4">'+LaRuche.i18n.t('settings.haloHint')+'</span></span><label class="lr-switch"><input type="checkbox" id="cfgHalo" '+(curCfg.halo_actif!==false?'checked':'')+' onchange="LaRuche.Settings.toggleHalo(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.dynToolsSelect')+'<span style="color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.dynToolsHint')+'</span></span><label class="lr-switch"><input type="checkbox" id="cfgDynTools" '+(curCfg.dynamic_tools?'checked':'')+' onchange="LaRuche.Settings.toggleDynamicTools(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">'+(curCfg.env_forced?LaRuche.i18n.t('settings.curEnvForced'):LaRuche.i18n.t('settings.curDefault'))+'</div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.episodes')+'</div>'+
@@ -1793,7 +1794,7 @@ LaRuche.Settings = (function(){
 
   /* Rotate a key: the name is carried over and locked, only the value is asked for. The
    * old value is never sent to the browser in the first place (the list only ever gets
-   * names), so there is nothing to hide here — and POST /api/secrets is already an
+   * names), so there is nothing to hide here - and POST /api/secrets is already an
    * upsert, so replacing needs no new endpoint. */
   function secretUpdate(name){
     var n = document.getElementById('secName'), v = document.getElementById('secVal');
@@ -3333,6 +3334,19 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.episodesFailed'),'err'); });
   }
 
+  // Le decor du pilotage. Applique immediatement cote noeud, donc le geste
+  // suivant de l'agent obeit deja au nouveau reglage.
+  function toggleHalo(on) {
+    fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({halo_actif:!!on})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d && d.status==='ok') LaRuche.Toast.show(LaRuche.i18n.t('settings.haloSaved'),'ok');
+        else LaRuche.Toast.show(LaRuche.i18n.t('settings.haloFailed'),'err');
+      })
+      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.haloFailed'),'err'); });
+  }
+
   function toggleDynamicTools(on) {
     fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({dynamic_tools:!!on})})
       .then(function(r){return r.json();})
@@ -3753,7 +3767,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

@@ -500,15 +500,15 @@ pub(crate) async fn api_list_proposals() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "proposals": items, "pending": pending }))
 }
 
-/// GET /api/reine/dataset?format=sft|dpo|judge — convert the captured reviews into a
+/// GET /api/reine/dataset?format=sft|dpo|judge - convert the captured reviews into a
 /// ready-to-train JSONL, downloaded as a file.
 ///
 /// One capture, three shapes, because they train different things:
-///   * `sft`   — `{messages:[user, assistant]}`, the accepted answer only.
-///   * `dpo`   — `{prompt, chosen, rejected}`, ONLY from reviews that actually produced a
+///   * `sft`   - `{messages:[user, assistant]}`, the accepted answer only.
+///   * `dpo`   - `{prompt, chosen, rejected}`, ONLY from reviews that actually produced a
 ///     revision. A record where nothing was sent back has no rejected side, and inventing
 ///     one (pairing an answer against itself) would teach the model noise.
-///   * `judge` — `{messages:[user(request+draft), assistant(verdict+critique)]}`, to
+///   * `judge` - `{messages:[user(request+draft), assistant(verdict+critique)]}`, to
 ///     distil LaReine's judgement into a smaller reviewer.
 ///
 /// Values are already masked at capture time; nothing is unmasked here.

@@ -233,7 +233,10 @@ impl Deliberation {
     }
 
     fn interventions_du_tour(&self, tour: u8) -> Vec<&Intervention> {
-        self.interventions.iter().filter(|i| i.tour == tour).collect()
+        self.interventions
+            .iter()
+            .filter(|i| i.tour == tour)
+            .collect()
     }
 
     /// Quelqu'un a-t-il bouge au dernier tour ?
@@ -328,8 +331,8 @@ impl Deliberation {
         }
         let arbitre = self.arbitre();
         let est_synthese = lot.len() == 1 && Some(&lot[0].specialiste) == arbitre.as_ref();
-        let est_contradiction = lot.len() == 1
-            && self.role_de(&lot[0].specialiste) == Some(Role::Contradicteur);
+        let est_contradiction =
+            lot.len() == 1 && self.role_de(&lot[0].specialiste) == Some(Role::Contradicteur);
 
         // La synthese ne compte pas comme un tour de debat: elle le clot.
         if !est_synthese {
@@ -397,7 +400,11 @@ mod tests {
             tour: 0,
             accord,
             confiance: 70,
-            changement: if change { "l'argument de X".into() } else { "aucun".into() },
+            changement: if change {
+                "l'argument de X".into()
+            } else {
+                "aucun".into()
+            },
             refutable: String::new(),
             hypotheses: vec![],
             inconnues: vec![],
@@ -410,7 +417,12 @@ mod tests {
     fn chaque_mission_embauche_un_contradicteur() {
         // C'est le garde contre l'effondrement par complaisance: sans lui, une table
         // ronde converge vers la premiere reponse assuree, pas vers la bonne.
-        for m in [Mission::Reponse, Mission::Code, Mission::Recherche, Mission::Experimentation] {
+        for m in [
+            Mission::Reponse,
+            Mission::Code,
+            Mission::Recherche,
+            Mission::Experimentation,
+        ] {
             assert!(
                 m.equipe_par_defaut().contains(&"contradicteur"),
                 "{m:?} sans contradicteur"
@@ -421,7 +433,12 @@ mod tests {
     #[test]
     fn chaque_mission_annonce_son_niveau_d_acces() {
         // L'utilisateur doit savoir AVANT de lancer si la table va ecrire des fichiers.
-        for m in [Mission::Reponse, Mission::Code, Mission::Recherche, Mission::Experimentation] {
+        for m in [
+            Mission::Reponse,
+            Mission::Code,
+            Mission::Recherche,
+            Mission::Experimentation,
+        ] {
             assert!(!m.acces().is_empty());
         }
         assert_eq!(Mission::Reponse.acces(), "lecture seule");
@@ -431,9 +448,17 @@ mod tests {
     #[test]
     fn les_equipes_par_defaut_existent_dans_le_catalogue() {
         let ids: Vec<String> = catalogue().into_iter().map(|s| s.id).collect();
-        for m in [Mission::Reponse, Mission::Code, Mission::Recherche, Mission::Experimentation] {
+        for m in [
+            Mission::Reponse,
+            Mission::Code,
+            Mission::Recherche,
+            Mission::Experimentation,
+        ] {
             for id in m.equipe_par_defaut() {
-                assert!(ids.iter().any(|c| c == id), "{m:?} embauche {id}, absent du catalogue");
+                assert!(
+                    ids.iter().any(|c| c == id),
+                    "{m:?} embauche {id}, absent du catalogue"
+                );
             }
         }
     }
@@ -454,14 +479,24 @@ mod tests {
 
     #[test]
     fn les_reglages_plafonnent_l_orchestrateur() {
-        let r = Reglages { tours_max: 2, participants_max: 2, ..Default::default() };
+        let r = Reglages {
+            tours_max: 2,
+            participants_max: 2,
+            ..Default::default()
+        };
         let d = Deliberation::nouvelle(
             "q",
-            plan(&["scientifique", "ingenieur", "attaquant", "visionnaire"], 12),
+            plan(
+                &["scientifique", "ingenieur", "attaquant", "visionnaire"],
+                12,
+            ),
             r,
             equipe(),
         );
-        assert_eq!(d.plan.tours_max, 2, "12 tours demandes doivent etre ramenes a 2");
+        assert_eq!(
+            d.plan.tours_max, 2,
+            "12 tours demandes doivent etre ramenes a 2"
+        );
         assert_eq!(d.plan.participants.len(), 2, "4 participants ramenes a 2");
     }
 
@@ -546,7 +581,10 @@ mod tests {
 
     #[test]
     fn le_budget_epuise_laisse_quand_meme_conclure() {
-        let r = Reglages { jetons_max: 150, ..Default::default() };
+        let r = Reglages {
+            jetons_max: 150,
+            ..Default::default()
+        };
         let mut d = Deliberation::nouvelle("q", plan(&["scientifique"], 4), r, equipe());
         d.deposer(vec![interv("scientifique", true, Accord::Approuve)]); // 100 jetons
         d.deposer(vec![interv("scientifique", true, Accord::Approuve)]); // 200 > 150
@@ -560,17 +598,30 @@ mod tests {
 
     #[test]
     fn la_synthese_ne_compte_pas_comme_un_tour() {
-        let mut d = Deliberation::nouvelle("q", plan(&["scientifique"], 4), Reglages::default(), equipe());
+        let mut d = Deliberation::nouvelle(
+            "q",
+            plan(&["scientifique"], 4),
+            Reglages::default(),
+            equipe(),
+        );
         d.deposer(vec![interv("scientifique", true, Accord::Approuve)]);
         let avant = d.tour_courant;
         d.deposer(vec![interv("arbitre", false, Accord::Approuve)]);
-        assert_eq!(d.tour_courant, avant, "la synthese clot le debat, elle n'en est pas un tour");
+        assert_eq!(
+            d.tour_courant, avant,
+            "la synthese clot le debat, elle n'en est pas un tour"
+        );
         assert!(matches!(d.prochaine_etape(), Etape::Fini(_)));
     }
 
     #[test]
     fn la_repartition_prend_la_derniere_position() {
-        let mut d = Deliberation::nouvelle("q", plan(&["scientifique"], 4), Reglages::default(), equipe());
+        let mut d = Deliberation::nouvelle(
+            "q",
+            plan(&["scientifique"], 4),
+            Reglages::default(),
+            equipe(),
+        );
         d.deposer(vec![interv("scientifique", true, Accord::Oppose)]);
         d.deposer(vec![interv("scientifique", true, Accord::Approuve)]);
         let r = d.repartition();

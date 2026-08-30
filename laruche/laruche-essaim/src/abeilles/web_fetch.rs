@@ -82,7 +82,9 @@ impl Abeille for WebFetch {
         }
 
         let offset = args["offset"].as_u64().unwrap_or(0) as usize;
-        let max_chars = (args["max_chars"].as_u64().unwrap_or(MAX_CHARS_DEFAUT as u64) as usize)
+        let max_chars = (args["max_chars"]
+            .as_u64()
+            .unwrap_or(MAX_CHARS_DEFAUT as u64) as usize)
             .clamp(1_000, 40_000);
         let avec_liens = args["include_links"].as_bool().unwrap_or(false);
         let focus = args["focus"].as_str().unwrap_or("").to_string();
@@ -98,7 +100,11 @@ impl Abeille for WebFetch {
                     crate::memoire_hotes::globales()
                         .succes(url, crate::memoire_hotes::Route::Rendu);
                     let texte = extraire_lisible(&html);
-                    let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
+                    let liens = if avec_liens {
+                        rendu_liens(&html, url)
+                    } else {
+                        String::new()
+                    };
                     Ok(ResultatAbeille::ok(format!(
                         "{}{liens}",
                         presenter(&texte, &focus, probe, offset, max_chars)
@@ -125,9 +131,7 @@ impl Abeille for WebFetch {
                 let appris = memoire.note(url).unwrap_or_default();
                 let texte = match route {
                     crate::memoire_hotes::Route::Jina => fetch_via_jina(&client, url).await,
-                    crate::memoire_hotes::Route::Archive => {
-                        fetch_via_wayback(&client, url).await
-                    }
+                    crate::memoire_hotes::Route::Archive => fetch_via_wayback(&client, url).await,
                     // The other routes are the normal path or need the HTML we do
                     // not have yet: fall through and let the chain run as usual.
                     _ => None,
@@ -189,7 +193,11 @@ impl Abeille for WebFetch {
                     ));
                 }
                 memoire.succes(url, crate::memoire_hotes::Route::Directe);
-                let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
+                let liens = if avec_liens {
+                    rendu_liens(&html, url)
+                } else {
+                    String::new()
+                };
                 Ok(ResultatAbeille::ok(format!(
                     "{}{liens}",
                     presenter(&texte, &focus, probe, offset, max_chars)
@@ -197,7 +205,9 @@ impl Abeille for WebFetch {
             }
             Ok(Recolte::Texte(t)) if !t.trim().is_empty() => {
                 memoire.succes(url, crate::memoire_hotes::Route::Directe);
-                Ok(ResultatAbeille::ok(presenter(&t, &focus, probe, offset, max_chars)))
+                Ok(ResultatAbeille::ok(presenter(
+                    &t, &focus, probe, offset, max_chars,
+                )))
             }
             issue => {
                 let motif = match issue {
@@ -277,11 +287,13 @@ async fn fetch_direct(client: &reqwest::Client, url: &str) -> Result<Recolte> {
         return Ok(Recolte::Pdf);
     }
     let body = response.text().await.unwrap_or_default();
-    Ok(if content_type.contains("html") || body.trim_start().starts_with('<') {
-        Recolte::Html(body)
-    } else {
-        Recolte::Texte(body)
-    })
+    Ok(
+        if content_type.contains("html") || body.trim_start().starts_with('<') {
+            Recolte::Html(body)
+        } else {
+            Recolte::Texte(body)
+        },
+    )
 }
 
 /// Fallback via r.jina.ai: reader proxy that already returns clean text/markdown
@@ -534,9 +546,9 @@ fn cibler(texte: &str, focus: &str, max_chars: usize) -> Option<String> {
 /// Focus terms: lowercase, deduplicated, stopwords dropped.
 fn termes_focus(focus: &str) -> Vec<String> {
     const VIDES: &[&str] = &[
-        "the", "a", "an", "of", "and", "or", "in", "on", "for", "to", "is", "are", "what",
-        "how", "le", "la", "les", "de", "des", "du", "et", "ou", "un", "une", "dans", "sur",
-        "quoi", "comment", "quel", "quelle",
+        "the", "a", "an", "of", "and", "or", "in", "on", "for", "to", "is", "are", "what", "how",
+        "le", "la", "les", "de", "des", "du", "et", "ou", "un", "une", "dans", "sur", "quoi",
+        "comment", "quel", "quelle",
     ];
     let mut termes: Vec<String> = focus
         .split(|c: char| !c.is_alphanumeric() && c != '-')
@@ -603,9 +615,7 @@ fn score_bloc(bloc: &str, termes: &[String]) -> usize {
 pub(crate) fn paginer(texte: &str, offset: usize, max_chars: usize) -> String {
     let total = texte.chars().count();
     if offset >= total && total > 0 {
-        return format!(
-            "(offset {offset} is past the end: the page has {total} characters total)"
-        );
+        return format!("(offset {offset} is past the end: the page has {total} characters total)");
     }
     let fenetre: String = texte.chars().skip(offset).take(max_chars).collect();
     let fin = offset + fenetre.chars().count();
@@ -652,7 +662,9 @@ pub(crate) fn extraire_donnees_structurees(html: &str) -> Option<String> {
         }
         // The `<meta>` description and OG tags are the publisher's own summary,
         // and they survive on pages that carry no JSON-LD at all.
-        if let Ok(sel) = Selector::parse(r#"meta[property="og:description"], meta[name="description"]"#) {
+        if let Ok(sel) =
+            Selector::parse(r#"meta[property="og:description"], meta[name="description"]"#)
+        {
             for element in doc.select(&sel) {
                 if let Some(c) = element.value().attr("content").map(str::trim) {
                     if c.len() > 40 && !morceaux.iter().any(|m| m.contains(c)) {
@@ -674,9 +686,21 @@ pub(crate) fn extraire_donnees_structurees(html: &str) -> Option<String> {
 /// extraction look useless.
 fn aplatir_json_ld(valeur: &serde_json::Value, sortie: &mut Vec<String>) {
     const CLES_TEXTE: &[&str] = &[
-        "headline", "name", "description", "articleBody", "text", "abstract",
-        "reviewBody", "recipeInstructions", "author", "datePublished", "price",
-        "priceCurrency", "availability", "addressLocality", "telephone",
+        "headline",
+        "name",
+        "description",
+        "articleBody",
+        "text",
+        "abstract",
+        "reviewBody",
+        "recipeInstructions",
+        "author",
+        "datePublished",
+        "price",
+        "priceCurrency",
+        "availability",
+        "addressLocality",
+        "telephone",
     ];
     match valeur {
         serde_json::Value::Array(items) => {
@@ -695,17 +719,16 @@ fn aplatir_json_ld(valeur: &serde_json::Value, sortie: &mut Vec<String>) {
                     Some(serde_json::Value::String(s)) if !s.trim().is_empty() => {
                         champs.push(format!("{cle}: {}", s.trim()));
                     }
-                    Some(imbrique @ (serde_json::Value::Object(_) | serde_json::Value::Array(_))) => {
+                    Some(
+                        imbrique @ (serde_json::Value::Object(_) | serde_json::Value::Array(_)),
+                    ) => {
                         aplatir_json_ld(imbrique, sortie);
                     }
                     _ => {}
                 }
             }
             if !champs.is_empty() {
-                let type_ = map
-                    .get("@type")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("item");
+                let type_ = map.get("@type").and_then(|t| t.as_str()).unwrap_or("item");
                 sortie.push(format!("[{type_}]\n{}", champs.join("\n")));
             }
         }
@@ -783,18 +806,45 @@ pub(crate) fn decoder_entites_html(texte: &str) -> String {
     /// The named entities worth a table. Accented letters come through as
     /// numeric forms often enough that listing them all would be noise.
     const NOMMEES: &[(&str, &str)] = &[
-        ("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
-        ("&quot;", "\""), ("&apos;", "'"), ("&#39;", "'"), ("&hellip;", "..."),
-        ("&mdash;", "-"), ("&ndash;", "-"), ("&laquo;", "\u{ab}"), ("&raquo;", "\u{bb}"),
-        ("&eacute;", "\u{e9}"), ("&egrave;", "\u{e8}"), ("&ecirc;", "\u{ea}"),
-        ("&agrave;", "\u{e0}"), ("&acirc;", "\u{e2}"), ("&ccedil;", "\u{e7}"),
-        ("&ocirc;", "\u{f4}"), ("&ugrave;", "\u{f9}"), ("&ucirc;", "\u{fb}"),
-        ("&icirc;", "\u{ee}"), ("&iuml;", "\u{ef}"), ("&euml;", "\u{eb}"),
-        ("&uuml;", "\u{fc}"), ("&ouml;", "\u{f6}"), ("&auml;", "\u{e4}"),
-        ("&szlig;", "\u{df}"), ("&ntilde;", "\u{f1}"), ("&deg;", "\u{b0}"),
-        ("&euro;", "\u{20ac}"), ("&pound;", "\u{a3}"), ("&copy;", "\u{a9}"),
-        ("&reg;", "\u{ae}"), ("&trade;", "\u{2122}"), ("&rsquo;", "'"),
-        ("&lsquo;", "'"), ("&ldquo;", "\""), ("&rdquo;", "\""),
+        ("&nbsp;", " "),
+        ("&amp;", "&"),
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+        ("&quot;", "\""),
+        ("&apos;", "'"),
+        ("&#39;", "'"),
+        ("&hellip;", "..."),
+        ("&mdash;", "-"),
+        ("&ndash;", "-"),
+        ("&laquo;", "\u{ab}"),
+        ("&raquo;", "\u{bb}"),
+        ("&eacute;", "\u{e9}"),
+        ("&egrave;", "\u{e8}"),
+        ("&ecirc;", "\u{ea}"),
+        ("&agrave;", "\u{e0}"),
+        ("&acirc;", "\u{e2}"),
+        ("&ccedil;", "\u{e7}"),
+        ("&ocirc;", "\u{f4}"),
+        ("&ugrave;", "\u{f9}"),
+        ("&ucirc;", "\u{fb}"),
+        ("&icirc;", "\u{ee}"),
+        ("&iuml;", "\u{ef}"),
+        ("&euml;", "\u{eb}"),
+        ("&uuml;", "\u{fc}"),
+        ("&ouml;", "\u{f6}"),
+        ("&auml;", "\u{e4}"),
+        ("&szlig;", "\u{df}"),
+        ("&ntilde;", "\u{f1}"),
+        ("&deg;", "\u{b0}"),
+        ("&euro;", "\u{20ac}"),
+        ("&pound;", "\u{a3}"),
+        ("&copy;", "\u{a9}"),
+        ("&reg;", "\u{ae}"),
+        ("&trade;", "\u{2122}"),
+        ("&rsquo;", "'"),
+        ("&lsquo;", "'"),
+        ("&ldquo;", "\""),
+        ("&rdquo;", "\""),
     ];
 
     if !texte.contains('&') {
@@ -848,7 +898,9 @@ pub(crate) fn extraire_liens(html: &str, base: &str) -> Vec<(String, String)> {
     let mut vus = std::collections::HashSet::new();
     let mut liens = Vec::new();
     for a in doc.select(&sel) {
-        let Some(href) = a.value().attr("href") else { continue };
+        let Some(href) = a.value().attr("href") else {
+            continue;
+        };
         // Resolve relative hrefs against the page URL.
         let abs = match reqwest::Url::parse(href) {
             Ok(u) => u.to_string(),
@@ -863,7 +915,12 @@ pub(crate) fn extraire_liens(html: &str, base: &str) -> Vec<(String, String)> {
         if !abs.starts_with("http") {
             continue;
         }
-        let texte: String = a.text().collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ");
+        let texte: String = a
+            .text()
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
         let texte: String = texte.chars().take(80).collect();
         if texte.is_empty() {
             continue;
@@ -1044,7 +1101,10 @@ mod tests {
 
     #[test]
     fn les_entites_numeriques_couvrent_le_reste() {
-        assert_eq!(decoder_entites_html("caf&#233; et &#x41;"), "caf\u{e9} et A");
+        assert_eq!(
+            decoder_entites_html("caf&#233; et &#x41;"),
+            "caf\u{e9} et A"
+        );
         assert_eq!(decoder_entites_html("&nbsp;a&amp;b"), " a&b");
     }
 
@@ -1053,7 +1113,10 @@ mod tests {
     #[test]
     fn une_esperluette_nue_survit() {
         assert_eq!(decoder_entites_html("Marks & Spencer"), "Marks & Spencer");
-        assert_eq!(decoder_entites_html("a & b &pasuneentite; c"), "a & b &pasuneentite; c");
+        assert_eq!(
+            decoder_entites_html("a & b &pasuneentite; c"),
+            "a & b &pasuneentite; c"
+        );
         assert_eq!(decoder_entites_html("fin &"), "fin &");
     }
 
@@ -1076,9 +1139,16 @@ mod tests {
         assert!(verdict.starts_with("PROBE"));
         assert!(verdict.contains("PRESENT"));
         // Evidence is mandatory: a bare yes would have to be taken on faith.
-        assert!(verdict.contains("ended in March"), "quote missing: {verdict}");
+        assert!(
+            verdict.contains("ended in March"),
+            "quote missing: {verdict}"
+        );
         // The whole point is the price.
-        assert!(verdict.len() < 400, "probe should stay tiny, got {}", verdict.len());
+        assert!(
+            verdict.len() < 400,
+            "probe should stay tiny, got {}",
+            verdict.len()
+        );
     }
 
     #[test]
@@ -1116,7 +1186,10 @@ mod tests {
         let extrait = extraire_donnees_structurees(html).expect("JSON-LD should be readable");
         assert!(extrait.contains("Le titre reel"));
         assert!(extrait.contains("Le corps de l article"));
-        assert!(extrait.contains("Une autrice"), "nested author must be flattened");
+        assert!(
+            extrait.contains("Une autrice"),
+            "nested author must be flattened"
+        );
         // The noise must NOT come through: that is what makes payload extraction useful.
         assert!(!extrait.contains("@context"));
         assert!(!extrait.contains("NewsArticle\":"));
@@ -1143,7 +1216,10 @@ mod tests {
         let extrait = extraire_donnees_structurees(html).expect("@graph should be walked");
         assert!(extrait.contains("Objet"), "the Product node was skipped");
         assert!(extrait.contains("42"), "the price was skipped");
-        assert!(extrait.contains("Fiche produit"), "the WebPage node was skipped");
+        assert!(
+            extrait.contains("Fiche produit"),
+            "the WebPage node was skipped"
+        );
     }
 
     /// The measured failure: on a long page, blind truncation can return none
@@ -1199,14 +1275,17 @@ omega end.";
 
     #[test]
     fn termes_focus_ecarte_les_mots_vides() {
-        assert_eq!(termes_focus("what is the role of apoptosis"), vec!["apoptosis", "role"]);
+        assert_eq!(
+            termes_focus("what is the role of apoptosis"),
+            vec!["apoptosis", "role"]
+        );
         assert!(termes_focus("the of and").is_empty());
     }
 
     #[test]
     fn paginer_fenetre_et_offset() {
         let texte: String = "abcdefghij".repeat(100); // 1000 chars
-        // first window announces the continuation offset
+                                                      // first window announces the continuation offset
         let p0 = paginer(&texte, 0, 400);
         assert!(p0.contains("offset=400"));
         assert!(p0.contains("1000 chars total"));
@@ -1233,8 +1312,9 @@ omega end.";
         </body></html>"##;
         let liens = extraire_liens(html, "https://example.org/base/");
         assert_eq!(liens.len(), 3, "{liens:?}"); // dup collapsed, anchor resolves to base
-        assert!(liens.iter().any(|(t, u)| t.contains("Download")
-            && u == "https://example.org/download/save.zip"));
+        assert!(liens
+            .iter()
+            .any(|(t, u)| t.contains("Download") && u == "https://example.org/download/save.zip"));
     }
 
     #[test]
@@ -1261,7 +1341,10 @@ omega end.";
             "sauvegarde .dsparty documentee ".repeat(30)
         );
         let t = extraire_lisible(&html);
-        assert!(t.contains("sauvegarde .dsparty"), "the article wins: {t:.120}");
+        assert!(
+            t.contains("sauvegarde .dsparty"),
+            "the article wins: {t:.120}"
+        );
         assert!(!t.contains("Your favourited games"), "nav chrome discarded");
     }
 
@@ -1274,6 +1357,9 @@ omega end.";
             .collect::<String>();
         let html = format!("<html><body><main>Downloads: {liens}</main></body></html>");
         let t = extraire_lisible(&html);
-        assert!(t.contains("savegame_pack_0.dsparty"), "download links kept: {t:.160}");
+        assert!(
+            t.contains("savegame_pack_0.dsparty"),
+            "download links kept: {t:.160}"
+        );
     }
 }

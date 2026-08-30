@@ -382,7 +382,7 @@ fn decoupe_canal(canal: &str) -> (&str, &str) {
 /// First entry of a comma-separated allow list, used when the spec names no target.
 /// Read a channel token, resolving a vault reference.
 ///
-/// A token may be stored literally, or as `${NAME}` pointing at a Secrets entry — the
+/// A token may be stored literally, or as `${NAME}` pointing at a Secrets entry - the
 /// same two modes as a provider API key. Without this the reference would be sent to
 /// Telegram verbatim and the bot would simply fail to authenticate.
 fn jeton_canal(bloc: &serde_json::Value, champ: &str) -> String {

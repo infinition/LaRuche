@@ -247,7 +247,7 @@ def main():
             target = os.path.join(folder, name)
             shown = os.path.relpath(target, ROOT).replace("\\", "/")
             for number, line in enumerate(read(target).splitlines(), 1):
-                if "—" in line:
+                if "-" in line:
                     problems.append("%s:%d: em dash" % (shown, number))
                 hit = foreign.search(line)
                 if hit:

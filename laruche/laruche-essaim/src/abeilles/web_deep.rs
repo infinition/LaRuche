@@ -94,22 +94,26 @@ impl Abeille for WebDeepSearch {
         ));
 
         // Step 2: fetch the top N CONCURRENTLY (each with its own fallback chain).
-        let futs = urls.iter().take(num).enumerate().map(|(i, (title, url, snippet))| {
-            let client = client.clone();
-            async move {
-                let corps = recolter_page(&client, url).await;
-                let mut section = format!(
-                    "---\n## {}. {}\n**URL:** {}\n**Snippet:** {}\n\n",
-                    i + 1,
-                    title,
-                    url,
-                    snippet
-                );
-                section.push_str(&corps);
-                section.push_str("\n\n");
-                section
-            }
-        });
+        let futs = urls
+            .iter()
+            .take(num)
+            .enumerate()
+            .map(|(i, (title, url, snippet))| {
+                let client = client.clone();
+                async move {
+                    let corps = recolter_page(&client, url).await;
+                    let mut section = format!(
+                        "---\n## {}. {}\n**URL:** {}\n**Snippet:** {}\n\n",
+                        i + 1,
+                        title,
+                        url,
+                        snippet
+                    );
+                    section.push_str(&corps);
+                    section.push_str("\n\n");
+                    section
+                }
+            });
         for section in futures_util::future::join_all(futs).await {
             output.push_str(&section);
         }
@@ -135,10 +139,7 @@ async fn recolter_page(client: &reqwest::Client, url: &str) -> String {
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("")
                 .to_lowercase();
-            if !ctype.is_empty()
-                && !ctype.contains("html")
-                && !ctype.contains("text/plain")
-            {
+            if !ctype.is_empty() && !ctype.contains("html") && !ctype.contains("text/plain") {
                 Err("(non-HTML content)".to_string())
             } else {
                 let html = resp.text().await.unwrap_or_default();

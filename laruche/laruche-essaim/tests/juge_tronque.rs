@@ -14,7 +14,7 @@ fn une_reponse_coupee_apres_les_scores_reste_exploitable() {
     assert_eq!(c.confiance, 88);
 }
 
-/// The old shape: prose first, cut before any score. Nothing to salvage — which is
+/// The old shape: prose first, cut before any score. Nothing to salvage - which is
 /// exactly the failure this reordering removes.
 #[test]
 fn une_reponse_coupee_avant_les_scores_est_bien_rejetee() {

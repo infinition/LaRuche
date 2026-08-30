@@ -38,9 +38,7 @@ impl StatOutil {
         }
     }
     pub fn latence_moyenne_ms(&self) -> u64 {
-        self.latence_totale_ms
-            .checked_div(self.appels)
-            .unwrap_or(0)
+        self.latence_totale_ms.checked_div(self.appels).unwrap_or(0)
     }
 }
 
@@ -82,20 +80,22 @@ impl StatsOutils {
             .ok()
             .and_then(|j| serde_json::from_str(&j).ok())
             .unwrap_or_default();
-        Self { etat: Mutex::new((table, 0)), chemin }
+        Self {
+            etat: Mutex::new((table, 0)),
+            chemin,
+        }
     }
 
     /// Records one executed call. Vigie blocks and permission denials never reach
     /// the executor, so they are not counted - a block is not the tool's fault.
     pub fn enregistrer(&self, modele: &str, outil: &str, ok: bool, ms: u64) {
         let mut g = self.etat.lock().unwrap();
-        let s = g
-            .0
-            .par_modele
-            .entry(modele.to_string())
-            .or_default()
-            .entry(outil.to_string())
-            .or_default();
+        let s =
+            g.0.par_modele
+                .entry(modele.to_string())
+                .or_default()
+                .entry(outil.to_string())
+                .or_default();
         s.appels += 1;
         if ok {
             s.succes += 1;

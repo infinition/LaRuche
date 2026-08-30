@@ -57,11 +57,7 @@ impl Abeille for ReadExtract {
         let text = match ext.as_str() {
             "pdf" => match pdf_extract::extract_text(path) {
                 Ok(text) => text,
-                Err(e) => {
-                    return Ok(ResultatAbeille::err(format!(
-                        "PDF extraction failed: {e}"
-                    )))
-                }
+                Err(e) => return Ok(ResultatAbeille::err(format!("PDF extraction failed: {e}"))),
             },
             "txt" | "md" | "markdown" => match std::fs::read_to_string(path) {
                 Ok(text) => text,

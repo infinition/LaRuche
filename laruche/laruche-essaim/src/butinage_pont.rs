@@ -9,6 +9,23 @@
 /// Engine selection. Butinage is the default; the legacy brain engine is
 /// deprecated and only used when `RUCHE_MOTEUR=brain` is set explicitly.
 /// `RUCHE_MOTEUR=butinage` (the old opt-in) still works and is a no-op.
+/// Recopie le raisonnement d'un message dans la trame envoyee au fournisseur.
+///
+/// Deux champs et non un: le contenu, et le modele qui l'a produit. Le
+/// constructeur de requetes ne rejoue le raisonnement que si le modele vise est
+/// celui qui l'a emis, sans quoi un autre backend recevrait une cle qu'il ne
+/// connait pas. Poser les deux ici garde cette decision a un seul endroit.
+fn poser_raisonnement(sortie: &mut serde_json::Value, m: &laruche_butinage::messagerie::Message) {
+    let (Some(r), Some(modele)) = (m.reasoning.as_deref(), m.reasoning_model.as_deref()) else {
+        return;
+    };
+    if r.is_empty() {
+        return;
+    }
+    sortie["reasoning_content"] = serde_json::json!(r);
+    sortie["reasoning_model"] = serde_json::json!(modele);
+}
+
 pub fn moteur_butinage_actif() -> bool {
     match std::env::var("RUCHE_MOTEUR").as_deref() {
         Ok("brain") => {
@@ -92,7 +109,11 @@ impl but::Fournisseur for FournisseurPont {
         schemas: &[serde_json::Value],
     ) -> std::result::Result<but::ReponseModele, but::ErreurFournisseur> {
         let msgs = convertir_messages(messages);
-        let tools = if schemas.is_empty() { None } else { Some(schemas) };
+        let tools = if schemas.is_empty() {
+            None
+        } else {
+            Some(schemas)
+        };
         // Pick an available credential from the pool (skips rate-limited/invalid keys and
         // load-balances by usage) when one is configured, otherwise the static key. The key
         // may be a `${NAME}` vault reference, so it is substituted inside choisir_cle.
@@ -122,6 +143,9 @@ impl but::Fournisseur for FournisseurPont {
         // Real token counts (returned on the final chunk by Ollama): calibrate the gauge.
         let mut tok_entree: u64 = 0;
         let mut tok_sortie: u64 = 0;
+        // Le raisonnement arrive sur le dernier morceau. On le garde pour le
+        // rendre au fournisseur au tour suivant, ce qu'il exige.
+        let mut raisonnement: Option<String> = None;
 
         while let Some(chunk) = stream.next().await {
             if chunk.finish_reason.is_some() {
@@ -132,6 +156,9 @@ impl but::Fournisseur for FournisseurPont {
             }
             if let Some(e) = chunk.eval_count {
                 tok_sortie = e;
+            }
+            if let Some(r) = chunk.reasoning.clone() {
+                raisonnement = Some(r);
             }
             if let Some(tcs) = chunk.tool_calls.clone() {
                 // ACCUMULATE: Ollama may stream one tool call per intermediate chunk
@@ -149,11 +176,16 @@ impl but::Fournisseur for FournisseurPont {
             }
             if !chunk.text.is_empty() {
                 texte.push_str(&chunk.text);
-                let _ = self.tx.send(ChatEvent::Token { text: chunk.text.clone() });
+                let _ = self.tx.send(ChatEvent::Token {
+                    text: chunk.text.clone(),
+                });
             }
         }
         let usage = if tok_entree > 0 || tok_sortie > 0 {
-            Some(but::Usage { entree: tok_entree as u32, sortie: tok_sortie as u32 })
+            Some(but::Usage {
+                entree: tok_entree as u32,
+                sortie: tok_sortie as u32,
+            })
         } else {
             None
         };
@@ -181,7 +213,9 @@ impl but::Fournisseur for FournisseurPont {
         // Plan emitted as TEXT (<plan>...</plan>) by the system prompt: display it (UI widget)
         // and inject it as a `plan` call to populate the itinerary (with statuses).
         if let Some(items) = parse_plan(&texte) {
-            let _ = self.tx.send(ChatEvent::Plan { items: items.clone() });
+            let _ = self.tx.send(ChatEvent::Plan {
+                items: items.clone(),
+            });
             let items_json: Vec<serde_json::Value> = items
                 .iter()
                 .map(|p| serde_json::json!({ "task": p.task, "status": p.status }))
@@ -197,6 +231,8 @@ impl but::Fournisseur for FournisseurPont {
             stop,
             appels,
             usage,
+            reasoning_model: raisonnement.as_ref().map(|_| self.model.clone()),
+            reasoning: raisonnement,
         })
     }
 }
@@ -218,8 +254,7 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
     let n = messages.len();
     let mut repondu: Vec<std::collections::HashSet<&str>> = vec![Default::default(); n];
     for (i, m) in messages.iter().enumerate() {
-        if m.role == Role::Assistant && !m.appels.is_empty() && !m.contenu.contains("<tool_call>")
-        {
+        if m.role == Role::Assistant && !m.appels.is_empty() && !m.contenu.contains("<tool_call>") {
             let mut j = i + 1;
             while j < n && messages[j].role == Role::Observation {
                 if let Some(id) = messages[j].appel_id.as_deref() {
@@ -279,11 +314,13 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
                             })
                         })
                         .collect();
-                    return serde_json::json!({
+                    let mut sortie = serde_json::json!({
                         "role": "assistant",
                         "content": m.contenu,
                         "tool_calls": tool_calls,
                     });
+                    poser_raisonnement(&mut sortie, m);
+                    return sortie;
                 }
                 ids_natifs.clear();
                 // Text fallback: re-render unanswered/text-mode calls so the transcript
@@ -302,7 +339,9 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
                 } else {
                     m.contenu.clone()
                 };
-                return serde_json::json!({ "role": "assistant", "content": contenu });
+                let mut sortie = serde_json::json!({ "role": "assistant", "content": contenu });
+                poser_raisonnement(&mut sortie, m);
+                return sortie;
             }
 
             let role = match m.role {
@@ -313,8 +352,12 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
             // audio. Ollama format: `images: [base64]` for vision, `attachments`
             // for the rest (audio/files): the streaming provider knows how to consume it.
             if !m.pieces.is_empty() && matches!(m.role, Role::Utilisateur) {
-                let images: Vec<&str> =
-                    m.pieces.iter().filter(|p| p.est_image()).map(|p| p.data.as_str()).collect();
+                let images: Vec<&str> = m
+                    .pieces
+                    .iter()
+                    .filter(|p| p.est_image())
+                    .map(|p| p.data.as_str())
+                    .collect();
                 let attachments: Vec<serde_json::Value> = m
                     .pieces
                     .iter()
@@ -348,13 +391,19 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
     };
     let mut out: Vec<serde_json::Value> = Vec::with_capacity(brut.len());
     for m in brut {
-        let meme_role = out.last().map(|l| l.get("role") == m.get("role")).unwrap_or(false);
-        let fusible = meme_role
-            && !intouchable(&m)
-            && out.last().map(|l| !intouchable(l)).unwrap_or(false);
+        let meme_role = out
+            .last()
+            .map(|l| l.get("role") == m.get("role"))
+            .unwrap_or(false);
+        let fusible =
+            meme_role && !intouchable(&m) && out.last().map(|l| !intouchable(l)).unwrap_or(false);
         if fusible {
             let last = out.last_mut().unwrap();
-            let a = last.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let a = last
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let b = m.get("content").and_then(|v| v.as_str()).unwrap_or("");
             last["content"] = serde_json::Value::String(if a.is_empty() {
                 b.to_string()
@@ -487,9 +536,8 @@ struct OutilsPont<'a> {
     skills_creees: std::sync::Mutex<std::collections::BTreeSet<String>>,
     /// Tools a skill opened this mission declares in its `tools:` frontmatter, kept per
     /// skill so the reminder can say which skill asked for them.
-    outils_recommandes: std::sync::Mutex<
-        std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
-    >,
+    outils_recommandes:
+        std::sync::Mutex<std::collections::BTreeMap<String, std::collections::BTreeSet<String>>>,
 }
 
 /// Max scouts dispatched per mission (fan-out breadth ceiling).
@@ -526,7 +574,9 @@ impl OutilsPont<'_> {
         }
         // HARD fan-out cap: past MAX_DELEGATIONS scouts, refuse and steer to direct
         // tools / synthesis. Prevents the timeout-inducing 7-12 scout explosions.
-        let n = self.delegations.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let n = self
+            .delegations
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if n >= MAX_DELEGATIONS {
             return self.bloquer(
                 &appel.nom,
@@ -610,11 +660,18 @@ impl OutilsPont<'_> {
 
         // Memory for the scout's initial recall: it starts KNOWING what past
         // missions already found (and which dead ends to skip).
-        let source_enfant = self.memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
+        let source_enfant = self
+            .memoire
+            .as_ref()
+            .map(|m| SourcePont::nouveau(m.clone()));
         let source_dyn: Option<&dyn but::Source> =
             source_enfant.as_ref().map(|s| s as &dyn but::Source);
 
-        let ordre = but::OrdreEclaireuse { role, tache, contexte };
+        let ordre = but::OrdreEclaireuse {
+            role,
+            tache,
+            contexte,
+        };
         let resultat = match but::depecher(
             ordre,
             self.reglages,
@@ -762,13 +819,14 @@ impl but::Outils for OutilsPont<'_> {
                         .await,
                     )
                 };
-                let decision = crate::approbation::decider(&crate::approbation::ContexteApprobation {
-                    regle_refus: None, // already handled above
-                    deja_approuve: deja,
-                    verdict,
-                    humain_dispo: self.approval.is_some(),
-                    autonome_permissif: !self.config.approbation_stricte,
-                });
+                let decision =
+                    crate::approbation::decider(&crate::approbation::ContexteApprobation {
+                        regle_refus: None, // already handled above
+                        deja_approuve: deja,
+                        verdict,
+                        humain_dispo: self.approval.is_some(),
+                        autonome_permissif: !self.config.approbation_stricte,
+                    });
                 match decision {
                     crate::approbation::DecisionApprobation::Autoriser(motif) => {
                         if !deja {
@@ -841,9 +899,10 @@ impl but::Outils for OutilsPont<'_> {
         });
 
         let t0 = Instant::now();
-        // Images (a browser screenshot) are carried on ResultatAbeille, which is
-        // lost in the conversion to ResultatOutil below. Capture them here so the
-        // tool_result event can hand them to the chat for inline rendering.
+        // Les images voyagent maintenant DEUX fois: vers l'interface pour
+        // l'affichage, et vers le modele par `ResultatOutil`. Elles ne faisaient
+        // que le premier trajet, donc le modele annoncait "capture prise" sans
+        // avoir rien vu, et le disait parfois lui-meme.
         let mut images: Vec<String> = Vec::new();
         let res = match self
             .registry
@@ -853,7 +912,9 @@ impl but::Outils for OutilsPont<'_> {
             Ok(r) => {
                 images = r.images.clone();
                 if r.success {
-                    but::ResultatOutil::ok(r.output)
+                    let mut sortie = but::ResultatOutil::ok(r.output);
+                    sortie.images = r.images;
+                    sortie
                 } else {
                     let mut msg = r.error.unwrap_or_else(|| "Unknown".into());
                     // Frequent case: the model calls a SKILL like a tool: steer it.
@@ -916,10 +977,7 @@ impl but::Outils for OutilsPont<'_> {
                     .trim_start_matches("capacities.skills.")
                     .to_string();
                 if let Ok(mut par_skill) = self.outils_recommandes.lock() {
-                    par_skill
-                        .entry(nom_skill)
-                        .or_default()
-                        .extend(declares);
+                    par_skill.entry(nom_skill).or_default().extend(declares);
                 }
             }
         }
@@ -1106,7 +1164,10 @@ struct EmetteurPont {
 
 impl EmetteurPont {
     fn parent(tx: broadcast::Sender<ChatEvent>) -> Self {
-        Self { tx, etiquette: None }
+        Self {
+            tx,
+            etiquette: None,
+        }
     }
 }
 
@@ -1139,7 +1200,10 @@ impl but::Emetteur for EmetteurPont {
             E::Itineraire { etapes } => ChatEvent::Plan {
                 items: etapes
                     .into_iter()
-                    .map(|(titre, statut)| crate::evenements::PlanItem { task: titre, status: statut })
+                    .map(|(titre, statut)| crate::evenements::PlanItem {
+                        task: titre,
+                        status: statut,
+                    })
                     .collect(),
             },
             // `Done` is deliberately emitted by the facade after `butiner` returns.
@@ -1168,7 +1232,10 @@ struct SourcePont {
 
 impl SourcePont {
     fn nouveau(mem: Arc<dyn MemoireCognitive>) -> Self {
-        Self { mem, rappels: std::sync::Mutex::new(Vec::new()) }
+        Self {
+            mem,
+            rappels: std::sync::Mutex::new(Vec::new()),
+        }
     }
 
     /// Post-mission Hebbian level-2 reinforcement: of everything recalled during the
@@ -1183,7 +1250,11 @@ impl SourcePont {
             return;
         }
         if let Ok(n) = self.mem.renforcer(&utilises).await {
-            tracing::debug!(utilises = n, rappeles = rappels.len(), "hebbian level 2 (butinage)");
+            tracing::debug!(
+                utilises = n,
+                rappeles = rappels.len(),
+                "hebbian level 2 (butinage)"
+            );
         }
     }
 }
@@ -1346,7 +1417,11 @@ impl but::Outils for OutilsCurateur {
         // SEMANTICALLY close skill. If found, REFUSE creation (forces a patch):
         // prevents near-duplicates even when a weak model ignores the instruction.
         if appel.nom == "skill_create" {
-            let nom = appel.args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let nom = appel
+                .args
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let desc = appel
                 .args
                 .get("description")
@@ -1465,7 +1540,11 @@ async fn skill_proche_existant(
     let ctx = ContextExecution::default();
     let q = format!("{nom} {description}");
     let res = registry
-        .executer("memory_search", serde_json::json!({ "query": q.trim(), "limit": 6 }), &ctx)
+        .executer(
+            "memory_search",
+            serde_json::json!({ "query": q.trim(), "limit": 6 }),
+            &ctx,
+        )
         .await
         .ok()?;
     if !res.success {
@@ -1512,10 +1591,8 @@ pub fn prompt_extraction_defaut() -> &'static str {
 /// burst of chat turns queued one FULL review each (8-pass agent runs with 10k
 /// token prompts), silently monopolizing the local model for tens of minutes.
 /// The curateur is opportunistic hygiene: skipping a turn is always fine.
-static CURATEUR_EN_COURS: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-static CURATEUR_DERNIER: std::sync::Mutex<Option<std::time::Instant>> =
-    std::sync::Mutex::new(None);
+static CURATEUR_EN_COURS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static CURATEUR_DERNIER: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
 
 pub async fn lancer_curateur_arriere_plan(
     messages: Vec<crate::Message>,
@@ -1533,7 +1610,10 @@ pub async fn lancer_curateur_arriere_plan(
     // model. The curateur is spawned right after a run FINISHES, so a non-zero
     // count here means OTHER sessions/jobs are actively working.
     if runs_en_vol() > 0 {
-        tracing::info!(en_vol = runs_en_vol(), "curateur skipped (agent runs in flight)");
+        tracing::info!(
+            en_vol = runs_en_vol(),
+            "curateur skipped (agent runs in flight)"
+        );
         return;
     }
     // Cooldown between reviews (default 10 min, tunable): a burst of turns gets
@@ -1641,7 +1721,10 @@ pub async fn lancer_curateur_arriere_plan(
     let four = FournisseurPont {
         provider: config.provider.clone(),
         // Auxiliary model if configured (small/fast, does not compete with the chat KV-cache).
-        model: config.aux_model.clone().unwrap_or_else(|| config.model.clone()),
+        model: config
+            .aux_model
+            .clone()
+            .unwrap_or_else(|| config.model.clone()),
         api_key: config.api_key.clone(),
         api_base: config.api_base.clone(),
         ollama_url: config.ollama_url.clone(),
@@ -1663,10 +1746,24 @@ pub async fn lancer_curateur_arriere_plan(
         message: "🐝 Curateur: reviewing capabilities in the background...".into(),
     });
     let depart = std::time::Instant::now();
-    match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None, None, None).await {
+    match but::butiner(
+        &mut carnet,
+        &reglages,
+        &four,
+        &outils,
+        &emet,
+        None,
+        None,
+        None,
+    )
+    .await
+    {
         Ok(b) => {
             let _ = tx.send(ChatEvent::Status {
-                message: format!("🐝 Curateur: {}", b.texte.chars().take(160).collect::<String>()),
+                message: format!(
+                    "🐝 Curateur: {}",
+                    b.texte.chars().take(160).collect::<String>()
+                ),
             });
         }
         Err(e) => tracing::warn!(error = %e, "curateur failed"),
@@ -1822,7 +1919,9 @@ fn memoire_reference(ctx: &str) -> String {
 /// Build the Tier 3 supervision config for the butinage loop from the Reine settings.
 /// Returns `None` (no supervision) unless the supervision tier is on AND the Reine is
 /// not in Off mode, so it stays inert by default.
-fn supervision_depuis(reine: &crate::brain::ReineConfig) -> Option<but::cap::reine::ConfigSupervision> {
+fn supervision_depuis(
+    reine: &crate::brain::ReineConfig,
+) -> Option<but::cap::reine::ConfigSupervision> {
     if !reine.tier_supervision || reine.mode == "off" {
         return None;
     }
@@ -2071,7 +2170,10 @@ pub async fn executer_avec_bilan(
     let config: &EssaimConfig = if config.context_max_tokens <= config.dynamic_context_threshold
         && !config.dynamic_tool_selection
     {
-        cfg_local = EssaimConfig { dynamic_tool_selection: true, ..config.clone() };
+        cfg_local = EssaimConfig {
+            dynamic_tool_selection: true,
+            ..config.clone()
+        };
         let _ = tx.send(ChatEvent::Status {
             message: "Narrow model context: dynamic tool selection (lightened prompt).".into(),
         });
@@ -2118,16 +2220,15 @@ pub async fn executer_avec_bilan(
     // of tokens back in the system prompt and that loses to recency: the model recited
     // the codes correctly and still answered in prose. Repeating it at the tail is the
     // only placement that reliably wins, and it costs nothing on every other turn.
-    let contexte_volatil = if config.reactions_agent
-        && crate::reactions::demande_de_reaction(prompt_utilisateur)
-    {
-        Some(match contexte_volatil {
-            Some(v) => format!("{v}\n\n{}", crate::reactions::rappel_volatil()),
-            None => crate::reactions::rappel_volatil(),
-        })
-    } else {
-        contexte_volatil
-    };
+    let contexte_volatil =
+        if config.reactions_agent && crate::reactions::demande_de_reaction(prompt_utilisateur) {
+            Some(match contexte_volatil {
+                Some(v) => format!("{v}\n\n{}", crate::reactions::rappel_volatil()),
+                None => crate::reactions::rappel_volatil(),
+            })
+        } else {
+            contexte_volatil
+        };
 
     // A reaction the user left on the last answer steers THIS turn. Only the latest
     // one: an older reaction was already acted on, and re-injecting it would keep
@@ -2223,9 +2324,10 @@ pub async fn executer_avec_bilan(
             message: format!("Multimodal pieces: {n_img} image(s), {n_audio} audio."),
         });
     }
-    carnet
-        .historique
-        .push(but::Message::utilisateur_multimodal(prompt_utilisateur.to_string(), pieces));
+    carnet.historique.push(but::Message::utilisateur_multimodal(
+        prompt_utilisateur.to_string(),
+        pieces,
+    ));
 
     let four = FournisseurPont {
         provider: config.provider.clone(),
@@ -2430,7 +2532,14 @@ pub async fn executer_avec_bilan(
                 fin_str(&bilan.fin),
             );
             let item = laruche_memoire::MemoryItem::new(
-                format!("episodes.{date}.{}", if slug.is_empty() { "mission".into() } else { slug }),
+                format!(
+                    "episodes.{date}.{}",
+                    if slug.is_empty() {
+                        "mission".into()
+                    } else {
+                        slug
+                    }
+                ),
                 contenu,
             )
             .with_source("butinage");
@@ -2488,15 +2597,17 @@ pub async fn reprendre_carnet(
 
     // Same "small model" guard as executer: dynamic selection if narrow context.
     let cfg_local;
-    let config: &EssaimConfig =
-        if config.context_max_tokens <= config.dynamic_context_threshold
-            && !config.dynamic_tool_selection
-        {
-            cfg_local = EssaimConfig { dynamic_tool_selection: true, ..config.clone() };
-            &cfg_local
-        } else {
-            config
+    let config: &EssaimConfig = if config.context_max_tokens <= config.dynamic_context_threshold
+        && !config.dynamic_tool_selection
+    {
+        cfg_local = EssaimConfig {
+            dynamic_tool_selection: true,
+            ..config.clone()
         };
+        &cfg_local
+    } else {
+        config
+    };
 
     let tool_schema = schema_outils_pour_prompt(registry, config, &carnet.mission);
     let exclus: std::collections::HashSet<&str> = tool_schema
@@ -2570,8 +2681,17 @@ pub async fn reprendre_carnet(
     let source_pont = memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
     let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
 
-    let bilan =
-        but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source, None, None).await?;
+    let bilan = but::butiner(
+        &mut carnet,
+        &reglages,
+        &four,
+        &outils,
+        &emet,
+        source,
+        None,
+        None,
+    )
+    .await?;
     if let Some(src) = source_pont.as_ref() {
         src.renforcer_utilises(&bilan.texte).await;
     }
@@ -2657,7 +2777,10 @@ mod tests_prelude {
         assert_eq!(out[0]["role"], "system");
         assert_eq!(out[1]["role"], "user");
         let c = out[1]["content"].as_str().unwrap();
-        assert!(c.contains("question") && c.contains("resultat"), "merged content");
+        assert!(
+            c.contains("question") && c.contains("resultat"),
+            "merged content"
+        );
     }
 
     #[test]
@@ -2699,8 +2822,14 @@ mod tests_prelude {
             but::Message::utilisateur("[Steering during run] change de sujet"),
         ];
         let out = convertir_messages(&msgs);
-        assert!(out[1].get("tool_calls").is_none(), "unanswered call: no native emission");
-        assert!(out[1]["content"].as_str().unwrap().contains("<tool_call>"), "text fallback");
+        assert!(
+            out[1].get("tool_calls").is_none(),
+            "unanswered call: no native emission"
+        );
+        assert!(
+            out[1]["content"].as_str().unwrap().contains("<tool_call>"),
+            "text fallback"
+        );
         // Orphan observation (no matching call before it): user-text fallback.
         let a2 = but::Appel::nouveau("web_search", serde_json::json!({"q": "z"}));
         let msgs = vec![
@@ -2726,7 +2855,10 @@ mod tests_prelude {
         let p = prelude_butinage(&session);
         assert_eq!(p.len(), 1);
         assert_eq!(p[0].contenu, "décris cette image");
-        assert!(p[0].pieces.is_empty(), "images from old turns are not re-sent");
+        assert!(
+            p[0].pieces.is_empty(),
+            "images from old turns are not re-sent"
+        );
     }
 }
 
@@ -2749,7 +2881,10 @@ mod tests_rappel {
         // Counters and session ids: nothing a model can act on.
         assert!(!out.contains("passes:"), "pass count still carried:\n{out}");
         assert!(!out.contains("web: 0"), "web counter still carried:\n{out}");
-        assert!(!out.contains("session:"), "session uuid still carried:\n{out}");
+        assert!(
+            !out.contains("session:"),
+            "session uuid still carried:\n{out}"
+        );
         assert!(!out.contains("e9e5b1d7"));
 
         // A leaked chunk of the system prompt must not return as "memory".
@@ -2757,7 +2892,11 @@ mod tests_rappel {
         assert!(!out.contains("cron_create"));
 
         // The same question answered twice is recalled once.
-        assert_eq!(out.matches("Quels fichiers").count(), 1, "duplicate kept:\n{out}");
+        assert_eq!(
+            out.matches("Quels fichiers").count(),
+            1,
+            "duplicate kept:\n{out}"
+        );
 
         // What is actually useful survives, first occurrence wins.
         assert!(out.contains("T'as un skill sur la mémoire ?"));

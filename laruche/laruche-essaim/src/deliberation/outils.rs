@@ -32,7 +32,13 @@ const LECTURE: &[&str] = &[
 ];
 
 /// Fouiller: recherche profonde et lecture de fichiers locaux.
-const FOUILLE: &[&str] = &["web_deep_search", "image_search", "file_read", "file_list", "file_search"];
+const FOUILLE: &[&str] = &[
+    "web_deep_search",
+    "image_search",
+    "file_read",
+    "file_list",
+    "file_search",
+];
 
 /// Ecrire sur le disque. A partir d'ici, la table touche la machine.
 const ECRITURE: &[&str] = &["file_write", "file_edit", "git_status", "git_diff"];
@@ -197,8 +203,17 @@ mod tests {
     #[test]
     fn repondre_n_ecrit_rien() {
         let r = permis(Mission::Reponse);
-        for interdit in ["file_write", "file_edit", "shell_exec", "execute_code", "run_script"] {
-            assert!(!r.contains(&interdit.to_string()), "{interdit} ouvert en lecture seule");
+        for interdit in [
+            "file_write",
+            "file_edit",
+            "shell_exec",
+            "execute_code",
+            "run_script",
+        ] {
+            assert!(
+                !r.contains(&interdit.to_string()),
+                "{interdit} ouvert en lecture seule"
+            );
         }
     }
 
@@ -207,11 +222,24 @@ mod tests {
         // La liste blanche doit rester une liste blanche: ces outils existent dans la
         // ruche et ne doivent jamais tomber dans une deliberation par inadvertance.
         let dangereux = [
-            "memory_delete", "memory_delete_node", "cron_delete", "mission_delete",
-            "skill_delete", "plugin_delete", "watcher_delete", "send_telegram",
-            "mesh_send", "delegate", "spawn_specialist",
+            "memory_delete",
+            "memory_delete_node",
+            "cron_delete",
+            "mission_delete",
+            "skill_delete",
+            "plugin_delete",
+            "watcher_delete",
+            "send_telegram",
+            "mesh_send",
+            "delegate",
+            "spawn_specialist",
         ];
-        for m in [Mission::Reponse, Mission::Recherche, Mission::Code, Mission::Experimentation] {
+        for m in [
+            Mission::Reponse,
+            Mission::Recherche,
+            Mission::Code,
+            Mission::Experimentation,
+        ] {
             let p = permis(m);
             for d in dangereux {
                 assert!(!p.contains(&d.to_string()), "{d} ouvert en {m:?}");
@@ -247,7 +275,11 @@ mod tests {
     fn un_appel_tronque_reste_lisible() {
         let t = "<tool_call>{\"name\":\"web_search\",\"arguments\":{\"query\":\"x\"}}";
         let a = extraire_appels(t);
-        assert_eq!(a.len(), 1, "une balise sans fermeture doit rester exploitable");
+        assert_eq!(
+            a.len(),
+            1,
+            "une balise sans fermeture doit rester exploitable"
+        );
     }
 
     #[test]
@@ -280,6 +312,9 @@ mod tests {
         ]);
         let c = consigne_outils(&["web_search".to_string()], &schemas);
         assert!(c.contains("web_search"));
-        assert!(!c.contains("shell_exec"), "un outil non permis ne doit pas etre annonce");
+        assert!(
+            !c.contains("shell_exec"),
+            "un outil non permis ne doit pas etre annonce"
+        );
     }
 }

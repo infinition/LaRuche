@@ -1,4 +1,4 @@
-﻿//! LaRuche Node Daemon
+//! LaRuche Node Daemon
 //!
 //! The main process that runs on each LaRuche box. It:
 //! 1. Broadcasts its Cognitive Manifest via Miel (mDNS)
@@ -753,6 +753,11 @@ async fn main() -> Result<()> {
     if let Some(j) = persistent.episodes_retention_jours {
         essaim_config.episodes_retention_jours = j;
     }
+    if let Some(h) = persistent.halo_actif {
+        essaim_config.halo_actif = h;
+    }
+    // L'interrupteur vivant que les outils consultent a chaque geste.
+    laruche_essaim::config::definir_halo(essaim_config.halo_actif);
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }
@@ -1254,8 +1259,8 @@ async fn main() -> Result<()> {
     });
 
     // Published once, right after construction. The tool registry is built long before
-    // AppState exists (line ~467), so a tool that needs the whole node — `run_now` has to
-    // reach the cron store, the mission store and the agent loop — cannot hold it as a
+    // AppState exists (line ~467), so a tool that needs the whole node - `run_now` has to
+    // reach the cron store, the mission store and the agent loop - cannot hold it as a
     // field. One Arc for the process lifetime; nothing to reclaim on a daemon that exits
     // with the process.
     let _ = crate::abeilles_local::ETAT_NOEUD.set(state.clone());

@@ -66,6 +66,18 @@ pub struct EssaimConfig {
     /// demander ne se fait pas.
     #[serde(default)]
     pub episodes_retention_jours: u32,
+    /// Le decor que l'agent dessine quand il pilote: cadre ambre, panneau
+    /// flottant, curseur qui glisse, frappe progressive.
+    ///
+    /// Actif par defaut, et ce n'est pas cosmetique: une machine qui bouge toute
+    /// seule sans rien annoncer est inquietante, et le panneau est le seul
+    /// endroit ou l'humain lit ce qui est vise pendant que ca se produit.
+    ///
+    /// On le coupe pour trois raisons legitimes: une capture propre, une longue
+    /// sequence ou l'animation coute plus qu'elle n'apporte, et une machine
+    /// distante que personne ne regarde.
+    #[serde(default = "vrai")]
+    pub halo_actif: bool,
     /// Does LaRuche expose its OWN tools as an MCP server, so an external client can drive
     /// it? Off by default: that surface hands the whole registry to whoever reaches the
     /// port, shell_exec and file_write included, and it is not needed in order to USE
@@ -274,6 +286,7 @@ impl Default for EssaimConfig {
             disabled_skills: Vec::new(),
             curateur_actif: false,
             episodes_retention_jours: 0,
+            halo_actif: true,
             // Off unless the user turns it on: exposing the registry is a decision.
             mcp_server_actif: false,
             mcp_pare_feu_actif: false,
@@ -304,4 +317,24 @@ impl Default for EssaimConfig {
             credential_pool: None,
         }
     }
+}
+
+/// L'etat du decor, lisible depuis les outils.
+///
+/// Les outils sont des valeurs sans etat, atteintes par un registre statique:
+/// ils ne recoivent ni la configuration ni l'etat du noeud, et `ContextExecution`
+/// ne porte que ce qui concerne la session. Passer la config jusqu'a eux
+/// demanderait de la faire traverser tout le chemin d'execution pour un seul
+/// booleen. Un atome partage dit la meme chose, coute une lecture, et se met a
+/// jour depuis les reglages sans redemarrage.
+static HALO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Le decor doit-il etre dessine? Defaut des parametres `glow` des outils.
+pub fn halo_actif() -> bool {
+    HALO.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Applique le reglage, au demarrage et a chaque changement dans les reglages.
+pub fn definir_halo(actif: bool) {
+    HALO.store(actif, std::sync::atomic::Ordering::Relaxed);
 }

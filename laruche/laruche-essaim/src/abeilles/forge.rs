@@ -101,7 +101,10 @@ impl Abeille for SkillFileRead {
         args: serde_json::Value,
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
-        let Some(full) = skill_file_path(args["skill"].as_str().unwrap_or(""), args["path"].as_str().unwrap_or("")) else {
+        let Some(full) = skill_file_path(
+            args["skill"].as_str().unwrap_or(""),
+            args["path"].as_str().unwrap_or(""),
+        ) else {
             return Ok(ResultatAbeille::err("invalid path"));
         };
         match std::fs::read_to_string(&full) {
@@ -131,7 +134,10 @@ impl Abeille for SkillFileDelete {
         args: serde_json::Value,
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
-        let Some(full) = skill_file_path(args["skill"].as_str().unwrap_or(""), args["path"].as_str().unwrap_or("")) else {
+        let Some(full) = skill_file_path(
+            args["skill"].as_str().unwrap_or(""),
+            args["path"].as_str().unwrap_or(""),
+        ) else {
             return Ok(ResultatAbeille::err("invalid path"));
         };
         match std::fs::remove_file(&full) {
@@ -239,9 +245,13 @@ impl Abeille for PluginCreate {
 
         // The script lives beside its manifest. Only a bare file name is accepted:
         // a path would let a plugin write outside its own folder.
-        if let (Some(sp), Some(sc)) = (args["script_path"].as_str(), args["script_content"].as_str())
-        {
-            let nom_fichier = Path::new(sp).file_name().map(|f| f.to_string_lossy().to_string());
+        if let (Some(sp), Some(sc)) = (
+            args["script_path"].as_str(),
+            args["script_content"].as_str(),
+        ) {
+            let nom_fichier = Path::new(sp)
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string());
             let Some(nom_fichier) = nom_fichier else {
                 return Ok(ResultatAbeille::err("invalid script_path"));
             };
@@ -263,7 +273,10 @@ impl Abeille for PluginCreate {
             "command": args["command"].as_str().unwrap_or(""),
         });
         let path = crate::abeilles::plugins::chemin_manifeste(racine, &slug);
-        if let Err(e) = std::fs::write(&path, serde_json::to_string_pretty(&def).unwrap_or_default()) {
+        if let Err(e) = std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&def).unwrap_or_default(),
+        ) {
             return Ok(ResultatAbeille::err(format!("Plugin write failed: {e}")));
         }
         // Hot-reload into the main registry.
@@ -372,7 +385,10 @@ fn lire_mcp() -> serde_json::Value {
         .unwrap_or_else(|| json!({ "mcpServers": {} }))
 }
 fn ecrire_mcp(v: &serde_json::Value) -> std::io::Result<()> {
-    std::fs::write("mcp_servers.json", serde_json::to_string_pretty(v).unwrap_or_default())
+    std::fs::write(
+        "mcp_servers.json",
+        serde_json::to_string_pretty(v).unwrap_or_default(),
+    )
 }
 
 pub struct McpAdd;

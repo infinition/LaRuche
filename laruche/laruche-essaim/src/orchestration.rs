@@ -21,9 +21,17 @@ pub fn assembler_prompt_skills(base_prompt: &str, skills: &[(String, String)]) -
         let hint = if outils.is_empty() {
             String::new()
         } else {
-            format!("**Recommended tools/plugins for this skill: {}**\n\n", outils.join(", "))
+            format!(
+                "**Recommended tools/plugins for this skill: {}**\n\n",
+                outils.join(", ")
+            )
         };
-        out.push_str(&format!("## Skill: {}\n{}{}\n\n---\n\n", name.trim(), hint, body.trim()));
+        out.push_str(&format!(
+            "## Skill: {}\n{}{}\n\n---\n\n",
+            name.trim(),
+            hint,
+            body.trim()
+        ));
     }
     out.push_str(base_prompt);
     out

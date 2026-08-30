@@ -5,7 +5,9 @@
 //! The backlog is a first-class store: disabling the gate never touches it, it only
 //! stops gating new writes (see [`crate::reine_file::transition_desactivation`]).
 
-use crate::reine_file::{classifier_risque, disposition, Disposition, Proposition, Statut, TypeProposition};
+use crate::reine_file::{
+    classifier_risque, disposition, Disposition, Proposition, Statut, TypeProposition,
+};
 use laruche_butinage::cap::reine::ModeReine;
 use laruche_memoire::{MemoireCognitive, MemoryItem};
 use std::sync::atomic::{AtomicBool, Ordering};

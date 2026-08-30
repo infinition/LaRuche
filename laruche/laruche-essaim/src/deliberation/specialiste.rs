@@ -300,7 +300,12 @@ pub fn pool() -> Vec<Specialiste> {
     let mut tous = catalogue();
     for perso in charger_personnalises() {
         match tous.iter_mut().find(|s| s.id == perso.id) {
-            Some(existant) => *existant = Specialiste { livre: true, ..perso },
+            Some(existant) => {
+                *existant = Specialiste {
+                    livre: true,
+                    ..perso
+                }
+            }
             None => tous.push(perso),
         }
     }
@@ -334,7 +339,10 @@ mod tests {
     #[test]
     fn le_catalogue_a_un_orchestrateur_et_un_arbitre() {
         let c = catalogue();
-        assert_eq!(c.iter().filter(|s| s.role == Role::Orchestrateur).count(), 1);
+        assert_eq!(
+            c.iter().filter(|s| s.role == Role::Orchestrateur).count(),
+            1
+        );
         assert_eq!(c.iter().filter(|s| s.role == Role::Arbitre).count(), 1);
     }
 

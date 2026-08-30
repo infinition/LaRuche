@@ -97,9 +97,7 @@ impl Abeille for KanbanComplete {
         if board.complete(id, result.to_string()) {
             Ok(ResultatAbeille::ok(format!("Kanban task {id} completed.")))
         } else {
-            Ok(ResultatAbeille::err(format!(
-                "Kanban task not found: {id}"
-            )))
+            Ok(ResultatAbeille::err(format!("Kanban task not found: {id}")))
         }
     }
 }

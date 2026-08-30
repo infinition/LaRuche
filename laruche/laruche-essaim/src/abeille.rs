@@ -604,7 +604,9 @@ mod tests {
         registre.enregistrer(Box::new(BuiltinTool));
         registre.enregistrer(Box::new(Externe));
 
-        let garde = registre.get("builtin_test").expect("le natif est toujours la");
+        let garde = registre
+            .get("builtin_test")
+            .expect("le natif est toujours la");
         assert_eq!(garde.origin(), ToolOrigin::Builtin, "le natif a ete evince");
         assert_eq!(garde.description(), "Builtin test tool");
 
@@ -679,8 +681,11 @@ mod tests {
         let mut args = serde_json::json!({ "url": "https://a.b", "bonus": 42 });
         valider_et_normaliser_args(&schema_web(), &mut args).unwrap();
         let mut args = serde_json::Value::Null;
-        valider_et_normaliser_args(&serde_json::json!({"type":"object","properties":{}}), &mut args)
-            .unwrap();
+        valider_et_normaliser_args(
+            &serde_json::json!({"type":"object","properties":{}}),
+            &mut args,
+        )
+        .unwrap();
         assert!(args.is_object());
     }
 }

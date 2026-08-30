@@ -48,7 +48,7 @@ LaRuche.i18n.add({
   'memory.agentRunningTitle':     {fr:'Agent en cours...', en:'Agent running...'},
   'memory.agentDoneTitle':        {fr:'Terminé', en:'Done'},
   'memory.noId':                  {fr:'(sans id)', en:'(no id)'},
-  'memory.newMemoryPlaceholder':  {fr:"Nouveau souvenir (markdown, [[liens]] supportes)…  —  ou commence par @LaRuche pour lui demander d'enrichir ce noeud elle-meme.", en:'New memory (markdown, [[links]] supported)…  —  or start with @LaRuche to ask her to enrich this node herself.'},
+  'memory.newMemoryPlaceholder':  {fr:"Nouveau souvenir (markdown, [[liens]] supportes)…  -  ou commence par @LaRuche pour lui demander d'enrichir ce noeud elle-meme.", en:'New memory (markdown, [[links]] supported)…  -  or start with @LaRuche to ask her to enrich this node herself.'},
   'memory.askLaRuche':            {fr:'Demander a LaRuche', en:'Ask LaRuche'},
   'memory.askLaRucheHint':        {fr:'lui demander d’enrichir ce noeud', en:'ask her to enrich this node'},
   'memory.agentStalledTitle':     {fr:'Sans reponse depuis 10 min : la mission a echoue ou LaRuche a redemarre. Tu peux supprimer cet item.', en:'No answer for 10 min: the run failed or LaRuche restarted. You can delete this item.'},

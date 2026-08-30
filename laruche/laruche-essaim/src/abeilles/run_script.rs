@@ -279,10 +279,9 @@ impl Abeille for RunScript {
 
             let res = match self.registry.executer(tool, step_args, ctx).await {
                 Ok(res) => res,
-                Err(err) => ResultatAbeille::err(format!(
-                    "Step {} ({tool}) execution error: {err}",
-                    i + 1
-                )),
+                Err(err) => {
+                    ResultatAbeille::err(format!("Step {} ({tool}) execution error: {err}", i + 1))
+                }
             };
             let out = if res.success {
                 res.output

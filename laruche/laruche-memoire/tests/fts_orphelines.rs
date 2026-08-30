@@ -3,7 +3,7 @@ use laruche_memoire::{MemoireCognitive, MemoryItem, SqliteBackend};
 /// Reproduces the state found in a live base: 372 FTS rows for 160 items, because hard
 /// deletes left FTS rows behind. Since `items.id` is INTEGER PRIMARY KEY *without*
 /// autoincrement, SQLite reuses freed rowids, so every orphan poisons one future write
-/// with a bare "constraint failed" — which is why it failed one time in two.
+/// with a bare "constraint failed" - which is why it failed one time in two.
 #[tokio::test]
 async fn un_rowid_reutilise_avec_une_ligne_fts_orpheline_nempeche_plus_lecriture() {
     let dir = std::env::temp_dir().join(format!("lr_fts_{}", std::process::id()));

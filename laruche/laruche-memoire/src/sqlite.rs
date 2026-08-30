@@ -287,7 +287,7 @@ impl SqliteBackend {
         let _ = conn.execute("ALTER TABLE items ADD COLUMN accessed_at INTEGER", []);
         // Repair: drop FTS rows whose item no longer exists. Past hard deletes left them
         // behind, and because rowids get reused each orphan is a landmine that makes one
-        // future write fail with "constraint failed" — one write in two, on the base this
+        // future write fail with "constraint failed" - one write in two, on the base this
         // was found on (372 FTS rows for 160 items). Cheap, idempotent, runs at open.
         match conn.execute(
             "DELETE FROM items_fts WHERE rowid NOT IN (SELECT id FROM items)",
@@ -334,7 +334,7 @@ impl SqliteBackend {
             // `items.id` is INTEGER PRIMARY KEY WITHOUT autoincrement, so SQLite REUSES
             // the rowids of deleted rows. Any stale FTS row left behind by a hard delete
             // then collides with the new item and the whole write fails with a bare
-            // "constraint failed" — intermittently, depending on which rowid comes up.
+            // "constraint failed" - intermittently, depending on which rowid comes up.
             // Clearing the slot first makes the insert idempotent whatever the history.
             conn.execute("DELETE FROM items_fts WHERE rowid=?1", [id])?;
             conn.execute(

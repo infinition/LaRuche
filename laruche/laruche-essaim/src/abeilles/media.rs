@@ -71,9 +71,7 @@ impl Abeille for MediaPresent {
                 return Ok(ResultatAbeille::err("Each media item must include a URL."));
             };
             if raw_url.is_empty() {
-                return Ok(ResultatAbeille::err(
-                    "Media URL cannot be empty.",
-                ));
+                return Ok(ResultatAbeille::err("Media URL cannot be empty."));
             }
             let (url, local) = normalize_media_url(raw_url, ctx)?;
             let kind = normalize_kind(item.get("kind").and_then(Value::as_str), &url);
@@ -123,10 +121,7 @@ fn normalize_media_url(raw: &str, ctx: &ContextExecution) -> Result<(String, boo
     let canonical = std::fs::canonicalize(&path)
         .map_err(|_| anyhow::anyhow!("Local media not found: {}", path.display()))?;
     if !canonical.is_file() {
-        anyhow::bail!(
-            "Local media must be a file: {}",
-            canonical.display()
-        );
+        anyhow::bail!("Local media must be a file: {}", canonical.display());
     }
     let root = std::fs::canonicalize(&ctx.working_dir).unwrap_or_else(|_| ctx.working_dir.clone());
     if !canonical.starts_with(&root) {

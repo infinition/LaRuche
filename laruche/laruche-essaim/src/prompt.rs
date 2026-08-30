@@ -83,9 +83,11 @@ pub fn build_system_prompt(
     //    budget spent on every turn for something decorative, so it stays a choice.
     if reactions_agent {
         prompt.push_str(&crate::reactions::consigne_prompt());
-        prompt.push_str("
+        prompt.push_str(
+            "
 
-");
+",
+        );
     }
     jalons.push(("secrets", prompt.len()));
     mesurer(&prompt, &jalons);
@@ -174,7 +176,11 @@ fn type_court(spec: &serde_json::Value) -> String {
             other => other,
         }
     }
-    match spec.get("type").and_then(|v| v.as_str()).unwrap_or("string") {
+    match spec
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("string")
+    {
         "array" => match spec
             .get("items")
             .and_then(|i| i.get("type"))
@@ -285,7 +291,11 @@ fn signatures_outils(tools: &[serde_json::Value]) -> String {
         let mut hints: Vec<String> = Vec::new();
         if let Some(props) = params.get("properties").and_then(|v| v.as_object()) {
             // Required parameters first (order of `required`), then the optional ones.
-            let mut keys: Vec<&str> = req.iter().copied().filter(|k| props.contains_key(*k)).collect();
+            let mut keys: Vec<&str> = req
+                .iter()
+                .copied()
+                .filter(|k| props.contains_key(*k))
+                .collect();
             for k in props.keys() {
                 if !keys.contains(&k.as_str()) {
                     keys.push(k.as_str());
@@ -483,7 +493,16 @@ mod tests {
     #[test]
     fn prompt_place_sections_stables_avant_outils_et_custom() {
         let tools = serde_json::json!([{"name":"file_read","description":"read","parameters":{}}]);
-        let prompt = build_system_prompt(&tools, true, None, None, None, None, Some("custom volatile"), false);
+        let prompt = build_system_prompt(
+            &tools,
+            true,
+            None,
+            None,
+            None,
+            None,
+            Some("custom volatile"),
+            false,
+        );
 
         let env = prompt.find("## Environment").unwrap();
         let outils = prompt.find("## Available tools").unwrap();
@@ -491,7 +510,10 @@ mod tests {
         assert!(env < outils);
         assert!(outils < custom);
         assert!(prompt.contains("ONE tool per message"));
-        assert!(prompt.contains("run in parallel"), "multi-call fan-out documented");
+        assert!(
+            prompt.contains("run in parallel"),
+            "multi-call fan-out documented"
+        );
         assert!(prompt.contains("Autonomy during missions"));
     }
 
@@ -522,7 +544,7 @@ mod tests {
         assert!(sigs.contains("url: string"));
         assert!(sigs.contains("*/5 * * * *"));
         assert!(!sigs.contains("The URL to fetch")); // redundant hint dropped
-        // Measure the actual gain on this sample.
+                                                     // Measure the actual gain on this sample.
         let json = serde_json::to_string_pretty(&tools).unwrap();
         eprintln!(
             "[MEASURE] JSON pretty: {} chars (~{} tok) | signatures: {} chars (~{} tok) | gain {:.0}%",
@@ -569,7 +591,10 @@ mod tests {
             !natif.contains("The URL to fetch"),
             "parameter descriptions are still duplicated in native mode"
         );
-        assert!(natif.len() < texte.len(), "native mode should be the cheaper one");
+        assert!(
+            natif.len() < texte.len(),
+            "native mode should be the cheaper one"
+        );
     }
 
     #[test]
@@ -627,7 +652,10 @@ mod tests {
         });
         let h = hint_param(&spec).unwrap();
         assert!(h.ends_with('…'), "a truncated hint must say so: {h}");
-        assert!(h.ends_with("word…") || h.ends_with(" …"), "cut on a word boundary: {h}");
+        assert!(
+            h.ends_with("word…") || h.ends_with(" …"),
+            "cut on a word boundary: {h}"
+        );
     }
 
     /// GUARD: everything we put in `tools` must round-trip as valid JSON.
@@ -643,7 +671,11 @@ mod tests {
         crate::abeilles::enregistrer_abeilles_builtin(&registre);
         let schema = registre.schema_complet();
         let outils = schema.as_array().expect("the registry yields an array");
-        assert!(outils.len() > 10, "guard would be vacuous: {} tools", outils.len());
+        assert!(
+            outils.len() > 10,
+            "guard would be vacuous: {} tools",
+            outils.len()
+        );
 
         let openai = crate::providers::convertir_tools_openai(outils);
         let brut = serde_json::to_string(&openai).expect("serialization must succeed");

@@ -83,7 +83,9 @@ impl Abeille for FileSearch {
                 if p.metadata().map(|m| m.len()).unwrap_or(u64::MAX) > CONTENU_MAX_OCTETS {
                     continue;
                 }
-                let Ok(octets) = std::fs::read(p) else { continue };
+                let Ok(octets) = std::fs::read(p) else {
+                    continue;
+                };
                 // Skip binaries (NUL byte heuristic).
                 if octets.iter().take(4096).any(|&b| b == 0) {
                     continue;
@@ -115,7 +117,11 @@ impl Abeille for FileSearch {
                     hits.len(),
                     fichiers_touches,
                     hits.join("\n"),
-                    if hits.len() >= 100 { "\n... (capped at 100 matches - narrow the search)" } else { "" }
+                    if hits.len() >= 100 {
+                        "\n... (capped at 100 matches - narrow the search)"
+                    } else {
+                        ""
+                    }
                 ))
             });
         }
@@ -173,13 +179,7 @@ pub(crate) fn nom_correspond(nom: &str, pattern: &str) -> bool {
     true
 }
 
-fn collecter(
-    dir: &Path,
-    pattern: &str,
-    depth: usize,
-    max_depth: usize,
-    results: &mut Vec<String>,
-) {
+fn collecter(dir: &Path, pattern: &str, depth: usize, max_depth: usize, results: &mut Vec<String>) {
     if depth > max_depth || results.len() >= 500 {
         return;
     }
@@ -244,7 +244,11 @@ mod tests {
             .unwrap();
         assert!(r.success);
         assert!(r.output.contains("a.rs:2:"), "{}", r.output);
-        assert!(!r.output.contains("c.rs"), "target/ must be skipped: {}", r.output);
+        assert!(
+            !r.output.contains("c.rs"),
+            "target/ must be skipped: {}",
+            r.output
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

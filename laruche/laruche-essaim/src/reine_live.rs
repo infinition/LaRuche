@@ -12,9 +12,7 @@ use crate::reine_juge::{construire_prompt, parser_scorecard, DemandeJugement};
 use crate::session::Session;
 use crate::AbeilleRegistry;
 use futures_util::StreamExt;
-use laruche_butinage::cap::reine::{
-    Action, Avis, ConfigReine, ModeReine, Reine, Scorecard, Tier,
-};
+use laruche_butinage::cap::reine::{Action, Avis, ConfigReine, ModeReine, Reine, Scorecard, Tier};
 use laruche_memoire::MemoireCognitive;
 use std::sync::Arc;
 
@@ -104,24 +102,19 @@ pub async fn juger_avec_raison(
     let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
 
     let mut stream = match provider_chat_stream(
-        provider,
-        model,
-        &messages,
-        0.2, // low temperature: judging wants determinism
+        provider, model, &messages, 0.2, // low temperature: judging wants determinism
         // Room for a model that preambles before complying. The scorecard itself is ~80
         // tokens; the rest is headroom so a chatty judge still reaches the end of it.
-        2048,
-        api_key,
-        api_base,
-        ollama_url,
-        None,
+        2048, api_key, api_base, ollama_url, None,
     )
     .await
     {
         Ok(s) => s,
         Err(e) => {
             tracing::warn!(target: "reine", provider = %provider, model = %model, error = %e, "judge: provider call failed");
-            return Err(format!("the judge provider ({provider}/{model}) refused the call: {e}"));
+            return Err(format!(
+                "the judge provider ({provider}/{model}) refused the call: {e}"
+            ));
         }
     };
 
@@ -132,9 +125,7 @@ pub async fn juger_avec_raison(
     let apercu: String = brut.chars().take(220).collect();
     tracing::info!(target: "reine", model = %model, len = brut.len(), preview = %apercu, "judge: raw output");
     if brut.trim().is_empty() {
-        return Err(format!(
-            "the judge ({provider}/{model}) answered nothing"
-        ));
+        return Err(format!("the judge ({provider}/{model}) answered nothing"));
     }
     parser_scorecard(&brut).map_err(|e| {
         tracing::warn!(target: "reine", error = %e, "judge: output not parseable as scorecard");
@@ -161,8 +152,17 @@ pub async fn juger_avec(
     revues_precedentes: &str,
 ) -> Option<Scorecard> {
     juger_avec_raison(
-        provider, model, api_key, api_base, ollama_url, reponse, prompt, charte, contexte,
-        atelier, revues_precedentes,
+        provider,
+        model,
+        api_key,
+        api_base,
+        ollama_url,
+        reponse,
+        prompt,
+        charte,
+        contexte,
+        atelier,
+        revues_precedentes,
     )
     .await
     .ok()
@@ -379,8 +379,10 @@ pub async fn revue_et_refaire(
             charte,
             &contexte,
             &atelier,
-            &corrections_donnees.join("
-"),
+            &corrections_donnees.join(
+                "
+",
+            ),
         )
         .await
         {
@@ -496,7 +498,9 @@ pub async fn revue_et_refaire(
                     }
                     Err(e) => {
                         tracing::warn!(error = %e, "reine rework failed");
-                        journal.push(format!("LaReine: the rework FAILED ({e}); keeping the previous draft"));
+                        journal.push(format!(
+                            "LaReine: the rework FAILED ({e}); keeping the previous draft"
+                        ));
                         break;
                     }
                 }
@@ -584,7 +588,9 @@ pub async fn revue_et_refaire(
 /// path, the sub-agent's task. It is what turns "web_deep_search was called" into
 /// "web_deep_search looked for X", which is the difference between a name and evidence.
 fn cle_appel(args: &serde_json::Value) -> Option<String> {
-    for champ in ["query", "url", "q", "path", "task", "prompt", "command", "motif"] {
+    for champ in [
+        "query", "url", "q", "path", "task", "prompt", "command", "motif",
+    ] {
         if let Some(v) = args.get(champ).and_then(|v| v.as_str()) {
             let v = v.trim();
             if !v.is_empty() {
@@ -623,7 +629,9 @@ fn urls_de(texte: &str, deja: &mut std::collections::BTreeSet<String>, out: &mut
         let fin = depart
             .find(|c: char| c.is_whitespace() || BORNES.contains(&c))
             .unwrap_or(depart.len());
-        let url = depart[..fin].trim_end_matches(['.', ',', ';', ':']).to_string();
+        let url = depart[..fin]
+            .trim_end_matches(['.', ',', ';', ':'])
+            .to_string();
         if url.len() > 12 && deja.insert(url.clone()) {
             out.push(url);
         }
@@ -790,11 +798,7 @@ async fn construire_etat_ruche(memoire: &Arc<dyn MemoireCognitive>) -> String {
         .unwrap_or_default();
     let mut racines: Vec<String> = noeuds
         .iter()
-        .filter(|n| {
-            n.get("parent_id")
-                .map(|p| p.is_null())
-                .unwrap_or(true)
-        })
+        .filter(|n| n.get("parent_id").map(|p| p.is_null()).unwrap_or(true))
         .filter_map(|n| n.get("id").and_then(|i| i.as_str()).map(String::from))
         .collect();
     if racines.is_empty() {
@@ -919,7 +923,6 @@ fn journaliser_scorecard(card: &Scorecard, mode: &str, rounds: u8, revised: bool
         let _ = writeln!(f, "{ligne}");
     }
 }
-
 
 /// A one-shot judgement the USER asked for, from the chat, outside any automatic mode.
 ///

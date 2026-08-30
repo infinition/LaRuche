@@ -24,10 +24,54 @@ const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (
 /// what turns a "keyword soup" back into a real query. FR + EN, plus the generic
 /// filler models love to pile on ("best", "site", "download"...).
 const MOTS_VIDES_REQUETE: &[&str] = &[
-    "le", "la", "les", "des", "de", "du", "un", "une", "et", "ou", "pour", "avec", "sur", "dans",
-    "par", "aux", "au", "en", "qui", "que", "the", "a", "an", "and", "or", "for", "with", "on",
-    "in", "of", "to", "best", "top", "site", "sites", "web", "online", "free", "download",
-    "downloads", "file", "files", "how", "comment", "trouver", "find", "search", "recherche",
+    "le",
+    "la",
+    "les",
+    "des",
+    "de",
+    "du",
+    "un",
+    "une",
+    "et",
+    "ou",
+    "pour",
+    "avec",
+    "sur",
+    "dans",
+    "par",
+    "aux",
+    "au",
+    "en",
+    "qui",
+    "que",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "for",
+    "with",
+    "on",
+    "in",
+    "of",
+    "to",
+    "best",
+    "top",
+    "site",
+    "sites",
+    "web",
+    "online",
+    "free",
+    "download",
+    "downloads",
+    "file",
+    "files",
+    "how",
+    "comment",
+    "trouver",
+    "find",
+    "search",
+    "recherche",
 ];
 
 /// Number of significant terms in a query (quoted phrases and `site:`-style
@@ -53,7 +97,11 @@ pub fn resserrer_requete(query: &str, max: usize) -> String {
     };
     let est_operateur = |m: &str| m.contains(':') || m.starts_with('"') || m.ends_with('"');
     let mut gardes: Vec<&str> = mots.iter().copied().filter(|m| est_operateur(m)).collect();
-    for m in mots.iter().copied().filter(|m| !est_operateur(m) && significatif(m)) {
+    for m in mots
+        .iter()
+        .copied()
+        .filter(|m| !est_operateur(m) && significatif(m))
+    {
         if gardes.len() >= max {
             break;
         }
@@ -236,7 +284,9 @@ pub(crate) async fn search_web_results(
         }
     }
     if let Ok(url) = std::env::var("LARUCHE_SEARXNG_URL") {
-        let r = search_searxng(client, query, &url).await.unwrap_or_default();
+        let r = search_searxng(client, query, &url)
+            .await
+            .unwrap_or_default();
         if !r.is_empty() {
             return Ok(r);
         }
@@ -296,7 +346,11 @@ fn classer_par_consensus(par_moteur: Vec<Vec<SearchResult>>) -> Vec<SearchResult
                 }
                 None => cumuls.push((
                     cle,
-                    Cumul { resultat: r, moteurs: 1, meilleur_rang: rang },
+                    Cumul {
+                        resultat: r,
+                        moteurs: 1,
+                        meilleur_rang: rang,
+                    },
                 )),
             }
         }
@@ -596,14 +650,21 @@ mod tests {
     use super::*;
 
     fn r(url: &str, snippet: &str) -> SearchResult {
-        SearchResult { title: "t".into(), url: url.into(), snippet: snippet.into() }
+        SearchResult {
+            title: "t".into(),
+            url: url.into(),
+            snippet: snippet.into(),
+        }
     }
 
     /// The point of the change: agreement between engines outranks arrival order.
     /// Before, whichever scraper answered first dictated the ranking.
     #[test]
     fn le_consensus_prime_sur_lordre_darrivee() {
-        let yahoo = vec![r("https://solo.example/a", ""), r("https://commun.example/b", "")];
+        let yahoo = vec![
+            r("https://solo.example/a", ""),
+            r("https://commun.example/b", ""),
+        ];
         let ddg = vec![r("https://commun.example/b", "")];
         let lite = vec![r("https://commun.example/b", "")];
 
@@ -643,7 +704,11 @@ mod tests {
 
     #[test]
     fn la_fusion_ecarte_les_urls_non_http() {
-        let sales = vec![r("javascript:void(0)", ""), r("", ""), r("https://ok.example/", "")];
+        let sales = vec![
+            r("javascript:void(0)", ""),
+            r("", ""),
+            r("https://ok.example/", ""),
+        ];
         let classe = classer_par_consensus(vec![sales]);
         assert_eq!(classe.len(), 1);
         assert_eq!(classe[0].url, "https://ok.example/");
@@ -653,7 +718,10 @@ mod tests {
     fn compte_les_termes_significatifs() {
         assert_eq!(termes_significatifs("dungeon siege save"), 3);
         // Filler words do not inflate the count.
-        assert_eq!(termes_significatifs("find the best site for dungeon siege"), 2);
+        assert_eq!(
+            termes_significatifs("find the best site for dungeon siege"),
+            2
+        );
         // The real soup observed in production (12+ terms).
         let soupe = "Dungeon Siege 1 save files mods custom items .dsparty .DSSAVE Nexus Mods RPG modding forums";
         assert!(termes_significatifs(soupe) >= 10, "soup detected");
@@ -664,7 +732,10 @@ mod tests {
         let soupe = "Dungeon Siege 1 save files mods custom items .dsparty .DSSAVE Nexus Mods";
         let court = resserrer_requete(soupe, 4);
         assert_eq!(court.split_whitespace().count(), 4);
-        assert!(court.starts_with("Dungeon Siege"), "order preserved: {court}");
+        assert!(
+            court.starts_with("Dungeon Siege"),
+            "order preserved: {court}"
+        );
         // Operators are the most selective: they are kept first.
         let avec_op = resserrer_requete("site:archive.org dungeon siege save files mods custom", 3);
         assert!(avec_op.starts_with("site:archive.org"), "{avec_op}");

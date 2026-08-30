@@ -188,6 +188,7 @@ pub(crate) async fn api_get_curateur_config(State(state): State<Arc<AppState>>) 
         "mcp_allowlist": ec.mcp_ip_autorisees,
         // Duree de vie des episodes, en jours. 0 = on garde tout.
         "episodes_retention_jours": ec.episodes_retention_jours,
+        "halo_actif": ec.halo_actif,
     }))
 }
 
@@ -212,6 +213,12 @@ pub(crate) async fn api_set_curateur_config(
         }
         if let Some(v) = body["mcp_firewall"].as_bool() {
             ec.mcp_pare_feu_actif = v;
+        }
+        if let Some(v) = body["halo_actif"].as_bool() {
+            ec.halo_actif = v;
+            // Applique tout de suite: le reglage doit valoir pour le geste
+            // suivant, pas apres un redemarrage.
+            laruche_essaim::config::definir_halo(v);
         }
         if let Some(v) = body["episodes_retention_jours"].as_u64() {
             // Plafonne a dix ans: au-dela le reglage ne veut plus rien dire, et un

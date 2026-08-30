@@ -489,7 +489,7 @@ pub(crate) async fn api_auth_set_model(
 /// The SUPER-ADMIN is the oldest account, and it is derived rather than stored: there is
 /// no flag anyone can flip, and no way to end up with zero of them. It exists so the
 /// instance always keeps one account that cannot be demoted, deleted or locked out by
-/// another admin — including one promoted by mistake.
+/// another admin - including one promoted by mistake.
 ///
 /// Ties on `created_at` (two accounts made in the same instant) are broken by id so the
 /// answer is stable across restarts instead of depending on map iteration order.

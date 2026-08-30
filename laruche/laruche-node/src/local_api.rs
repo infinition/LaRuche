@@ -170,7 +170,7 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
         None => true,
     };
     steps.push(serde_json::json!({
-        "step": 1, "title": format!("LLM backend — {nom_backend}"),
+        "step": 1, "title": format!("LLM backend - {nom_backend}"),
         "done": backend_ok,
         // Where the user goes to act. The web modal turns it into a button, the CLI
         // prints it as a path. One source, two renderings - so they cannot drift.

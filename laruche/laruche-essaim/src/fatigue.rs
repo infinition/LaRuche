@@ -1,4 +1,4 @@
-﻿//! Cognitive fatigue and memory consolidation for the ReAct loop.
+//! Cognitive fatigue and memory consolidation for the ReAct loop.
 //!
 //! ## FatigueMonitor
 //! Detects when the agent is spinning (repetitions, errors, saturated context)
@@ -75,12 +75,7 @@ impl FatigueMonitor {
     }
 
     /// Simplified version (without success tracker) for the internal loop.
-    pub fn update_names(
-        &mut self,
-        tool_names: &[String],
-        tokens_used: usize,
-        iteration: u32,
-    ) {
+    pub fn update_names(&mut self, tool_names: &[String], tokens_used: usize, iteration: u32) {
         self.iterations = iteration;
         self.tokens_used = tokens_used;
 
@@ -175,7 +170,11 @@ pub async fn consolider_fatigue(
         .filter_map(|m| {
             let role = m["role"].as_str().unwrap_or("unknown");
             let content = m["content"].as_str().unwrap_or("");
-            if content.is_empty() { None } else { Some(format!("[{role}]\n{content}")) }
+            if content.is_empty() {
+                None
+            } else {
+                Some(format!("[{role}]\n{content}"))
+            }
         })
         .collect::<Vec<_>>()
         .join("\n\n");
@@ -190,7 +189,8 @@ pub async fn consolider_fatigue(
         Domains: research, experiments, decisions, insights. \
         If nothing durable -> []. No text outside the JSON.";
 
-    let facts_json = appel_llm_auxiliaire(sys_extract, &historique, config).await
+    let facts_json = appel_llm_auxiliaire(sys_extract, &historique, config)
+        .await
         .unwrap_or_else(|_| "[]".to_string());
 
     let facts: Vec<FaitConsolide> = crate::brain::extraire_json_array(&facts_json)
@@ -199,18 +199,28 @@ pub async fn consolider_fatigue(
 
     let mut facts_stored = 0usize;
     for fact in &facts {
-        if fact.content.trim().is_empty() || fact.node_id.trim().is_empty() { continue; }
-        if !crate::brain::node_id_valide(&fact.node_id) { continue; }
-        let node_id = format!("research.{}.{}",
+        if fact.content.trim().is_empty() || fact.node_id.trim().is_empty() {
+            continue;
+        }
+        if !crate::brain::node_id_valide(&fact.node_id) {
+            continue;
+        }
+        let node_id = format!(
+            "research.{}.{}",
             task_id.replace('-', "_"),
             fact.node_id.rsplit('.').next().unwrap_or("fact")
         );
         let confidence_label = (fact.confidence * 100.0).clamp(0.0, 100.0) as u32;
         let fact_type = fact.fact_type.as_deref().unwrap_or("decouverte");
-        let content = format!("[confiance:{}%][{}] {}", confidence_label, fact_type, fact.content);
+        let content = format!(
+            "[confiance:{}%][{}] {}",
+            confidence_label, fact_type, fact.content
+        );
         let _ = memoire
-            .write(MemoryItem::new(&node_id, &content)
-                .with_source(format!("fatigue-consolidation:{task_id}")))
+            .write(
+                MemoryItem::new(&node_id, &content)
+                    .with_source(format!("fatigue-consolidation:{task_id}")),
+            )
             .await;
         facts_stored += 1;
     }
@@ -225,13 +235,20 @@ pub async fn consolider_fatigue(
         .unwrap_or_else(|_| "{}".to_string());
 
     let _ = memoire
-        .write(MemoryItem::new(
-            format!("tasks.checkpoints.{}", task_id),
-            format!("checkpoint:{}", checkpoint_json),
-        ).with_source("fatigue-checkpoint"))
+        .write(
+            MemoryItem::new(
+                format!("tasks.checkpoints.{}", task_id),
+                format!("checkpoint:{}", checkpoint_json),
+            )
+            .with_source("fatigue-checkpoint"),
+        )
         .await;
 
-    Ok(ConsolidationResult { facts_stored, checkpoint: checkpoint_json, task_id: task_id.to_string() })
+    Ok(ConsolidationResult {
+        facts_stored,
+        checkpoint: checkpoint_json,
+        task_id: task_id.to_string(),
+    })
 }
 
 /// Builds the fresh context after consolidation.
@@ -245,12 +262,22 @@ pub async fn contexte_apres_consolidation(
         .read_node(&format!("tasks.checkpoints.{}", task_id))
         .await
         .ok()
-        .and_then(|n| n.get("items").and_then(|i| i.as_array())
-            .and_then(|a| a.last().and_then(|it| it.get("content").and_then(|c| c.as_str())))
-            .map(|s| s.to_string()))
+        .and_then(|n| {
+            n.get("items")
+                .and_then(|i| i.as_array())
+                .and_then(|a| {
+                    a.last()
+                        .and_then(|it| it.get("content").and_then(|c| c.as_str()))
+                })
+                .map(|s| s.to_string())
+        })
         .unwrap_or_default();
 
-    let resume = checkpoint.split_once(':').map(|x| x.1).unwrap_or("").to_string();
+    let resume = checkpoint
+        .split_once(':')
+        .map(|x| x.1)
+        .unwrap_or("")
+        .to_string();
 
     vec![
         serde_json::json!({
@@ -282,11 +309,18 @@ async fn appel_llm_auxiliaire(
     let mut stream = provider_chat_stream(
         &config.provider,
         config.aux_model.as_deref().unwrap_or(&config.model),
-        &messages, 0.0, 1024,
-        &config.api_key, config.api_base.as_deref(), &config.ollama_url,
-            None,
-        ).await?;
+        &messages,
+        0.0,
+        1024,
+        &config.api_key,
+        config.api_base.as_deref(),
+        &config.ollama_url,
+        None,
+    )
+    .await?;
     let mut out = String::new();
-    while let Some(chunk) = stream.next().await { out.push_str(&chunk.text); }
+    while let Some(chunk) = stream.next().await {
+        out.push_str(&chunk.text);
+    }
     Ok(out)
 }

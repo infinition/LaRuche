@@ -78,9 +78,10 @@ pub(crate) async fn curer_memoire(
         512,
         &crate::secrets::substituer(&config.api_key),
         config.api_base.as_deref(),
-            &config.ollama_url,
-            None,
-        ).await?;
+        &config.ollama_url,
+        None,
+    )
+    .await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await {
         out.push_str(&chunk.text);
@@ -247,9 +248,10 @@ pub async fn consolider_node(
         1400,
         &crate::secrets::substituer(&config.api_key),
         config.api_base.as_deref(),
-            &config.ollama_url,
-            None,
-        ).await?;
+        &config.ollama_url,
+        None,
+    )
+    .await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await {
         out.push_str(&chunk.text);
@@ -358,9 +360,10 @@ pub(crate) async fn extraire_skill_memoire(
         1400,
         &crate::secrets::substituer(&config.api_key),
         config.api_base.as_deref(),
-            &config.ollama_url,
-            None,
-        ).await?;
+        &config.ollama_url,
+        None,
+    )
+    .await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await {
         out.push_str(&chunk.text);
@@ -530,7 +533,12 @@ mod tests_node_id {
 
     #[test]
     fn accepte_les_branches_ou_le_curateur_a_le_droit_d_ecrire() {
-        for id in ["people.fabien", "projects.laruche", "decisions.archi", "episodes.2026.mission"] {
+        for id in [
+            "people.fabien",
+            "projects.laruche",
+            "decisions.archi",
+            "episodes.2026.mission",
+        ] {
             assert!(node_id_valide(id), "{id} devrait etre accepte");
         }
     }
@@ -538,7 +546,13 @@ mod tests_node_id {
     #[test]
     fn refuse_les_branches_reservees() {
         // Rewritten from elsewhere: the prompt sections and the registry mirrors.
-        for id in ["system.notes", "system.prompt", "capacities.tools.x2", "tools.web_fetch", "orphans.vieux_1"] {
+        for id in [
+            "system.notes",
+            "system.prompt",
+            "capacities.tools.x2",
+            "tools.web_fetch",
+            "orphans.vieux_1",
+        ] {
             assert!(!node_id_valide(id), "{id} devrait etre refuse");
         }
     }

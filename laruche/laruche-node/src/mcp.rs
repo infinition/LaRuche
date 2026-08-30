@@ -124,7 +124,7 @@ fn handle_initialize(id: Option<serde_json::Value>) -> JsonRpcResponse {
 ///
 /// MCP used to serve the whole registry and never consult `disabled_tools`, so a tool
 /// deliberately disabled for the chat stayed listed and callable by any authorised
-/// external client — including the shell. One switch, one meaning.
+/// external client - including the shell. One switch, one meaning.
 fn est_desactive(desactives: &[String], nom: &str) -> bool {
     desactives.iter().any(|t| t == nom)
 }

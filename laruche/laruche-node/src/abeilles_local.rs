@@ -459,7 +459,7 @@ impl Abeille for AbeilleMissionCreate {
             .map(String::from);
         // Refused at the door rather than stored and never fired. A cadence the scheduler
         // cannot parse produces a mission that shows a schedule, sits in the timeline and
-        // runs exactly never — the failure is invisible until someone notices weeks later.
+        // runs exactly never - the failure is invisible until someone notices weeks later.
         if let Some(c) = &cadence {
             if let Err(e) = laruche_essaim::cron::valider_cron(c) {
                 return Ok(ResultatAbeille::err(e));

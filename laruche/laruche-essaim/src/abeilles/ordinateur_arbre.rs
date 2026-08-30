@@ -24,12 +24,12 @@
 use anyhow::{anyhow, Result};
 use std::sync::Mutex;
 use uiautomation::controls::ControlType;
+use uiautomation::core::UICacheRequest;
 use uiautomation::patterns::{
     UIExpandCollapsePattern, UIInvokePattern, UILegacyIAccessiblePattern, UIRangeValuePattern,
     UIScrollItemPattern, UISelectionItemPattern, UITogglePattern, UIValuePattern,
 };
 use uiautomation::types::{TreeScope, UIProperty};
-use uiautomation::core::UICacheRequest;
 use uiautomation::{UIAutomation, UIElement};
 
 /// Plafonds du parcours. Une fenetre de navigateur expose des milliers de
@@ -296,14 +296,14 @@ pub fn lire(filtre: Option<&str>) -> Result<Lecture> {
             control,
             ControlType::Edit | ControlType::ComboBox | ControlType::Document
         )
-            .then(|| {
-                element
-                    .get_pattern::<UIValuePattern>()
-                    .ok()
-                    .and_then(|p| p.get_value().ok())
-                    .filter(|v| !v.trim().is_empty())
-            })
-            .flatten();
+        .then(|| {
+            element
+                .get_pattern::<UIValuePattern>()
+                .ok()
+                .and_then(|p| p.get_value().ok())
+                .filter(|v| !v.trim().is_empty())
+        })
+        .flatten();
         let coche = matches!(control, ControlType::CheckBox | ControlType::RadioButton)
             .then(|| {
                 element
@@ -530,13 +530,19 @@ pub fn regler_plage(numero: usize, valeur: f64) -> Result<(Cible, f64)> {
     let auto = nouvelle_automation()?;
     let element = retrouver(&auto, &c, None)
         .ok_or_else(|| anyhow!("ref_{numero} is gone from the tree: the window changed."))?;
-    let p = element
-        .get_pattern::<UIRangeValuePattern>()
-        .map_err(|_| anyhow!("ref_{numero} <{}> holds no range: it is not a slider or a spinner. Use click or fill.", c.genre))?;
+    let p = element.get_pattern::<UIRangeValuePattern>().map_err(|_| {
+        anyhow!(
+            "ref_{numero} <{}> holds no range: it is not a slider or a spinner. Use click or fill.",
+            c.genre
+        )
+    })?;
     if p.is_readonly().unwrap_or(false) {
         return Err(anyhow!("ref_{numero} <{}> is read only.", c.genre));
     }
-    let (min, max) = (p.get_minimum().unwrap_or(0.0), p.get_maximum().unwrap_or(0.0));
+    let (min, max) = (
+        p.get_minimum().unwrap_or(0.0),
+        p.get_maximum().unwrap_or(0.0),
+    );
     // Borner plutot que laisser le motif echouer: hors plage, `set_value` rend
     // une erreur COM opaque que personne ne sait lire.
     let borne = valeur.clamp(min.min(max), max.max(min));
@@ -562,8 +568,13 @@ pub fn remplir(numero: usize, valeur: &str) -> Result<(Cible, Effet)> {
     if let Ok(nombre) = valeur.trim().parse::<f64>() {
         if let Ok(p) = element.get_pattern::<UIRangeValuePattern>() {
             if !p.is_readonly().unwrap_or(true) {
-                let (min, max) = (p.get_minimum().unwrap_or(0.0), p.get_maximum().unwrap_or(0.0));
-                if p.set_value(nombre.clamp(min.min(max), max.max(min))).is_ok() {
+                let (min, max) = (
+                    p.get_minimum().unwrap_or(0.0),
+                    p.get_maximum().unwrap_or(0.0),
+                );
+                if p.set_value(nombre.clamp(min.min(max), max.max(min)))
+                    .is_ok()
+                {
                     return Ok((c, Effet::Motif("rangevalue")));
                 }
             }

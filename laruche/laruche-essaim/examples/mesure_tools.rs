@@ -27,7 +27,9 @@ fn main() {
     println!("ce que le rabotage economise reellement:");
     for gardes in [16usize, 12, 8, 4] {
         let g = gardes.min(n);
-        let sous = serde_json::to_string(&liste[..g]).map(|s| s.len()).unwrap_or(0);
+        let sous = serde_json::to_string(&liste[..g])
+            .map(|s| s.len())
+            .unwrap_or(0);
         println!(
             "  garder {g:2} outils -> {sous:6} o  (economie {:5} o, soit {:.1}% de la garde de 76800)",
             total - sous,

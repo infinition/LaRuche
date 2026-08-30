@@ -110,7 +110,13 @@ struct Trouvaille {
 
 impl Trouvaille {
     fn nouveau(url: String, canal: Canal) -> Self {
-        Self { url, canaux: vec![canal], statut: None, taille: None, mime: None }
+        Self {
+            url,
+            canaux: vec![canal],
+            statut: None,
+            taille: None,
+            mime: None,
+        }
     }
 
     /// Live and confirmed by a real request.
@@ -182,7 +188,9 @@ impl Abeille for WebDiscover {
         let cible = normaliser_entree(url_sub.as_str());
 
         if !cible.starts_with("http://") && !cible.starts_with("https://") {
-            return Ok(ResultatAbeille::err("URL must start with http:// or https://"));
+            return Ok(ResultatAbeille::err(
+                "URL must start with http:// or https://",
+            ));
         }
 
         let mode = args["mode"].as_str().unwrap_or("auto").to_lowercase();
@@ -439,7 +447,9 @@ async fn canal_plan(client: &reqwest::Client, cible: &str) -> Result<Vec<String>
             if !rep.status().is_success() {
                 continue;
             }
-            let Ok(corps) = rep.text().await else { continue };
+            let Ok(corps) = rep.text().await else {
+                continue;
+            };
             let index = corps.contains("<sitemapindex");
             for brut in extraire_balises(&corps, &["loc", "link", "guid"]) {
                 let Some(u) = resoudre(&plan, &brut) else {
@@ -557,7 +567,11 @@ fn domaine_apex(hote: &str) -> String {
         0..=2 => hote.to_string(),
         n => {
             let avant_dernier = labels[n - 2];
-            let garde = if DEUXIEME_NIVEAU.contains(&avant_dernier) && n >= 3 { 3 } else { 2 };
+            let garde = if DEUXIEME_NIVEAU.contains(&avant_dernier) && n >= 3 {
+                3
+            } else {
+                2
+            };
             labels[n - garde..].join(".")
         }
     }
@@ -672,9 +686,33 @@ async fn canal_sondage(client: &reqwest::Client, cible: &str) -> Result<Vec<Stri
 /// Directory names worth trying on any site, FR and EN, both numbers.
 /// Deliberately short: the site-derived words carry most of the yield.
 const MOTS_COURANTS: &[&str] = &[
-    "file", "fichier", "download", "telechargement", "dl", "data", "doc", "media", "img",
-    "image", "upload", "archive", "public", "static", "asset", "tmp", "save", "sauvegarde",
-    "mod", "map", "carte", "outil", "tool", "bin", "backup", "divers", "ressource",
+    "file",
+    "fichier",
+    "download",
+    "telechargement",
+    "dl",
+    "data",
+    "doc",
+    "media",
+    "img",
+    "image",
+    "upload",
+    "archive",
+    "public",
+    "static",
+    "asset",
+    "tmp",
+    "save",
+    "sauvegarde",
+    "mod",
+    "map",
+    "carte",
+    "outil",
+    "tool",
+    "bin",
+    "backup",
+    "divers",
+    "ressource",
 ];
 
 // ════════════════════════════════════════════════════════════════════════
@@ -850,8 +888,9 @@ fn litteraux_de_lappel(texte: &str) -> Vec<String> {
 }
 
 /// Frame and window targets that sit in the same argument list as the URL.
-const CIBLES_DE_FENETRE: &[&str] =
-    &["parent", "_parent", "blank", "_blank", "self", "_self", "top", "_top", "new"];
+const CIBLES_DE_FENETRE: &[&str] = &[
+    "parent", "_parent", "blank", "_blank", "self", "_self", "top", "_top", "new",
+];
 
 /// Does this literal look like a path rather than a frame name or a template?
 fn ressemble_a_un_chemin(valeur: &str) -> bool {
@@ -960,15 +999,92 @@ fn mots_du_site(html: &str) -> Vec<String> {
 
 /// HTML/JS vocabulary that is never a directory name.
 const STOPWORDS: &[&str] = &[
-    "html", "head", "body", "title", "meta", "link", "href", "src", "img", "alt", "div",
-    "span", "table", "tbody", "thead", "tfoot", "font", "size", "color", "align", "valign",
-    "width", "height", "border", "cellpadding", "cellspacing", "class", "style", "type",
-    "text", "content", "charset", "http", "https", "www", "com", "net", "org", "the", "and",
-    "for", "with", "var", "function", "return", "document", "window", "true", "false",
-    "null", "script", "javascript", "onclick", "onload", "onmouseover", "onmouseout",
-    "target", "blank", "self", "parent", "frame", "frameset", "noframes", "center", "form",
-    "input", "value", "name", "iso", "utf", "gif", "jpg", "jpeg", "png", "css", "top",
-    "left", "right", "bottom", "middle", "nbsp", "quot", "amp", "new", "old", "page",
+    "html",
+    "head",
+    "body",
+    "title",
+    "meta",
+    "link",
+    "href",
+    "src",
+    "img",
+    "alt",
+    "div",
+    "span",
+    "table",
+    "tbody",
+    "thead",
+    "tfoot",
+    "font",
+    "size",
+    "color",
+    "align",
+    "valign",
+    "width",
+    "height",
+    "border",
+    "cellpadding",
+    "cellspacing",
+    "class",
+    "style",
+    "type",
+    "text",
+    "content",
+    "charset",
+    "http",
+    "https",
+    "www",
+    "com",
+    "net",
+    "org",
+    "the",
+    "and",
+    "for",
+    "with",
+    "var",
+    "function",
+    "return",
+    "document",
+    "window",
+    "true",
+    "false",
+    "null",
+    "script",
+    "javascript",
+    "onclick",
+    "onload",
+    "onmouseover",
+    "onmouseout",
+    "target",
+    "blank",
+    "self",
+    "parent",
+    "frame",
+    "frameset",
+    "noframes",
+    "center",
+    "form",
+    "input",
+    "value",
+    "name",
+    "iso",
+    "utf",
+    "gif",
+    "jpg",
+    "jpeg",
+    "png",
+    "css",
+    "top",
+    "left",
+    "right",
+    "bottom",
+    "middle",
+    "nbsp",
+    "quot",
+    "amp",
+    "new",
+    "old",
+    "page",
 ];
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1011,7 +1127,10 @@ fn deballer_archive(url: &str) -> String {
 /// `https://host:port/a/b?q` → `host`.
 fn hote_de(url: &str) -> Option<String> {
     let sans_scheme = url.split_once("://")?.1;
-    let hote = sans_scheme.split(['/', '?', '#']).next().unwrap_or(sans_scheme);
+    let hote = sans_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(sans_scheme);
     let hote = hote.split('@').next_back().unwrap_or(hote);
     let hote = hote.split(':').next().unwrap_or(hote);
     (!hote.is_empty()).then(|| hote.to_lowercase())
@@ -1108,7 +1227,9 @@ fn extensions_demandees(brut: &str) -> Vec<String> {
 fn extension_correspond(url: &str, extensions: &[String]) -> bool {
     let chemin = url.split(['?', '#']).next().unwrap_or(url);
     let fichier = chemin.rsplit('/').next().unwrap_or(chemin).to_lowercase();
-    extensions.iter().any(|e| fichier.ends_with(&format!(".{e}")))
+    extensions
+        .iter()
+        .any(|e| fichier.ends_with(&format!(".{e}")))
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1253,10 +1374,19 @@ mod tests {
     #[test]
     fn resoudre_gere_relatif_absolu_et_protocole() {
         let base = "https://ex.com/a/b/page.html";
-        assert_eq!(resoudre(base, "c.html").unwrap(), "https://ex.com/a/b/c.html");
+        assert_eq!(
+            resoudre(base, "c.html").unwrap(),
+            "https://ex.com/a/b/c.html"
+        );
         assert_eq!(resoudre(base, "/d.html").unwrap(), "https://ex.com/d.html");
-        assert_eq!(resoudre(base, "../e.html").unwrap(), "https://ex.com/a/e.html");
-        assert_eq!(resoudre(base, "//cdn.io/f.js").unwrap(), "https://cdn.io/f.js");
+        assert_eq!(
+            resoudre(base, "../e.html").unwrap(),
+            "https://ex.com/a/e.html"
+        );
+        assert_eq!(
+            resoudre(base, "//cdn.io/f.js").unwrap(),
+            "https://cdn.io/f.js"
+        );
         assert_eq!(resoudre(base, "https://x.io/g").unwrap(), "https://x.io/g");
     }
 
@@ -1270,22 +1400,32 @@ mod tests {
 
     #[test]
     fn repertoire_de_remonte_au_dossier() {
-        assert_eq!(repertoire_de("https://ex.com/a/b.html"), "https://ex.com/a/");
+        assert_eq!(
+            repertoire_de("https://ex.com/a/b.html"),
+            "https://ex.com/a/"
+        );
         assert_eq!(repertoire_de("https://ex.com/a/"), "https://ex.com/a/");
         assert_eq!(repertoire_de("https://ex.com"), "https://ex.com/");
     }
 
     #[test]
     fn hote_et_origine_survivent_au_port_et_au_chemin() {
-        assert_eq!(hote_de("http://ds.lordtry.com:80/file/x").unwrap(), "ds.lordtry.com");
-        assert_eq!(origine_de("https://ex.com/a?b=1").unwrap(), "https://ex.com");
+        assert_eq!(
+            hote_de("http://ds.lordtry.com:80/file/x").unwrap(),
+            "ds.lordtry.com"
+        );
+        assert_eq!(
+            origine_de("https://ex.com/a?b=1").unwrap(),
+            "https://ex.com"
+        );
     }
 
     /// The JS menu that hid `/file/index.html` on the reference site.
     #[test]
     fn cibles_javascript_lit_un_menu_href_diese() {
         // `r##` because the markup itself contains `"#`, which would close `r#`.
-        let html = r##"<a href="#" onclick="MM_goToURL('parent','file/index.html');return false;">x</a>"##;
+        let html =
+            r##"<a href="#" onclick="MM_goToURL('parent','file/index.html');return false;">x</a>"##;
         let liens = extraire_liens(html, "https://ex.com/gauche.html");
         assert!(
             liens.contains(&"https://ex.com/file/index.html".to_string()),
@@ -1316,7 +1456,8 @@ mod tests {
 
     #[test]
     fn extraire_liens_suit_les_frames() {
-        let html = r#"<frameset><frame src="gauche.html"><frame name="c" src="premiere.html"></frameset>"#;
+        let html =
+            r#"<frameset><frame src="gauche.html"><frame name="c" src="premiere.html"></frameset>"#;
         let liens = extraire_liens(html, "https://ex.com/index.html");
         assert!(liens.contains(&"https://ex.com/gauche.html".to_string()));
         assert!(liens.contains(&"https://ex.com/premiere.html".to_string()));
@@ -1334,7 +1475,10 @@ mod tests {
         assert_eq!(exts, vec!["dsparty", "zip"]);
         assert!(extension_correspond("https://e.com/f/temp.dsparty", &exts));
         assert!(extension_correspond("https://e.com/a.ZIP", &exts));
-        assert!(!extension_correspond("https://e.com/dsparty/index.html", &exts));
+        assert!(!extension_correspond(
+            "https://e.com/dsparty/index.html",
+            &exts
+        ));
     }
 
     #[test]
@@ -1366,7 +1510,10 @@ mod tests {
 
         // Atom: the URL is the `href` attribute of an empty element.
         let atom = r#"<feed><entry><link href="https://ex.com/post-1"/></entry></feed>"#;
-        assert_eq!(extraire_balises(atom, &["link"]), vec!["https://ex.com/post-1"]);
+        assert_eq!(
+            extraire_balises(atom, &["link"]),
+            vec!["https://ex.com/post-1"]
+        );
     }
 
     #[test]
@@ -1380,7 +1527,11 @@ mod tests {
     fn rehoter_epingle_lhote_sans_toucher_au_chemin() {
         // The CDX index mixes `host` and `www.host` for the same file.
         assert_eq!(
-            rehoter("https://ds.lordtry.com/file/temp.dsparty", "www.ds.lordtry.com").unwrap(),
+            rehoter(
+                "https://ds.lordtry.com/file/temp.dsparty",
+                "www.ds.lordtry.com"
+            )
+            .unwrap(),
             "https://www.ds.lordtry.com/file/temp.dsparty"
         );
         assert_eq!(
@@ -1394,12 +1545,16 @@ mod tests {
     #[test]
     fn une_url_wayback_est_deballee_vers_sa_vraie_cible() {
         assert_eq!(
-            normaliser_entree("https://web.archive.org/web/2024/https://www.nexusmods.com/dungeonsiege1/mods/"),
+            normaliser_entree(
+                "https://web.archive.org/web/2024/https://www.nexusmods.com/dungeonsiege1/mods/"
+            ),
             "https://www.nexusmods.com/dungeonsiege1/mods/"
         );
         // Timestamps carry suffixes like `id_`.
         assert_eq!(
-            normaliser_entree("https://web.archive.org/web/20160819id_/http://ds.lordtry.com/file/"),
+            normaliser_entree(
+                "https://web.archive.org/web/20160819id_/http://ds.lordtry.com/file/"
+            ),
             "http://ds.lordtry.com/file/"
         );
         // The archive's own pages, with no wrapped target, stay as they are.
@@ -1429,7 +1584,10 @@ mod tests {
             t.statut = Some(404);
         }
         let refs: Vec<&Trouvaille> = absents.iter().collect();
-        assert!(panne_generale(&refs).is_none(), "404 must stay a real absence");
+        assert!(
+            panne_generale(&refs).is_none(),
+            "404 must stay a real absence"
+        );
 
         // Mixed codes mean the host is answering: no blanket conclusion.
         let mut melange = morts.clone();

@@ -109,6 +109,8 @@ pub(crate) struct PersistentState {
     pub(crate) curateur_actif: Option<bool>,
     #[serde(default)]
     pub(crate) episodes_retention_jours: Option<u32>,
+    #[serde(default)]
+    pub(crate) halo_actif: Option<bool>,
     /// MCP server surface, off unless the user turned it on. Absent from a file written
     /// before this field, which reads as off: an upgrade never opens a door by itself.
     #[serde(default)]
@@ -561,6 +563,7 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         episodes_retention_jours: Some(
             state.essaim_config.read().await.episodes_retention_jours,
         ),
+        halo_actif: Some(state.essaim_config.read().await.halo_actif),
         mcp_server_actif: Some(state.essaim_config.read().await.mcp_server_actif),
         mcp_pare_feu_actif: Some(state.essaim_config.read().await.mcp_pare_feu_actif),
         mcp_ip_autorisees: Some(state.essaim_config.read().await.mcp_ip_autorisees.clone()),

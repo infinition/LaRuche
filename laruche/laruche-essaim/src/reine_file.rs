@@ -130,9 +130,9 @@ pub fn classifier_risque(type_: TypeProposition, ecrase_existant: bool) -> Risqu
         TypeProposition::MemoireMaj if ecrase_existant => Risque::Critique,
         TypeProposition::MemoireAjout if ecrase_existant => Risque::Critique,
         TypeProposition::MemoireMaj => Risque::Sensible,
-        TypeProposition::SkillNouveau
-        | TypeProposition::ToolNouveau
-        | TypeProposition::Mission => Risque::Sensible,
+        TypeProposition::SkillNouveau | TypeProposition::ToolNouveau | TypeProposition::Mission => {
+            Risque::Sensible
+        }
         TypeProposition::MemoireAjout => Risque::Sur,
     }
 }
@@ -184,9 +184,9 @@ pub fn transition_desactivation(statut: Statut) -> Statut {
 /// with the same suggestion on every run. Terminal statuses do not block a
 /// re-proposal: a rejected or expired suggestion may legitimately come back.
 pub fn deja_en_file(props: &[Proposition], type_: TypeProposition, cible: &str) -> bool {
-    props.iter().any(|p| {
-        p.type_ == type_ && p.statut.actionnable() && p.cible.as_deref() == Some(cible)
-    })
+    props
+        .iter()
+        .any(|p| p.type_ == type_ && p.statut.actionnable() && p.cible.as_deref() == Some(cible))
 }
 
 #[cfg(test)]
@@ -210,11 +210,23 @@ mod tests {
 
     #[test]
     fn deletes_and_overwrites_are_critical() {
-        assert_eq!(classifier_risque(TypeProposition::MemoireSuppr, false), Risque::Critique);
-        assert_eq!(classifier_risque(TypeProposition::MemoireMaj, true), Risque::Critique);
-        assert_eq!(classifier_risque(TypeProposition::MemoireAjout, true), Risque::Critique);
+        assert_eq!(
+            classifier_risque(TypeProposition::MemoireSuppr, false),
+            Risque::Critique
+        );
+        assert_eq!(
+            classifier_risque(TypeProposition::MemoireMaj, true),
+            Risque::Critique
+        );
+        assert_eq!(
+            classifier_risque(TypeProposition::MemoireAjout, true),
+            Risque::Critique
+        );
         // Dream hygiene soft-deletes redundant copies: never auto-applied.
-        assert_eq!(classifier_risque(TypeProposition::MemoireHygiene, false), Risque::Critique);
+        assert_eq!(
+            classifier_risque(TypeProposition::MemoireHygiene, false),
+            Risque::Critique
+        );
     }
 
     #[test]
@@ -223,19 +235,41 @@ mod tests {
         hygiene.cible = Some("projets.laruche".into());
         let props = vec![hygiene.clone()];
         // Same target, still actionable: blocked.
-        assert!(deja_en_file(&props, TypeProposition::MemoireHygiene, "projets.laruche"));
+        assert!(deja_en_file(
+            &props,
+            TypeProposition::MemoireHygiene,
+            "projets.laruche"
+        ));
         // Different target or type: allowed.
-        assert!(!deja_en_file(&props, TypeProposition::MemoireHygiene, "projets.autre"));
-        assert!(!deja_en_file(&props, TypeProposition::MemoireSuppr, "projets.laruche"));
+        assert!(!deja_en_file(
+            &props,
+            TypeProposition::MemoireHygiene,
+            "projets.autre"
+        ));
+        assert!(!deja_en_file(
+            &props,
+            TypeProposition::MemoireSuppr,
+            "projets.laruche"
+        ));
         // Terminal status: a fresh identical suggestion may come back.
         hygiene.statut = Statut::Rejete;
-        assert!(!deja_en_file(&[hygiene], TypeProposition::MemoireHygiene, "projets.laruche"));
+        assert!(!deja_en_file(
+            &[hygiene],
+            TypeProposition::MemoireHygiene,
+            "projets.laruche"
+        ));
     }
 
     #[test]
     fn fresh_add_is_safe_plain_update_is_sensitive() {
-        assert_eq!(classifier_risque(TypeProposition::MemoireAjout, false), Risque::Sur);
-        assert_eq!(classifier_risque(TypeProposition::MemoireMaj, false), Risque::Sensible);
+        assert_eq!(
+            classifier_risque(TypeProposition::MemoireAjout, false),
+            Risque::Sur
+        );
+        assert_eq!(
+            classifier_risque(TypeProposition::MemoireMaj, false),
+            Risque::Sensible
+        );
     }
 
     #[test]
@@ -250,10 +284,19 @@ mod tests {
 
     #[test]
     fn auto_mode_auto_approves_safe_and_confident_sensitive() {
-        assert_eq!(disposition(ModeReine::Auto, Risque::Sur, 0, 60), Disposition::AutoApprouver);
-        assert_eq!(disposition(ModeReine::Auto, Risque::Sensible, 80, 60), Disposition::AutoApprouver);
+        assert_eq!(
+            disposition(ModeReine::Auto, Risque::Sur, 0, 60),
+            Disposition::AutoApprouver
+        );
+        assert_eq!(
+            disposition(ModeReine::Auto, Risque::Sensible, 80, 60),
+            Disposition::AutoApprouver
+        );
         // Uncertain sensible change is parked, not applied.
-        assert_eq!(disposition(ModeReine::Auto, Risque::Sensible, 50, 60), Disposition::MettreEnFile);
+        assert_eq!(
+            disposition(ModeReine::Auto, Risque::Sensible, 50, 60),
+            Disposition::MettreEnFile
+        );
     }
 
     #[test]
@@ -266,15 +309,24 @@ mod tests {
 
     #[test]
     fn humaine_parks_everything_non_critical() {
-        assert_eq!(disposition(ModeReine::Humaine, Risque::Sur, 100, 60), Disposition::MettreEnFile);
-        assert_eq!(disposition(ModeReine::Humaine, Risque::Sensible, 100, 60), Disposition::MettreEnFile);
+        assert_eq!(
+            disposition(ModeReine::Humaine, Risque::Sur, 100, 60),
+            Disposition::MettreEnFile
+        );
+        assert_eq!(
+            disposition(ModeReine::Humaine, Risque::Sensible, 100, 60),
+            Disposition::MettreEnFile
+        );
     }
 
     #[test]
     fn disabling_the_reine_preserves_the_backlog() {
         // The decoupling guarantee: a pending proposal stays pending, never
         // discarded or auto-applied, when the Reine is turned off.
-        assert_eq!(transition_desactivation(Statut::EnAttente), Statut::EnAttente);
+        assert_eq!(
+            transition_desactivation(Statut::EnAttente),
+            Statut::EnAttente
+        );
         assert_eq!(transition_desactivation(Statut::Obsolete), Statut::Obsolete);
     }
 

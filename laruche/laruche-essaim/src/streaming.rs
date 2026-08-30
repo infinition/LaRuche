@@ -19,6 +19,15 @@ pub struct OllamaChunk {
     /// Native tool calls (OpenAI format), present only on the last chunk
     /// when the model decides to call tools via the native `tools:` API.
     pub tool_calls: Option<Vec<ToolCall>>,
+    /// Le raisonnement diffuse par un modele "thinking", sur le dernier morceau.
+    ///
+    /// DeepSeek et les backends compatibles OpenAI qui font du thinking
+    /// renvoient ce texte a cote de la reponse, et EXIGENT qu'il leur soit
+    /// rendu dans l'historique au tour suivant. Sans lui, le deuxieme tour de
+    /// toute conversation en mode thinking meurt sur "The reasoning_content in
+    /// the thinking mode must be passed back to the API". Il etait accumule
+    /// puis jete, faute d'une case pour le porter; la voici.
+    pub reasoning: Option<String>,
 }
 
 /// Raw Ollama streaming JSON line (works for both /api/chat and /api/generate).
@@ -148,7 +157,12 @@ pub async fn ollama_chat_stream(
                             // Real stop reason when Ollama supplies it ("stop"/"length");
                             // hardcoding "stop" broke truncation detection downstream.
                             let finish_reason = if done {
-                                Some(parsed.done_reason.clone().unwrap_or_else(|| "stop".to_string()))
+                                Some(
+                                    parsed
+                                        .done_reason
+                                        .clone()
+                                        .unwrap_or_else(|| "stop".to_string()),
+                                )
                             } else {
                                 None
                             };
@@ -158,26 +172,31 @@ pub async fn ollama_chat_stream(
                             // final done-chunk only carries usage. Reading them only on `done`
                             // dropped EVERY call (observed: qwen3 evals 0/8, "zero tool
                             // calls"). Parse on every chunk; the consumer accumulates.
-                            let tool_calls = parsed.message.as_ref()
+                            let tool_calls = parsed
+                                .message
+                                .as_ref()
                                 .and_then(|m| m.tool_calls.as_ref())
                                 .map(|calls| {
-                                    calls.iter().filter_map(|tc| {
-                                        // Some models emit `arguments` as an embedded JSON
-                                        // STRING: unwrap it so the engine sees an object.
-                                        let args = match tc.function.arguments.clone() {
-                                            Some(serde_json::Value::String(s)) => {
-                                                serde_json::from_str(&s)
-                                                    .unwrap_or(serde_json::Value::String(s))
-                                            }
-                                            Some(v) => v,
-                                            None => serde_json::Value::Null,
-                                        };
-                                        Some(ToolCall {
-                                            id: format!("call_{}", uuid::Uuid::new_v4()),
-                                            name: tc.function.name.clone()?,
-                                            args,
+                                    calls
+                                        .iter()
+                                        .filter_map(|tc| {
+                                            // Some models emit `arguments` as an embedded JSON
+                                            // STRING: unwrap it so the engine sees an object.
+                                            let args = match tc.function.arguments.clone() {
+                                                Some(serde_json::Value::String(s)) => {
+                                                    serde_json::from_str(&s)
+                                                        .unwrap_or(serde_json::Value::String(s))
+                                                }
+                                                Some(v) => v,
+                                                None => serde_json::Value::Null,
+                                            };
+                                            Some(ToolCall {
+                                                id: format!("call_{}", uuid::Uuid::new_v4()),
+                                                name: tc.function.name.clone()?,
+                                                args,
+                                            })
                                         })
-                                    }).collect::<Vec<_>>()
+                                        .collect::<Vec<_>>()
                                 })
                                 .filter(|v: &Vec<ToolCall>| !v.is_empty());
 
@@ -192,6 +211,7 @@ pub async fn ollama_chat_stream(
                                         eval_duration: parsed.eval_duration,
                                         prompt_eval_count: parsed.prompt_eval_count,
                                         tool_calls,
+                                        reasoning: None,
                                     })
                                     .await;
                             }

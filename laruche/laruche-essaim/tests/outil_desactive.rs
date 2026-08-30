@@ -1,8 +1,8 @@
 use laruche_essaim::{AbeilleRegistry, ContextExecution};
 
 /// `disabled_tools` used to be a DISPLAY filter only: it removed the tool from the schema
-/// shown to the model, and nothing more. An agent that knew the name anyway — through
-/// `tool_call`, `tool_search`, or its own memory of an earlier turn — still ran it, and so
+/// shown to the model, and nothing more. An agent that knew the name anyway - through
+/// `tool_call`, `tool_search`, or its own memory of an earlier turn - still ran it, and so
 /// did every MCP client. The guard now sits at the single point every execution goes
 /// through, so "off" means off whoever is asking.
 #[tokio::test]
@@ -24,9 +24,16 @@ async fn un_outil_desactive_est_refuse_a_lexecution() {
     // Sans liste de desactives, le garde laisse passer : l'appel echoue plus loin
     // (outil inconnu de ce registre nu), avec un message DIFFERENT de "disabled".
     let sans = registre
-        .executer("mission_list", serde_json::json!({}), &ContextExecution::default())
+        .executer(
+            "mission_list",
+            serde_json::json!({}),
+            &ContextExecution::default(),
+        )
         .await
         .expect("appel sans liste de desactives");
     let m2 = sans.error.unwrap_or(sans.output);
-    assert!(!m2.contains("disabled"), "le garde bloque alors que rien n'est desactive: {m2}");
+    assert!(
+        !m2.contains("disabled"),
+        "le garde bloque alors que rien n'est desactive: {m2}"
+    );
 }

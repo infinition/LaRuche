@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn laisse_le_texte_ordinaire_intact() {
-        let t = "Une phrase — avec un vrai tiret et 🐝 un vrai emoji.";
+        let t = "Une phrase - avec un vrai tiret et 🐝 un vrai emoji.";
         assert_eq!(decoder_echappements(t), t);
     }
 

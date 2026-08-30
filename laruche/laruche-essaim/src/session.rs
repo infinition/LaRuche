@@ -91,8 +91,8 @@ pub struct Session {
     ///
     /// Separate from `reactions` (the user reacting to an answer) because the two live on
     /// opposite sides of the conversation and are restored onto different rows. It used to
-    /// exist only as a transient `__agent_reaction__` event, so every reload — and every
-    /// restart — dropped the emoji off the user's bubble for good.
+    /// exist only as a transient `__agent_reaction__` event, so every reload - and every
+    /// restart - dropped the emoji off the user's bubble for good.
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub reactions_agent: std::collections::HashMap<usize, String>,
     #[serde(skip)]
@@ -666,17 +666,29 @@ mod tests_titre {
     #[test]
     fn retire_le_prefixe_injecte() {
         // Ce que `inject_no_think` ecrit reellement.
-        assert_eq!(Session::nettoyer_titre("/no_think\nQue sais tu de moi ?"), "Que sais tu de moi ?");
+        assert_eq!(
+            Session::nettoyer_titre("/no_think\nQue sais tu de moi ?"),
+            "Que sais tu de moi ?"
+        );
         // Tape a la main, avec une espace.
-        assert_eq!(Session::nettoyer_titre("/no_think liste les missions"), "liste les missions");
+        assert_eq!(
+            Session::nettoyer_titre("/no_think liste les missions"),
+            "liste les missions"
+        );
         // Seul sur sa ligne, sans rien derriere.
         assert_eq!(Session::nettoyer_titre("/no_think"), "");
     }
 
     #[test]
     fn laisse_le_reste_intact() {
-        assert_eq!(Session::nettoyer_titre("meteo a cannes stp"), "meteo a cannes stp");
+        assert_eq!(
+            Session::nettoyer_titre("meteo a cannes stp"),
+            "meteo a cannes stp"
+        );
         // Un mot qui commence pareil ne doit pas etre ampute.
-        assert_eq!(Session::nettoyer_titre("/no_thinking est un mot"), "/no_thinking est un mot");
+        assert_eq!(
+            Session::nettoyer_titre("/no_thinking est un mot"),
+            "/no_thinking est un mot"
+        );
     }
 }

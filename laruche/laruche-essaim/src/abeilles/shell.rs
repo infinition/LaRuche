@@ -351,7 +351,9 @@ mod tests_scan {
     #[test]
     fn une_recursion_normale_dans_un_dossier_passe() {
         // Recursion is ordinary work and must not be refused: only a ROOT is the problem.
-        assert!(!scan_disque_entier(r"Get-ChildItem -Path C:\DEV\laruche -Recurse"));
+        assert!(!scan_disque_entier(
+            r"Get-ChildItem -Path C:\DEV\laruche -Recurse"
+        ));
         assert!(!scan_disque_entier("ls -R ./src"));
         assert!(!scan_disque_entier("find ./src -name '*.rs'"));
         assert!(!scan_disque_entier("dir /s src"));

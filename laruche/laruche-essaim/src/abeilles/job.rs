@@ -117,7 +117,9 @@ impl Abeille for CheckJobStatus {
         match self.queue.check(job_id).await {
             Some(JobStatus::Running { started, progress }) => {
                 let elapsed = started.elapsed().as_secs();
-                let pct = progress.map(|p| format!(" ({:.0}%)", p * 100.0)).unwrap_or_default();
+                let pct = progress
+                    .map(|p| format!(" ({:.0}%)", p * 100.0))
+                    .unwrap_or_default();
                 Ok(ResultatAbeille::ok(format!(
                     "Job {job_id}: RUNNING for {elapsed}s{pct}. Check again in 30s."
                 )))
@@ -133,11 +135,9 @@ impl Abeille for CheckJobStatus {
                     truncated
                 )))
             }
-            Some(JobStatus::Failed { error, elapsed }) => {
-                Ok(ResultatAbeille::ok(format!(
-                    "Job {job_id}: FAILED after {elapsed:.0?}\nError: {error}"
-                )))
-            }
+            Some(JobStatus::Failed { error, elapsed }) => Ok(ResultatAbeille::ok(format!(
+                "Job {job_id}: FAILED after {elapsed:.0?}\nError: {error}"
+            ))),
             None => Ok(ResultatAbeille::ok(format!(
                 "Job {job_id}: UNKNOWN (not yet submitted or already cleaned up)."
             ))),

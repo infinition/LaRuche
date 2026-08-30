@@ -42,8 +42,15 @@ use serde_json::{json, Value};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use enigo::{Axis, Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
+#[cfg(not(windows))]
+use enigo::Coordinate;
+use enigo::{Axis, Button, Direction, Enigo, Keyboard, Mouse, Settings};
 use xcap::{Monitor, Window};
+
+#[cfg(windows)]
+use windows::Win32::Foundation::POINT;
+#[cfg(windows)]
+use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, SetCursorPos};
 
 #[cfg(windows)]
 use super::ordinateur_abandon as abandon;
@@ -60,7 +67,9 @@ mod decor {
     // de douze secondes sans action, exactement comme celui du navigateur, et
     // l'outil n'a aucun moyen de savoir quand le tour du modele se termine.
     #[allow(unused_imports)]
-    pub use super::super::ordinateur_halo::{curseur, ecran, eteindre, flash, ligne};
+    pub use super::super::ordinateur_halo::{
+        brancher_pilotage, curseur, debrancher_pilotage, ecran, eteindre, flash, ligne, narrer,
+    };
 
     #[cfg(not(windows))]
     pub fn ligne(_: &str) {}
@@ -73,6 +82,27 @@ mod decor {
     #[cfg(not(windows))]
     #[allow(dead_code)]
     pub fn eteindre() {}
+    #[cfg(not(windows))]
+    pub fn brancher_pilotage(_: tokio::sync::mpsc::Sender<String>) {}
+    #[cfg(not(windows))]
+    pub fn debrancher_pilotage() {}
+    #[cfg(not(windows))]
+    pub fn narrer(_: &crate::evenements::ChatEvent) {}
+}
+
+/// Reinitialise le dialogue du halo au debut d'un tour d'agent.
+pub fn brancher_pilotage(tx: tokio::sync::mpsc::Sender<String>) {
+    decor::brancher_pilotage(tx);
+}
+
+/// Ferme la destination de saisie quand le tour est termine.
+pub fn debrancher_pilotage() {
+    decor::debrancher_pilotage();
+}
+
+/// Transmet au halo le texte utilisateur du tour courant.
+pub fn narrer(evenement: &crate::evenements::ChatEvent) {
+    decor::narrer(evenement);
 }
 
 /// Amene le curseur a destination en glissant, pour qu'un humain qui regarde
@@ -82,16 +112,55 @@ mod decor {
 /// pilotage illisible: la fenetre change et personne ne sait pourquoi. Meme
 /// raisonnement que pour l'animation du navigateur, et meme reglage: `animate`
 /// l'eteint, `speed` la ralentit.
-fn glisser_vers(enigo: &mut Enigo, x: f64, y: f64, facteur: f64, duree_ms: u64) {
-    let depart = enigo.location().unwrap_or((0, 0));
-    let (dx, dy) = (depart.0 as f64, depart.1 as f64);
-    let (ax, ay) = (x * facteur, y * facteur);
+fn position_physique(_enigo: &Enigo, _facteur: f64) -> Option<(f64, f64)> {
+    #[cfg(windows)]
+    unsafe {
+        let mut point = POINT::default();
+        return GetCursorPos(&mut point)
+            .ok()
+            .map(|_| (point.x as f64, point.y as f64));
+    }
+
+    #[cfg(not(windows))]
+    _enigo
+        .location()
+        .ok()
+        .map(|(x, y)| (x as f64 / _facteur, y as f64 / _facteur))
+}
+
+/// Deplace le pointeur dans les coordonnees physiques du bureau virtuel.
+///
+/// Sous Windows, `enigo` normalise les coordonnees absolues par rapport a
+/// l'ecran principal. Cette interpretation ne suffit pas pour un moniteur situe
+/// a gauche, au-dessus, ou avec un facteur DPI different. `SetCursorPos` accepte
+/// directement les coordonnees signees du bureau virtuel, qui sont aussi celles
+/// que xcap associe a la capture.
+fn deplacer_physique(_enigo: &mut Enigo, x: f64, y: f64, _facteur: f64) -> Result<()> {
+    #[cfg(windows)]
+    unsafe {
+        return SetCursorPos(x.round() as i32, y.round() as i32)
+            .map_err(|e| anyhow!("cannot move the pointer on the virtual desktop: {e}"));
+    }
+
+    #[cfg(not(windows))]
+    _enigo
+        .move_mouse(
+            (x * _facteur).round() as i32,
+            (y * _facteur).round() as i32,
+            Coordinate::Abs,
+        )
+        .map_err(|e| anyhow!("cannot move the pointer: {e}"))
+}
+
+fn glisser_vers(enigo: &mut Enigo, x: f64, y: f64, facteur: f64, duree_ms: u64) -> Result<()> {
+    let (dx, dy) = position_physique(enigo, facteur).unwrap_or((0.0, 0.0));
+    let (ax, ay) = (x, y);
     let distance = ((ax - dx).powi(2) + (ay - dy).powi(2)).sqrt();
     // Sous quelques pixels, animer ne montre rien et coute une frame.
     if duree_ms == 0 || distance < 6.0 {
-        let _ = enigo.move_mouse(ax.round() as i32, ay.round() as i32, Coordinate::Abs);
-        decor::curseur((ax / facteur) as i32, (ay / facteur) as i32, false);
-        return;
+        deplacer_physique(enigo, ax, ay, facteur)?;
+        decor::curseur(ax as i32, ay as i32, false);
+        return Ok(());
     }
     let pas = (duree_ms / 16).clamp(6, 40) as f64;
     for i in 1..=(pas as u64) {
@@ -99,10 +168,11 @@ fn glisser_vers(enigo: &mut Enigo, x: f64, y: f64, facteur: f64, duree_ms: u64) 
         // Meme courbe que le curseur du navigateur: depart franc, arrivee douce.
         let e = 1.0 - (1.0 - t).powi(3);
         let (cx, cy) = (dx + (ax - dx) * e, dy + (ay - dy) * e);
-        let _ = enigo.move_mouse(cx.round() as i32, cy.round() as i32, Coordinate::Abs);
-        decor::curseur((cx / facteur) as i32, (cy / facteur) as i32, false);
+        deplacer_physique(enigo, cx, cy, facteur)?;
+        decor::curseur(cx as i32, cy as i32, false);
         std::thread::sleep(Duration::from_millis(duree_ms / pas as u64));
     }
+    Ok(())
 }
 
 /// Les noms d'action que les modeles produisent naturellement.
@@ -255,6 +325,10 @@ struct Cadre {
 }
 
 impl Cadre {
+    fn contient_image(&self, x: f64, y: f64) -> bool {
+        x >= 0.0 && y >= 0.0 && x < self.image_l as f64 && y < self.image_h as f64
+    }
+
     /// Pixels de l'image rendue au modele vers pixels physiques du bureau.
     fn vers_physique(&self, x: f64, y: f64) -> (f64, f64) {
         let fx = self.physique_l as f64 / self.image_l.max(1) as f64;
@@ -498,14 +572,21 @@ fn fenetre_laruche_au_point(px: f64, py: f64) -> Option<String> {
             continue;
         }
         let (x, y) = (f.x().ok()? as f64, f.y().ok()? as f64);
-        let (l, h) = (f.width().unwrap_or(0) as f64, f.height().unwrap_or(0) as f64);
+        let (l, h) = (
+            f.width().unwrap_or(0) as f64,
+            f.height().unwrap_or(0) as f64,
+        );
         if px < x || py < y || px > x + l || py > y + h {
             continue;
         }
         let z = f.z().unwrap_or(0);
         let pid = f.pid().unwrap_or(0);
         let titre = f.title().unwrap_or_default();
-        if candidate.as_ref().map(|(zc, _, _)| z >= *zc).unwrap_or(true) {
+        if candidate
+            .as_ref()
+            .map(|(zc, _, _)| z >= *zc)
+            .unwrap_or(true)
+        {
             candidate = Some((z, pid, titre));
         }
     }
@@ -607,10 +688,9 @@ fn verifier_reprise(enigo: &Enigo, facteur: f64) -> Result<()> {
     if quand.elapsed() >= Duration::from_secs(45) || etat.reprise_signalee {
         return Ok(());
     }
-    let Ok((cx, cy)) = enigo.location() else {
+    let Some((cx, cy)) = position_physique(enigo, facteur) else {
         return Ok(());
     };
-    let (cx, cy) = (cx as f64 / facteur, cy as f64 / facteur);
     let ecart = ((cx - ax).powi(2) + (cy - ay).powi(2)).sqrt();
     if ecart <= SEUIL_REPRISE_PX {
         return Ok(());
@@ -638,8 +718,7 @@ fn autoriser_geste(px: f64, py: f64, enigo: &Enigo, facteur: f64) -> Result<()> 
         // Passe un certain temps, l'utilisateur a forcement bouge sa souris pour
         // ses propres raisons, et le comparer n'a plus de sens.
         if quand.elapsed() < Duration::from_secs(45) && !etat.reprise_signalee {
-            if let Ok((cx, cy)) = enigo.location() {
-                let (cx, cy) = (cx as f64 / facteur, cy as f64 / facteur);
+            if let Some((cx, cy)) = position_physique(enigo, facteur) {
                 let ecart = ((cx - ax).powi(2) + (cy - ay).powi(2)).sqrt();
                 if ecart > SEUIL_REPRISE_PX {
                     etat.reprise_signalee = true;
@@ -664,7 +743,15 @@ fn autoriser_geste(px: f64, py: f64, enigo: &Enigo, facteur: f64) -> Result<()> 
 fn resoudre(x: f64, y: f64) -> Result<(f64, f64)> {
     let cadre = etat().lock().unwrap().cadre;
     match cadre {
-        Some(c) => Ok(c.vers_physique(x, y)),
+        Some(c) if c.contient_image(x, y) => Ok(c.vers_physique(x, y)),
+        Some(c) => Err(anyhow!(
+            "Point ({x:.0},{y:.0}) is outside the last screenshot ({}x{}, screen {}). \
+             Take the right screen again or choose a point inside that image; the tool will \
+             not spill a click onto another monitor.",
+            c.image_l,
+            c.image_h,
+            c.ecran
+        )),
         // Sans capture prealable il n'existe aucun systeme de coordonnees
         // partage. Refuser est la seule reponse honnete: interpreter les
         // nombres comme des pixels physiques marcherait sur un montage simple
@@ -687,14 +774,14 @@ impl Ordinateur {
         let action = action.as_str();
         // Le decor suit les memes reglages que celui du navigateur, pour qu'un
         // utilisateur n'ait pas deux vocabulaires a retenir.
-        let glow = args["glow"].as_bool().unwrap_or(true);
+        // Le reglage du noeud decide, l'appel peut encore trancher au cas par cas:
+        // une capture propre veut `glow: false` meme quand le decor est actif.
+        let glow = args["glow"]
+            .as_bool()
+            .unwrap_or_else(crate::config::halo_actif);
         let animate = glow && args["animate"].as_bool().unwrap_or(true);
         let vitesse = args["speed"].as_f64().filter(|v| *v > 0.0).unwrap_or(1.0);
-        let glisse_ms = if animate {
-            (450.0 * vitesse) as u64
-        } else {
-            0
-        };
+        let glisse_ms = if animate { (450.0 * vitesse) as u64 } else { 0 };
         if glow && action != "screens" && action != "cursor_position" {
             decor::ligne(&resume(action, &args));
         }
@@ -828,10 +915,8 @@ impl Ordinateur {
             }
 
             "cursor_position" => {
-                let (ex, ey) = enigo
-                    .location()
-                    .map_err(|e| anyhow!("cannot read the cursor position: {e}"))?;
-                let (px, py) = (ex as f64 / facteur, ey as f64 / facteur);
+                let (px, py) = position_physique(&enigo, facteur)
+                    .ok_or_else(|| anyhow!("cannot read the cursor position"))?;
                 let cadre = etat().lock().unwrap().cadre;
                 Ok(ResultatAbeille::ok(match cadre {
                     Some(c) => {
@@ -1141,13 +1226,7 @@ impl Ordinateur {
         match action {
             "move_window" => {
                 let lire = |cle: &str| args[cle].as_i64().map(|v| v as i32);
-                fen::poser(
-                    &f,
-                    lire("x"),
-                    lire("y"),
-                    lire("width"),
-                    lire("height"),
-                )?;
+                fen::poser(&f, lire("x"), lire("y"), lire("width"), lire("height"))?;
                 let apres = fen::trouver(filtre)?;
                 Ok(ResultatAbeille::ok(format!(
                     "\"{}\" is now {}x{} at ({},{}).",
@@ -1397,7 +1476,7 @@ impl Ordinateur {
         // par les memes gardes que n'importe quel clic.
         let (px, py) = cible.centre();
         autoriser_geste(px, py, enigo, facteur)?;
-        glisser_vers(enigo, px, py, facteur, glisse_ms);
+        glisser_vers(enigo, px, py, facteur, glisse_ms)?;
 
         // Survoler s'arrete ici. C'est tout l'interet du geste: ouvrir un menu
         // ou une infobulle sans rien declencher.
@@ -1527,16 +1606,11 @@ impl Ordinateur {
             .button(bouton, Direction::Press)
             .map_err(|e| anyhow!("cannot press the button: {e}"))?;
         std::thread::sleep(Duration::from_millis(pose_ms));
-        let depart = enigo.location().unwrap_or((0, 0));
-        let (dx, dy) = (depart.0 as f64, depart.1 as f64);
-        let (ax, ay) = (tx * facteur, ty * facteur);
+        let (dx, dy) = position_physique(enigo, facteur).unwrap_or((0.0, 0.0));
+        let (ax, ay) = (tx, ty);
         for i in 1..=12 {
             let t = i as f64 / 12.0;
-            let _ = enigo.move_mouse(
-                (dx + (ax - dx) * t).round() as i32,
-                (dy + (ay - dy) * t).round() as i32,
-                Coordinate::Abs,
-            );
+            deplacer_physique(enigo, dx + (ax - dx) * t, dy + (ay - dy) * t, facteur)?;
             std::thread::sleep(Duration::from_millis(16));
         }
         std::thread::sleep(Duration::from_millis(pose_ms));
@@ -1585,12 +1659,12 @@ impl Ordinateur {
 
         if let Some((px, py)) = point {
             autoriser_geste(px, py, enigo, facteur)?;
-            glisser_vers(enigo, px, py, facteur, glisse_ms);
+            glisser_vers(enigo, px, py, facteur, glisse_ms)?;
         } else if action != "scroll" {
             // Sans point explicite, on verifie quand meme la position courante:
             // cliquer a l'aveugle sur une fenetre de LaRuche reste interdit.
-            if let Ok((ex, ey)) = enigo.location() {
-                autoriser_geste(ex as f64 / facteur, ey as f64 / facteur, enigo, facteur)?;
+            if let Some((ex, ey)) = position_physique(enigo, facteur) {
+                autoriser_geste(ex, ey, enigo, facteur)?;
             }
         }
 
@@ -1658,12 +1732,8 @@ impl Ordinateur {
                 // double clic pouvait pousser les deux appuis au-dela de
                 // `GetDoubleClickTime` (500ms par defaut): l'interface voyait
                 // alors deux clics simples, ce qui n'ouvre rien.
-                if let Ok((cx, cy)) = enigo.location() {
-                    decor::curseur(
-                        (cx as f64 / facteur) as i32,
-                        (cy as f64 / facteur) as i32,
-                        true,
-                    );
+                if let Some((cx, cy)) = position_physique(enigo, facteur) {
+                    decor::curseur(cx as i32, cy as i32, true);
                 }
                 for _ in 0..fois {
                     enigo
@@ -1708,11 +1778,7 @@ impl Ordinateur {
                     "up" => (Axis::Vertical, -1),
                     "right" => (Axis::Horizontal, 1),
                     "left" => (Axis::Horizontal, -1),
-                    _ => {
-                        return Err(anyhow!(
-                            "scroll direction must be up, down, left or right."
-                        ))
-                    }
+                    _ => return Err(anyhow!("scroll direction must be up, down, left or right.")),
                 };
                 enigo
                     .scroll(crans * signe, axe)
@@ -1975,7 +2041,10 @@ mod tests {
         assert_eq!(ecran_du_rect(&ecrans, 5000, 5000, 200, 200), None);
 
         // Un seul ecran: tout y tombe, et jamais None pour une fenetre visible.
-        assert_eq!(ecran_du_rect(&[(0, 0, 1920, 1080)], 0, 0, 100, 100), Some(1));
+        assert_eq!(
+            ecran_du_rect(&[(0, 0, 1920, 1080)], 0, 0, 100, 100),
+            Some(1)
+        );
     }
 
     #[test]
@@ -2013,6 +2082,22 @@ mod tests {
             image_h: 960,
         };
         assert_eq!(c.vers_physique(0.0, 0.0), (-1080.0, -200.0));
+    }
+
+    #[test]
+    fn un_point_hors_capture_ne_deborde_pas_sur_un_autre_ecran() {
+        let c = Cadre {
+            ecran: 7,
+            origine_x: 1920,
+            origine_y: 0,
+            physique_l: 1920,
+            physique_h: 1080,
+            image_l: 1280,
+            image_h: 720,
+        };
+        assert!(c.contient_image(1279.0, 719.0));
+        assert!(!c.contient_image(1280.0, 400.0));
+        assert!(!c.contient_image(-1.0, 400.0));
     }
 
     #[test]
@@ -2211,7 +2296,10 @@ mod tests {
             out
         } else {
             Ordinateur
-                .executer(json!({ "action": "focus_window", "window": "Notepad" }), &ctx)
+                .executer(
+                    json!({ "action": "focus_window", "window": "Notepad" }),
+                    &ctx,
+                )
                 .await
                 .unwrap()
         };
@@ -2317,7 +2405,10 @@ mod tests {
     #[tokio::test]
     async fn laction_inconnue_nomme_dabord_le_chemin_fiable() {
         let out = Ordinateur
-            .executer(json!({ "action": "teleporte" }), &ContextExecution::default())
+            .executer(
+                json!({ "action": "teleporte" }),
+                &ContextExecution::default(),
+            )
             .await
             .unwrap();
         assert!(!out.success);

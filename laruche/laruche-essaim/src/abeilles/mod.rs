@@ -1,17 +1,8 @@
 //! Built-in Abeilles (tools) for the Essaim agent.
 
 pub mod browser;
-pub mod navigateur;
-#[cfg(feature = "gui-control")]
-pub mod ordinateur;
-#[cfg(all(windows, feature = "gui-control"))]
-pub mod ordinateur_arbre;
-#[cfg(all(windows, feature = "gui-control"))]
-pub mod ordinateur_abandon;
-#[cfg(all(windows, feature = "gui-control"))]
-pub mod ordinateur_fenetres;
-#[cfg(all(windows, feature = "gui-control"))]
-pub mod ordinateur_halo;
+#[cfg(feature = "camera")]
+pub mod camera;
 pub mod calendrier;
 pub mod clarify;
 pub mod git;
@@ -19,6 +10,17 @@ pub mod image_search;
 pub mod job;
 pub mod kanban_next;
 pub mod knowledge;
+pub mod navigateur;
+#[cfg(feature = "gui-control")]
+pub mod ordinateur;
+#[cfg(all(windows, feature = "gui-control"))]
+pub mod ordinateur_abandon;
+#[cfg(all(windows, feature = "gui-control"))]
+pub mod ordinateur_arbre;
+#[cfg(all(windows, feature = "gui-control"))]
+pub mod ordinateur_fenetres;
+#[cfg(all(windows, feature = "gui-control"))]
+pub mod ordinateur_halo;
 // Re-export plugin loader
 pub mod plugins;
 pub use plugins::charger_plugins;
@@ -106,6 +108,10 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     // disponible" coute sa description a chaque tour pour rien.
     #[cfg(feature = "gui-control")]
     registry.enregistrer(Box::new(ordinateur::Ordinateur));
+    // La camera, derriere sa propre feature: elle tire trois piles video, et un
+    // noeud qui n'en a pas n'a aucune raison de les compiler.
+    #[cfg(feature = "camera")]
+    registry.enregistrer(Box::new(camera::AbeilleCamera));
     // Git
     registry.enregistrer(Box::new(git::GitStatus));
     registry.enregistrer(Box::new(git::GitDiff));
@@ -211,7 +217,9 @@ pub fn enregistrer_delegation(
         registry: sub_registry.clone(),
         config: config.clone(),
     }));
-    registry.enregistrer(Box::new(mixture::MixtureOfAgents { config: config.clone() }));
+    registry.enregistrer(Box::new(mixture::MixtureOfAgents {
+        config: config.clone(),
+    }));
     registry.enregistrer(Box::new(spawn_specialist::SpawnSpecialist {
         registry: sub_registry,
         config,
@@ -221,10 +229,7 @@ pub fn enregistrer_delegation(
 
 /// Register the JobQueue tools (submit_job, check_job_status).
 /// Call this with an Arc<JobQueue> shared across the application.
-pub fn enregistrer_jobs(
-    registry: &AbeilleRegistry,
-    queue: Arc<JobQueue>,
-) {
+pub fn enregistrer_jobs(registry: &AbeilleRegistry, queue: Arc<JobQueue>) {
     registry.enregistrer(Box::new(job::SubmitJob {
         queue: queue.clone(),
     }));
@@ -307,11 +312,7 @@ impl Abeille for SkillList {
         let limit = args["limit"].as_u64().unwrap_or(50) as usize;
         let root = match self.mem.read_node("capacities.skills").await {
             Ok(root) => root,
-            Err(e) => {
-                return Ok(ResultatAbeille::err(format!(
-                    "Failed to read skills: {e}"
-                )))
-            }
+            Err(e) => return Ok(ResultatAbeille::err(format!("Failed to read skills: {e}"))),
         };
         let mut lines = Vec::new();
         if let Some(children) = root["children"].as_array() {
@@ -339,9 +340,7 @@ impl Abeille for SkillList {
                         Ok(ResultatAbeille::ok(format!("Skills found:\n{text}")))
                     }
                 }
-                Err(e) => Ok(ResultatAbeille::err(format!(
-                    "Skill search failed: {e}"
-                ))),
+                Err(e) => Ok(ResultatAbeille::err(format!("Skill search failed: {e}"))),
             }
         } else {
             Ok(ResultatAbeille::ok(format!(
@@ -382,7 +381,10 @@ fn etat_prerequis(contenu: &str) -> String {
     let Some(bloc) = contenu.split("prerequisites:").nth(1) else {
         return String::new();
     };
-    let Some(ligne) = bloc.lines().find(|l| l.trim_start().starts_with("commands:")) else {
+    let Some(ligne) = bloc
+        .lines()
+        .find(|l| l.trim_start().starts_with("commands:"))
+    else {
         return String::new();
     };
     let noms: Vec<String> = ligne
@@ -515,26 +517,36 @@ prerequisites:
 ---
 # body";
         let rapport = etat_prerequis(skill);
-        assert!(rapport.contains("NOT ON PATH"), "a missing command must be flagged: {rapport}");
+        assert!(
+            rapport.contains("NOT ON PATH"),
+            "a missing command must be flagged: {rapport}"
+        );
         assert!(rapport.contains("openhue_absent_xyz"));
         assert!(rapport.contains("Install"), "and point at the fix");
 
         // A command that certainly exists is reported as satisfied.
         let present = if cfg!(windows) { "cmd" } else { "sh" };
-        let ok = format!("---
+        let ok = format!(
+            "---
 type: skill
 prerequisites:
   commands: [{present}]
 ---
-# body");
+# body"
+        );
         assert!(etat_prerequis(&ok).contains("All declared commands are on PATH"));
 
         // A skill without the field stays untouched: no noise added.
-        assert_eq!(etat_prerequis("---
+        assert_eq!(
+            etat_prerequis(
+                "---
 type: skill
 name: x
 ---
-# body"), "");
+# body"
+            ),
+            ""
+        );
     }
 
     /// A hyphen in a skill folder must survive the round trip. Mangling it into

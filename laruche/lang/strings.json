@@ -2300,8 +2300,8 @@
     "fr": "Déplacer vers node_id"
   },
   "memory.newMemoryPlaceholder": {
-    "en": "New memory (markdown, [[links]] supported)…  —  or start with @LaRuche to ask her to enrich this node herself.",
-    "fr": "Nouveau souvenir (markdown, [[liens]] supportés)…  —  ou commence par @LaRuche pour lui demander d'enrichir ce nœud elle-même."
+    "en": "New memory (markdown, [[links]] supported)…  -  or start with @LaRuche to ask her to enrich this node herself.",
+    "fr": "Nouveau souvenir (markdown, [[liens]] supportés)…  -  ou commence par @LaRuche pour lui demander d'enrichir ce nœud elle-même."
   },
   "memory.newRootPrompt": {
     "en": "Name of the new root folder:",
@@ -2868,8 +2868,8 @@
     "fr": "Export {format}…"
   },
   "reine.datasetHint": {
-    "en": "Off by default. Each review already produces a request, the draft LaReine refused, the one she accepted and her reasoning — a preference pair for free. Turning this on keeps the FULL TEXT of those exchanges on disk (secrets masked). Note: training a model on judgements from a model of the same level amplifies its biases; this pays off when LaReine runs on a stronger model than the target.",
-    "fr": "Désactivé par défaut. Chaque revue produit déjà une demande, le brouillon refusé par LaReine, celui qu'elle a accepté et son raisonnement — une paire de préférence gratuite. Activer conserve le TEXTE COMPLET de ces échanges sur disque (secrets masqués). À savoir : entraîner un modèle sur les jugements d'un modèle de même niveau amplifie ses biais ; ça paie quand LaReine tourne sur un modèle plus fort que la cible."
+    "en": "Off by default. Each review already produces a request, the draft LaReine refused, the one she accepted and her reasoning - a preference pair for free. Turning this on keeps the FULL TEXT of those exchanges on disk (secrets masked). Note: training a model on judgements from a model of the same level amplifies its biases; this pays off when LaReine runs on a stronger model than the target.",
+    "fr": "Désactivé par défaut. Chaque revue produit déjà une demande, le brouillon refusé par LaReine, celui qu'elle a accepté et son raisonnement - une paire de préférence gratuite. Activer conserve le TEXTE COMPLET de ces échanges sur disque (secrets masqués). À savoir : entraîner un modèle sur les jugements d'un modèle de même niveau amplifie ses biais ; ça paie quand LaReine tourne sur un modèle plus fort que la cible."
   },
   "reine.datasetJudge": {
     "en": "Export judge (distillation)",
@@ -4216,8 +4216,8 @@
     "fr": "Activer Notifier proactif"
   },
   "settings.onbOptional": {
-    "en": "Optional — LaRuche works without it",
-    "fr": "Optionnel — LaRuche fonctionne sans"
+    "en": "Optional - LaRuche works without it",
+    "fr": "Optionnel - LaRuche fonctionne sans"
   },
   "settings.optional": {
     "en": "optional",
@@ -4276,8 +4276,8 @@
     "fr": "Valeur pour {name}"
   },
   "settings.pfKeyPickPrompt": {
-    "en": "— pick an entry —",
-    "fr": "— choisir une entrée —"
+    "en": "- pick an entry -",
+    "fr": "- choisir une entrée -"
   },
   "settings.pfKeyVaultHint": {
     "en": "The profile stores a ${NAME} reference, not the key itself. Change the value once in Secrets and every profile using it follows.",
@@ -4520,8 +4520,8 @@
     "fr": "Afficher la transparence (outils/mémoire)"
   },
   "settings.showTransparencyHint": {
-    "en": "In the chat thread, show which tools the agent picked and how many memories it used. Display only — it changes nothing to how LaRuche works.",
-    "fr": "Dans le fil du chat, montre les outils que l'agent a choisis et le nombre de mémoires utilisées. Affichage seulement — ça ne change rien au fonctionnement de LaRuche."
+    "en": "In the chat thread, show which tools the agent picked and how many memories it used. Display only - it changes nothing to how LaRuche works.",
+    "fr": "Dans le fil du chat, montre les outils que l'agent a choisis et le nombre de mémoires utilisées. Affichage seulement - ça ne change rien au fonctionnement de LaRuche."
   },
   "settings.skillActivated": {
     "en": "enabled",
@@ -5438,5 +5438,21 @@
   "watchers.graphTitle": {
     "en": "Watcher correlations",
     "fr": "Correlations entre watchers"
+  },
+  "settings.halo": {
+    "fr": "Decor de pilotage",
+    "en": "Driving overlay"
+  },
+  "settings.haloHint": {
+    "fr": "Cadre ambre, panneau flottant, curseur qui glisse et frappe progressive, sur l'ecran et dans la page pilotee. Coupez-le pour une capture propre, une longue sequence, ou une machine que personne ne regarde. Un appel peut toujours le forcer au cas par cas.",
+    "en": "Amber frame, floating panel, gliding cursor and progressive typing, on screen and inside the driven page. Turn it off for a clean capture, a long sequence, or a machine nobody is watching. An individual call can still override it."
+  },
+  "settings.haloSaved": {
+    "fr": "Decor mis a jour",
+    "en": "Overlay updated"
+  },
+  "settings.haloFailed": {
+    "fr": "Echec de la mise a jour du decor",
+    "en": "Could not update the overlay"
   }
 }
