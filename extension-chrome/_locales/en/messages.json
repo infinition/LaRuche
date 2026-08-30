@@ -70,7 +70,7 @@
     "description": "Shows the file picker"
   },
   "capture_start": {
-    "message": "Start showcase",
+    "message": "Record now",
     "description": "Recording start button"
   },
   "capture_stop": {
@@ -78,7 +78,7 @@
     "description": "Recording stop button"
   },
   "capture_help": {
-    "message": "Press this BEFORE starting the agent. For a screen or a window, Chrome asks which source right away, then recording starts on its own when the agent takes control and is saved when it finishes. For a tab, recording starts immediately and stays bound to THAT tab: if the agent switches, the video will not follow, so pick Screen for a demo across several tabs.",
+    "message": "Tick the box: it all starts when the agent takes control, and the video follows it across tabs. On high quality the recorded tab gets noticeably slower.",
     "description": "How recording works"
   },
   "capture_state_disabled": {
@@ -140,7 +140,7 @@
     "description": "State: connected to the node"
   },
   "capture_state_armed": {
-    "message": "Source ready. Recording will start on its own as soon as the agent takes control."
+    "message": "Source ready. Recording will start on its own when the agent takes control."
   },
   "capture_state_warning": {
     "message": "Warning: $AVERT$",
@@ -149,5 +149,84 @@
         "content": "$1"
       }
     }
+  },
+  "popup_language": {
+    "message": "Change language",
+    "description": "Bouton de langue"
+  },
+  "capture_quality": {
+    "message": "Quality"
+  },
+  "capture_quality_low": {
+    "message": "Low (960x540)"
+  },
+  "capture_quality_standard": {
+    "message": "Standard (720p)"
+  },
+  "capture_quality_high": {
+    "message": "High (1080p)"
+  },
+  "onglet_garder": {
+    "message": "Keep"
+  },
+  "onglet_pilotage": {
+    "message": "Driving"
+  },
+  "garder_destination": {
+    "message": "File under"
+  },
+  "garder_dest_articles": {
+    "message": "Articles"
+  },
+  "garder_dest_videos": {
+    "message": "Videos"
+  },
+  "garder_dest_notes": {
+    "message": "Notes"
+  },
+  "garder_commentaire": {
+    "message": "Comment (optional)"
+  },
+  "garder_lien": {
+    "message": "Keep this page"
+  },
+  "garder_note": {
+    "message": "Note only"
+  },
+  "garder_ok": {
+    "message": "Kept in $NOEUD$.",
+    "placeholders": {
+      "noeud": {
+        "content": "$1"
+      }
+    }
+  },
+  "garder_en_attente": {
+    "message": "LaRuche is unreachable: kept aside, it will be sent on the next connection."
+  },
+  "garder_file": {
+    "message": "$N$ waiting to be sent.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "garder_vide": {
+    "message": "Write a comment: a note with no text keeps nothing."
+  },
+  "garder_echec": {
+    "message": "Failed: $E$",
+    "placeholders": {
+      "e": {
+        "content": "$1"
+      }
+    }
+  },
+  "garder_aide": {
+    "message": "The link goes with the page title. Without a comment it is already a usable trace; with one, it is what you will remember of it in six months."
+  },
+  "garder_connexion": {
+    "message": "Kept aside: tick \"Allow control\" to connect the extension to the hive, and it will be sent on its own."
   }
 }

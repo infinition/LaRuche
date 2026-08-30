@@ -70,7 +70,7 @@
     "description": "Affiche le selecteur de fichier"
   },
   "capture_start": {
-    "message": "Demarrer le showcase",
+    "message": "Enregistrer maintenant",
     "description": "Bouton de demarrage"
   },
   "capture_stop": {
@@ -78,7 +78,7 @@
     "description": "Bouton d arret"
   },
   "capture_help": {
-    "message": "Cliquer ce bouton AVANT de lancer l'agent. Pour un ecran ou une fenetre, Chrome demande la source tout de suite, puis l'enregistrement demarre seul quand l'agent prend la main et se sauvegarde a la fin du pilotage. Pour un onglet, la capture demarre immediatement et reste liee a CET onglet: si l'agent en change, la video ne le suivra pas, donc choisir Ecran pour une demonstration sur plusieurs onglets.",
+    "message": "Coche la case: tout demarre quand l'agent prend la main, et la video le suit d'onglet en onglet. En haute qualite, l'onglet filme devient sensiblement plus lent.",
     "description": "Explication du fonctionnement"
   },
   "capture_state_disabled": {
@@ -140,7 +140,7 @@
     "description": "Etat: connecte au noeud"
   },
   "capture_state_armed": {
-    "message": "Source prete. L'enregistrement demarrera tout seul des que l'agent prendra la main."
+    "message": "Source prete. L'enregistrement demarrera tout seul quand l'agent prendra la main."
   },
   "capture_state_warning": {
     "message": "Attention: $AVERT$",
@@ -149,5 +149,84 @@
         "content": "$1"
       }
     }
+  },
+  "popup_language": {
+    "message": "Changer la langue",
+    "description": "Bouton de langue"
+  },
+  "capture_quality": {
+    "message": "Qualite"
+  },
+  "capture_quality_low": {
+    "message": "Basse (960x540)"
+  },
+  "capture_quality_standard": {
+    "message": "Standard (720p)"
+  },
+  "capture_quality_high": {
+    "message": "Haute (1080p)"
+  },
+  "onglet_garder": {
+    "message": "Garder"
+  },
+  "onglet_pilotage": {
+    "message": "Pilotage"
+  },
+  "garder_destination": {
+    "message": "Ranger dans"
+  },
+  "garder_dest_articles": {
+    "message": "Articles"
+  },
+  "garder_dest_videos": {
+    "message": "Videos"
+  },
+  "garder_dest_notes": {
+    "message": "Notes"
+  },
+  "garder_commentaire": {
+    "message": "Commentaire (facultatif)"
+  },
+  "garder_lien": {
+    "message": "Garder cette page"
+  },
+  "garder_note": {
+    "message": "Note seule"
+  },
+  "garder_ok": {
+    "message": "Garde dans $NOEUD$.",
+    "placeholders": {
+      "noeud": {
+        "content": "$1"
+      }
+    }
+  },
+  "garder_en_attente": {
+    "message": "LaRuche est injoignable: garde de cote, ce sera envoye a la prochaine connexion."
+  },
+  "garder_file": {
+    "message": "$N$ en attente d'envoi.",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "garder_vide": {
+    "message": "Ecrire un commentaire: une note sans texte ne garde rien."
+  },
+  "garder_echec": {
+    "message": "Echec: $E$",
+    "placeholders": {
+      "e": {
+        "content": "$1"
+      }
+    }
+  },
+  "garder_aide": {
+    "message": "Le lien part avec le titre de la page. Sans commentaire, c'est deja une trace utilisable; avec, c'est ce que tu en retiendras dans six mois."
+  },
+  "garder_connexion": {
+    "message": "Garde de cote: coche \"Autoriser le pilotage\" pour connecter l'extension a la ruche, l'envoi se fera tout seul."
   }
 }

@@ -11,21 +11,54 @@
     <header>
       <span class="pastille" id="pastille" aria-hidden="true"></span>
       <h1>LaRuche</h1>
+      <button type="button" id="langue" class="langue"></button>
     </header>
 
-    <p class="etat" id="etat" role="status" aria-live="polite"></p>
+    <div class="onglets" role="tablist">
+      <button type="button" class="onglet actif" id="ongletGarder" role="tab" aria-selected="true" aria-controls="vueGarder"></button>
+      <button type="button" class="onglet" id="ongletPilotage" role="tab" aria-selected="false" aria-controls="vuePilotage"></button>
+    </div>
 
-    <label class="bascule">
-      <input type="checkbox" id="actif" />
-      <span id="libelleActif"></span>
-    </label>
+    <section id="vueGarder" role="tabpanel">
+      <p class="page" id="pageTitre"></p>
+      <p class="page url" id="pageUrl"></p>
 
-    <label class="champ">
-      <span id="libellePort"></span>
-      <input type="number" id="port" min="1" max="65535" inputmode="numeric" />
-    </label>
+      <label class="champ vertical">
+        <span id="libelleDestination"></span>
+        <select id="destination">
+          <option value="veille.articles" id="destArticles"></option>
+          <option value="veille.videos" id="destVideos"></option>
+          <option value="veille.notes" id="destNotes"></option>
+        </select>
+      </label>
 
-    <p class="piloté" id="pilote" hidden></p>
+      <label class="champ vertical">
+        <span id="libelleCommentaire"></span>
+        <textarea id="commentaire" rows="3" autocomplete="off"></textarea>
+      </label>
+
+      <div class="capture-actions">
+        <button type="button" id="garderLien"></button>
+        <button type="button" id="garderNote" class="second"></button>
+      </div>
+      <p class="capture-etat" id="etatGarder" role="status" aria-live="polite"></p>
+      <p class="aide" id="aideGarder"></p>
+    </section>
+
+    <section id="vuePilotage" hidden role="tabpanel">
+      <p class="etat" id="etat" role="status" aria-live="polite"></p>
+
+      <label class="bascule">
+        <input type="checkbox" id="actif" />
+        <span id="libelleActif"></span>
+      </label>
+
+      <label class="champ">
+        <span id="libellePort"></span>
+        <input type="number" id="port" min="1" max="65535" inputmode="numeric" />
+      </label>
+
+      <p class="piloté" id="pilote" hidden></p>
 
     <section class="capture">
       <h2 id="titreCapture"></h2>
@@ -36,14 +69,25 @@
       </label>
 
       <div class="capture-options" id="captureOptions">
-        <label class="champ vertical">
-          <span id="libelleCaptureSource"></span>
-          <select id="captureSource">
-            <option value="tab" id="sourceOnglet"></option>
-            <option value="window" id="sourceFenetre"></option>
-            <option value="screen" id="sourceEcran"></option>
-          </select>
-        </label>
+        <div class="duo">
+          <label class="champ vertical">
+            <span id="libelleCaptureSource"></span>
+            <select id="captureSource">
+              <option value="tab" id="sourceOnglet"></option>
+              <option value="window" id="sourceFenetre"></option>
+              <option value="screen" id="sourceEcran"></option>
+            </select>
+          </label>
+
+          <label class="champ vertical">
+            <span id="libelleCaptureQualite"></span>
+            <select id="captureQualite">
+              <option value="basse" id="qualiteBasse"></option>
+              <option value="standard" id="qualiteStandard"></option>
+              <option value="haute" id="qualiteHaute"></option>
+            </select>
+          </label>
+        </div>
 
         <label class="bascule compacte">
           <input type="checkbox" id="captureAudio" />
@@ -68,8 +112,8 @@
         <p class="aide" id="aideCapture"></p>
       </div>
     </section>
+    </section>
 
-    <p class="note" id="note"></p>
+    <script src="popup.js"></script>
   </body>
-  <script src="popup.js"></script>
 </html>

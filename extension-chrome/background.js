@@ -24,9 +24,25 @@ const REGLAGES_DEFAUT = {
   captureActivee: false,
   captureSource: 'tab',
   captureAudio: false,
+  captureQualite: 'standard',
   captureDossier: 'LaRuche/showcases',
   captureDemanderEmplacement: false
 };
+/// Les trois qualites d'enregistrement, et ce qu'elles coutent.
+///
+/// `saut` est `everyNthFrame`: une image sur N. A soixante images par seconde
+/// dans l'onglet, un saut de 3 donne une vingtaine d'images par seconde, ce qui
+/// suffit largement pour montrer une suite de gestes.
+///
+/// La haute qualite est proposee mais pas par defaut: c'est exactement le
+/// reglage qui rendait l'onglet enregistre inutilisable, et personne ne fait le
+/// lien entre "j'ai mis la qualite au maximum" et "le popup ne s'ouvre plus".
+const QUALITES = {
+  basse: { l: 960, h: 540, jpeg: 50, saut: 4 },
+  standard: { l: 1280, h: 720, jpeg: 60, saut: 3 },
+  haute: { l: 1920, h: 1080, jpeg: 80, saut: 2 },
+};
+
 const PROTOCOLE_DEBUG = '1.3';
 const PING_MS = 20000;
 const RECONNEXION_MIN_MS = 1000;
@@ -108,6 +124,8 @@ async function connecter() {
     majEtat({});
     // A quiet websocket lets the service worker be shut down. A periodic frame
     // keeps both the socket and this worker alive.
+    // Le noeud repond de nouveau: on rattrape ce qui attendait.
+    viderFileGarder().catch(() => {});
     clearInterval(minuteurPing);
     minuteurPing = setInterval(() => {
       if (socket && socket.readyState === WebSocket.OPEN) {
@@ -124,6 +142,12 @@ async function connecter() {
     try {
       commande = JSON.parse(ev.data);
     } catch {
+      return;
+    }
+    // Un accuse porte `req`, une commande porte `id`. Les confondre ferait
+    // executer une action inexistante et perdre l'accuse.
+    if (typeof commande.req === 'number') {
+      accuseRecu(commande);
       return;
     }
     if (typeof commande.id !== 'number') return;
@@ -170,6 +194,7 @@ function deconnecter() {
   clearInterval(minuteurPing);
   clearTimeout(minuteurReconnexion);
   clearTimeout(minuteurControle);
+  try { alarmes()?.clear(ALARME_CONTROLE); } catch {}
   if (socket) {
     const s = socket;
     socket = null;
@@ -182,9 +207,57 @@ function deconnecter() {
   majBadge(false);
 }
 
-function majBadge(connecte) {
-  chrome.action.setBadgeText({ text: connecte ? '●' : '' });
+/// L'icone dit l'etat, en un coup d'oeil et sans ouvrir le panneau.
+///
+/// Trois choses valent la peine d'etre vues depuis la barre d'outils, et elles
+/// se hierarchisent: on enregistre, l'agent a la main, la ruche est connectee.
+/// L'enregistrement clignote en rouge parce que c'est le seul etat qui produit
+/// un fichier et qui touche a la vie privee de quelqu'un: il doit etre
+/// impossible de l'oublier. Un point fixe ne suffit pas, on cesse de le voir au
+/// bout de dix minutes.
+let clignotant = null;
+let badgeConnecte = false;
+
+function arreterClignotement() {
+  if (clignotant !== null) {
+    clearInterval(clignotant);
+    clignotant = null;
+  }
+}
+
+function rafraichirBadge() {
+  const enregistre = etatEnregistrement.etat === 'enregistrement';
+  const pilote = attacheA !== null;
+
+  if (enregistre) {
+    if (clignotant === null) {
+      let allume = true;
+      const battre = () => {
+        chrome.action.setBadgeText({ text: allume ? '●' : ' ' });
+        chrome.action.setBadgeBackgroundColor({ color: allume ? '#E5484D' : '#5A1E20' });
+        allume = !allume;
+      };
+      battre();
+      clignotant = setInterval(battre, 700);
+    }
+    return;
+  }
+
+  arreterClignotement();
+  if (pilote) {
+    // L'agent a la main sans enregistrer: fixe, et d'une autre couleur que le
+    // simple "connecte", sinon les deux etats sont indiscernables.
+    chrome.action.setBadgeText({ text: '▶' });
+    chrome.action.setBadgeBackgroundColor({ color: '#3E8FF5' });
+    return;
+  }
+  chrome.action.setBadgeText({ text: badgeConnecte ? '●' : '' });
   chrome.action.setBadgeBackgroundColor({ color: '#F5A623' });
+}
+
+function majBadge(connecte) {
+  badgeConnecte = connecte;
+  rafraichirBadge();
 }
 
 /* --------------------------------------------------------------- onglet */
@@ -234,7 +307,9 @@ async function attacher() {
   // appelee de nulle part, donc la case "Activer l'enregistrement" ne faisait
   // rien du tout: elle ecrivait un reglage que personne ne relisait au moment
   // d'agir, et le seul demarrage possible restait le bouton du popup.
+  rafraichirBadge();
   lancerSiArme().catch(() => {});
+  brancherScreencast().catch(() => {});
   verifierDemarrageAuto(id).catch(() => {});
   return id;
 }
@@ -243,6 +318,7 @@ async function detacher() {
   if (attacheA === null) return;
   const id = attacheA;
   attacheA = null;
+  rafraichirBadge();
   try {
     await chrome.debugger.detach({ tabId: id });
   } catch {}
@@ -266,14 +342,71 @@ async function rendreAdopte() {
 // Control is over once no command has arrived for a while. We then detach the
 // debugger (dropping Chrome's banner) and hand any borrowed tab back. The
 // in-page glow fades on its own, slightly sooner. Rearmed on every command.
+//
+// DEUX minuteurs, et le second est celui qui compte vraiment.
+//
+// Un `setTimeout` vit dans le service worker, et Chrome suspend un service
+// worker inactif. Tant que l'agent travaille, il arrive des commandes et des
+// images de screencast qui le tiennent eveille. Mais des que l'agent a fini,
+// tout s'arrete: `Page.screencastFrame` ne se declenche qu'au repaint, et une
+// page immobile n'en produit aucun. Le worker s'endort, le `setTimeout` meurt
+// avec lui, et l'enregistrement ne s'arrete jamais. C'est exactement au moment
+// ou l'on a besoin de lui que ce minuteur disparait.
+//
+// `chrome.alarms` survit a la suspension et REVEILLE le worker. On garde le
+// `setTimeout` pour la reactivite quand le worker est vivant, l'alarme est le
+// filet. Chrome plancher les alarmes a 30 secondes, d'ou l'ecart.
+const ALARME_CONTROLE = 'laruche-fin-de-controle';
+/// La file d'attente se retente toute seule, sans dependre du pilotage.
+///
+/// Elle etait videe a l'ouverture de la SOCKET, ce qui liait deux choses sans
+/// rapport: garder un lien n'a rien a voir avec autoriser LaRuche a piloter le
+/// navigateur. Sans "Autoriser le pilotage", la socket ne s'ouvre jamais, donc
+/// la file ne partait jamais, meme avec LaRuche allumee juste a cote. C'est
+/// exactement le symptome: "j'ai lance LaRuche et elle ne la detecte pas".
+const ALARME_FILE = 'laruche-file-garder';
+
+/// `chrome.alarms`, ou rien.
+///
+/// L'API n'existe que si la permission est accordee, et une permission ajoutee
+/// au manifeste n'est prise en compte qu'apres un rechargement complet de
+/// l'extension. Entre les deux, `chrome.alarms` vaut `undefined`.
+///
+/// Ce detail vaut la peine d'etre traite proprement: un appel qui leve au
+/// NIVEAU RACINE d'un service worker ne casse pas une fonction, il tue le
+/// script entier. Plus de socket, plus de pilotage, plus d'enregistrement, et
+/// une seule ligne dans la page des erreurs pour l'expliquer. Le filet ne doit
+/// jamais pouvoir couter plus cher que ce qu'il rattrape.
+const alarmes = () => (typeof chrome !== 'undefined' && chrome.alarms) || null;
+
 function armerControle() {
   clearTimeout(minuteurControle);
   minuteurControle = setTimeout(() => {
     finDeControle().catch(() => {});
   }, CONTROLE_IDLE_MS);
+  // Chrome plancher les alarmes a 30 secondes, d'ou l'ecart avec le timer.
+  try {
+    alarmes()?.create(ALARME_CONTROLE, { delayInMinutes: 0.6 });
+  } catch {}
+}
+
+if (alarmes()) {
+  chrome.alarms.onAlarm.addListener((alarme) => {
+    if (alarme.name === ALARME_CONTROLE) finDeControle().catch(() => {});
+  if (alarme.name === ALARME_FILE) viderFileGarder().catch(() => {});
+  });
+} else {
+  // Sans alarme on retombe sur le seul `setTimeout`, qui meurt avec le worker
+  // suspendu: l'enregistrement peut alors ne pas s'arreter tout seul. Le dire
+  // plutot que de laisser croire que le filet est en place.
+  console.warn(
+    "LaRuche: permission `alarms` absente, rechargez l'extension. Sans elle, " +
+      "l'arret automatique de l'enregistrement n'est pas garanti.",
+  );
 }
 async function finDeControle() {
   clearTimeout(minuteurControle);
+  try { alarmes()?.clear(ALARME_CONTROLE); } catch {}
   // Le filet, pour l'agent qui ne dit jamais `close`: sans lui l'enregistrement
   // tournait jusqu'a l'arret du noeud, et la video d'une demonstration de deux
   // minutes contenait deux minutes de demonstration suivies d'une heure de rien.
@@ -290,6 +423,73 @@ function cdp(methode, params) {
       else resolve(res || {});
     });
   });
+}
+
+/// Les images du screencast, transmises au canevas de l'offscreen.
+///
+/// L'ack est obligatoire: sans lui Chrome cesse d'envoyer apres quelques images
+/// et l'enregistrement se fige sans erreur, ce qui est exactement le genre de
+/// panne qu'on ne diagnostique jamais depuis la video.
+chrome.debugger.onEvent.addListener((source, methode, params) => {
+  if (methode !== 'Page.screencastFrame') return;
+  if (!params || !params.data) return;
+  // On accuse reception dans tous les cas, sinon Chrome cesse d'envoyer, mais
+  // on ne transmet que si un enregistrement tourne vraiment: pendant la
+  // finalisation et la sauvegarde, transmettre revient a faire travailler le
+  // bus de messages pour un canevas que plus personne ne filme.
+  if (etatEnregistrement.etat !== 'enregistrement') {
+    if (params.sessionId !== undefined) {
+      chrome.debugger.sendCommand(
+        { tabId: source.tabId },
+        'Page.screencastFrameAck',
+        { sessionId: params.sessionId },
+        () => void chrome.runtime.lastError,
+      );
+    }
+    return;
+  }
+  chrome.runtime.sendMessage({
+    target: 'offscreen',
+    type: 'screencast-frame',
+    data: params.data,
+  }).catch(() => {});
+  if (params.sessionId !== undefined) {
+    chrome.debugger.sendCommand(
+      { tabId: source.tabId },
+      'Page.screencastFrameAck',
+      { sessionId: params.sessionId },
+      () => void chrome.runtime.lastError,
+    );
+  }
+});
+
+/// Branche le screencast sur l'onglet pilote, s'il y a un enregistrement.
+///
+/// Appele a chaque prise de main: quand l'agent change d'onglet, le nouveau
+/// commence a envoyer ses images dans le meme canevas, donc la video continue
+/// sans coupure. C'est ce que la capture d'onglet ne savait pas faire.
+async function brancherScreencast() {
+  if (etatEnregistrement.source !== 'screencast') return;
+  if (!['enregistrement', 'arme'].includes(etatEnregistrement.etat)) return;
+  if (attacheA === null) return;
+  // Le debit est le point sensible, et il se paie sur l'onglet FILME.
+  //
+  // Chaque image traverse quatre etages: le renderer de l'onglet l'encode en
+  // JPEG, Chrome l'envoie en base64 dans un evenement CDP, on la repousse dans
+  // le bus de messages de l'extension, et l'offscreen la decode pour la
+  // peindre. Le premier etage se fait dans le processus de l'onglet enregistre,
+  // et c'est pour ca qu'une qualite trop haute rend CET onglet poussif alors
+  // que les autres vont bien: ils ont chacun leur renderer.
+  //
+  // D'ou un reglage plutot qu'une valeur en dur, et un defaut prudent.
+  const q = QUALITES[(await reglages()).captureQualite] || QUALITES.standard;
+  await cdp('Page.startScreencast', {
+    format: 'jpeg',
+    quality: q.jpeg,
+    maxWidth: q.l,
+    maxHeight: q.h,
+    everyNthFrame: q.saut,
+  }).catch(() => {});
 }
 
 chrome.debugger.onDetach.addListener((source) => {
@@ -460,6 +660,7 @@ async function executer(action, params) {
 
     case 'close': {
       clearTimeout(minuteurControle);
+      try { alarmes()?.clear(ALARME_CONTROLE); } catch {}
       // La fin du pilotage, c'est ici. Le panneau promet "sauvegardee
       // automatiquement a la fin du pilotage" et rien ne tenait cette promesse:
       // `arreterEnregistrement` n'etait appele que sur fermeture de la socket,
@@ -541,6 +742,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   
+  if (msg.type === 'garder') {
+    garder(msg.entree).then(sendResponse).catch((e) => {
+      sendResponse({ ok: false, error: String((e && e.message) || e) });
+    });
+    return true;
+  }
+  if (msg.type === 'garder-file') {
+    // On RETENTE avant de repondre: le popup s'ouvre souvent juste apres que
+    // l'utilisateur a lance LaRuche, et lui montrer "3 en attente" alors qu'on
+    // pourrait les envoyer tout de suite est exactement ce qui donne
+    // l'impression que rien ne detecte rien.
+    viderFileGarder()
+      .catch(() => ({}))
+      .then(() => fileGarder())
+      .then((f) => sendResponse({ ok: true, restants: f.length }));
+    return true;
+  }
   if (msg.type === 'set-capture-settings') {
     majEtat(msg.patch).then(() => { sendResponse({ ok: true }); });
     return true;
@@ -564,11 +782,162 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'enregistrement-erreur') {
     etatEnregistrement = { etat: 'erreur', erreur: msg.error };
     majEtat({ enregistrement: etatEnregistrement });
+    rafraichirBadge();
     return false;
   }
 
   return false;
 });
+
+/* ------------------------------------------------------------------ garder */
+
+/// Ce que l'utilisateur garde depuis sa navigation, envoye a la memoire.
+///
+/// La premiere version passait par `/api/memory/write` en HTTP, sur la foi
+/// d'une lecture du gestionnaire qui ne verifiait rien. C'etait faux: la
+/// garde est posee au niveau du routeur, et l'endpoint repond 401. Le canal
+/// est donc la websocket, qui a du etre ouverte dans les deux sens.
+///
+/// Les demandes en vol, par identifiant, en attente de l'accuse du noeud.
+let prochainReq = 0;
+const attentesReq = new Map();
+
+/// Envoie une entree au noeud par la SOCKET, et attend son accuse.
+///
+/// Le chemin HTTP ne pouvait pas marcher, et pour deux raisons independantes.
+/// Les ecritures du noeud sont derriere un cookie de session `SameSite=Lax`,
+/// qu'une requete partie d'un service worker d'extension n'emporte jamais
+/// puisqu'elle est cross-site. Et l'utilisateur de l'application de bureau n'a
+/// de session dans aucun navigateur, donc il n'y a meme pas de cookie a
+/// envoyer.
+///
+/// La socket, elle, est deja etablie, deja restreinte a l'identifiant de cette
+/// extension cote noeud, et vit sur la boucle locale. Elle porte donc la meme
+/// confiance que le pilotage qu'elle sert deja, sans cookie ni jeton.
+async function envoyerEnMemoire(entree) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    // Deux causes tres differentes: la connexion n'a jamais ete autorisee,
+    // ou elle l'est mais le noeud ne repond pas. Dire "LaRuche est
+    // injoignable" a quelqu'un qui n'a pas coche la case l'envoie chercher
+    // une panne qui n'existe pas.
+    const { actif } = await reglages();
+    const e = new Error(actif ? 'socket fermee' : 'connexion non autorisee');
+    e.genre = actif ? 'injoignable' : 'connexion';
+    throw e;
+  }
+  prochainReq += 1;
+  const req = prochainReq;
+  socket.send(JSON.stringify({ type: 'garder', req, entree }));
+  return new Promise((resolve, reject) => {
+    // Sans delai, une entree resterait en vol pour toujours si le noeud
+    // redemarrait entre l'envoi et l'accuse, et la file ne repartirait jamais.
+    const minuteur = setTimeout(() => {
+      attentesReq.delete(req);
+      const e = new Error('pas de reponse du noeud');
+      e.genre = 'injoignable';
+      reject(e);
+    }, 10000);
+    attentesReq.set(req, { resolve, reject, minuteur });
+  });
+}
+
+/// L'accuse du noeud, arrive sur la meme socket.
+function accuseRecu(v) {
+  const attente = attentesReq.get(v.req);
+  if (!attente) return;
+  attentesReq.delete(v.req);
+  clearTimeout(attente.minuteur);
+  if (v.ok) attente.resolve({});
+  else {
+    const e = new Error(v.error || 'refus du noeud');
+    e.genre = 'echec';
+    attente.reject(e);
+  }
+}
+
+/// La file d'attente: ce qui n'a pas pu partir.
+///
+/// Garder un lien est un geste d'une seconde, souvent fait en passant. Le
+/// perdre parce que le noeud etait eteint serait la pire facon de traiter ce
+/// geste: l'utilisateur ne saurait meme pas qu'il a perdu quelque chose. On
+/// stocke, et on renvoie a la prochaine connexion.
+async function fileGarder() {
+  const { garderFile } = await chrome.storage.local.get({ garderFile: [] });
+  return Array.isArray(garderFile) ? garderFile : [];
+}
+
+async function armerFile() {
+  try {
+    alarmes()?.create(ALARME_FILE, { delayInMinutes: 1, periodInMinutes: 1 });
+  } catch {}
+}
+
+async function desarmerFile() {
+  try {
+    alarmes()?.clear(ALARME_FILE);
+  } catch {}
+}
+
+async function empiler(entree) {
+  const file = await fileGarder();
+  // Plafonne: une file sans fin sur un noeud eteint depuis des semaines finirait
+  // par remplir le stockage de l'extension.
+  file.push(entree);
+  await chrome.storage.local.set({ garderFile: file.slice(-200) });
+  await armerFile();
+}
+
+/// Vide la file, en s'arretant au premier echec.
+///
+/// S'arreter plutot que continuer: si le noeud vient de retomber, insister sur
+/// les cent suivantes ne fait que cent echecs de plus, et l'ordre d'arrivee en
+/// memoire cesse d'etre celui dans lequel on a garde les choses.
+async function viderFileGarder() {
+  const file = await fileGarder();
+  if (!file.length) return { envoyes: 0, restants: 0 };
+  let envoyes = 0;
+  while (file.length) {
+    try {
+      await envoyerEnMemoire(file[0]);
+    } catch {
+      break;
+    }
+    file.shift();
+    envoyes += 1;
+  }
+  await chrome.storage.local.set({ garderFile: file });
+  if (envoyes) tracerFile(envoyes, file.length);
+  if (file.length) await armerFile();
+  else await desarmerFile();
+  return { envoyes, restants: file.length };
+}
+
+function tracerFile(envoyes, restants) {
+  console.info(`LaRuche: ${envoyes} entree(s) envoyee(s), ${restants} en attente`);
+}
+
+/// Garde une entree: tout de suite si on peut, de cote sinon.
+async function garder(entree) {
+  try {
+    await envoyerEnMemoire(entree);
+    // La file part avec: si le noeud repond maintenant, autant tout rattraper.
+    const { restants } = await viderFileGarder();
+    return { ok: true, envoye: true, restants };
+  } catch (e) {
+    await empiler(entree);
+    const file = await fileGarder();
+    // Le genre compte: "LaRuche est eteinte" et "tu n'es pas connecte" appellent
+    // deux gestes differents, et un message unique enverrait l'utilisateur
+    // attendre une reconnexion qui ne reglera rien.
+    return {
+      ok: true,
+      envoye: false,
+      restants: file.length,
+      genre: e.genre || 'injoignable',
+      raison: String(e.message || e),
+    };
+  }
+}
 
 /* ------------------------------------------------------------- enregistrement */
 
@@ -585,6 +954,7 @@ async function lancerSiArme() {
     etatEnregistrement = { ...etatEnregistrement, etat: 'enregistrement' };
   }
   majEtat({ enregistrement: etatEnregistrement });
+  rafraichirBadge();
 }
 
 async function verifierDemarrageAuto(targetId) {
@@ -593,41 +963,38 @@ async function verifierDemarrageAuto(targetId) {
   const dispo = ['inactif', 'erreur', 'sauvegarde'].includes(etatEnregistrement.etat);
   if (!dispo) {
     // Deja en cours: c'est le cas normal quand l'agent change d'onglet en
-    // cours de route. On ne redemarre rien, mais on note que la video ne
-    // montrera pas ce nouvel onglet.
+    // cours de route. On ne redemarre rien. Avec le screencast la video suit
+    // toute seule; avec une capture d'onglet lancee a la main, elle ne suit pas,
+    // et c'est ce que `signalerChangementDOnglet` va dire.
     signalerChangementDOnglet(targetId);
     return;
   }
   if (r.captureSource === 'tab') {
     if (!targetId) return;
     ongletEnregistre = targetId;
-    preparerEnregistrement({ source: 'tab', audio: r.captureAudio, targetId }).catch((e) => {
-      // Chrome exige un geste de l'utilisateur pour capturer un onglet: sans
-      // clic prealable sur l'extension, `getMediaStreamId` refuse. La tentative
-      // vaut quand meme d'etre faite, parce qu'elle transforme un silence total
-      // en une phrase que l'utilisateur peut suivre. C'est le vrai defaut du
-      // reglage tel qu'il etait: la case cochee ne produisait AUCUN signe, ni
-      // video, ni erreur, ni etat.
-      const gesteManquant = /invoke|gesture|activeTab|not been invoked/i.test(e.message || '');
-      etatEnregistrement = {
-        etat: 'erreur',
-        erreur: gesteManquant
-          ? "Chrome refuse de capturer un onglet sans geste de l'utilisateur. " +
-            "Ouvrir ce panneau et cliquer \"Preparer le showcase\" AVANT de lancer " +
-            "l'agent: la source est choisie a ce moment-la, et l'enregistrement " +
-            "demarre tout seul quand l'agent prend la main."
-          : e.message,
-      };
+    // Screencast et non `tabCapture`: le premier passe par le debogueur, deja
+    // attache, et ne demande aucun geste; le second exige que l'utilisateur ait
+    // invoque l'extension sur CET onglet, ce qui est impossible pour un onglet
+    // que l'agent vient de creer. C'est la raison pour laquelle la case cochee
+    // ne demarrait rien.
+    try {
+      await preparerEnregistrement({ source: 'screencast', audio: false, differe: false });
+      await brancherScreencast();
+    } catch (e) {
+      etatEnregistrement = { etat: 'erreur', erreur: String((e && e.message) || e) };
       majEtat({ enregistrement: etatEnregistrement });
-    });
+      rafraichirBadge();
+    }
   }
   // Ecran et fenetre passent par getDisplayMedia dans l'offscreen, qui ouvre le
-  // selecteur de Chrome. Le declencher tout seul ferait surgir une boite de
-  // dialogue au milieu du travail de l'utilisateur, sans qu'il l'ait demandee:
-  // ces deux sources restent au bouton du popup, volontairement.
+  // selecteur de Chrome. Il exige un geste, donc il est demande au moment ou
+  // l'utilisateur choisit la source dans la liste, pas ici.
 }
 
-/// La capture d'onglet est liee a UN onglet, pour toujours.
+/// La capture d'onglet lancee A LA MAIN est liee a UN onglet, pour toujours.
+///
+/// Ne concerne plus le demarrage automatique, qui passe par le screencast et
+/// suit l'agent. Reste vrai pour le bouton manuel avec la source "Onglet".
 ///
 /// `chrome.tabCapture.getMediaStreamId` prend un `targetTabId` et le flux ne
 /// suit pas: quand l'agent bascule, la video continue de filmer l'onglet de
@@ -639,6 +1006,9 @@ async function verifierDemarrageAuto(targetId) {
 /// une fois, et on nomme la source qui convient a ce genre de demonstration.
 function signalerChangementDOnglet(nouveau) {
   if (etatEnregistrement.etat !== 'enregistrement') return;
+  // Le screencast, lui, SUIT: les images du nouvel onglet arrivent dans le meme
+  // canevas et la video est continue. Il n'y a rien a signaler.
+  if (etatEnregistrement.source === 'screencast') return;
   if (!ongletEnregistre || !nouveau || nouveau === ongletEnregistre) return;
   if (etatEnregistrement.avertiOnglet) return;
   etatEnregistrement = {
@@ -651,6 +1021,7 @@ function signalerChangementDOnglet(nouveau) {
       '"Ecran" avant de demarrer.',
   };
   majEtat({ enregistrement: etatEnregistrement });
+  rafraichirBadge();
 }
 
 async function preparerEnregistrement(msg) {
@@ -659,6 +1030,7 @@ async function preparerEnregistrement(msg) {
   }
   etatEnregistrement = { etat: 'demarrage', erreur: null, dernierFichier: null };
   majEtat({ enregistrement: etatEnregistrement });
+  rafraichirBadge();
   
   try {
     let streamId = null;
@@ -706,6 +1078,9 @@ async function preparerEnregistrement(msg) {
       streamId: streamId,
       source: msg.source,
       audio: msg.audio,
+      // La toile prend la taille des images recues: l'agrandissement n'ajoute
+      // aucun detail et fait encoder la video sur plus de pixels pour rien.
+      taille: QUALITES[(await reglages()).captureQualite] || QUALITES.standard,
       differe
     });
 
@@ -718,10 +1093,12 @@ async function preparerEnregistrement(msg) {
       source: msg.source
     };
     majEtat({ enregistrement: etatEnregistrement });
+    rafraichirBadge();
     return { ok: true, arme: differe };
   } catch (e) {
     etatEnregistrement = { etat: 'erreur', erreur: e.message };
     majEtat({ enregistrement: etatEnregistrement });
+    rafraichirBadge();
     throw e;
   }
 }
@@ -735,18 +1112,26 @@ async function arreterEnregistrement(raison) {
     etatEnregistrement = { etat: 'inactif', dernierFichier: null };
     ongletEnregistre = null;
     majEtat({ enregistrement: etatEnregistrement });
+    rafraichirBadge();
     return;
   }
   if (etatEnregistrement.etat !== 'enregistrement') return;
   ongletEnregistre = null;
+  // Couper le flux d'images: sans ca Chrome continue d'en envoyer dans le vide,
+  // et le prochain enregistrement recevrait celles de l'ancien.
+  if (etatEnregistrement.source === 'screencast' && attacheA !== null) {
+    await cdp('Page.stopScreencast', {}).catch(() => {});
+  }
   etatEnregistrement = { etat: 'finalisation' };
   majEtat({ enregistrement: etatEnregistrement });
+  rafraichirBadge();
   await chrome.runtime.sendMessage({ target: 'offscreen', type: 'enregistrement-arreter' }).catch(() => {});
 }
 
 async function sauvegarderEnregistrement(msg) {
   etatEnregistrement = { etat: 'sauvegarde' };
   majEtat({ enregistrement: etatEnregistrement });
+  rafraichirBadge();
   try {
     const r = await reglages();
     const prefixe = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -761,9 +1146,11 @@ async function sauvegarderEnregistrement(msg) {
     
     etatEnregistrement = { etat: 'inactif', dernierFichier: filename };
     majEtat({ enregistrement: etatEnregistrement });
+    rafraichirBadge();
   } catch(e) {
     etatEnregistrement = { etat: 'erreur', erreur: "Erreur de sauvegarde: " + e.message };
     majEtat({ enregistrement: etatEnregistrement });
+    rafraichirBadge();
   } finally {
     setTimeout(() => {
       chrome.runtime.sendMessage({ target: 'offscreen', type: 'enregistrement-liberer-url', url: msg.url }).catch(() => {});
@@ -774,3 +1161,6 @@ async function sauvegarderEnregistrement(msg) {
 chrome.runtime.onStartup.addListener(connecter);
 chrome.runtime.onInstalled.addListener(connecter);
 connecter();
+// Au reveil du worker: si quelque chose attend, on retente sans attendre
+// l'alarme, et sans dependre de la socket de pilotage.
+viderFileGarder().catch(() => {});

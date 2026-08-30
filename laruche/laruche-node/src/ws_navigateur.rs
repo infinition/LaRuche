@@ -71,7 +71,7 @@ fn origine_autorisee(headers: &axum::http::HeaderMap) -> bool {
 
 pub(crate) async fn ws_navigateur_handler(
     ws: WebSocketUpgrade,
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> axum::response::Response {
@@ -96,10 +96,14 @@ pub(crate) async fn ws_navigateur_handler(
             .into_response();
     }
     let agent = params.get("agent").cloned();
-    ws.on_upgrade(move |socket| ws_navigateur_connection(socket, agent))
+    ws.on_upgrade(move |socket| ws_navigateur_connection(socket, agent, state))
 }
 
-pub(crate) async fn ws_navigateur_connection(socket: ws::WebSocket, agent: Option<String>) {
+pub(crate) async fn ws_navigateur_connection(
+    socket: ws::WebSocket,
+    agent: Option<String>,
+    state: Arc<AppState>,
+) {
     use futures_util::{SinkExt, StreamExt};
 
     let (mut sender, mut receiver) = socket.split();
@@ -118,10 +122,14 @@ pub(crate) async fn ws_navigateur_connection(socket: ws::WebSocket, agent: Optio
         }
     });
 
-    // Inbound: replies from the extension.
+    // Inbound: replies from the extension, and now its own requests.
     while let Some(Ok(msg)) = receiver.next().await {
         match msg {
-            ws::Message::Text(txt) => pont.message_recu(&txt).await,
+            ws::Message::Text(txt) => {
+                if let Some(demande) = pont.message_recu(&txt).await {
+                    traiter_demande(&state, pont, demande).await;
+                }
+            }
             ws::Message::Close(_) => break,
             _ => {}
         }
@@ -130,6 +138,53 @@ pub(crate) async fn ws_navigateur_connection(socket: ws::WebSocket, agent: Optio
     ecriture.abort();
     pont.debrancher().await;
     tracing::info!("LaRuche browser extension disconnected");
+}
+
+/// Ce que l'extension demande de sa propre initiative.
+///
+/// Un seul verbe aujourd'hui, `garder`: l'utilisateur met de cote un lien ou une
+/// note depuis sa navigation, et ca atterrit dans la memoire. La socket est deja
+/// restreinte a l'identifiant de l'extension et vit sur la boucle locale, donc
+/// elle porte la meme confiance que le pilotage qu'elle sert deja.
+///
+/// La reponse repart par la meme socket, avec l'identifiant que l'extension a
+/// choisi: sans accuse, elle ne peut pas savoir si elle doit garder l'entree en
+/// file, et une note perdue en silence est pire que pas de fonction du tout.
+async fn traiter_demande(
+    state: &Arc<AppState>,
+    pont: &laruche_essaim::pont_navigateur::PontNavigateur,
+    demande: serde_json::Value,
+) {
+    let jeton = demande.get("req").cloned().unwrap_or(serde_json::Value::Null);
+    let repondre = |ok: bool, erreur: Option<String>| {
+        serde_json::json!({ "req": jeton, "ok": ok, "error": erreur })
+    };
+
+    if demande["type"].as_str() != Some("garder") {
+        pont.pousser(repondre(false, Some("unknown request".into())))
+            .await;
+        return;
+    }
+
+    let noeud = demande["entree"]["noeud"].as_str().unwrap_or("").trim();
+    let contenu = demande["entree"]["contenu"].as_str().unwrap_or("").trim();
+    if noeud.is_empty() || contenu.is_empty() {
+        pont.pousser(repondre(false, Some("noeud et contenu requis".into())))
+            .await;
+        return;
+    }
+
+    let item = laruche_memoire::MemoryItem::new(noeud, contenu).with_source("extension-chrome");
+    match state.memoire.write(item).await {
+        Ok(_) => {
+            tracing::info!(noeud, "extension: entree gardee en memoire");
+            pont.pousser(repondre(true, None)).await;
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, noeud, "extension: echec de la garde en memoire");
+            pont.pousser(repondre(false, Some(e.to_string()))).await;
+        }
+    }
 }
 
 #[cfg(test)]

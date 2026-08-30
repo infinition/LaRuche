@@ -27,10 +27,12 @@
 
 body {
   margin: 0;
-  padding: calc(14px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
-  width: 340px;
-  max-height: 600px;
-  overflow-y: auto;
+  padding: calc(11px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px));
+  /* Chrome plafonne un popup a 800x600 et le dimensionne sur son contenu. Ni
+     `max-height` ni `overflow` ici: c'etait EUX qui fabriquaient la barre de
+     defilement. Le panneau tient sous les 600px grace au rythme vertical
+     resserre plus bas, ce qui est la seule facon honnete de ne pas en avoir. */
+  width: 400px;
   background: var(--fond);
   color: var(--texte);
   font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -41,7 +43,7 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 7px;
 }
 
 h1 {
@@ -69,7 +71,7 @@ h1 {
 }
 
 .etat {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   color: var(--texte-doux);
 }
 
@@ -77,7 +79,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 9px 10px;
+  padding: 5px 9px;
   border: 1px solid var(--bord);
   border-radius: 9px;
   background: var(--fond-champ);
@@ -98,7 +100,7 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 6px;
   color: var(--texte-doux);
 }
 
@@ -116,13 +118,15 @@ h1 {
 .champ.vertical {
   align-items: stretch;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 }
 
 .champ.vertical input,
 .champ select {
   width: 100%;
-  padding: 7px 8px;
+  min-width: 0;
+  text-overflow: ellipsis;
+  padding: 5px 8px;
   border: 1px solid var(--bord);
   border-radius: 7px;
   background: var(--fond-champ);
@@ -135,13 +139,13 @@ h1 {
 }
 
 .capture {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 7px;
+  padding-top: 7px;
   border-top: 1px solid var(--bord);
 }
 
 .capture h2 {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-size: 12px;
   color: var(--miel);
   letter-spacing: .04em;
@@ -152,22 +156,22 @@ h1 {
 }
 
 .bascule.compacte {
-  margin-top: 9px;
-  padding: 7px 9px;
+  margin-top: 5px;
+  padding: 4px 9px;
   font-size: 12px;
 }
 
 .capture-actions {
   display: flex;
   gap: 7px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .capture-actions button {
   flex: 1;
   border: 0;
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   cursor: pointer;
   background: var(--miel);
   color: #20180a;
@@ -186,10 +190,35 @@ h1 {
 
 .capture-etat,
 .aide {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--texte-doux);
-  font-size: 11px;
+  font-size: 10.5px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+/* Le seul texte dont la longueur ne depend pas de nous: une erreur de Chrome
+   peut faire trois lignes comme dix, et dix suffisent a repasser au-dessus du
+   plafond de 600px, donc a ramener la barre de defilement. On le borne a trois
+   lignes; le detail complet reste dans la console du service worker. */
+.capture-etat {
+  /* Un plafond en hauteur plutot que `-webkit-line-clamp`: la propriete exige
+     `display: -webkit-box`, qui se fait ecraser ici, et une regle qui ne tient
+     que si personne ne touche au display n'est pas une regle. Deux lignes a
+     10.5px sur 1.35 d'interligne font 29px, et deux lignes suffisent a dire ce
+     qui ne va pas; le detail complet est dans la console du service worker. */
+  max-height: 29px;
+  overflow: hidden;
+}
+
+/* L'URL pilotee tient sur UNE ligne, avec une ellipse. Elle etait coupee en
+   plein milieu par `word-break: break-all` et prenait deux lignes pour un
+   renseignement qu'on lit d'un coup d'oeil. */
+.piloté {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
 }
 
 .capture-etat.en-cours {
@@ -208,8 +237,8 @@ h1 {
 }
 
 .piloté {
-  margin: 12px 0 0;
-  padding: 8px 10px;
+  margin: 8px 0 0;
+  padding: 6px 9px;
   border-radius: 8px;
   background: var(--fond-champ);
   border: 1px solid var(--bord);
@@ -219,7 +248,120 @@ h1 {
 }
 
 .note {
-  margin: 12px 0 0;
+  margin: 8px 0 0;
   color: var(--texte-doux);
-  font-size: 11.5px;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+/* Le selecteur de langue: discret, dans l'entete, pousse a droite. */
+.langue {
+  margin-left: auto;
+  min-width: 34px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ambre, #f5a623);
+  background: transparent;
+  border: 1px solid rgba(245, 166, 35, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.langue:hover {
+  background: rgba(245, 166, 35, 0.12);
+}
+
+.langue:focus-visible {
+  outline: 2px solid var(--ambre, #f5a623);
+  outline-offset: 2px;
+}
+
+/* Deux menus par ligne: la source et la qualite sont courtes et vont ensemble,
+   et les empiler coutait une ligne entiere de plus dans un panneau qui plafonne
+   a 600px. */
+.duo {
+  display: flex;
+  gap: 8px;
+}
+
+.duo > .champ {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Deux vues, parce que l'extension fait desormais deux choses sans rapport:
+   garder ce qu'on lit, et piloter le navigateur. Les empiler dans un seul
+   panneau donnait une colonne trop longue, et surtout mettait le pilotage,
+   qu'on regle une fois, devant le geste qu'on fait tous les jours. */
+.onglets {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--bord);
+}
+
+.onglet {
+  flex: 1;
+  padding: 6px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--texte-doux);
+  font: 600 11.5px/1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.onglet.actif {
+  color: var(--miel);
+  border-bottom-color: var(--miel);
+}
+
+.onglet:focus-visible {
+  outline: 2px solid var(--miel);
+  outline-offset: -2px;
+}
+
+/* La page en cours, en tete de l'onglet de sauvegarde: on garde quelque chose
+   de precis, et le voir avant de cliquer evite de garder la mauvaise page. */
+.page {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page.url {
+  margin: 0 0 8px;
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--texte-doux);
+}
+
+#commentaire {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--bord);
+  border-radius: 7px;
+  background: var(--fond-champ);
+  color: var(--texte);
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+
+#commentaire:focus-visible {
+  outline: 2px solid var(--miel);
+  outline-offset: 1px;
+}
+
+.capture-actions button.second {
+  background: transparent;
+  color: var(--miel);
+  border: 1px solid var(--bord);
 }

@@ -81,16 +81,43 @@ impl PontNavigateur {
     /// Feed one inbound frame from the extension. Unknown or malformed frames
     /// are ignored on purpose: a future extension version may send events this
     /// build knows nothing about, and that must not break the connection.
-    pub async fn message_recu(&self, texte: &str) {
+    /// Traite une trame venue de l'extension, et rend ce qui n'etait pas
+    /// attendu.
+    ///
+    /// Le pont ne connaissait qu'un sens: le noeud commande, l'extension repond,
+    /// et tout ce qui n'etait pas une reponse etait jete en silence. Or
+    /// l'extension a maintenant des choses a DIRE de sa propre initiative, la
+    /// premiere etant "garde ce lien". Elle ne peut pas le faire en HTTP: les
+    /// ecritures du noeud sont derriere un cookie de session `SameSite=Lax`,
+    /// qu'un service worker d'extension ne peut pas envoyer, et l'utilisateur
+    /// de l'application de bureau n'a de toute facon aucune session dans son
+    /// navigateur.
+    ///
+    /// Cette socket, elle, est deja etablie, deja restreinte a l'identifiant de
+    /// l'extension, et deja sur la boucle locale. C'est la bonne porte.
+    ///
+    /// On ne traite rien ici: `laruche-essaim` ne connait pas la memoire. On
+    /// rend la trame a l'appelant, qui lui a l'etat du noeud.
+    pub async fn message_recu(&self, texte: &str) -> Option<Value> {
         let Ok(v) = serde_json::from_str::<Value>(texte) else {
-            return;
+            return None;
         };
-        let Some(id) = v.get("id").and_then(Value::as_u64) else {
-            return;
-        };
-        let mut etat = self.etat.lock().await;
-        if let Some(tx) = etat.attentes.remove(&id) {
-            let _ = tx.send(v);
+        // Une reponse porte l'id que nous avons emis; une demande porte un type.
+        if let Some(id) = v.get("id").and_then(Value::as_u64) {
+            let mut etat = self.etat.lock().await;
+            if let Some(tx) = etat.attentes.remove(&id) {
+                let _ = tx.send(v);
+                return None;
+            }
+        }
+        v.get("type").is_some().then_some(v)
+    }
+
+    /// Envoie une trame sans attendre de reponse.
+    pub async fn pousser(&self, trame: Value) {
+        let etat = self.etat.lock().await;
+        if let Some(sortie) = etat.sortie.as_ref() {
+            let _ = sortie.send(trame.to_string());
         }
     }
 
@@ -152,6 +179,24 @@ impl PontNavigateur {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn une_demande_de_lextension_remonte_a_lappelant() {
+        // Une trame portant un `type` et aucun id attendu n'est pas une reponse:
+        // c'est l'extension qui demande quelque chose. Elle etait jetee en
+        // silence, ce qui rendait toute initiative de l'extension impossible.
+        let pont = PontNavigateur {
+            etat: Mutex::new(Etat::default()),
+        };
+        let recue = pont
+            .message_recu(&json!({ "type": "garder", "req": 7 }).to_string())
+            .await;
+        assert_eq!(recue.and_then(|v| v["req"].as_u64()), Some(7));
+
+        // Une trame illisible ou vide ne remonte rien, et ne panique pas.
+        assert!(pont.message_recu("pas du json").await.is_none());
+        assert!(pont.message_recu(&json!({ "id": 1 }).to_string()).await.is_none());
+    }
 
     #[tokio::test]
     async fn refuses_calls_with_no_extension() {
