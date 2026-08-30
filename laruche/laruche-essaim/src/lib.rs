@@ -32,6 +32,7 @@ pub mod evenements;
 pub mod fatigue;
 pub mod feed_journal;
 pub mod hooks;
+pub mod images;
 pub mod i18n;
 pub mod job_queue;
 pub mod mcp_client;

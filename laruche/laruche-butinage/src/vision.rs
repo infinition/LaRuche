@@ -38,10 +38,30 @@ pub fn marquer_aveugle(modele: &str) {
     }
 }
 
-/// Le corps d'erreur dit-il que le modele ne prend pas d'image?
+/// Le corps d'erreur dit-il que le fournisseur ne veut pas de notre image?
 ///
 /// Chaque fournisseur le formule a sa facon, d'ou la reconnaissance par
-/// morceaux plutot que par phrase exacte.
+/// morceaux plutot que par phrase exacte. Deux familles:
+///
+/// **Le refus franc.** "This model does not support image". Rien a discuter.
+///
+/// **Le refus deguise en erreur de syntaxe.** Observe sur DeepSeek:
+///
+/// ```text
+/// Failed to parse the request body as JSON:
+///   messages[1].content[1].image_url.url: EOF while parsing a string
+///   at line 1 column 181859
+/// ```
+///
+/// Ca ressemble a un corps corrompu, et c'est ainsi qu'on le traitait: on
+/// retentait a l'identique, trois fois, avant de tuer le tour. Mais le corps
+/// etait intact, verifie octet par octet, base64 propre, JSON valide. Et
+/// surtout le fournisseur NOMME le chemin fautif, donc il a lu la structure
+/// sans probleme: seul le contenu de `image_url.url` le gene, c'est-a-dire
+/// notre data URL. La meme image passe sans broncher sur un autre endpoint.
+///
+/// D'ou la regle: une erreur qui designe `image_url` est un probleme d'image,
+/// pas de transport. Retenter sans elle a un sens, retenter a l'identique non.
 pub fn corps_refuse_image(corps: &str) -> bool {
     let c = corps.to_lowercase();
     // Un souci de FORMAT n'est pas une absence de vision: le modele voit, c'est
@@ -52,10 +72,10 @@ pub fn corps_refuse_image(corps: &str) -> bool {
     }
     c.contains("does not support image")
         || c.contains("not support images")
-        || c.contains("image_url is not supported")
         || c.contains("does not support vision")
         || c.contains("no vision support")
         || c.contains("invalid content type: image")
+        || c.contains("image_url")
         || (c.contains("image") && c.contains("not supported"))
 }
 
@@ -180,11 +200,20 @@ mod tests {
         assert!(corps_refuse_image(
             r#"{"error":{"message":"This model does not support image","type":"invalid_request_error"}}"#
         ));
+        // Le refus deguise en erreur de syntaxe, mot pour mot celui de DeepSeek
+        // sur une image de 254x254 dont le corps etait intact.
         assert!(corps_refuse_image(
-            "image_url is not supported by this model"
+            "Failed to parse the request body as JSON: messages[1].content[1].image_url.url: \
+             EOF while parsing a string at line 1 column 181859"
         ));
         assert!(!corps_refuse_image("unsupported image format: bmp"));
         assert!(!corps_refuse_image("rate limit exceeded"));
+        // Un corps vraiment corrompu, sans image en cause, reste un probleme de
+        // transport: le retenter a l'identique a du sens, couper la vision non.
+        assert!(!corps_refuse_image(
+            "Failed to parse the request body as JSON: EOF while parsing a string \
+             at line 1 column 102271"
+        ));
     }
 
     #[test]

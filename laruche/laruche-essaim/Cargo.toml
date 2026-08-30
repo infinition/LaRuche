@@ -48,6 +48,11 @@ lazy_static = "1.5.0"
 # build then needs neither libxdo nor X11 headers.
 enigo = { version = "0.6", optional = true }
 xcap = { version = "0.9", optional = true }
+# Redimensionnement des images avant l'envoi au modele. NON optionnelle, alors
+# que `xcap` l'est: un noeud headless ne capture pas d'ecran, mais il recoit des
+# pieces jointes, et une image de 2,7 Mo fait tronquer la requete cote
+# fournisseur. Seuls PNG et JPEG sont compiles, les seuls formats qui entrent.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # Presse-papiers, texte seulement: `image-data` tirerait la caisse `image`
 # entiere pour une fonction que cet outil n'expose pas.
 arboard = { version = "3.6.1", default-features = false, optional = true }

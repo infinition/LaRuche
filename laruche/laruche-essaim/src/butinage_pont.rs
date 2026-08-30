@@ -114,6 +114,21 @@ impl but::Fournisseur for FournisseurPont {
         // plutot que de le laisser decrire une image absente.
         if !but::vision::modele_voit(&self.model) {
             but::vision::retirer_images(&mut msgs);
+        } else {
+            // Sinon on la met au gabarit. Une image de plusieurs megaoctets fait
+            // depasser la limite de taille du fournisseur, qui coupe le corps en
+            // plein milieu de la chaine base64 et repond une erreur de parsing
+            // JSON qui ne ressemble a rien. Ici, et pas a la reception: une
+            // conversation rechargee, une piece jointe, une capture d'outil
+            // passent toutes par ce point, et aucune ne doit pouvoir y couper.
+            let reduites = crate::images::au_gabarit_conversation(&mut msgs);
+            if reduites > 0 {
+                tracing::debug!(
+                    "{reduites} image(s) ramenee(s) a {} px / {} ko avant l'envoi",
+                    crate::images::COTE_MAX,
+                    crate::images::B64_MAX / 1024
+                );
+            }
         }
         let tools = if schemas.is_empty() {
             None
