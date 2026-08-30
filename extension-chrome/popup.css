@@ -27,8 +27,10 @@
 
 body {
   margin: 0;
-  padding: 14px 16px 16px;
-  width: 268px;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  width: 340px;
+  max-height: 600px;
+  overflow-y: auto;
   background: var(--fond);
   color: var(--texte);
   font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -111,7 +113,95 @@ h1 {
   text-align: right;
 }
 
+.champ.vertical {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.champ.vertical input,
+.champ select {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid var(--bord);
+  border-radius: 7px;
+  background: var(--fond-champ);
+  color: var(--texte);
+  font: inherit;
+}
+
+.champ.vertical input {
+  text-align: left;
+}
+
+.capture {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bord);
+}
+
+.capture h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--miel);
+  letter-spacing: .04em;
+}
+
+.capture-options.desactive {
+  opacity: .5;
+}
+
+.bascule.compacte {
+  margin-top: 9px;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
+.capture-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.capture-actions button {
+  flex: 1;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  background: var(--miel);
+  color: #20180a;
+  font: 600 12px/1.2 system-ui, sans-serif;
+}
+
+.capture-actions button.danger {
+  background: var(--rouge);
+  color: white;
+}
+
+.capture-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.capture-etat,
+.aide {
+  margin: 8px 0 0;
+  color: var(--texte-doux);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.capture-etat.en-cours {
+  color: var(--miel);
+}
+
+.capture-etat.erreur {
+  color: var(--rouge);
+}
+
 .champ input:focus-visible,
+.champ select:focus-visible,
 .bascule:focus-within {
   outline: 2px solid var(--miel);
   outline-offset: 1px;

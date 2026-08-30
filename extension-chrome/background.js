@@ -18,7 +18,15 @@
  * which is the honest behaviour for a page under agent control.
  */
 
-const REGLAGES_DEFAUT = { port: 8419, actif: false };
+const REGLAGES_DEFAUT = { 
+  port: 8419, 
+  actif: false,
+  captureActivee: false,
+  captureSource: 'tab',
+  captureAudio: false,
+  captureDossier: 'LaRuche/showcases',
+  captureDemanderEmplacement: false
+};
 const PROTOCOLE_DEBUG = '1.3';
 const PING_MS = 20000;
 const RECONNEXION_MIN_MS = 1000;
@@ -40,7 +48,16 @@ let minuteurPing = null;
 // tab sits in the LaRuche group; when control ends it goes back where it was.
 let adopte = null; // { id, groupeOrigine, groupeLaRuche }
 let minuteurControle = null;
+// L'onglet auquel la capture est liee, pour savoir quand l'agent s'en eloigne.
+let ongletEnregistre = null;
 const CONTROLE_IDLE_MS = 20000;
+
+let etatEnregistrement = {
+  etat: 'inactif',
+  erreur: null,
+  dernierFichier: null,
+  extension: null
+};
 
 /* -------------------------------------------------------------- réglages */
 
@@ -61,6 +78,7 @@ async function etatCourant() {
     connecte: socket !== null && socket.readyState === WebSocket.OPEN,
     ongletId,
     piloteUrl: attacheA ? await urlOnglet(attacheA) : null,
+    enregistrement: etatEnregistrement,
   };
 }
 
@@ -84,7 +102,7 @@ async function connecter() {
   const agent = encodeURIComponent(navigator.userAgent.slice(0, 120));
   socket = new WebSocket(`ws://127.0.0.1:${port}/ws/navigateur?agent=${agent}`);
 
-  socket.onopen = () => {
+  socket.onopen = async () => {
     reconnexionMs = RECONNEXION_MIN_MS;
     majBadge(true);
     majEtat({});
@@ -96,6 +114,9 @@ async function connecter() {
         socket.send(JSON.stringify({ type: 'ping' }));
       }
     }, PING_MS);
+
+    // Rien a demarrer ici: la capture s'arme au moment ou l'agent prend la main
+    // sur un onglet, dans `attacher`, pas a la connexion au noeud.
   };
 
   socket.onmessage = async (ev) => {
@@ -120,6 +141,10 @@ async function connecter() {
     majBadge(false);
     majEtat({});
     planifierReconnexion();
+
+    if (etatEnregistrement.etat === 'enregistrement' || etatEnregistrement.etat === 'demarrage') {
+      arreterEnregistrement('deconnexion').catch(() => {});
+    }
   };
 
   socket.onerror = () => {
@@ -203,6 +228,14 @@ async function attacher() {
   tapRegistre = false;
   await cdp('Page.enable', {});
   await cdp('Runtime.enable', {});
+  // Le pilotage commence ICI, et c'est le seul endroit ou on le sait avec
+  // certitude: attacher le debogueur est le geste qui prend la main sur
+  // l'onglet. `verifierDemarrageAuto` existait depuis le debut mais n'etait
+  // appelee de nulle part, donc la case "Activer l'enregistrement" ne faisait
+  // rien du tout: elle ecrivait un reglage que personne ne relisait au moment
+  // d'agir, et le seul demarrage possible restait le bouton du popup.
+  lancerSiArme().catch(() => {});
+  verifierDemarrageAuto(id).catch(() => {});
   return id;
 }
 
@@ -241,6 +274,10 @@ function armerControle() {
 }
 async function finDeControle() {
   clearTimeout(minuteurControle);
+  // Le filet, pour l'agent qui ne dit jamais `close`: sans lui l'enregistrement
+  // tournait jusqu'a l'arret du noeud, et la video d'une demonstration de deux
+  // minutes contenait deux minutes de demonstration suivies d'une heure de rien.
+  await arreterEnregistrement('inactivite').catch(() => {});
   await rendreAdopte();
   await detacher();
 }
@@ -282,6 +319,12 @@ async function executer(action, params) {
 
     case 'navigate': {
       await attacher();
+      const tid = await ongletPilote();
+      await chrome.tabs.update(tid, { active: true });
+      try {
+        const t = await chrome.tabs.get(tid);
+        await chrome.windows.update(t.windowId, { focused: true });
+      } catch {}
       await cdp('Page.navigate', { url: params.url });
       await attendreChargement();
       if (scriptGlow) await evaluer(scriptGlow);
@@ -408,11 +451,22 @@ async function executer(action, params) {
       } catch {}
       await attacher();
       if (scriptGlow) await evaluer(scriptGlow).catch(() => {});
+      await chrome.tabs.update(target, { active: true });
+      try {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      } catch {}
       return { tabId: target, url: tab.url || '', title: tab.title || '' };
     }
 
     case 'close': {
       clearTimeout(minuteurControle);
+      // La fin du pilotage, c'est ici. Le panneau promet "sauvegardee
+      // automatiquement a la fin du pilotage" et rien ne tenait cette promesse:
+      // `arreterEnregistrement` n'etait appele que sur fermeture de la socket,
+      // c'est-a-dire quand le noeud s'arrete, et par le bouton manuel. Entre
+      // deux missions la socket reste ouverte, donc l'enregistrement continuait
+      // indefiniment et le fichier n'etait jamais ecrit.
+      await arreterEnregistrement('fin de pilotage').catch(() => {});
       // Hand a borrowed user tab back BEFORE detaching, unless the caller asked
       // to close our own tab outright.
       const borrowed = adopte && adopte.id;
@@ -486,8 +540,236 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     });
     return true;
   }
+  
+  if (msg.type === 'set-capture-settings') {
+    majEtat(msg.patch).then(() => { sendResponse({ ok: true }); });
+    return true;
+  }
+  if (msg.type === 'enregistrement-preparer') {
+    preparerEnregistrement(msg).then(sendResponse).catch(e => {
+      sendResponse({ ok: false, error: String(e.message || e) });
+    });
+    return true;
+  }
+  if (msg.type === 'enregistrement-arreter') {
+    arreterEnregistrement('manuel').then(sendResponse).catch(e => {
+      sendResponse({ ok: false, error: String(e.message || e) });
+    });
+    return true;
+  }
+  if (msg.type === 'enregistrement-pret') {
+    sauvegarderEnregistrement(msg).catch(() => {});
+    return false;
+  }
+  if (msg.type === 'enregistrement-erreur') {
+    etatEnregistrement = { etat: 'erreur', erreur: msg.error };
+    majEtat({ enregistrement: etatEnregistrement });
+    return false;
+  }
+
   return false;
 });
+
+/* ------------------------------------------------------------- enregistrement */
+
+/// L'agent prend la main: si une source a ete armee, on enregistre maintenant.
+async function lancerSiArme() {
+  if (etatEnregistrement.etat !== 'arme') return;
+  const r = await chrome.runtime.sendMessage({
+    target: 'offscreen',
+    type: 'enregistrement-lancer'
+  }).catch(() => null);
+  if (!r || !r.ok) {
+    etatEnregistrement = { etat: 'erreur', erreur: (r && r.error) || 'La source armee a ete perdue' };
+  } else {
+    etatEnregistrement = { ...etatEnregistrement, etat: 'enregistrement' };
+  }
+  majEtat({ enregistrement: etatEnregistrement });
+}
+
+async function verifierDemarrageAuto(targetId) {
+  const r = await reglages();
+  if (!r.captureActivee) return;
+  const dispo = ['inactif', 'erreur', 'sauvegarde'].includes(etatEnregistrement.etat);
+  if (!dispo) {
+    // Deja en cours: c'est le cas normal quand l'agent change d'onglet en
+    // cours de route. On ne redemarre rien, mais on note que la video ne
+    // montrera pas ce nouvel onglet.
+    signalerChangementDOnglet(targetId);
+    return;
+  }
+  if (r.captureSource === 'tab') {
+    if (!targetId) return;
+    ongletEnregistre = targetId;
+    preparerEnregistrement({ source: 'tab', audio: r.captureAudio, targetId }).catch((e) => {
+      // Chrome exige un geste de l'utilisateur pour capturer un onglet: sans
+      // clic prealable sur l'extension, `getMediaStreamId` refuse. La tentative
+      // vaut quand meme d'etre faite, parce qu'elle transforme un silence total
+      // en une phrase que l'utilisateur peut suivre. C'est le vrai defaut du
+      // reglage tel qu'il etait: la case cochee ne produisait AUCUN signe, ni
+      // video, ni erreur, ni etat.
+      const gesteManquant = /invoke|gesture|activeTab|not been invoked/i.test(e.message || '');
+      etatEnregistrement = {
+        etat: 'erreur',
+        erreur: gesteManquant
+          ? "Chrome refuse de capturer un onglet sans geste de l'utilisateur. " +
+            "Ouvrir ce panneau et cliquer \"Preparer le showcase\" AVANT de lancer " +
+            "l'agent: la source est choisie a ce moment-la, et l'enregistrement " +
+            "demarre tout seul quand l'agent prend la main."
+          : e.message,
+      };
+      majEtat({ enregistrement: etatEnregistrement });
+    });
+  }
+  // Ecran et fenetre passent par getDisplayMedia dans l'offscreen, qui ouvre le
+  // selecteur de Chrome. Le declencher tout seul ferait surgir une boite de
+  // dialogue au milieu du travail de l'utilisateur, sans qu'il l'ait demandee:
+  // ces deux sources restent au bouton du popup, volontairement.
+}
+
+/// La capture d'onglet est liee a UN onglet, pour toujours.
+///
+/// `chrome.tabCapture.getMediaStreamId` prend un `targetTabId` et le flux ne
+/// suit pas: quand l'agent bascule, la video continue de filmer l'onglet de
+/// depart. Une demonstration qui passe de Wikipedia a un autre site donne donc
+/// une video ou il ne se passe plus rien apres la premiere bascule, sans que
+/// rien ne le signale.
+///
+/// On ne peut pas repointer un `MediaRecorder` en cours de route. On le DIT,
+/// une fois, et on nomme la source qui convient a ce genre de demonstration.
+function signalerChangementDOnglet(nouveau) {
+  if (etatEnregistrement.etat !== 'enregistrement') return;
+  if (!ongletEnregistre || !nouveau || nouveau === ongletEnregistre) return;
+  if (etatEnregistrement.avertiOnglet) return;
+  etatEnregistrement = {
+    ...etatEnregistrement,
+    avertiOnglet: true,
+    avertissement:
+      "L'agent a change d'onglet. La capture est liee a l'onglet de depart et " +
+      "ne le suivra pas: la suite de la video montrera l'onglet initial. Pour " +
+      'une demonstration qui passe d\'un onglet a l\'autre, choisir la source ' +
+      '"Ecran" avant de demarrer.',
+  };
+  majEtat({ enregistrement: etatEnregistrement });
+}
+
+async function preparerEnregistrement(msg) {
+  if (!['inactif', 'erreur', 'sauvegarde', 'arme'].includes(etatEnregistrement.etat)) {
+    throw new Error("Un enregistrement est deja en cours");
+  }
+  etatEnregistrement = { etat: 'demarrage', erreur: null, dernierFichier: null };
+  majEtat({ enregistrement: etatEnregistrement });
+  
+  try {
+    let streamId = null;
+    if (msg.source === 'tab') {
+      let targetId = msg.targetId || ongletId;
+      if (!targetId) {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length) targetId = tabs[0].id;
+      }
+      if (!targetId) throw new Error("Aucun onglet cible pour l'enregistrement");
+      
+      streamId = await new Promise((resolve, reject) => {
+        chrome.tabCapture.getMediaStreamId({ targetTabId: targetId }, (id) => {
+          if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+          else resolve(id);
+        });
+      });
+    }
+    // Pour ecran/fenetre, pas de streamId : offscreen.js utilisera getDisplayMedia()
+
+    const hasOffscreen = await chrome.offscreen.hasDocument();
+    if (!hasOffscreen) {
+      await chrome.offscreen.createDocument({
+        url: 'offscreen.html',
+        reasons: ['DISPLAY_MEDIA'],
+        justification: 'Enregistrement video du showcase'
+      });
+    }
+
+    // Ecran et fenetre s'ARMENT: on demande la source maintenant, pendant que
+    // l'utilisateur est devant et que son clic autorise le selecteur de Chrome,
+    // et on n'enregistre qu'au moment ou l'agent prend la main. Sans cette
+    // separation il fallait choisir entre demander l'ecran trop tot, et filmer
+    // tout le temps mort avant que l'agent ne commence.
+    //
+    // La capture d'onglet, elle, ne peut pas etre armee en avance: l'agent
+    // travaille dans un onglet qu'il cree lui-meme, qui n'existe pas encore au
+    // moment du clic. Armer maintenant filmerait l'onglet que l'utilisateur a
+    // sous les yeux, pas celui de l'agent.
+    const differe = msg.source !== 'tab' && msg.differe !== false;
+
+    const result = await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'enregistrement-demarrer',
+      streamId: streamId,
+      source: msg.source,
+      audio: msg.audio,
+      differe
+    });
+
+    if (!result || !result.ok) throw new Error((result && result.error) || 'Erreur offscreen');
+
+    etatEnregistrement = {
+      etat: differe ? 'arme' : 'enregistrement',
+      extension: result.extension,
+      dernierFichier: null,
+      source: msg.source
+    };
+    majEtat({ enregistrement: etatEnregistrement });
+    return { ok: true, arme: differe };
+  } catch (e) {
+    etatEnregistrement = { etat: 'erreur', erreur: e.message };
+    majEtat({ enregistrement: etatEnregistrement });
+    throw e;
+  }
+}
+
+async function arreterEnregistrement(raison) {
+  // Une source armee que personne n'a utilisee: on rend la main a Chrome plutot
+  // que de laisser un partage d'ecran actif pour rien, ce que l'utilisateur voit
+  // dans sa barre et ne comprend pas.
+  if (etatEnregistrement.etat === 'arme') {
+    await chrome.runtime.sendMessage({ target: 'offscreen', type: 'enregistrement-desarmer' }).catch(() => {});
+    etatEnregistrement = { etat: 'inactif', dernierFichier: null };
+    ongletEnregistre = null;
+    majEtat({ enregistrement: etatEnregistrement });
+    return;
+  }
+  if (etatEnregistrement.etat !== 'enregistrement') return;
+  ongletEnregistre = null;
+  etatEnregistrement = { etat: 'finalisation' };
+  majEtat({ enregistrement: etatEnregistrement });
+  await chrome.runtime.sendMessage({ target: 'offscreen', type: 'enregistrement-arreter' }).catch(() => {});
+}
+
+async function sauvegarderEnregistrement(msg) {
+  etatEnregistrement = { etat: 'sauvegarde' };
+  majEtat({ enregistrement: etatEnregistrement });
+  try {
+    const r = await reglages();
+    const prefixe = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `${r.captureDossier || 'LaRuche/showcases'}/${prefixe}-showcase.${msg.extension || 'mp4'}`;
+    
+    await chrome.downloads.download({
+      url: msg.url,
+      filename: filename,
+      saveAs: !!r.captureDemanderEmplacement,
+      conflictAction: 'uniquify'
+    });
+    
+    etatEnregistrement = { etat: 'inactif', dernierFichier: filename };
+    majEtat({ enregistrement: etatEnregistrement });
+  } catch(e) {
+    etatEnregistrement = { etat: 'erreur', erreur: "Erreur de sauvegarde: " + e.message };
+    majEtat({ enregistrement: etatEnregistrement });
+  } finally {
+    setTimeout(() => {
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'enregistrement-liberer-url', url: msg.url }).catch(() => {});
+    }, 10000);
+  }
+}
 
 chrome.runtime.onStartup.addListener(connecter);
 chrome.runtime.onInstalled.addListener(connecter);

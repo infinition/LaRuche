@@ -2,7 +2,8 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>LaRuche</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
@@ -25,6 +26,48 @@
     </label>
 
     <p class="piloté" id="pilote" hidden></p>
+
+    <section class="capture">
+      <h2 id="titreCapture"></h2>
+
+      <label class="bascule">
+        <input type="checkbox" id="captureActivee" />
+        <span id="libelleCaptureActivee"></span>
+      </label>
+
+      <div class="capture-options" id="captureOptions">
+        <label class="champ vertical">
+          <span id="libelleCaptureSource"></span>
+          <select id="captureSource">
+            <option value="tab" id="sourceOnglet"></option>
+            <option value="window" id="sourceFenetre"></option>
+            <option value="screen" id="sourceEcran"></option>
+          </select>
+        </label>
+
+        <label class="bascule compacte">
+          <input type="checkbox" id="captureAudio" />
+          <span id="libelleCaptureAudio"></span>
+        </label>
+
+        <label class="champ vertical">
+          <span id="libelleCaptureDossier"></span>
+          <input type="text" id="captureDossier" autocomplete="off" />
+        </label>
+
+        <label class="bascule compacte">
+          <input type="checkbox" id="captureDemanderEmplacement" />
+          <span id="libelleCaptureDemanderEmplacement"></span>
+        </label>
+
+        <div class="capture-actions">
+          <button type="button" id="demarrerCapture"></button>
+          <button type="button" id="arreterCapture" class="danger" hidden></button>
+        </div>
+        <p class="capture-etat" id="etatCapture" role="status" aria-live="polite"></p>
+        <p class="aide" id="aideCapture"></p>
+      </div>
+    </section>
 
     <p class="note" id="note"></p>
   </body>

@@ -27,7 +27,104 @@
     "message": "Driving tab: $URL$",
     "description": "Address of the tab currently driven",
     "placeholders": {
-      "url": { "content": "$1", "example": "https://example.com" }
+      "url": {
+        "content": "$1",
+        "example": "https://example.com"
+      }
+    }
+  },
+  "capture_title": {
+    "message": "Showcase recording",
+    "description": "Recording section title"
+  },
+  "capture_enable": {
+    "message": "Enable recording",
+    "description": "Enables recording options"
+  },
+  "capture_source": {
+    "message": "Source",
+    "description": "Capture source label"
+  },
+  "capture_source_tab": {
+    "message": "Active tab",
+    "description": "Captures one tab"
+  },
+  "capture_source_window": {
+    "message": "Chrome window",
+    "description": "Captures one window"
+  },
+  "capture_source_screen": {
+    "message": "Entire screen",
+    "description": "Captures one screen"
+  },
+  "capture_audio": {
+    "message": "Include audio",
+    "description": "Adds available audio"
+  },
+  "capture_folder": {
+    "message": "Subfolder under Downloads",
+    "description": "Relative output folder"
+  },
+  "capture_save_as": {
+    "message": "Ask where to save each file",
+    "description": "Shows the file picker"
+  },
+  "capture_start": {
+    "message": "Start showcase",
+    "description": "Recording start button"
+  },
+  "capture_stop": {
+    "message": "Stop and save",
+    "description": "Recording stop button"
+  },
+  "capture_help": {
+    "message": "Press this BEFORE starting the agent. For a screen or a window, Chrome asks which source right away, then recording starts on its own when the agent takes control and is saved when it finishes. For a tab, recording starts immediately and stays bound to THAT tab: if the agent switches, the video will not follow, so pick Screen for a demo across several tabs.",
+    "description": "How recording works"
+  },
+  "capture_state_disabled": {
+    "message": "Recording disabled",
+    "description": "Capture state"
+  },
+  "capture_state_ready": {
+    "message": "Ready to record",
+    "description": "Capture state"
+  },
+  "capture_state_starting": {
+    "message": "Starting capture...",
+    "description": "Capture state"
+  },
+  "capture_state_recording": {
+    "message": "Recording ($FORMAT$)",
+    "description": "Capture state",
+    "placeholders": {
+      "format": {
+        "content": "$1",
+        "example": "MP4"
+      }
+    }
+  },
+  "capture_state_saving": {
+    "message": "Finalizing and saving...",
+    "description": "Capture state"
+  },
+  "capture_state_saved": {
+    "message": "Video saved: $PATH$",
+    "description": "Capture state",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "C:/Users/me/Downloads/video.mp4"
+      }
+    }
+  },
+  "capture_state_error": {
+    "message": "Recording error: $ERROR$",
+    "description": "Capture state",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "capture cancelled"
+      }
     }
   },
   "state_off": {
@@ -41,5 +138,16 @@
   "state_connected": {
     "message": "Connected to the hive",
     "description": "State: connected to the node"
+  },
+  "capture_state_armed": {
+    "message": "Source ready. Recording will start on its own as soon as the agent takes control."
+  },
+  "capture_state_warning": {
+    "message": "Warning: $AVERT$",
+    "placeholders": {
+      "avert": {
+        "content": "$1"
+      }
+    }
   }
 }

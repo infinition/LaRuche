@@ -27,7 +27,104 @@
     "message": "Onglet pilote : $URL$",
     "description": "Adresse de l'onglet actuellement pilote",
     "placeholders": {
-      "url": { "content": "$1", "example": "https://exemple.fr" }
+      "url": {
+        "content": "$1",
+        "example": "https://exemple.fr"
+      }
+    }
+  },
+  "capture_title": {
+    "message": "Enregistrement de showcase",
+    "description": "Titre de la section d enregistrement"
+  },
+  "capture_enable": {
+    "message": "Activer l'enregistrement",
+    "description": "Active les options d enregistrement"
+  },
+  "capture_source": {
+    "message": "Source",
+    "description": "Libelle du choix de source"
+  },
+  "capture_source_tab": {
+    "message": "Onglet actif",
+    "description": "Capture un onglet"
+  },
+  "capture_source_window": {
+    "message": "Fenetre (choisir Chrome)",
+    "description": "Capture une fenetre"
+  },
+  "capture_source_screen": {
+    "message": "Ecran complet",
+    "description": "Capture un ecran"
+  },
+  "capture_audio": {
+    "message": "Inclure l'audio",
+    "description": "Ajoute l audio disponible"
+  },
+  "capture_folder": {
+    "message": "Sous-dossier dans Telechargements",
+    "description": "Dossier relatif de sortie"
+  },
+  "capture_save_as": {
+    "message": "Demander l'emplacement a chaque fichier",
+    "description": "Affiche le selecteur de fichier"
+  },
+  "capture_start": {
+    "message": "Demarrer le showcase",
+    "description": "Bouton de demarrage"
+  },
+  "capture_stop": {
+    "message": "Arreter et sauvegarder",
+    "description": "Bouton d arret"
+  },
+  "capture_help": {
+    "message": "Cliquer ce bouton AVANT de lancer l'agent. Pour un ecran ou une fenetre, Chrome demande la source tout de suite, puis l'enregistrement demarre seul quand l'agent prend la main et se sauvegarde a la fin du pilotage. Pour un onglet, la capture demarre immediatement et reste liee a CET onglet: si l'agent en change, la video ne le suivra pas, donc choisir Ecran pour une demonstration sur plusieurs onglets.",
+    "description": "Explication du fonctionnement"
+  },
+  "capture_state_disabled": {
+    "message": "Enregistrement desactive",
+    "description": "Etat de la capture"
+  },
+  "capture_state_ready": {
+    "message": "Pret a enregistrer",
+    "description": "Etat de la capture"
+  },
+  "capture_state_starting": {
+    "message": "Demarrage de la capture...",
+    "description": "Etat de la capture"
+  },
+  "capture_state_recording": {
+    "message": "Enregistrement en cours ($FORMAT$)",
+    "description": "Etat de la capture",
+    "placeholders": {
+      "format": {
+        "content": "$1",
+        "example": "MP4"
+      }
+    }
+  },
+  "capture_state_saving": {
+    "message": "Finalisation et sauvegarde...",
+    "description": "Etat de la capture"
+  },
+  "capture_state_saved": {
+    "message": "Video sauvegardee : $PATH$",
+    "description": "Etat de la capture",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "C:/Users/me/Downloads/video.mp4"
+      }
+    }
+  },
+  "capture_state_error": {
+    "message": "Erreur d'enregistrement : $ERROR$",
+    "description": "Etat de la capture",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "capture cancelled"
+      }
     }
   },
   "state_off": {
@@ -41,5 +138,16 @@
   "state_connected": {
     "message": "Connecte a la ruche",
     "description": "Etat: connecte au noeud"
+  },
+  "capture_state_armed": {
+    "message": "Source prete. L'enregistrement demarrera tout seul des que l'agent prendra la main."
+  },
+  "capture_state_warning": {
+    "message": "Attention: $AVERT$",
+    "placeholders": {
+      "avert": {
+        "content": "$1"
+      }
+    }
   }
 }

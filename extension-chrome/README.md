@@ -31,17 +31,53 @@ Si le noeud refuse la connexion en journalisant un identifiant different, c'est
 que le manifeste a ete modifie ou qu'il s'agit d'un autre build. Pointer
 `LARUCHE_EXTENSION_ID` sur le nouvel identifiant, ou restaurer le `key`.
 
+La cle privee de signature ne doit pas se trouver dans le dossier charge par
+Chrome. Elle est conservee localement sous `.private/`, qui est ignore par Git.
+Le champ public `key` du manifeste suffit pour garder un identifiant stable en
+developpement.
+
 ## Ce que vous voyez pendant le pilotage
 
 - Les onglets de l'agent sont regroupes dans un groupe **LaRuche** jaune.
+- Chrome active automatiquement l'onglet que l'agent ouvre, selectionne ou
+  navigue, y compris s'il se trouve dans une autre fenetre.
 - La page pilotee porte un cadre ambre qui respire et un badge en bas a droite.
 - Chaque element clique ou rempli s'illumine une demi-seconde.
 - Chrome affiche sa propre banniere de debogage, que l'extension ne masque pas.
 
+Le panneau LaRuche conserve sa position, sa taille, son historique, la narration
+et un brouillon non envoye quand la page navigue ou est rechargee avec F5. Le DOM
+de la page est bien recree par Chrome, mais l'extension restaure le panneau au
+demarrage du document suivant pour que l'exploration reste continue.
+Il reste visible pendant vingt-quatre secondes apres la derniere activite de
+l'agent, sauf si vous le survolez ou si une reponse est en cours de saisie.
+
+## Enregistrer un showcase
+
+Le popup peut enregistrer l'onglet actif, une fenetre choisie ou un ecran
+complet. Activez l'enregistrement, choisissez la source, puis cliquez sur
+**Demarrer le showcase**. La capture continue dans un document hors ecran, y
+compris pendant les navigations et apres la fermeture du popup.
+
+La video est arretee et sauvegardee automatiquement lorsque LaRuche ferme la
+session de navigation ou apres quarante secondes sans commande. Le bouton
+**Arreter et sauvegarder** permet aussi de terminer manuellement.
+
+Chrome 126 et les versions suivantes produisent un fichier MP4. Un ancien Chrome
+qui ne propose pas l'encodeur MP4 utilise WebM comme solution de repli. Le
+sous-dossier configure est relatif au dossier Telechargements de Chrome. Activez
+**Demander l'emplacement a chaque fichier** pour choisir un autre chemin lors de
+chaque sauvegarde.
+
+La capture de l'onglet commence apres un clic explicite sur le popup, comme
+l'exige `chrome.tabCapture`. Pour une fenetre ou un ecran complet, Chrome affiche
+toujours son propre selecteur de partage. Une extension ne peut pas contourner ce
+choix de confidentialite.
+
 Couper l'interrupteur du popup reprend la main immediatement : la connexion se
 ferme, l'agent perd le navigateur et recoit une erreur explicite.
 
-Sans commande pendant vingt secondes, l'extension considere le pilotage termine :
+Sans commande pendant quarante secondes, l'extension considere le pilotage termine :
 elle detache le debogueur, la banniere disparait, et un onglet emprunte retourne
 dans le groupe d'ou il venait.
 
@@ -63,9 +99,15 @@ etre mise a jour quand l'outil gagne une capacite.
 | `cdp` | Passthrough DevTools brut |
 | `tab` | Cree ou retrouve l'onglet pilote, le met au premier plan |
 | `tabs` | Liste tous les onglets de toutes les fenetres, en lecture seule |
+| `open_tab` | Ouvre et pilote un nouvel onglet dans la meme fenetre Chrome |
 | `select` | Adopte un onglet existant comme onglet pilote |
 | `close` | Rend l'onglet emprunte, detache le debogueur |
 | `ping` | Maintien de la connexion, ne compte pas comme une commande |
+
+Quand le noeud local est arrete, l'extension sonde d'abord `/health` et attend
+silencieusement sa disponibilite avant d'ouvrir la WebSocket. L'etat
+**Connexion au noeud...** est donc normal pendant le demarrage de LaRuche et ne
+signifie pas que l'extension est cassee.
 
 `eval` renvoie bien la valeur produite : `Runtime.evaluate` est appele avec
 `returnByValue` et `awaitPromise`, et c'est ce retour qui porte `read`, `find`
