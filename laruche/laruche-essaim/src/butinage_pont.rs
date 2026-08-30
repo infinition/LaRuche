@@ -108,7 +108,13 @@ impl but::Fournisseur for FournisseurPont {
         messages: &[but::Message],
         schemas: &[serde_json::Value],
     ) -> std::result::Result<but::ReponseModele, but::ErreurFournisseur> {
-        let msgs = convertir_messages(messages);
+        let mut msgs = convertir_messages(messages);
+        // Un modele qui a deja refuse une image ne la recevra plus: on la
+        // remplace par une phrase qui dit clairement qu'il ne la voit pas,
+        // plutot que de le laisser decrire une image absente.
+        if !but::vision::modele_voit(&self.model) {
+            but::vision::retirer_images(&mut msgs);
+        }
         let tools = if schemas.is_empty() {
             None
         } else {
@@ -134,7 +140,27 @@ impl but::Fournisseur for FournisseurPont {
         .await
         {
             Ok(s) => s,
-            Err(e) => return Err(classer_erreur(e)),
+            Err(e) => {
+                let err = classer_erreur(e);
+                // Le fournisseur vient de dire qu'il ne prend pas d'image. On
+                // le retient pour ce modele, et l'erreur repart classee comme
+                // reessayable: la tentative suivante partira sans l'image, et
+                // le tour continue au lieu de mourir sur une capture.
+                if but::vision::corps_refuse_image(&err.corps) {
+                    but::vision::marquer_aveugle(&self.model);
+                    // Dit a voix haute: sinon l'agent se met a repondre "je ne
+                    // vois pas l'image" sans que personne ne sache pourquoi, et
+                    // on cherche du cote de l'outil au lieu du modele.
+                    let _ = self.tx.send(ChatEvent::Status {
+                        message: format!(
+                            "{} refused the image ({}). Retrying without it, and no image will be                              sent to this model for the rest of the session. Set LARUCHE_VISION=1                              to override.",
+                            self.model,
+                            err.corps.chars().take(160).collect::<String>().trim()
+                        ),
+                    });
+                }
+                return Err(err);
+            }
         };
 
         let mut texte = String::new();

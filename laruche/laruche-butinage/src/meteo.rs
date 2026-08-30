@@ -75,6 +75,13 @@ impl ClasseErreur {
                     || c.contains("eof while parsing")
                     || c.contains("unexpected end of")
                     || c.contains("key must be a string");
+                // Refus d'image: la tentative suivante ne sera PAS identique. Le
+                // fournisseur a retenu que ce modele ne voit pas, et repartira
+                // sans la capture. C'est donc reessayable, et ca vaut mieux que
+                // de tuer le tour parce qu'un outil a rendu une photo.
+                if crate::vision::corps_refuse_image(corps) {
+                    return ClasseErreur::Transitoire;
+                }
                 if corps_illisible {
                     ClasseErreur::Transitoire
                 } else {

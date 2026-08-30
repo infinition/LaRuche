@@ -33,6 +33,7 @@ pub mod nectar;
 pub mod outils;
 pub mod recolte;
 pub mod reglages;
+pub mod vision;
 pub use reglages::plafond_observation;
 pub mod cap;
 

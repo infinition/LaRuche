@@ -3114,42 +3114,84 @@ LaRuche.Voice = (function(){
     if(s==='speaking') vmStartBarge(); else vmStopBarge();
   }
 
-  // ── Barge-in: interrupt her by speaking (not just by tapping) ──
-  // The mic stays open while she talks; a fresh utterance that is not just an echo of her
-  // own words stops the TTS and is taken as the next question. Best with headphones, since
-  // SpeechRecognition cannot apply echo cancellation to the speaker output.
-  var vmBarge=null, vmSpokenText='';
-  function vmBargeIsEcho(said){
-    if(!vmSpokenText) return false;
-    var spoken=vmSpokenText.toLowerCase();
-    var words=said.toLowerCase().split(/\s+/).filter(function(w){return w.length>2;});
-    if(!words.length) return false;
-    var hits=0; words.forEach(function(w){ if(spoken.indexOf(w)>=0) hits++; });
-    return (hits/words.length) > 0.6; // mostly her own words -> echo, ignore
+  // ── Interruption: on lui coupe la parole en parlant ──
+  //
+  // L'ancienne version ecoutait avec `SpeechRecognition`, et c'etait la cause du
+  // probleme: cette API ouvre SON PROPRE micro, en interne, et ignore les
+  // contraintes posees a `getUserMedia`. L'annulation d'echo n'etait donc jamais
+  // appliquee au seul chemin qui en avait besoin. Sans casque, le micro
+  // reentendait la voix de synthese et la prenait pour une interruption.
+  //
+  // Un filtre textuel rattrapait le plus gros, en ignorant ce qui ressemblait
+  // trop a ce qui venait d'etre dit. Mais il laissait passer une reformulation,
+  // et il ignorait une vraie reponse des qu'elle reprenait ses mots, ce qui
+  // arrive constamment dans une conversation.
+  //
+  // Ici on ouvre nous-memes le micro avec `echoCancellation`, et le navigateur
+  // soustrait ce qu'il joue. Il ne reste qu'a mesurer l'energie: on ne cherche
+  // pas a comprendre, seulement a savoir que quelqu'un a commence a parler. La
+  // transcription reste au chemin d'ecoute existant, qui prend le relais une
+  // fois la voix coupee.
+  var vmBargeCtx=null, vmBargeStream=null, vmBargeRaf=null, vmSpokenText='';
+
+  // Le seuil et la duree, regles pour distinguer une voix d'un residu d'echo.
+  //
+  // L'annulation d'echo laisse passer un fond faible et irregulier; une voix
+  // proche du micro est bien au-dessus. Exiger que ca DURE elimine les claquements,
+  // les chocs sur le bureau et les residus brefs.
+  var VM_SEUIL=0.055, VM_DUREE_MS=220;
+
+  async function vmStartBarge(){
+    if(vmBargeCtx) return;
+    try{
+      vmBargeStream=await navigator.mediaDevices.getUserMedia({audio:{
+        channelCount:1,
+        echoCancellation:true,   // LE point: le navigateur retire ce qu'il joue
+        noiseSuppression:true,
+        autoGainControl:false    // l'AGC remonte le residu d'echo entre deux phrases
+      }});
+    }catch(e){
+      LaRuche.Console.log('warn','Voix','micro indisponible pour l interruption: '+((e&&e.message)||e));
+      return;
+    }
+    if(!vmOpen || vmState!=='speaking'){ vmStopBarge(); return; }
+    var AC=window.AudioContext||window.webkitAudioContext;
+    vmBargeCtx=new AC();
+    var src=vmBargeCtx.createMediaStreamSource(vmBargeStream);
+    var an=vmBargeCtx.createAnalyser();
+    an.fftSize=1024; src.connect(an);
+    var buf=new Float32Array(an.fftSize);
+    var depuis=0;
+
+    (function boucle(){
+      if(!vmBargeCtx || !vmOpen || vmState!=='speaking'){ return; }
+      an.getFloatTimeDomainData(buf);
+      var somme=0;
+      for(var i=0;i<buf.length;i++) somme+=buf[i]*buf[i];
+      var rms=Math.sqrt(somme/buf.length);
+      if(rms>VM_SEUIL){
+        if(!depuis) depuis=performance.now();
+        else if(performance.now()-depuis>=VM_DUREE_MS){
+          LaRuche.Console.log('info','Voix','interruption detectee, la parole est coupee');
+          vmStopBarge();
+          stopAllTts();
+          vmListen();   // l echo a disparu avec la voix: l ecoute peut transcrire
+          return;
+        }
+      } else {
+        depuis=0;
+      }
+      vmBargeRaf=requestAnimationFrame(boucle);
+    })();
   }
-  function vmStartBarge(){
-    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR || !vmOpen) return;
-    try{ if(vmBarge) vmBarge.stop(); }catch(e){}
-    vmBarge=new SR();
-    vmBarge.lang=(navigator.language&&navigator.language.indexOf('en')===0)?'en-US':'fr-FR';
-    vmBarge.interimResults=false; vmBarge.continuous=true;
-    vmBarge.onresult=function(e){
-      if(vmState!=='speaking') return;
-      var said='';
-      for(var i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) said+=e.results[i][0].transcript; }
-      said=said.trim();
-      if(said.split(/\s+/).length<2) return;     // need a couple of words to barge in
-      if(vmBargeIsEcho(said)) return;            // filter her own voice
-      vmStopBarge(); stopAllTts();               // take over
-      var input=document.getElementById('userInput'); if(input) input.value=said;
-      vmSetState('thinking'); LaRuche.Chat.sendMessage();
-    };
-    vmBarge.onerror=function(){};
-    vmBarge.onend=function(){ vmBarge=null; if(vmOpen && vmState==='speaking') setTimeout(vmStartBarge,300); };
-    try{ vmBarge.start(); }catch(e){}
+
+  function vmStopBarge(){
+    if(vmBargeRaf){ cancelAnimationFrame(vmBargeRaf); vmBargeRaf=null; }
+    if(vmBargeCtx){ try{ vmBargeCtx.close(); }catch(e){} vmBargeCtx=null; }
+    // Le flux est relache a chaque fois: garder le micro ouvert allume l indicateur
+    // du systeme en permanence, ce qui est desagreable et pas honnete.
+    if(vmBargeStream){ vmBargeStream.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){} }); vmBargeStream=null; }
   }
-  function vmStopBarge(){ if(vmBarge){ try{ vmBarge.stop(); }catch(e){} vmBarge=null; } }
 
   function vmEsc(e){ if(e.key==='Escape') closeVoiceMode(); }
 
