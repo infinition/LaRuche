@@ -758,6 +758,12 @@ async fn main() -> Result<()> {
     }
     // L'interrupteur vivant que les outils consultent a chaque geste.
     laruche_essaim::config::definir_halo(essaim_config.halo_actif);
+    // Le budget de lecture suit la fenetre du modele, par la meme regle que le
+    // plafond des observations: un file_read plus genereux serait rabote en aval
+    // si les deux divergeaient, et personne ne comprendrait pourquoi.
+    laruche_essaim::config::definir_budget_lecture(laruche_essaim::config::plafond_observation(
+        (essaim_config.context_max_tokens as usize).max(8_000),
+    ));
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }

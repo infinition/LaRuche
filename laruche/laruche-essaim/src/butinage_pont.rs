@@ -2277,6 +2277,12 @@ pub async fn executer_avec_bilan(
     let reglages = but::Reglages {
         plafond_passes: config.max_iterations.max(1),
         context_max_tokens: (config.context_max_tokens as usize).max(8_000),
+        // Le plafond des observations suit la fenetre du modele au lieu d'etre
+        // fige: c'est ce qui evite de lire un fichier en cinq morceaux sur un
+        // modele qui pourrait l'avaler d'un coup.
+        max_chars_observation: but::plafond_observation(
+            (config.context_max_tokens as usize).max(8_000),
+        ),
         chemin_carnet: chemin_carnet.clone(),
         systeme,
         contexte_volatil,
@@ -2640,6 +2646,12 @@ pub async fn reprendre_carnet(
     let reglages = but::Reglages {
         plafond_passes: config.max_iterations.max(1),
         context_max_tokens: (config.context_max_tokens as usize).max(8_000),
+        // Le plafond des observations suit la fenetre du modele au lieu d'etre
+        // fige: c'est ce qui evite de lire un fichier en cinq morceaux sur un
+        // modele qui pourrait l'avaler d'un coup.
+        max_chars_observation: but::plafond_observation(
+            (config.context_max_tokens as usize).max(8_000),
+        ),
         chemin_carnet: Some(chemin.to_path_buf()),
         systeme,
         prompt_extraction,

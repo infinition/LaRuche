@@ -325,14 +325,17 @@ impl Abeille for FileRead {
         // lines and 52 KB, came back whole as ~62 KB in ONE observation, more than
         // half of the request body the provider then refused. `web_fetch` has
         // paginated for a while; reading a file had no reason to behave differently.
-        const BUDGET_CHARS: usize = 24_000;
+        // Suit la fenetre du modele, posee au demarrage du noeud. La constante
+        // valait 24 000 pour tout le monde: quatre a cinq allers-retours pour un
+        // fichier qu'un modele a grande fenetre lirait d'un trait.
+        let budget_chars = crate::config::budget_lecture();
 
         let end = (start + count).min(total);
         let mut out = String::new();
         let mut coupe_a: Option<usize> = None;
         for (i, line) in lines[start..end].iter().enumerate() {
             let numero = start + i + 1;
-            if out.chars().count() >= BUDGET_CHARS {
+            if out.chars().count() >= budget_chars {
                 coupe_a = Some(numero);
                 break;
             }

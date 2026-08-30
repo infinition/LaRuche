@@ -114,6 +114,29 @@ pub struct Reglages {
     pub rappel_initial: bool,
 }
 
+/// Le plafond d'une observation, deduit de la fenetre du modele.
+///
+/// C'etait un nombre ecrit en dur, le meme pour un petit modele local a huit
+/// mille jetons et pour un modele de code a deux cent cinquante mille. Trop
+/// genereux pour le premier, absurdement etroit pour le second: lire un fichier
+/// de mille lignes demandait cinq allers-retours sans aucune raison.
+///
+/// Un quart de la fenetre, converti en caracteres a quatre par jeton. Le quart
+/// n'est pas arbitraire: au-dela, une seule observation suffit a declencher une
+/// compaction, ce qui coute bien plus cher que les allers-retours qu'on
+/// cherchait a eviter.
+///
+/// Plancher et plafond parce qu'une fenetre mal declaree existe: un modele
+/// annonce a mille jetons ne doit pas rendre les lectures inutilisables, et un
+/// modele annonce a un million ne doit pas pouvoir avaler la conversation
+/// entiere en une observation.
+pub fn plafond_observation(context_max_tokens: usize) -> usize {
+    const CHARS_PAR_TOKEN: usize = 4;
+    const PLANCHER: usize = 24_000;
+    const PLAFOND: usize = 400_000;
+    (context_max_tokens / 4 * CHARS_PAR_TOKEN).clamp(PLANCHER, PLAFOND)
+}
+
 impl Default for Reglages {
     fn default() -> Self {
         Self {
@@ -156,5 +179,34 @@ impl Reglages {
     pub fn avec_profil(mut self, p: ProfilModele) -> Self {
         self.profil = p;
         self
+    }
+}
+
+#[cfg(test)]
+mod tests_plafond {
+    use super::plafond_observation;
+
+    #[test]
+    fn le_plafond_suit_la_fenetre_du_modele() {
+        // Le cas qui motive tout: une grande fenetre doit donner de grandes
+        // lectures. 128k jetons, un quart, quatre caracteres par jeton.
+        assert_eq!(plafond_observation(128_000), 128_000);
+        assert_eq!(plafond_observation(256_000), 256_000);
+
+        // Le plancher protege un modele mal declare: sans lui, une fenetre
+        // annoncee a mille jetons rendait les lectures inutilisables.
+        assert_eq!(plafond_observation(1_000), 24_000);
+        assert_eq!(plafond_observation(0), 24_000);
+
+        // Le plafond empeche une seule observation d'avaler la conversation, ce
+        // qui declencherait une compaction plus couteuse que les allers-retours
+        // qu'on voulait eviter.
+        assert_eq!(plafond_observation(2_000_000), 400_000);
+
+        // Et il ne descend jamais sous l'ancienne constante: personne ne doit
+        // se retrouver avec MOINS qu'avant ce changement.
+        for fenetre in [8_000, 32_000, 128_000, 1_000_000] {
+            assert!(plafond_observation(fenetre) >= 24_000, "fenetre {fenetre}");
+        }
     }
 }

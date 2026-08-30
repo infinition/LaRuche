@@ -338,3 +338,28 @@ pub fn halo_actif() -> bool {
 pub fn definir_halo(actif: bool) {
     HALO.store(actif, std::sync::atomic::Ordering::Relaxed);
 }
+
+/// Le plafond en caracteres d'une lecture de fichier.
+///
+/// `file_read` est un outil sans etat, atteint par un registre statique: il ne
+/// recoit ni la configuration ni les reglages du moteur. Son budget etait donc
+/// une constante, la meme quelle que soit la fenetre du modele. On le pose ici
+/// au demarrage, a partir de la meme regle que le plafond des observations,
+/// sinon un `file_read` plus genereux serait de toute facon rabote en aval et
+/// personne ne comprendrait pourquoi.
+static BUDGET_LECTURE: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(24_000);
+
+pub fn budget_lecture() -> usize {
+    BUDGET_LECTURE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// La regle vit dans `laruche-butinage`, ou elle sert deja au plafond des
+/// observations. On la re-expose ici parce que `laruche-node` ne connait pas
+/// cette caisse, et qu'avoir deux formules serait le meilleur moyen de les voir
+/// diverger.
+pub use laruche_butinage::plafond_observation;
+
+pub fn definir_budget_lecture(chars: usize) {
+    BUDGET_LECTURE.store(chars, std::sync::atomic::Ordering::Relaxed);
+}
