@@ -70,9 +70,12 @@ image, because an undocumented size limit explains the same error. The model get
 chance back after ten minutes rather than being written off for the session. Set
 `LARUCHE_VISION=0` to stop sending images entirely, or `=1` to force them.
 
-Images are resized before sending, to 1280 px and about 150 KB. Nothing is lost: vision
-models tile images at a few hundred pixels, and most providers bill a flat token count
-per image regardless of resolution.
+Images are resized before sending, to 1280 px on the long side and about 150 KB. Very
+little is lost by this: vision models tile an image into patches of a few hundred pixels
+and never see the full resolution, and some providers bill a flat token count per image
+whatever its size. The number 150 KB is not derived from any published limit, because
+published limits turned out not to predict what endpoints accept. It sits below the
+largest image observed to go through.
 
 ## Practical notes
 
