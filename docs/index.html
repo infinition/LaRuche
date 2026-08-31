@@ -9,7 +9,7 @@
 <meta property="og:title" content="LaRuche - your personal AI hive">
 <meta property="og:description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230f0f10'/%3E%3Cg fill='none' stroke='%23f59e0b' stroke-width='14' stroke-linejoin='round'%3E%3Cpolygon points='256,150 312,182 312,246 256,278 200,246 200,182'/%3E%3Cpolygon points='186,270 242,302 242,366 186,398 130,366 130,302'/%3E%3Cpolygon points='326,270 382,302 382,366 326,398 270,366 270,302'/%3E%3C/g%3E%3Cg fill='%23f59e0b'%3E%3Ccircle cx='256' cy='214' r='13'/%3E%3Ccircle cx='186' cy='334' r='13'/%3E%3Ccircle cx='326' cy='334' r='13'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="laruche.png">
 <style>
 /* ===================================================================
    LaRuche - showcase
@@ -84,7 +84,7 @@ p:last-child { margin-bottom: 0; }
 }
 .topbar .shell { display: flex; align-items: center; gap: 16px; height: 56px; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 650; }
-.brand svg { display: block; border-radius: 7px; }
+.brand svg, .brand img { display: block; border-radius: 7px; object-fit: contain; }
 .tabs { display: flex; align-items: center; gap: 4px; margin-left: 12px; flex: 1; }
 .tabs a {
   padding: 6px 12px; border-radius: var(--radius); text-decoration: none;
@@ -299,17 +299,7 @@ footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
 <header class="topbar">
   <div class="shell">
     <a class="brand" href="#top">
-      <svg width="26" height="26" viewBox="0 0 512 512" aria-hidden="true">
-        <rect width="512" height="512" rx="96" fill="#0f0f10"/>
-        <g fill="none" stroke="#f59e0b" stroke-width="14" stroke-linejoin="round">
-          <polygon points="256,150 312,182 312,246 256,278 200,246 200,182"/>
-          <polygon points="186,270 242,302 242,366 186,398 130,366 130,302"/>
-          <polygon points="326,270 382,302 382,366 326,398 270,366 270,302"/>
-        </g>
-        <g fill="#f59e0b">
-          <circle cx="256" cy="214" r="13"/><circle cx="186" cy="334" r="13"/><circle cx="326" cy="334" r="13"/>
-        </g>
-      </svg>
+      <img src="laruche.png" alt="LaRuche" width="28" height="28">
       LaRuche
     </a>
     <nav class="tabs">

@@ -6,7 +6,7 @@
 <title>LaRuche Wiki</title>
 <meta name="description" content="Documentation for LaRuche: installation, the butinage engine, cognitive memory, watchers, voice, MCP and the full configuration reference.">
 <meta name="color-scheme" content="dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230f0f10'/%3E%3Cg fill='none' stroke='%23f59e0b' stroke-width='14' stroke-linejoin='round'%3E%3Cpolygon points='256,150 312,182 312,246 256,278 200,246 200,182'/%3E%3Cpolygon points='186,270 242,302 242,366 186,398 130,366 130,302'/%3E%3Cpolygon points='326,270 382,302 382,366 326,398 270,366 270,302'/%3E%3C/g%3E%3Cg fill='%23f59e0b'%3E%3Ccircle cx='256' cy='214' r='13'/%3E%3Ccircle cx='186' cy='334' r='13'/%3E%3Ccircle cx='326' cy='334' r='13'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="laruche.png">
 <style>
 /* ===================================================================
    LaRuche Wiki. Same tokens as the dashboard (app.css) and the landing
@@ -44,7 +44,7 @@ a:hover { text-decoration:underline; }
 .topbar .inner { display:flex; align-items:center; gap:14px; height:56px; padding-inline:clamp(14px,3vw,24px); }
 .brand { display:flex; align-items:center; gap:10px; font-weight:650; color:var(--text); }
 .brand:hover { text-decoration:none; }
-.brand svg { display:block; border-radius:7px; }
+.brand svg, .brand img { display:block; border-radius:7px; object-fit:contain; }
 .brand .tag { font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
   color:var(--amber); border:1px solid var(--border); border-radius:5px; padding:2px 7px; }
 .spacer { flex:1; }
@@ -202,15 +202,7 @@ mark.search-match.current { background:rgba(34,197,94,.45); box-shadow:0 0 0 2px
   <div class="inner">
     <button class="burger" id="burger" type="button" aria-label="Open the navigation">Menu</button>
     <a class="brand" href="index.html">
-      <svg width="26" height="26" viewBox="0 0 512 512" aria-hidden="true">
-        <rect width="512" height="512" rx="96" fill="#0f0f10"/>
-        <g fill="none" stroke="#f59e0b" stroke-width="14" stroke-linejoin="round">
-          <polygon points="256,150 312,182 312,246 256,278 200,246 200,182"/>
-          <polygon points="186,270 242,302 242,366 186,398 130,366 130,302"/>
-          <polygon points="326,270 382,302 382,366 326,398 270,366 270,302"/>
-        </g>
-        <g fill="#f59e0b"><circle cx="256" cy="214" r="13"/><circle cx="186" cy="334" r="13"/><circle cx="326" cy="334" r="13"/></g>
-      </svg>
+      <img src="laruche.png" alt="LaRuche" width="28" height="28">
       LaRuche <span class="tag">Wiki</span>
     </a>
     <span class="spacer"></span>

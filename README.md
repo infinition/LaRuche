@@ -1,6 +1,8 @@
 <div align="center">
 
-#  LaRuche
+<img src=".github/laruche.png" alt="LaRuche" width="128" />
+
+# LaRuche
 
 **Your personal AI hive. One Rust binary, fully local, genuinely yours.**
 
