@@ -596,6 +596,37 @@ p:last-child { margin-bottom: 0; }
   .win-panel .k .d, .fd-hd .live i { animation: none; }
 }
 
+/* Une abeille dans le titre. Elle derive lentement autour de « hive », en plus
+   de son propre battement d'ailes: deux mouvements superposes, sinon elle a
+   l'air punaisee au mur. `pointer-events:none` pour qu'elle n'attrape jamais un
+   clic destine au titre. */
+.hero-titre { position: relative; display: inline-block; }
+.abeille-titre {
+  position: absolute; left: 100%; top: 50%;
+  width: 51px; height: 33px; margin: -17px 0 0 18px; pointer-events: none;
+  animation: butine 9s ease-in-out infinite;
+}
+/* L'abeille du produit se centre sur son propre point d'ancrage et flotte en
+   animant `top`. Les deux se battaient avec le placement voulu ici, et elle
+   finissait posee sur le mot du dessus. On la remet a plat dans son cadre: les
+   ailes battent toujours, la derive vient de `butine`. */
+.abeille-titre .bee {
+  position: absolute; left: 0; top: 0; transform: none; animation: none;
+}
+@keyframes butine {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20%      { transform: translate(-14px, -13px) rotate(-7deg); }
+  45%      { transform: translate(9px, -20px) rotate(5deg); }
+  70%      { transform: translate(16px, -4px) rotate(-3deg); }
+}
+/* Sous 720 px le titre passe sur deux lignes larges: l'abeille se poserait sur
+   le texte. Elle sort du cadre plutot que de le salir. */
+@media (max-width: 720px) { .abeille-titre { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .abeille-titre { animation: none; }
+  .abeille-titre .bee, .abeille-titre .bee * { animation: none !important; }
+}
+
 /* ── Carrousel des surfaces (accueil) ────────────────────────────────────
    Une seule diapositive visible, les autres retirees du flux pour ne pas
    dicter la hauteur: sinon le bloc prend la taille de la plus grande et laisse
@@ -745,7 +776,7 @@ footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
       <div class="hero-grid">
         <div>
           <span class="pill"><span class="dot"></span> Rust · MPL-2.0 · <b>runs on your machine</b></span>
-          <h1>Your personal<br><span>AI hive</span></h1>
+          <h1>Your personal<br><span class="hero-titre"><span>AI hive</span><span class="abeille-titre" aria-hidden="true"><span class="bee"><span class="bee--wings"></span><span class="bee--body"><span></span><span></span></span><span class="bee--head"><span class="bee--head-eyes"></span><span class="bee--head-antennas"></span></span></span></span></span></h1>
           <p class="lede">A local-first agent that can reason, remember, automate work and act on the machine in front of it.</p>
           <p class="sub">One install. Your own models. A SQLite memory you can inspect, diff and roll back. No subscription and no cloud requirement.</p>
 
