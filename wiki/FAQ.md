@@ -2,9 +2,9 @@
 
 ## Does it need the cloud?
 
-No. With llama.cpp or Ollama plus the optional local embedding model, everything runs
-on your machine: the engine, the memory, voice, watchers, Telegram excepted (Telegram
-is, by nature, a cloud service). Cloud model providers are supported but never required.
+No. With llama.cpp or Ollama, a local embedding model and local speech backends, the
+engine, memory, automation and voice run on your machine. Telegram, cloud models,
+hosted search APIs and hosted speech backends are optional network services.
 
 ## What hardware do I need?
 
@@ -18,7 +18,8 @@ models make longer agentic missions noticeably better. See
 Different bets. Those projects are strong at what they do; LaRuche invests in
 subsystems that matter when an agent runs 24/7 on your own hardware:
 
-- **One Rust binary**, no Node or Python runtime for the core, low idle footprint.
+- **A Rust node with an embedded interface**, no Node.js or Python runtime for the core,
+  plus desktop and terminal entry points.
 - **A cognitive memory** with decay, supersede, hebbian ranking, and git time travel,
   not a chat log with embeddings.
 - **A built-in supervisor** (LaReine) that judges answers against a charter, can force
@@ -32,7 +33,8 @@ subsystems that matter when an agent runs 24/7 on your own hardware:
 
 Anything with decent instruction following. The engine's schema validation and tolerant
 parsing were built precisely so mid-size local models can do real tool work. Native
-Anthropic and OpenAI-compatible tool calling are both supported.
+Anthropic, Codex and OpenAI-compatible tool calling are supported. Local compatible
+servers include llama.cpp, LM Studio and vLLM.
 
 ## Can I read what the agent knows?
 

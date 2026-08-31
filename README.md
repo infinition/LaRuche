@@ -4,12 +4,11 @@
 
 # LaRuche
 
-**Your personal AI hive. One Rust binary, fully local, genuinely yours.**
+**Your personal AI hive. Local first, auditable, built in Rust.**
 
-An agentic AI node that lives on your machine: a real agent engine, a cognitive memory
-with git time travel, a built-in supervisor that reviews the agent's work, event watchers
-with compiled rules, voice, Telegram, and a mesh protocol to federate several hives on
-your LAN. No cloud required, no runtime to install, no subscription.
+LaRuche is a desktop and server application for running an AI agent on your own
+machine. It combines a resilient agent engine, cognitive memory, supervised automation,
+native computer and browser control, voice, messaging channels and a local mesh.
 
 [![License](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)
@@ -19,7 +18,7 @@ your LAN. No cloud required, no runtime to install, no subscription.
 [![CI](https://github.com/infinition/LaRuche/actions/workflows/ci.yml/badge.svg)](https://github.com/infinition/LaRuche/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/infinition/LaRuche?style=flat)](https://github.com/infinition/LaRuche/releases)
 
-[Quick start](#quick-start) · [Features](#what-makes-laruche-different) · [Architecture](#architecture) · [Wiki](../../wiki) · [Roadmap](ROADMAP.md)
+[Quick start](#quick-start) · [Capabilities](#what-laruche-does) · [Architecture](#architecture) · [Wiki](wiki/Home.md) · [Roadmap](ROADMAP.md)
 
 </div>
 
@@ -27,205 +26,251 @@ your LAN. No cloud required, no runtime to install, no subscription.
 
 ## What is LaRuche
 
-LaRuche ("the hive") is a self-hosted AI agent node written in Rust. You run one binary,
-open a web page, and you have a full agentic assistant wired to your machine: it browses
-the web, runs code and shell commands behind an approval gate, remembers what matters
-across sessions, schedules its own work, watches your files and services, talks to you
-on Telegram or out loud, and improves its own skills over time, with you holding the keys
-at every step.
+LaRuche is a self-hosted AI agent written primarily in Rust. The desktop application
+opens the web interface in its own window and starts the local node when needed. The
+same node can run alone on a server, and the lightweight desktop client can discover
+and use another hive on the local network.
 
-It is built local-first for real: works with llama.cpp and Ollama out of the box, ships
-its own web assets (no CDN, works offline), binds to loopback by default, and keeps every
-byte of memory in a SQLite file you can read, export, and diff.
+The core works with llama.cpp, Ollama, LM Studio, vLLM, OpenAI-compatible endpoints,
+Anthropic and Codex authentication. Local models are the default use case, but cloud
+providers remain available when wanted.
 
-## What makes LaRuche different
+The interface, memory, sessions, skills and configuration stay on your machine. The web
+assets are bundled, the node binds to loopback by default, and the default memory is a
+SQLite database that can be inspected and backed up with ordinary tools.
 
-Plenty of projects give you a chat loop with tools. LaRuche's bet is that an agent you
-run 24/7 needs an engine, a memory, a supervisor, and reflexes. Each one is a first-class
-subsystem here.
+## What LaRuche does
 
-### 🐝 The butinage engine
+### Agent engine
 
-A hardened ReAct loop designed for imperfect local models: native tool calling per
-provider with tolerant text fallbacks, client-side JSON Schema validation of every tool
-call (bad arguments come back as corrective messages the model can act on), an anti-loop
-sentinel, per-tool timeouts, token budgets, cooperative cancellation, live steering
-mid-run, LLM compaction when the context fills up, and parallel sub-agents (the "scouts")
-for deep research fan-out. An evals harness replays fixed missions against the real
-engine so regressions get caught, not guessed at.
+The butinage engine is a hardened ReAct loop built for the uneven tool-calling behavior
+of local models. It supports native provider calls with tolerant fallbacks, JSON Schema
+validation, token and tool-output budgets, per-tool timeouts, cooperative cancellation,
+live steering, anti-loop detection, context compaction and parallel scout agents.
 
-### 🧠 Cognitive memory with git time travel
+An eval harness runs fixed missions against the assembled engine, not a simplified
+mock, so changes can be measured against saved baselines.
 
-Not a vector-store bolt-on: a cognitive map (nodes and facts) over SQLite with hybrid
-recall (semantic embeddings fused with full-text search), importance decay, and
-write-time supersede so an updated fact replaces the stale one instead of piling up next
-to it. Contradictions in the ambiguity band are settled by a small LLM arbiter, never
-destructively. Hebbian ranking reinforces only the memories that were actually used in
-an answer, so recalled noise stops climbing by mere co-occurrence. A periodic dream pass
-surfaces duplicates as cleanup proposals you approve or reject.
+### Cognitive memory
 
-And the whole map is exported as plain markdown into a dedicated git repository on a
-schedule: `git log` is your agent's learning timeline, `git diff` shows exactly what it
-learned between two moments, and a checkout plus re-import is a targeted rollback.
+Memory is a graph of nodes and facts over SQLite, FTS5 and optional embeddings. Recall
+combines semantic and full-text results. Importance decays, updated facts supersede stale
+ones, and only memories used in an answer receive hebbian reinforcement.
 
-### 👑 LaReine, the built-in supervisor
+The map can be exported to markdown in its own git repository. `git log` becomes a
+learning timeline, `git diff` shows what changed, and a previous snapshot can be
+re-imported without replacing the whole database.
 
-A judge that reviews the agent's answers against an editable charter before you see
-them, with real leverage: it can send the agent back to redo the work (a fresh agentic
-run, not a rephrase), it keeps the best-scoring draft so quality never regresses across
-retries, and it escalates to you when it is not confident. Its methodology score is
-grounded in facts: it sees which tools were actually called, not what the answer claims.
+### Computer, browser and images
 
-Every self-modification the agent proposes (new skills, memory edits, deletions) can be
-routed through a durable proposal queue, pull-request style: the agent proposes, you
-dispose. Every verdict lands in a scorecard journal with a dashboard, so you can watch
-answer quality over time.
+The native `computer` tool can inspect the Windows accessibility tree, capture any
+monitor, move or resize windows, and operate the mouse, keyboard and clipboard. A
+visible halo shows automated actions, an elevation check explains blocked input, and
+`Ctrl+Alt+Shift+H` is the emergency stop.
 
-### 👁️ Watchers with compiled rules
+The dedicated [Chrome extension](wiki/guides/Chrome-Extension.md) connects LaRuche to
+the browser you already use, including its open tabs and signed-in sessions. The browser
+tool handles frames, shadow DOM, overlays, uploads, downloads, dialogs, touch emulation
+and responsive viewport checks. Consent banners are reported, never accepted
+automatically.
 
-Event reflexes that cost nothing at runtime. Describe what you want in plain language:
+Images can be pasted, dropped or attached in chat. Tool screenshots and webcam captures
+reach vision-capable models, and oversized PNG or JPEG inputs are resized before they
+hit provider limits.
 
-> "If it is Tuesday or Thursday and my local site has been down for 10 minutes, ping me
-> on Telegram every 20 minutes."
+### Supervision and automation
 
-The agent compiles it once into a deterministic predicate tree: weekdays, time windows,
-date ranges, file appeared/deleted/modified, service down for N minutes, back online,
-content changed, log pattern, file size, HTTP status, combined with and/or/not. The only
-rule that ever calls an LLM is an explicit `llm_check` leaf, and only after the
-deterministic prefix has already passed. Watcher cards in the UI render the whole loop
-as an editable pipeline diagram: the schema is the form.
+LaReine is the supervision layer. In Autonomous mode it can approve an answer or send
+the worker through a fresh agent run. Hybrid mode escalates low-confidence judgments;
+Human in the loop flags every reviewed answer without rewriting it automatically. A
+third level watches stalled plans while they run, and selected memory or skill changes
+can go through a durable approval queue. The [full LaReine guide](wiki/concepts/LaReine.md)
+covers its modes, evidence, scorecards, safeguards and current Tier 2 boundaries.
 
-### 🛠️ Skills, tools, and self-improvement
+Its reviews can also become an opt-in training dataset. LaRuche records the request,
+rejected draft, chosen answer, critique and scores, then exports JSONL for
+[SFT, DPO preference training or judge distillation](wiki/guides/Training-Datasets.md).
+Secret values are masked before capture; full exchange text is otherwise preserved for
+explicit curation.
 
-Around 90 built-in tools: web fetch with pagination and PDF extraction, parallel deep
-search, file read/write/search, shell and Python execution behind approval gates,
-scheduling (crons, long-running missions, a kanban), memory CRUD, and a full MCP client
-and server, so LaRuche both consumes and exposes Model Context Protocol tools.
+Automation includes editable crons, long-running missions, a kanban board and compiled
+watchers. Watchers evaluate deterministic rules for files, commands, services, HTTP
+responses and correlated events. A model is called only when the rule explicitly asks
+for one.
 
-A background curator reviews finished conversations and proposes new verified skills.
-Politely: single-flight, cooldown, and it always yields the local model to your live
-chats. Skills are plain markdown files you can read, edit, and version.
+The [table ronde](wiki/concepts/Table-Ronde.md) runs a bounded multi-agent deliberation.
+Answer, Code, Research and Experiment missions get different deliverables and strict
+tool whitelists. Specialists first work alone, then review each other, face a dedicated
+contrarian and finish with an arbiter. The interface keeps disagreements visible,
+streams every intervention and stores a reopenable transcript without treating the
+debate as learned memory.
 
-### 🔐 A security model that assumes the model will mess up
+### Tools, skills and integrations
 
-Loopback bind by default (LAN exposure is an explicit opt-in), strict CORS, an auth
-guard on every mutating route, sanitized chat rendering (DOMPurify, vendored), and
-sensitive tools gated behind human approval with a popup.
+The default node registers 89 built-in tools for files, code, shell, git,
+web research, memory, scheduling, machine control, media, jobs and delegation. Dynamic
+selection sends only the relevant tool schemas to the model.
 
-The secrets vault gives the model names, never values: you write `@@MY_KEY` in chat,
-substitution happens at execution time, and if a tool output ever echoes a secret back,
-the exact value is masked to `[SECRET:MY_KEY]` before it can reach the context or the
-session file.
+Skills are plain markdown. LaRuche ships a curated set, loads user skills from its data
+directory, and can propose new ones through the background curator. Plugins and MCP
+servers extend the registry at runtime. LaRuche is both an MCP client and an MCP server.
 
-### 📡 The Miel mesh
+### Interfaces and channels
 
-Several hives on one network discover each other over mDNS, exchange messages, announce
-capabilities (llm, vision, audio, rag), and can federate skills and memory facts with
-provenance tags. Opt-in and signed. Your desktop hive and your homelab hive become one
-swarm.
+The same responsive SPA is available in the desktop window and at
+`http://localhost:8419`. The project also includes a terminal TUI, Telegram integration,
+Discord and Slack webhooks, a Chrome extension, a VS Code extension and an installable
+PWA.
 
-### 🖥️ Interfaces everywhere
+Voice mode supports streamed speech, wake word and interruption. The optional Python
+services provide Whisper STT and several TTS backends, including Kokoro, Voicebox,
+Voxtral, Edge TTS and any server exposing the OpenAI speech format.
 
-A fast web SPA (installable PWA, offline shell, bilingual FR/EN), a terminal TUI with
-five views and a slash-command palette, native Telegram (Discord and Slack wired), and
-a local voice mode: streamed TTS that starts speaking at the first sentence, wake word,
-barge-in interruption, and a full-screen call UI. Whisper STT and Kokoro TTS run locally
-through small Python sidecars, with a cloned-voice backend option.
+### Security and local mesh
+
+The node listens on loopback unless LAN access is explicitly enabled. Mutating routes
+require authentication, CORS is restricted, rendered chat is sanitized, and sensitive
+tools pass through approval rules.
+
+Secrets are referenced by name. Values are substituted only at execution time and
+masked if a tool echoes them back. The optional Miel mesh discovers hives over mDNS and
+can exchange capabilities, messages, skills and memory facts with provenance.
 
 ## Quick start
 
-### Prerequisites
+### Install the desktop application
 
-- [Rust](https://rustup.rs/) (stable) to build from source
-- A local model server: [llama.cpp](https://github.com/ggerganov/llama.cpp) in server
-  mode or [Ollama](https://ollama.com), or any OpenAI-compatible or Anthropic API
-  endpoint (cloud keys work too, they are just not required)
-- Optional but recommended: `ollama pull nomic-embed-text` for semantic memory recall
+Download the latest release from the [releases page](https://github.com/infinition/LaRuche/releases/latest).
+Windows and Linux releases include full desktop installers with the node bundled. A
+lightweight client installer is also available for machines that should connect to an
+existing hive instead of hosting one.
 
-### Run
+Portable archives contain three executables:
+
+| Executable | Role |
+|---|---|
+| `laruche` | Desktop application, the normal entry point |
+| `laruche-node` | Server, web interface and background services |
+| `laruche-cli` | Terminal interface |
+
+On macOS, use the portable archive. There is no signed DMG at this time.
+
+### Build from source
+
+Prerequisites:
+
+- [Rust](https://rustup.rs/) stable
+- A local model server such as llama.cpp, Ollama or LM Studio, or a supported API
+  provider
+- Optional: `ollama pull nomic-embed-text` for semantic memory recall
 
 ```bash
 git clone https://github.com/infinition/LaRuche
 cd LaRuche/laruche
+cargo build --release -p laruche-node -p laruche-bureau
+cargo run --release -p laruche-bureau
+```
+
+On Windows, `lancer_bureau.bat` performs the build and opens the desktop application.
+`lancer_bureau_client.bat` starts the network client, and `decouvrir_ruches.bat` reports
+which hives are visible over mDNS.
+
+For a server-only installation:
+
+```bash
+cd LaRuche/laruche
 cargo run --release -p laruche-node
 ```
 
-Then open **http://localhost:8419**.
+Then open `http://localhost:8419`. Docker users can run `docker compose up` inside
+`laruche/`.
 
-On Windows, `lancer_butinage.bat` at the repo root builds, starts the node, and opens
-the browser once the server answers. Docker users: `docker compose up` inside `laruche/`.
-
-First boot walks you through an onboarding checklist (model, embeddings, voice), each
-step probed for real, no fake green checkmarks. Everything else is configured live in
-Settings with no restart: providers and per-channel models, context sizes, the curator,
-LaReine, secrets, MCP servers, channels.
-
-### Talk to it
-
-Ask it things. Then ask it to do things:
-
-> "Watch `deploys/release.log` and ping me on Telegram when a line contains ERROR, but
-> not at night."
-
-> "Every morning at 9, check these three pages and tell me what changed."
-
-> "Start a mission: research topic X in depth, iterate daily, keep your notes in memory."
-
-It creates the watcher, the cron, or the mission itself, through its own tools, with
-your approval.
+First boot checks the model, embeddings and optional voice services. Providers,
+per-channel models, context sizes, LaReine, the curator, secrets, MCP servers, channels
+and tool permissions can then be changed live in Settings.
 
 ## Configuration
 
-Everything lives in Settings at runtime. The launcher-level knobs:
+The main launch variables are:
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `LARUCHE_PORT` | `8419` | Web UI and API port |
-| `LARUCHE_MEMOIRE_BACKEND` | `sqlite` | Memory backend (`sqlite`, `native`, `sidecar`) |
-| `LARUCHE_BIND_LAN` | off | Expose on the LAN (loopback only by default) |
-| `LARUCHE_EMBED_URL` / `LARUCHE_EMBED_MODEL` | Ollama / `nomic-embed-text` | Embeddings for semantic recall |
-| `LARUCHE_TAVILY_KEY` / `LARUCHE_BRAVE_KEY` / `LARUCHE_SEARXNG_URL` | none | Web search providers (free scrapers otherwise) |
-| `LARUCHE_OKF_GIT_SECS` | `1800` | Memory time-travel snapshot interval, `0` disables |
-| `LARUCHE_HTTPS` | off | Self-signed TLS (needed for the microphone from other devices) |
+| `LARUCHE_DATA_DIR` | OS user data directory | Hive home for memory, sessions, skills and configuration |
+| `LARUCHE_MEMOIRE_BACKEND` | `sqlite` | Memory backend: `sqlite`, `native`, or `sidecar` |
+| `LARUCHE_BIND_LAN` | off | Accept connections from other machines |
+| `LARUCHE_URL` | local node | Desktop application target URL |
+| `LARUCHE_EMBED_URL` | local Ollama | Embedding endpoint |
+| `LARUCHE_EMBED_MODEL` | `nomic-embed-text` | Embedding model |
+| `LARUCHE_TAVILY_KEY` | none | Tavily search key |
+| `LARUCHE_BRAVE_KEY` | none | Brave Search key |
+| `LARUCHE_SEARXNG_URL` | none | SearXNG instance |
+| `LARUCHE_OKF_GIT_SECS` | `1800` | Memory snapshot interval, `0` disables it |
+| `LARUCHE_HTTPS` | off | Serve HTTPS, required for microphones on remote devices |
 
-The full reference lives in the [wiki](../../wiki).
+The full reference is in the [wiki](wiki/reference/Configuration.md).
+
+## Data on disk
+
+Installed builds use one shared hive home:
+
+| Platform | Default location |
+|---|---|
+| Windows | `%APPDATA%\LaRuche` |
+| macOS | `~/Library/Application Support/LaRuche` |
+| Linux | `~/.local/share/laruche` or `$XDG_DATA_HOME/laruche` |
+
+`LARUCHE_DATA_DIR` overrides this location. When the node is launched from an existing
+hive directory, including a source checkout with existing state, it keeps using that
+directory for compatibility.
+
+The hive home contains `memoire.db`, sessions, skills, plugins, secrets, configuration,
+journals and the optional `memoire-okf/` git history.
 
 ## Architecture
 
-A Rust workspace, one process, no external runtime:
+The Cargo workspace currently contains 17 Rust packages. The main pieces are:
 
-| Crate | Role |
+| Package | Role |
 |---|---|
-| `laruche-node` | axum server: API, web UI, channel bots, MCP server, background jobs |
-| `laruche-essaim` | Agent layer: tools ("abeilles"), providers, prompts, curator, LaReine |
-| `laruche-butinage` | The pure, tested ReAct core: engine loop, compass, gauge, sentinel |
-| `laruche-memoire` | Cognitive map: SQLite + FTS5 + embeddings, hebbian ranking, OKF export |
-| `laruche-watchers` | Event watchers and the compiled rules DSL |
-| `miel-protocol` | Mesh: mDNS discovery, manifests, federation |
-| `laruche-dashboard` | Web SPA (vanilla JS, compiled into the binary) |
-| `laruche-evals` | Evals harness: fixed missions replayed against the real engine |
-| `laruche-cli`, `laruche-skills`, `laruche-kanban`, `laruche-permissions`, `laruche-voix` | TUI, skill store, kanban, permission engine, voice |
+| `laruche-bureau` | Tauri desktop application and LAN client discovery |
+| `laruche-node` | axum server, web UI, channels, MCP server and background jobs |
+| `laruche-client` | Shared client library |
+| `laruche-cli` | Terminal TUI |
+| `laruche-dashboard` | Embedded vanilla JavaScript SPA |
+| `laruche-essaim` | Providers, tools, prompts, sessions, curator and LaReine |
+| `laruche-butinage` | ReAct loop, planning, budgets, anti-loop logic and compaction handoff |
+| `laruche-memoire` | SQLite memory, FTS5, embeddings, ranking and OKF import/export |
+| `laruche-watchers` | Watcher store and compiled rule DSL |
+| `miel-protocol` | mDNS discovery, node manifests and mesh messages |
+| `laruche-skills` | Skill parsing, validation and storage |
+| `laruche-kanban` | Task board used by missions and automation |
+| `laruche-events` | Shared event types |
+| `laruche-permissions` | Tool approval policy |
+| `laruche-compaction` | Context compaction primitives |
+| `laruche-evals` | End-to-end evaluation runner |
+| `laruche-icones` | Release icon generator, excluded from default builds |
 
-### The hive speaks French
-
-The brand vocabulary is French and stays that way, it is the identity: **butinage** is
-the agentic loop (bees foraging), the **essaim** is the swarm, an **abeille** is a tool,
-the **éclaireuses** are the scout sub-agents, the **escale** is compaction, the
-**curateur** grows the skill library, **LaReine** supervises, and **Miel** is what the
-mesh trades. The code and the docs are English.
+The optional `laruche-voix` package contains the Python STT and TTS services. Browser
+and editor integrations live in `extension-chrome/` and `laruche/laruche-vscode/`.
 
 ## Project status
 
-Beta, moving fast, used daily by its author. 340+ tests across the workspace run green
-on every change. The [ROADMAP](ROADMAP.md) is the single source of truth for what is
-done and what is next.
+LaRuche is beta software, used daily by its author and changing quickly. Cargo currently
+lists 741 workspace tests, with tests and lint checks run in CI. The
+[roadmap](ROADMAP.md) tracks delivered work and remaining plans.
 
 ## Contributing
 
-Issues and PRs are welcome. Read the [wiki](../../wiki) for architecture notes, run
-`cargo test --workspace` before submitting, and keep the brand vocabulary French and
-the code English. Security reports: please open a private advisory rather than a public
-issue.
+Issues and pull requests are welcome. Start with the [architecture guide](wiki/concepts/Architecture.md),
+run `cargo test --workspace` before submitting, and keep the brand vocabulary French
+while code and documentation remain in English.
+
+For security reports, open a private advisory instead of a public issue.
+
+## Support
+
+If LaRuche is useful to you, you can [support its development](https://www.buymeacoffee.com/infinition).
 
 ## License
 

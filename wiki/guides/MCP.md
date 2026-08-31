@@ -6,7 +6,7 @@ the hive.
 
 ## LaRuche as an MCP client
 
-Add servers in **Settings > MCP**. Their tools join the abeille registry and become
+Add servers in **Settings > MCP**. Their tools join the tool registry and become
 available to the agent alongside the built-ins, subject to the same approval gates and
 the same secrets masking on outputs.
 

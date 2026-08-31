@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LaRuche - your personal AI hive</title>
-<meta name="description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
+<meta name="description" content="A local-first AI agent with a desktop app, cognitive memory, auditable automation and native computer control.">
 <meta name="color-scheme" content="dark">
 <meta property="og:title" content="LaRuche - your personal AI hive">
-<meta property="og:description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
+<meta property="og:description" content="A local-first AI agent with a desktop app, cognitive memory, auditable automation and native computer control.">
 <meta property="og:type" content="website">
 <link rel="icon" type="image/png" href="laruche.png">
 <style>
@@ -305,6 +305,7 @@ footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
     <nav class="tabs">
       <a href="#engine">Engine</a>
       <a href="#memory">Memory</a>
+      <a href="#control">Control</a>
       <a href="#watchers">Watchers</a>
       <a href="#glossary">Glossary</a>
       <a href="wiki.html">Wiki</a>
@@ -323,13 +324,13 @@ footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
         <div>
           <span class="pill"><span class="dot"></span> Rust · MPL-2.0 · <b>runs on your machine</b></span>
           <h1>Your personal<br><span>AI hive</span></h1>
-          <p class="lede">An agentic node that lives on your machine, remembers what matters, and keeps working while you sleep.</p>
-          <p class="sub">One binary. Your own models. A SQLite file you can read, diff and roll back. No cloud, no runtime to install, no subscription.</p>
+          <p class="lede">A local-first agent that can reason, remember, automate work and act on the machine in front of it.</p>
+          <p class="sub">One install. Your own models. A SQLite memory you can inspect, diff and roll back. No subscription and no cloud requirement.</p>
 
           <div class="cta">
             <a class="btn btn--primary" id="dl" href="https://github.com/infinition/LaRuche/releases/latest">
               <svg width="14" height="15" viewBox="0 0 14 15" aria-hidden="true"><path d="M7 1v9m0 0 3.5-3.5M7 10 3.5 6.5M1 13h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span id="dl-label">Download</span>
+              <span id="dl-label">Get LaRuche</span>
             </a>
             <a class="btn" href="https://github.com/infinition/LaRuche/releases/latest">All platforms</a>
             <a class="btn" href="https://github.com/infinition/LaRuche">Source</a>
@@ -339,9 +340,10 @@ footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
             <div class="cmd-bar"><span>Or build from source</span><button class="cmd-copy" id="copy" type="button">Copy</button></div>
 <pre id="cmd">git clone https://github.com/infinition/LaRuche
 cd LaRuche/laruche
-cargo run --release -p laruche-node   <span class="c"># then open localhost:8419</span></pre>
+cargo build --release -p laruche-node -p laruche-bureau
+cargo run --release -p laruche-bureau</pre>
           </div>
-          <p class="hint">Works with llama.cpp and Ollama out of the box. Cloud keys work too, they are just not required.</p>
+          <p class="hint">Desktop installers are available for Windows and Linux. The node and terminal remain available separately on every platform.</p>
         </div>
 
         <!-- The product's own chat surface. -->
@@ -420,8 +422,8 @@ cargo run --release -p laruche-node   <span class="c"># then open localhost:8419
         <div class="card">
           <div class="ic"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 6 5 12h8l2.5-6-3.2 2L9 4 5.7 8z" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 14.5h8" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/></svg></div>
           <div class="fr">LaReine</div>
-          <h3>A supervisor that can send the work back</h3>
-          <p>A judge reviews answers against an editable charter before you see them, and it has real leverage: it can order a fresh agentic run, it keeps the best-scoring draft so quality never regresses across retries, and it escalates when it is not confident. Its methodology score is grounded in which tools were actually called, not in what the answer claims.</p>
+          <h3>Supervision from review to live intervention</h3>
+          <p>Autonomous, Hybrid and Human in the loop modes control how a judge approves, reworks or escalates an answer. LaReine checks the real tool trace, keeps the best draft, gates selected memory and skill changes, and can intervene when a planned run stalls. <a href="wiki.html#/LaReine">Modes and supervision levels</a>. Its opt-in dataset exports SFT, DPO or judge-distillation JSONL. <a href="wiki.html#/Training-Datasets">Dataset capture</a>.</p>
         </div>
 
         <div class="card">
@@ -429,6 +431,13 @@ cargo run --release -p laruche-node   <span class="c"># then open localhost:8419
           <div class="fr">Veille</div>
           <h3>Reflexes that cost nothing at runtime</h3>
           <p>Describe a rule in plain language and it compiles once into a deterministic predicate tree. Weekdays, time windows, file appeared or changed, service down for N minutes, log patterns, HTTP status, combined with and, or and not. The only rule that ever calls a model is an explicit check leaf, and only once the deterministic prefix has already passed.</p>
+        </div>
+
+        <div class="card">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="2.5" fill="none" stroke="#c084fc" stroke-width="1.5"/><circle cx="9" cy="2.5" r="1.4" fill="#c084fc"/><circle cx="15" cy="8" r="1.4" fill="#c084fc"/><circle cx="12.5" cy="15" r="1.4" fill="#c084fc"/><circle cx="4" cy="13.5" r="1.4" fill="#c084fc"/><circle cx="3" cy="6" r="1.4" fill="#c084fc"/></svg></div>
+          <div class="fr">Table ronde</div>
+          <h3>Disagreement is part of the deliverable</h3>
+          <p>Specialists work alone, review each other, answer a dedicated contrarian and finish with an arbiter. Answer, Code, Research and Experiment missions use separate tool whitelists. The interface streams the debate, names remaining dissidents and stores the full transcript. <a href="wiki.html#/Table-Ronde">How deliberation works</a>.</p>
         </div>
 
         <div class="card">
@@ -443,6 +452,40 @@ cargo run --release -p laruche-node   <span class="c"># then open localhost:8419
           <div class="fr">Miel</div>
           <h3>Several hives, one swarm</h3>
           <p>Hives on the same network discover each other over mDNS, announce what they can do, and federate skills and memory facts with provenance tags. Opt-in and signed. Your desktop hive and your homelab hive stop being two separate assistants.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== CONTROL ======================== -->
+  <section id="control">
+    <div class="shell">
+      <div class="sec-head">
+        <div class="kicker">Machine and media</div>
+        <h2>It can see the state it is acting on</h2>
+        <p>LaRuche now works with the real desktop, the user's own Chrome session and image inputs. Those capabilities stay visible, interruptible and subject to the same approval policy as every sensitive tool.</p>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="2" y="3" width="14" height="10" rx="2" fill="none" stroke="#f59e0b" stroke-width="1.5"/><path d="M6 16h6M9 13v3" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="fr">Ordinateur</div>
+          <h3>Native computer control</h3>
+          <p>Screen capture, mouse, keyboard, clipboard and window management run in Rust. On Windows, UI Automation exposes a readable accessibility tree. A visible halo marks actions, elevation failures are diagnosed, and a global keyboard shortcut stops control immediately.</p>
+        </div>
+
+        <div class="card">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="2" y="3" width="14" height="12" rx="2" fill="none" stroke="#3b82f6" stroke-width="1.5"/><path d="M2 7h14M5 5h.1M8 5h.1" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="fr">Navigateur</div>
+          <h3>Your browser, not a disposable session</h3>
+          <p>The Chrome extension connects the agent to open tabs and signed-in sessions. The browser tool can inspect frames, shadow DOM and overlays, handle uploads, downloads and dialogs, and resize the page for responsive checks. Consent remains the user's decision. <a href="wiki.html#/Chrome-Extension">Setup and security details</a>.</p>
+        </div>
+
+        <div class="card">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="2.5" y="3" width="13" height="12" rx="2" fill="none" stroke="#a855f7" stroke-width="1.5"/><circle cx="6" cy="7" r="1.3" fill="#a855f7"/><path d="m4 13 3.2-3 2.3 2 2.2-2.4L14 13" fill="none" stroke="#a855f7" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+          <div class="fr">Vision</div>
+          <h3>Images travel through the whole run</h3>
+          <p>Paste, drop or attach images in chat, capture the webcam, or return screenshots from tools. Inputs are resized before provider limits are reached and remain available across follow-up turns for models that support vision.</p>
         </div>
       </div>
     </div>
@@ -494,7 +537,7 @@ cargo run --release -p laruche-node   <span class="c"># then open localhost:8419
           <tbody>
             <tr><th scope="row">butinage</th><td class="en">foraging</td><td>The agentic loop: go out, gather, come back, decide.</td></tr>
             <tr><th scope="row">essaim</th><td class="en">swarm</td><td>The agent layer: providers, prompts, tools, supervision.</td></tr>
-            <tr><th scope="row">abeille</th><td class="en">bee</td><td>A single tool the agent can call.</td></tr>
+            <tr><th scope="row">abeille</th><td class="en">bee</td><td>An agent working inside the hive.</td></tr>
             <tr><th scope="row">éclaireuse</th><td class="en">scout</td><td>A sub-agent dispatched in parallel for one research angle.</td></tr>
             <tr><th scope="row">récolte</th><td class="en">harvest</td><td>One batch of tool calls, run in parallel when it is safe to.</td></tr>
             <tr><th scope="row">carnet</th><td class="en">notebook</td><td>The run checkpoint. Survives a crash, resumes where it stopped.</td></tr>
@@ -515,7 +558,7 @@ cargo run --release -p laruche-node   <span class="c"># then open localhost:8419
       <div class="sec-head" style="margin-bottom:26px">
         <div class="kicker">Status</div>
         <h2>Beta, moving fast, used daily by its author</h2>
-        <p>340+ tests across the workspace run green on every change. The roadmap in the repository is the single source of truth for what is done and what is next. Issues and pull requests are welcome.</p>
+        <p>Cargo currently lists 741 workspace tests. CI checks the assembled system on every change, and the roadmap remains the source of truth for delivered work and open plans. Issues and pull requests are welcome.</p>
       </div>
       <div class="cta" style="margin-top:0">
         <a class="btn btn--primary" href="https://github.com/infinition/LaRuche/releases/latest">Get LaRuche</a>
@@ -528,7 +571,7 @@ cargo run --release -p laruche-node   <span class="c"># then open localhost:8419
 
 <footer>
   <div class="shell foot">
-    <span>LaRuche · MPL-2.0 · <a href="https://github.com/infinition/LaRuche">github.com/infinition/LaRuche</a></span>
+    <span>LaRuche · MPL-2.0 · <a href="https://github.com/infinition/LaRuche">github.com/infinition/LaRuche</a> · <a href="https://www.buymeacoffee.com/infinition">Support LaRuche</a></span>
     <span class="offline">
       <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="#22c55e" stroke-width="1.6"/></svg>
       This page made zero network requests
@@ -543,11 +586,11 @@ cargo run --release -p laruche-node   <span class="c"># then open localhost:8419
   // Per-OS download, pointing at the release assets the workflow publishes.
   var BASE = "https://github.com/infinition/LaRuche/releases/latest/download/";
   var ua = navigator.userAgent, t = null;
-  if (/Windows/i.test(ua)) t = { f: "laruche-windows-x86_64.zip", l: "Download for Windows" };
+  if (/Windows/i.test(ua)) t = { f: "laruche-bureau-windows-x86_64-setup.exe", l: "Install on Windows" };
   else if (/Mac OS X|Macintosh/i.test(ua)) {
     var arm = /ARM|Apple/i.test(navigator.platform || "") || navigator.maxTouchPoints > 1;
     t = { f: arm ? "laruche-macos-arm64.tar.gz" : "laruche-macos-x86_64.tar.gz", l: "Download for macOS" };
-  } else if (/Linux|X11/i.test(ua)) t = { f: "laruche-linux-x86_64.tar.gz", l: "Download for Linux" };
+  } else if (/Linux|X11/i.test(ua)) t = { f: "laruche-bureau-linux-x86_64.AppImage", l: "Get the Linux AppImage" };
   if (t) {
     document.getElementById("dl").href = BASE + t.f;
     document.getElementById("dl-label").textContent = t.l;

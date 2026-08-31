@@ -1,7 +1,7 @@
 # Quick Start
 
-You have built and started the node ([Installation](Installation)) and the UI is open
-at http://localhost:8419. Here is the first hour.
+You have opened the desktop application or started the node ([Installation](Installation)).
+The same UI is available in the application window and at http://localhost:8419.
 
 ## First boot
 
@@ -19,8 +19,9 @@ a restart.
 
 ## First conversation
 
-Just talk. The agent has its tools from the first message: web search and fetch, file
-access, shell and Python behind approval gates, memory, scheduling.
+Just talk. The agent has its tools from the first message: web research, file and git
+access, shell and Python behind approval gates, memory, scheduling, computer control,
+browser control and images.
 
 Some things to try:
 
@@ -34,16 +35,21 @@ Some things to try:
 
 > "Watch the folder `deploys/` and tell me when a file named release.zip appears."
 
+> "Look at this screenshot and tell me which setting is wrong."
+
 The last two create a cron and a watcher through the agent's own tools. You will see
 the approval popup for anything sensitive; nothing destructive happens without you.
 
 ## The dashboard
 
 - **Chat**: sessions persist, agent runs survive a page refresh, live steering lets you
-  redirect a run in progress.
+  redirect a run in progress. Images can be attached, pasted or dropped.
 - **Memory**: browse and edit the cognitive map directly, including the `system.*`
   entries that are the agent's hot-editable system prompts.
 - **Automation**: crons, watchers, missions, kanban, all in one hub.
+- **Capabilities**: the live tool registry, skills, plugins and MCP servers.
+- **Table ronde**: a specialist debate can be opened from Chat when one answer is not
+  enough.
 - **Settings**: providers and per-channel models, context sizes, the curator, LaReine,
   secrets, MCP servers, channels, voice. All live.
 

@@ -18,12 +18,16 @@ hallucinated command. The defenses are structural, not prompt-based.
 ## Execution posture
 
 - **Approval gates.** Shell, Python, destructive file operations, and other sensitive
-  abeilles require a human click in a popup before running. The permission engine
+  tools require a human click in a popup before running. The permission engine
   (`laruche-permissions`) decides what is gated.
 - **Server-side validation.** Tool arguments are validated against JSON Schemas before
   execution; watcher targets are validated for existence and well-formedness on the
   server, not trusted from the model.
 - **Timeouts and budgets** bound what any single run can consume.
+- **Computer control stays visible.** A halo marks automated actions, held inputs are
+  released after a timeout, and `Ctrl+Alt+Shift+H` stops control immediately.
+- **Browser consent stays human.** The extension reports consent overlays but does not
+  accept them. Cookie names and sizes can be inspected; values are not returned.
 
 ## Data posture
 
@@ -34,9 +38,9 @@ hallucinated command. The defenses are structural, not prompt-based.
   touches the DOM, so a malicious page quoted by the agent cannot script your dashboard.
 - **No CDN.** All web assets ship inside the binary; the UI makes no third-party
   requests.
-- **Local by default.** With a local model, no conversation content leaves the machine
-  at all. With cloud providers, only what you send them leaves, and your keys stay in
-  the vault.
+- **Local by default.** With a local model and local speech backends, conversation
+  content stays on the machine. Cloud model, search, speech and messaging providers
+  receive only the requests sent to those services, and keys stay in the vault.
 
 ## Self-modification posture
 

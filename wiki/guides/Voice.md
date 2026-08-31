@@ -1,8 +1,9 @@
 # Voice
 
-LaRuche speaks and listens, locally. No cloud speech APIs are involved: Whisper handles
-transcription and Kokoro handles synthesis, both running on your machine through small
-Python sidecars managed by the node.
+LaRuche can speak and listen through local or remote speech backends. Whisper provides
+the optional local transcription service. Synthesis can stay local with Kokoro,
+Voicebox or Voxtral, use the operating system, or call a service that exposes the
+OpenAI speech format.
 
 ## What it feels like
 
@@ -16,19 +17,21 @@ Python sidecars managed by the node.
 
 ## Backends
 
-| Component | Default | Alternative |
+| Component | Local options | Other options |
 |---|---|---|
-| TTS | Kokoro (fast, good quality, multilingual) | Voicebox backend with a cloned voice |
-| STT | Whisper | |
+| TTS | Kokoro, Voicebox, Voxtral, pyttsx3 | Edge TTS or any OpenAI-compatible speech endpoint |
+| STT | Whisper sidecar | Native transcription from a multimodal model |
 
-The cloned-voice backend lets the Reine speak with a voice you provide. Backend choice,
-voice, speed, and wake word are all in **Settings > Voice** and persist across restarts.
+Voicebox can use a cloned voice profile. Backend choice, voice, speed, external STT
+preference and Telegram voice replies persist across restarts.
 
 ## Setup
 
-1. Open **Settings > Voice** and enable the components you want. The node manages the
-   Python sidecars; the status indicators probe them for real.
-2. Test from the microphone button in chat or the call screen.
+1. Install and start the optional Python service from `laruche/laruche-voix` when using
+   Whisper or a bundled TTS backend.
+2. Open **Settings > Voice** and select the backend, voice and speed. Status indicators
+   probe the configured service.
+3. Test from the microphone button in chat or the call screen.
 
 ## Microphone from another device
 
