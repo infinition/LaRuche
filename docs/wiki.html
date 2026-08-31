@@ -6,8 +6,8 @@
 <title>LaRuche Wiki</title>
 <meta name="description" content="Documentation for LaRuche: installation, the butinage engine, cognitive memory, watchers, voice, MCP and the full configuration reference.">
 <meta name="color-scheme" content="dark">
-<link rel="icon" type="image/png" href="laruche.png">
-<style>
+<link rel="icon" type="image/png" href="laruche.png?v=2">
+<style id="feuille">
 /* ===================================================================
    LaRuche Wiki. Same tokens as the dashboard (app.css) and the landing
    page. The whole corpus is embedded at build time by
@@ -194,6 +194,8 @@ mark.search-match.current { background:rgba(34,197,94,.45); box-shadow:0 0 0 2px
   box-shadow:0 10px 30px rgba(0,0,0,.5); transition:opacity .3s, transform .3s; }
 #clear-highlight-btn:hover { border-color:var(--amber-dim); color:var(--amber); }
 #clear-highlight-btn.hidden { opacity:0; transform:translateY(10px); pointer-events:none; }
+/* La fleche de retour en haut occupe deja ce coin quand la page est descendue. */
+html.lr-haut-visible #clear-highlight-btn { bottom:74px; }
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { animation:none !important; transition-duration:.001ms !important; }
   html { scroll-behavior:auto; }
@@ -225,13 +227,17 @@ mark.search-match.current { background:rgba(34,197,94,.45); box-shadow:0 0 0 2px
 .bee--head-eyes::before { content:''; position:absolute; top:0; left:8px; width:5px; height:3px;
   background:#fff; border-bottom-left-radius:100%; border-bottom-right-radius:100%; }
 .bee--head-antennas { width:3px; height:8px; background:#000; position:absolute; left:3px; top:-4px;
-  border-radius:40%; transform:rotate(15deg); }
+  border-radius:30px; transform:rotate(-50deg); animation:bee-la .3s infinite; }
 .bee--head-antennas::before { content:''; position:absolute; left:5px; top:1px; width:3px; height:10px;
-  background:#000; border-radius:40%; transform:rotate(-30deg); }
+  background:#000; border-radius:30px; transform:rotate(-180deg); animation:bee-ra .5s infinite; }
+@keyframes bee-la { 0%,100%{transform:rotate(-50deg);left:3px} 25%{transform:rotate(-35deg);left:5px}
+  50%{transform:rotate(-15deg);left:5px} 75%{transform:rotate(-35deg);left:4px} }
+@keyframes bee-ra { 0%,100%{transform:rotate(-170deg);left:5px} 25%{transform:rotate(-168deg);left:5px}
+  50%{transform:rotate(-165deg);left:4px} 75%{transform:rotate(-168deg);left:5px} }
 
 .abeille-titre { position:fixed; left:0; top:0; width:51px; height:33px; margin:0;
   z-index:60; pointer-events:none; will-change:transform; }
-.abeille-titre .bee { position:absolute; left:0; top:0; transform:none; animation:none; }
+.abeille-titre .bee { position:absolute; left:0; top:0; transform:none; animation:bee-float .8s infinite ease-in-out; }
 .abeille-titre .bee > *, .abeille-titre .bee--body > span { display:block; }
 @media (max-width:720px) { .abeille-titre { display:none; } }
 @media (prefers-reduced-motion:reduce) { .abeille-titre, .abeille-titre .bee, .abeille-titre .bee * { animation:none !important; } }
@@ -239,19 +245,20 @@ mark.search-match.current { background:rgba(34,197,94,.45); box-shadow:0 0 0 2px
 </head>
 <body>
 
+<div id="vue" data-routeur="fragment">
+
 <header class="topbar">
   <div class="inner">
     <button class="burger" id="burger" type="button" aria-label="Open the navigation">Menu</button>
     <a class="brand" href="index.html">
-      <img src="laruche.png" alt="LaRuche" width="28" height="28">
+      <div class="honeycomb-loader hc-sm" aria-hidden="true">
+        <div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div>
+        <div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div>
+        <div class="hexagon hx7"></div>
+      </div>
       LaRuche <span class="tag">Wiki</span>
     </a>
     <span class="spacer"></span>
-    <div class="honeycomb-loader hc-sm" aria-hidden="true">
-      <div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div>
-      <div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div>
-      <div class="hexagon hx7"></div>
-    </div>
     <a class="lnk" href="index.html">Home</a>
     <a class="lnk" href="https://github.com/infinition/LaRuche">GitHub</a>
   </div>
@@ -552,6 +559,10 @@ var WIKI = {"sections":[{"label":"Overview","pages":[{"slug":"Home","title":"LaR
   }
 
   function route() {
+    // La vue peut etre detachee: la navigation douce garde son DOM en memoire
+    // pendant qu'on lit la page d'accueil, et les ancres de l'accueil (#engine,
+    // #surfaces) ne sont pas des routes de wiki.
+    if (!doc.isConnected) return;
     var h = location.hash.replace(/^#\/?/, "");
     var bits = h.split("#");
     show(decodeURIComponent(bits[0] || "") || (FLAT.length ? FLAT[0].slug : ""), bits[1] || "");
@@ -773,6 +784,7 @@ var WIKI = {"sections":[{"label":"Overview","pages":[{"slug":"Home","title":"LaR
   clearBtn.addEventListener("click", clearHighlights);
 
   document.addEventListener("keydown", function (e) {
+    if (!doc.isConnected) return;          // le wiki n'est pas la vue affichee
     var tag = (e.target && e.target.tagName) || "";
     var typing = tag === "INPUT" || tag === "TEXTAREA" || (e.target && e.target.isContentEditable);
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openSearch(); return; }
@@ -794,6 +806,12 @@ var WIKI = {"sections":[{"label":"Overview","pages":[{"slug":"Home","title":"LaR
 })();
 </script>
 <div class="abeille-titre vole" aria-hidden="true"><div class="bee"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div></div>
+
+</div><!-- #vue -->
+
+<script src="rencontre.js" defer></script>
 <script src="abeille.js" defer></script>
+<script src="haut.js" defer></script>
+<script src="navigation.js" defer></script>
 </body>
 </html>

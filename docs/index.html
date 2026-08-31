@@ -9,8 +9,8 @@
 <meta property="og:title" content="LaRuche - your personal AI hive">
 <meta property="og:description" content="A local-first AI agent with a desktop app, cognitive memory, auditable automation and native computer control.">
 <meta property="og:type" content="website">
-<link rel="icon" type="image/png" href="laruche.png">
-<style>
+<link rel="icon" type="image/png" href="laruche.png?v=2">
+<style id="feuille">
 /* ===================================================================
    LaRuche - showcase
    Design tokens, honeycomb loader and CSS bee are lifted verbatim from
@@ -661,7 +661,7 @@ p:last-child { margin-bottom: 0; }
    dicter la hauteur: sinon le bloc prend la taille de la plus grande et laisse
    un vide sous les autres. */
 .carou { position: relative; }
-.carou-piste { position: relative; }
+.carou-piste { position: relative; cursor: pointer; }
 .carou-slide { display: none; }
 .carou-slide.on { display: block; animation: carou-entree .32s cubic-bezier(.22,.61,.36,1) both; }
 @keyframes carou-entree { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -777,10 +777,16 @@ footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
 </head>
 <body>
 
+<div id="vue">
+
 <header class="topbar">
   <div class="shell">
     <a class="brand" href="#top">
-      <img src="laruche.png" alt="LaRuche" width="28" height="28">
+      <div class="honeycomb-loader hc-sm" aria-hidden="true">
+        <div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div>
+        <div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div>
+        <div class="hexagon hx7"></div>
+      </div>
       LaRuche
     </a>
     <nav class="tabs">
@@ -1792,12 +1798,24 @@ window.__essaim();
   document.getElementById('carouPrec').addEventListener('click', function(){ aller(courant - 1, true); });
   document.getElementById('carouSuiv').addEventListener('click', function(){ aller(courant + 1, true); });
 
+  // La diapositive elle-meme fait avancer le carrousel: viser une flechette de
+  // 26 px pour voir la surface suivante est une corvee, surtout au doigt. Les
+  // maquettes sont des dessins, mais si l'une d'elles finissait par contenir un
+  // vrai controle, il garderait son role.
+  piste.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('a, button, input, select, textarea')) return;
+    aller(courant + 1, true);
+  });
+
   var lent = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var minuteur = null;
   function repartir(){
-    if (lent) return;
+    if (lent || !boite.isConnected) return;
     clearInterval(minuteur);
-    minuteur = setInterval(function(){ aller(courant + 1); }, 8000);
+    // La vue peut etre detachee entre deux tours: la navigation douce garde son
+    // DOM en memoire pendant qu'on lit le wiki, et faire tourner des diapositives
+    // dans un document qui n'est pas affiche ne sert a rien.
+    minuteur = setInterval(function(){ if (boite.isConnected) aller(courant + 1); }, 8000);
   }
   // On s'arrete quand la souris est dessus, et quand la page n'est pas visible:
   // faire defiler des images dans un onglet que personne ne regarde ne sert qu'a
@@ -1812,6 +1830,11 @@ window.__essaim();
 })();
 </script>
 
+</div><!-- #vue -->
+
+<script src="rencontre.js" defer></script>
 <script src="abeille.js" defer></script>
+<script src="haut.js" defer></script>
+<script src="navigation.js" defer></script>
 </body>
 </html>
