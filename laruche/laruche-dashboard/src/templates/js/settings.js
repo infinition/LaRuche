@@ -231,6 +231,8 @@ LaRuche.i18n.add({
   'settings.kanbanEditCancel':   {fr:'Annuler',          en:'Cancel'},
   'settings.kanbanTaskUpdated':  {fr:'Tâche modifiée',   en:'Task updated'},
   'settings.kanbanEditBtn':      {fr:'Éditer',           en:'Edit'},
+  'settings.kanbanTaskIntrouvable': {fr:"Cette tâche n'est plus sur le tableau.",
+                                     en:'That task is no longer on the board.'},
   'settings.kanbanDelBtn':       {fr:'Suppr',            en:'Del'},
   'settings.kanbanResultLabel':  {fr:'Résultat',         en:'Result'},
   'settings.kanbanCols':         {fr:'Colonnes',         en:'Columns'},
@@ -493,6 +495,8 @@ LaRuche.i18n.add({
                           en:'A newer version is available'},
   'help.majAvance':      {fr:'Cette version est en avance sur la dernière release.',
                           en:'This build is ahead of the latest release.'},
+  'help.majEchecNoeud':  {fr:'Le nœud a répondu {code} sur /api/maj. Recompilez-le si vous venez de mettre à jour les sources.',
+                          en:'The node answered {code} on /api/maj. Rebuild it if you have just updated the sources.'},
   'help.majEchec':       {fr:"Impossible de joindre GitHub. Vérifiez la connexion, ou réessayez plus tard: l'API limite le nombre d'appels.",
                           en:'Could not reach GitHub. Check the connection, or try again later: the API rate-limits requests.'},
   'help.majVersionLocale':{fr:'Version installée',   en:'Installed version'},
@@ -2868,6 +2872,14 @@ LaRuche.Settings = (function(){
   }
 
   var _kanbanTimer=null, _kanbanLast='';
+  // Les taches telles qu'elles viennent du serveur, gardees pour l'editeur.
+  //
+  // Il les relisait dans `_kanbanLast`, qui n'est pas la liste mais une
+  // SIGNATURE de comparaison: `vue|[...]`. Le JSON.parse echouait donc a chaque
+  // ouverture, l'exception etait avalee par un catch vide, et le formulaire
+  // s'ouvrait entierement vierge. Enregistrer effacait alors le titre et la
+  // description de la tache qu'on venait d'ouvrir pour la corriger.
+  var _kanbanTaches=[];
   var _kanbanView=(function(){ try{ return localStorage.getItem('lr_kanban_view')||'cols'; }catch(e){ return 'cols'; } })();
   var _profiles={}; // P1: profiles cache for the Provider selectors (kanban/watcher)
   var _watchersLast='[]'; // watchers cache for inline editing
@@ -2976,6 +2988,7 @@ LaRuche.Settings = (function(){
   async function refreshKanbanCols(){
     var host=document.getElementById('kanbanCols'); if(!host)return;
     var tasks=await fetch(LaRuche.API.base+'/api/kanban').then(function(r){return r.json();}).catch(function(){return [];});
+    _kanbanTaches=tasks;
     var sig=_kanbanView+'|'+JSON.stringify(tasks); if(sig===_kanbanLast) return; _kanbanLast=sig;
     var cols=['Triage','Todo','Ready','Running','Blocked','Done','Archived'];
     // Display label for a status. The value `c` itself stays the contract code (drag/drop, t.status===c).
@@ -3051,7 +3064,14 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   function editKanbanTask(id) {
-    var t=null; try{ t=JSON.parse(_kanbanLast).find(function(x){return x.id===id;}); }catch(e){}
+    var t=_kanbanTaches.filter(function(x){ return x.id===id; })[0] || null;
+    if(!t){
+      // Plutot que d'ouvrir un formulaire vide qui effacerait la tache: on le
+      // dit, et on relit le tableau.
+      LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanTaskIntrouvable'),'err');
+      _kanbanLast=''; refreshKanbanCols();
+      return;
+    }
     // P1: Provider selector in the kanban editor.
     var profOpts = '<option value="">'+LaRuche.i18n.t('settings.kanbanDefProvider')+'</option>';
     Object.keys(_profiles).forEach(function(k){
@@ -3362,13 +3382,25 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       // l'application se heurte a la politique de securite du contenu et aux
       // regles d'origine croisee, et echouait sans un mot. Le noeud n'a ni
       // l'une ni les autres, et il porte l'en-tete User-Agent que GitHub exige.
-      var d = await fetch('/api/maj').then(function(r){ return r.json(); });
+      // Le detail de l'echec est LU, pas devine. La version precedente
+      // remplacait toute panne par une phrase generique sur GitHub, y compris
+      // quand le noeud repondait 404 parce qu'il datait d'avant cette route:
+      // on cherchait alors du cote du reseau un probleme qui etait dans le
+      // binaire.
+      var rep = await fetch('/api/maj');
+      if(!rep.ok){
+        zone.className = 'help-maj-etat';
+        zone.textContent = LaRuche.i18n.t('help.majEchecNoeud', {code: rep.status});
+        return;
+      }
+      var d = await rep.json();
       var locale = d.installee || '0.0.0';
       var cible = document.getElementById('helpVersionLocale');
       if(cible) cible.textContent = 'v' + locale;
       if(d.error || !d.derniere){
         zone.className = 'help-maj-etat';
-        zone.textContent = LaRuche.i18n.t('help.majEchec');
+        zone.textContent = LaRuche.i18n.t('help.majEchec') +
+          (d.error ? ' (' + String(d.error).slice(0, 140) + ')' : '');
         return;
       }
       var c = _cmpVersion(locale, d.derniere);
