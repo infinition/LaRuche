@@ -235,7 +235,7 @@ p:last-child { margin-bottom: 0; }
 .gauge span { display: block; height: 100%; width: 34%; background: var(--amber); border-radius: 3px; }
 .app-foot .model { margin-left: auto; color: var(--amber); font-family: var(--mono); }
 
-/* ── Surfaces: six mock-ups of the real interfaces ──────────────────────
+/* ── Surfaces: mock-ups of the real interfaces ──────────────────────
    Each one reproduces a screen of the running product, simplified to what a
    first-time reader can take in, never invented. Same amber, same panels, same
    vocabulary as the application. */
@@ -344,36 +344,70 @@ p:last-child { margin-bottom: 0; }
 .win-cursor svg { display: block; filter: drop-shadow(0 1px 3px rgba(0,0,0,.8)); }
 .win-cursor .ring { position: absolute; left: -15px; top: -15px; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(245,166,35,.85); animation: surf-ring 1.6s ease-out infinite; }
 
-/* ── Voice mode ──────────────────────────────────────────────────────── */
-.vm { position: relative; min-height: 288px; display: grid; place-items: center; background: radial-gradient(circle at 50% 45%, rgba(245,158,11,.10), transparent 62%), #08080a; text-align: center; overflow: hidden; }
-.vm-hdr { position: absolute; top: 16px; left: 0; right: 0; font-size: 11.5px; color: var(--text-muted); }
-.vm-orb { position: relative; width: 116px; height: 116px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, var(--amber-light), var(--amber-dim)); box-shadow: 0 0 44px rgba(245,158,11,.4); animation: surf-orb 2.6s ease-in-out infinite; }
-@keyframes surf-orb { 50% { transform: scale(1.06); box-shadow: 0 0 62px rgba(245,158,11,.55); } }
-.vm-orb::before, .vm-orb::after { content: ''; position: absolute; inset: -18px; border-radius: 50%; border: 1px solid rgba(245,158,11,.4); animation: surf-ring 2.6s ease-out infinite; }
-.vm-orb::after { animation-delay: 1.3s; }
-.vm-dots { position: absolute; inset: 0; pointer-events: none; }
-.vm-dots i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: rgba(245,158,11,.55); animation: surf-float 3.4s ease-in-out infinite; }
-@keyframes surf-float { 50% { transform: translateY(-9px); opacity: .35; } }
-.vm-state { margin-top: 24px; font-size: 14px; color: var(--amber); }
-.vm-said { margin-top: 7px; font-size: 12.5px; color: var(--text-dim); max-width: 30ch; }
-.vm-foot { position: absolute; bottom: 14px; left: 0; right: 0; font-size: 11px; color: var(--text-muted); }
+/* ── Voice mode ──────────────────────────────────────────────────────────
+   Le vrai ecran: un essaim de particules qui tourne autour d'un orbe, dessine
+   sur un canvas. La premiere version d'ici mettait une grosse sphere et six
+   points fixes, ce qui ne ressemblait a rien de ce que le logiciel affiche. */
+.vm { position: relative; min-height: 300px; display: grid; place-items: center;
+      background: radial-gradient(ellipse at center, #0a0a12 0%, #000 80%); overflow: hidden; }
+.vm canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.vm-hdr { position: absolute; top: 16px; left: 0; right: 0; text-align: center; font-size: 11.5px; color: var(--text-muted); z-index: 2; }
+.vm-close { position: absolute; top: 14px; right: 16px; width: 30px; height: 30px; border-radius: 50%;
+            border: 1px solid var(--border); color: var(--text-muted); display: grid; place-items: center; font-size: 13px; z-index: 2; }
+.vm-center { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center; }
+.vm-orb {
+  width: 124px; height: 124px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(56,189,248,.9), rgba(56,189,248,.25) 60%, transparent 72%);
+  box-shadow: 0 0 70px rgba(56,189,248,.5), inset 0 0 40px rgba(56,189,248,.35);
+}
+.vm-state { color: #38bdf8; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; }
+.vm-said { color: var(--text-dim); font-size: 13px; max-width: 34ch; }
+.vm-foot { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--text-muted); z-index: 2; }
 
-/* ── Memory ──────────────────────────────────────────────────────────── */
-.mem-hd { display: flex; align-items: center; gap: 9px; padding: 11px 14px 9px; }
-.mem-hd .ttl { font-size: 12.5px; font-weight: 600; }
-.mem-hd .st { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
-.mem-search { display: flex; gap: 5px; padding: 0 14px 11px; }
-.mem-search .in { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); font-size: 11.5px; color: var(--text-muted); }
-.mem-search .bt { width: 26px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); font-size: 11px; color: var(--text-muted); }
-.mem-tree { padding: 0 14px 14px; font-size: 12.5px; }
-.mem-node { border-left: 1px solid var(--border); padding-left: 12px; margin-bottom: 11px; }
-.mem-node > .nm { color: var(--amber); font-family: var(--mono); font-size: 11.5px; margin-bottom: 6px; }
-.mem-fact { display: flex; gap: 9px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid rgba(42,42,46,.5); }
-.mem-fact .k { color: var(--text-dim); min-width: 84px; font-family: var(--mono); font-size: 11px; }
-.mem-fact .v { flex: 1; min-width: 0; color: var(--text); }
-.mem-fact .w { width: 34px; height: 3px; border-radius: 2px; background: var(--border); position: relative; flex: none; }
-.mem-fact .w i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: var(--amber); display: block; }
-.mem-foot { padding: 0 14px 14px; font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
+/* ── Memory ──────────────────────────────────────────────────────────────
+   Deux panneaux, comme dans l'application: l'arbre des noeuds a gauche, les
+   entrees du noeud choisi a droite. La premiere version d'ici empilait tout
+   dans une colonne, ce qui perdait justement ce qui fait la page. */
+.mem { display: grid; grid-template-columns: 150px minmax(0,1fr); min-height: 300px; }
+@media (min-width: 520px) { .mem { grid-template-columns: 180px minmax(0,1fr); } }
+.mem-side { border-right: 1px solid var(--border); background: var(--bg-panel); display: flex; flex-direction: column; min-width: 0; }
+.mem-side-hd { display: flex; align-items: center; gap: 7px; padding: 9px 11px; border-bottom: 1px solid var(--border); }
+.mem-side-hd .ttl { font-size: 10.5px; font-weight: 700; color: var(--amber); text-transform: uppercase; letter-spacing: .5px; flex: 1; }
+.mem-side-hd .st { font-family: var(--mono); font-size: 9.5px; color: var(--text-muted); }
+.mem-find { display: flex; gap: 4px; padding: 8px 9px; }
+.mem-find .in { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-input); font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mem-find .bt { width: 22px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-input); font-size: 10px; color: var(--text-muted); }
+.mem-tree { padding: 4px; display: grid; gap: 1px; align-content: start; }
+.mem-row { display: flex; align-items: center; gap: 5px; padding: 4px 6px; border-radius: 5px; font-size: 11.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mem-row.on { background: var(--amber-glow); color: var(--amber); }
+.mem-row.d1 { padding-left: 17px; }
+.mem-row .ar { color: var(--text-muted); font-size: 9px; }
+.mem-main { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+.mem-tool { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.mem-crumb { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mem-crumb .seg { color: var(--text-muted); }
+.mem-crumb .cur { color: var(--amber); }
+.mem-tbtn { border: 1px solid var(--border); border-radius: 5px; background: var(--bg-input); color: var(--text-dim); padding: 4px 9px; font-size: 10.5px; }
+.mem-tbtn.on { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
+.mem-body { padding: 13px 14px 16px; display: grid; gap: 10px; align-content: start; }
+.mem-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mem-chip { border: 1px solid var(--border); border-radius: 18px; background: var(--bg-input); color: var(--text-dim); padding: 3px 10px; font-size: 10.5px; font-family: var(--mono); }
+.mem-item { border: 1px solid var(--border); border-radius: 9px; background: var(--bg-panel); overflow: hidden; }
+.mem-item-bar { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--border); background: rgba(245,158,11,.04); }
+.mem-item-id { font-family: var(--mono); font-size: 9.5px; color: var(--amber); }
+.mem-item-meta { margin-left: auto; font-size: 9.5px; color: var(--text-muted); font-family: var(--mono); }
+.mem-item-md { padding: 9px 11px; font-size: 12.5px; line-height: 1.6; color: var(--text); }
+
+/* Le bandeau des prochaines echeances, en haut du flux. C'est la premiere
+   chose qu'on lit en ouvrant le panneau: ce qui va se declencher, et quand. */
+.fd-next { margin: 10px 12px 2px; border-radius: 9px; background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.18); }
+.fd-carte { display: flex; align-items: flex-start; gap: 9px; padding: 9px 11px; }
+.fd-rang { flex: none; font-family: var(--mono); font-size: 9px; letter-spacing: .09em; padding: 2px 6px; border-radius: 4px; line-height: 1.6; border: 1px solid var(--amber); background: var(--amber); color: var(--bg); font-weight: 700; }
+.fd-corps { min-width: 0; flex: 1; font-size: 12px; color: var(--text-dim); line-height: 1.45; }
+.fd-nom { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-quand { font-size: 11px; }
+.fd-quand strong { color: var(--amber); }
+.fd-quand .sub { color: var(--text-muted); font-size: 11px; }
 
 /* ── Feed ────────────────────────────────────────────────────────────── */
 .fd-hd { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; font-weight: 600; }
@@ -676,10 +710,10 @@ cargo run --release -p laruche-bureau</pre>
     <div class="shell">
       <div class="sec-head">
         <div class="kicker">Surfaces</div>
-        <h2>One node, seven ways to work with it</h2>
+        <h2>One node, many ways to work with it</h2>
         <p>The same engine and the same memory, reached from wherever you happen to be:
-           a debate table, a browser, the desktop itself, a phone, a voice call, the map
-           of what it knows, and the stream of what it did.</p>
+           a debate table, a browser, the desktop itself, a phone, a voice call, the map of
+           what it knows, and the stream of what it did.</p>
       </div>
 
       <div class="surf-grid">
@@ -808,49 +842,64 @@ cargo run --release -p laruche-bureau</pre>
         <!-- ── Voice ───────────────────────────────────────────────── -->
         <div class="surf">
           <div class="app vm">
+            <canvas class="vm-canvas" width="640" height="300" aria-hidden="true"></canvas>
             <div class="vm-hdr">In call with LaRuche</div>
-            <div class="vm-dots" aria-hidden="true">
-              <i style="left:18%;top:32%"></i><i style="left:31%;top:64%;animation-delay:.5s"></i>
-              <i style="left:69%;top:28%;animation-delay:1s"></i><i style="left:78%;top:61%;animation-delay:1.5s"></i>
-              <i style="left:50%;top:19%;animation-delay:2s"></i><i style="left:60%;top:78%;animation-delay:2.6s"></i>
-            </div>
-            <div>
+            <div class="vm-close" aria-hidden="true">✕</div>
+            <div class="vm-center">
               <div class="vm-orb" aria-hidden="true"></div>
-              <div class="vm-state">Listening…</div>
-              <div class="vm-said">“Where did we land on the queue, in the end?”</div>
+              <div class="vm-state">Listening</div>
+              <div class="vm-said">“Did the nightly build pass, and did anyone touch the release branch?”</div>
             </div>
             <div class="vm-foot">Tap the orb to interrupt · local speech recognition</div>
           </div>
-          <p class="cap"><b>Voice.</b> A phone call rather than a push-to-talk button. You can cut
-            her off mid-sentence: interruption is detected on an echo-cancelled stream, so she
-            hears you and not herself coming out of the speakers.</p>
+          <p class="cap"><b>Voice.</b> A phone call rather than a push-to-talk button. The swarm
+            turns faster as she speaks and goes blue while she listens. You can cut her off
+            mid-sentence: interruption is detected on an echo-cancelled stream, so she hears you
+            and not herself coming out of the speakers.</p>
         </div>
 
         <!-- ── Memory ──────────────────────────────────────────────── -->
         <div class="surf">
-          <div class="app">
-            <div class="mem-hd"><span class="ttl">Memory</span><span class="st">412 facts · 37 nodes</span></div>
-            <div class="mem-search">
-              <span class="in">deployment</span><span class="bt">≈</span><span class="bt">+</span><span class="bt">−</span>
-            </div>
-            <div class="mem-tree">
-              <div class="mem-node">
-                <div class="nm">projects.laruche</div>
-                <div class="mem-fact"><span class="k">deploy</span><span class="v">tagged release, the CI publishes the assets</span><span class="w"><i style="width:86%"></i></span></div>
-                <div class="mem-fact"><span class="k">db</span><span class="v">SQLite, one file per node</span><span class="w"><i style="width:64%"></i></span></div>
-                <div class="mem-fact"><span class="k">style</span><span class="v">no emoji in commit messages</span><span class="w"><i style="width:41%"></i></span></div>
-              </div>
-              <div class="mem-node">
-                <div class="nm">user.preferences</div>
-                <div class="mem-fact"><span class="k">answers</span><span class="v">short, no filler, say when unsure</span><span class="w"><i style="width:92%"></i></span></div>
-                <div class="mem-fact"><span class="k">hours</span><span class="v">quiet between 22:00 and 08:00</span><span class="w"><i style="width:70%"></i></span></div>
+          <div class="app mem">
+            <div class="mem-side">
+              <div class="mem-side-hd"><span class="ttl">Memory</span><span class="st">412 · 37</span></div>
+              <div class="mem-find"><span class="in">deployment</span><span class="bt">≈</span><span class="bt">+</span></div>
+              <div class="mem-tree">
+                <div class="mem-row"><span class="ar">▾</span>identity</div>
+                <div class="mem-row"><span class="ar">▾</span>projects</div>
+                <div class="mem-row d1 on">laruche</div>
+                <div class="mem-row d1">tamagotchi</div>
+                <div class="mem-row"><span class="ar">▸</span>user</div>
+                <div class="mem-row"><span class="ar">▸</span>hosts</div>
+                <div class="mem-row"><span class="ar">▸</span>capacities</div>
+                <div class="mem-row"><span class="ar">▸</span>episodes</div>
               </div>
             </div>
-            <div class="mem-foot">git log · 214 commits · last write 3 min ago</div>
+            <div class="mem-main">
+              <div class="mem-tool">
+                <span class="mem-crumb"><span class="seg">projects /</span> <span class="cur">laruche</span></span>
+                <span class="mem-tbtn on">Document</span><span class="mem-tbtn">Graph</span>
+              </div>
+              <div class="mem-body">
+                <div class="mem-chips"><span class="mem-chip">releases</span><span class="mem-chip">stack</span><span class="mem-chip">decisions</span></div>
+                <div class="mem-item">
+                  <div class="mem-item-bar"><span class="mem-item-id">f3a91c</span><span class="mem-item-meta">used 6× · 3 min ago</span></div>
+                  <div class="mem-item-md">Deployment goes through a tagged release: the CI builds
+                    and publishes the assets. The previous value said “manual upload” and was
+                    superseded, not duplicated.</div>
+                </div>
+                <div class="mem-item">
+                  <div class="mem-item-bar"><span class="mem-item-id">a07e42</span><span class="mem-item-meta">used 2× · 9 d ago</span></div>
+                  <div class="mem-item-md">One SQLite file per node. No shared database between
+                    hives: they exchange facts, not tables.</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <p class="cap"><b>Memory.</b> Not a transcript: a map of facts you can read, search,
-            correct and delete. Each one carries an importance that decays unless it gets used, and
-            the whole map lives in a git repository, so <span style="font-family:var(--mono);font-size:11.5px">git log</span>
+          <p class="cap"><b>Memory.</b> Not a transcript: a map you browse. Nodes on the left, the
+            entries of the selected one on the right, each with how often it was actually used. An
+            updated fact replaces the stale one instead of piling up beside it, and the whole map
+            lives in a git repository, so <span style="font-family:var(--mono);font-size:11.5px">git log</span>
             is the timeline of what your agent learned.</p>
         </div>
 
@@ -858,6 +907,15 @@ cargo run --release -p laruche-bureau</pre>
         <div class="surf">
           <div class="app">
             <div class="fd-hd">Activity<span class="live"><i></i>live</span></div>
+            <div class="fd-next">
+              <div class="fd-carte">
+                <span class="fd-rang">NEXT</span>
+                <div class="fd-corps">
+                  <div class="fd-nom">⏰ Morning digest</div>
+                  <div class="fd-quand"><strong>in 9 h 42</strong><span class="sub"> · every day at 08:00</span></div>
+                </div>
+              </div>
+            </div>
             <div class="fd-list">
               <div class="fd-item">
                 <span class="fd-av hive"><div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div></span>
@@ -1022,6 +1080,65 @@ cargo run --release -p laruche-bureau</pre>
       setTimeout(function () { btn.textContent = "Copy"; }, 1600);
     });
   });
+})();
+</script>
+
+<script>
+/* L'essaim du mode vocal, avec les formules du produit: 150 particules sur une
+   orbite elliptique (le 0.85 sur y), une intensite qui accelere la rotation et
+   fait vibrer le rayon, et le bleu de l'ecoute plutot que l'ambre de la parole.
+   Copie du comportement, pas une approximation: c'est ce qu'on montre. */
+(function(){
+  var c = document.querySelector('.vm-canvas');
+  if (!c || !c.getContext) return;
+  var ctx = c.getContext('2d');
+  var lent = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var ps = [];
+  for (var i = 0; i < 150; i++) {
+    ps.push({
+      ang: Math.random() * Math.PI * 2,
+      rad: 46 + Math.random() * 108,
+      speed: (0.15 + Math.random() * 0.6) * (Math.random() < 0.5 ? -1 : 1),
+      size: 1 + Math.random() * 2.5,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+  var intensite = 0.45; // l'etat "listening"
+  function taille(){
+    var r = c.getBoundingClientRect();
+    if (r.width && c.width !== Math.round(r.width)) { c.width = Math.round(r.width); c.height = Math.round(r.height); }
+  }
+  function dessiner(){
+    taille();
+    var w = c.width, h = c.height, cx = w / 2, cy = h / 2;
+    ctx.clearRect(0, 0, w, h);
+    var t = Date.now() / 1000;
+    var pulse = 1 + intensite * 0.6 * (0.7 + 0.3 * Math.sin(t * 8));
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      if (!lent) p.ang += p.speed * 0.01 * (1 + intensite * 2);
+      var jitter = intensite * 18 * Math.sin(t * 6 + p.phase);
+      var r = (p.rad + jitter) * pulse;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(p.ang) * r, cy + Math.sin(p.ang) * r * 0.85,
+              p.size * (1 + intensite * 0.8), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(56,189,248,' + (0.22 + intensite * 0.6) + ')';
+      ctx.fill();
+    }
+    if (!lent) requestAnimationFrame(dessiner);
+  }
+  // On ne fait tourner l'essaim que quand il est a l'ecran: une animation qui
+  // consomme un coeur pendant qu'on lit le reste de la page est une nuisance.
+  var vivant = false;
+  var obs = new IntersectionObserver(function(es){
+    var vu = es[0].isIntersecting;
+    if (vu && !vivant) { vivant = true; dessiner(); }
+    else if (!vu) { vivant = false; }
+  }, { threshold: 0.1 });
+  obs.observe(c);
+  var boucle = dessiner;
+  dessiner = function(){ if (vivant || lent) boucle(); };
+  dessiner();
 })();
 </script>
 </body>
