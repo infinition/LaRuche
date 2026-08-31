@@ -79,8 +79,8 @@ jobs:
           staging="laruche-${{ matrix.label }}"
           mkdir -p "$staging"
           cp "target/${{ matrix.target }}/release/laruche-node" "$staging/"
+          cp "target/${{ matrix.target }}/release/laruche-cli" "$staging/"
           cp "target/${{ matrix.target }}/release/laruche" "$staging/"
-          cp "target/${{ matrix.target }}/release/laruche-bureau" "$staging/"
           cp ../README.md ../LICENSE "$staging/"
           tar -czf "$staging.tar.gz" "$staging"
 
@@ -91,8 +91,8 @@ jobs:
           $staging = "laruche-${{ matrix.label }}"
           New-Item -ItemType Directory -Force $staging | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/laruche-node.exe" $staging
+          Copy-Item "target/${{ matrix.target }}/release/laruche-cli.exe" $staging
           Copy-Item "target/${{ matrix.target }}/release/laruche.exe" $staging
-          Copy-Item "target/${{ matrix.target }}/release/laruche-bureau.exe" $staging
           Copy-Item ../README.md, ../LICENSE $staging
           Compress-Archive -Path $staging -DestinationPath "$staging.zip"
 

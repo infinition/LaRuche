@@ -4,8 +4,12 @@ version.workspace = true
 edition.workspace = true
 description = "LaRuche CLI - Command line tool for interacting with LaRuche nodes"
 
+# Le nom du binaire est celui du crate, pas "laruche" tout court: la coque de
+# bureau est l'application que l'on ouvre, et c'est elle qui doit s'appeler
+# laruche.exe. Un utilisateur qui double-clique sur "laruche" attend une fenetre,
+# pas un terminal.
 [[bin]]
-name = "laruche"
+name = "laruche-cli"
 path = "src/main.rs"
 
 [dependencies]

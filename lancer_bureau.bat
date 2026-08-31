@@ -96,6 +96,6 @@ echo === Ouverture de la fenetre ===
 REM Pas de sonde ni de navigateur a lancer ici: la coque attend elle-meme une vraie
 REM reponse HTTP du noeud avant d'afficher la page. C'est ce qui evite d'ouvrir sur
 REM une interface a moitie chargee, qui reclamait un F5.
-target\release\laruche-bureau.exe
+target\release\laruche.exe
 
 endlocal

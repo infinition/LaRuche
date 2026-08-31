@@ -14,3 +14,6 @@ tiny-skia = "0.11"
 usvg = "0.44"
 png = "0.17"
 ico = "0.3"
+# Lit et reduit les sources PNG. Seuls PNG et JPEG sont compiles: ce sont les
+# deux formats dans lesquels une icone arrive quand elle n'est pas vectorielle.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

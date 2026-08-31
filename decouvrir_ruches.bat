@@ -17,7 +17,7 @@ cd /d "%~dp0laruche"
 
 set "LARUCHE_DECOUVRIR=1"
 
-if not exist "target\release\laruche-bureau.exe" (
+if not exist "target\release\laruche.exe" (
     echo.
     echo === Build de la coque ^(absente^) ===
     cargo build --release -p laruche-bureau
@@ -36,7 +36,7 @@ echo  Ecoute mDNS pendant 3 secondes...
 echo ============================================================
 echo.
 
-target\release\laruche-bureau.exe
+target\release\laruche.exe
 
 echo.
 pause

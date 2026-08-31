@@ -28,7 +28,7 @@ set "LARUCHE_SANS_NOEUD=1"
 REM --- Adresse fixe, si tu ne veux pas passer par la decouverte ---
 REM set "LARUCHE_URL=http://192.168.1.20:8419"
 
-if not exist "target\release\laruche-bureau.exe" (
+if not exist "target\release\laruche.exe" (
     echo.
     echo === Build de la coque ^(absente^) ===
     cargo build --release -p laruche-bureau
@@ -51,6 +51,6 @@ if defined LARUCHE_URL (
 echo ============================================================
 echo.
 
-target\release\laruche-bureau.exe
+target\release\laruche.exe
 
 endlocal

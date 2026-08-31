@@ -7,9 +7,11 @@ description = "LaRuche en application de bureau: la meme interface web, dans sa 
 publish = false
 
 # Le binaire porte le nom du produit: c'est lui qui apparait dans le gestionnaire
-# des taches et dans le raccourci.
+# des taches et dans le raccourci. C'est donc `laruche` tout court, puisque cette
+# coque EST l'application: le noeud (`laruche-node`) et le terminal
+# (`laruche-cli`) gardent un nom qui dit ce qu'ils sont.
 [[bin]]
-name = "laruche-bureau"
+name = "laruche"
 path = "src/main.rs"
 
 [build-dependencies]

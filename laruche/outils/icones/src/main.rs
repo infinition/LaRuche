@@ -31,21 +31,58 @@ fn racine() -> PathBuf {
         .to_path_buf()
 }
 
-/// Rend le SVG dans un bitmap carre de `taille` pixels de cote.
-fn rendre(arbre: &usvg::Tree, taille: u32) -> tiny_skia::Pixmap {
+/// D'ou vient une icone.
+///
+/// Le depot est parti de SVG, ce qui est la bonne matiere pour une icone: une
+/// seule definition, nette a toutes les tailles. Mais une icone dessinee
+/// ailleurs arrive en PNG, et refuser le PNG obligerait a la vectoriser pour
+/// rien, ou a deposer des `.ico` binaires a la main dans le depot sans plus
+/// aucune source. Les deux sont acceptes, le PNG l'emporte s'il existe: c'est
+/// lui qu'on vient de deposer.
+enum Source {
+    Vecteur(usvg::Tree),
+    Bitmap(image::DynamicImage),
+}
+
+/// Rend la source dans un bitmap carre de `taille` pixels de cote.
+fn rendre(source: &Source, taille: u32) -> tiny_skia::Pixmap {
     let mut pixmap = tiny_skia::Pixmap::new(taille, taille).expect("taille d'icone non nulle");
-    let echelle = taille as f32 / arbre.size().width();
-    resvg::render(
-        arbre,
-        tiny_skia::Transform::from_scale(echelle, echelle),
-        &mut pixmap.as_mut(),
-    );
+    match source {
+        Source::Vecteur(arbre) => {
+            let echelle = taille as f32 / arbre.size().width();
+            resvg::render(
+                arbre,
+                tiny_skia::Transform::from_scale(echelle, echelle),
+                &mut pixmap.as_mut(),
+            );
+        }
+        Source::Bitmap(img) => {
+            // Lanczos3, et pas le voisin le plus proche: une icone passe de
+            // 1024 px a 16 px, et c'est a 16 px qu'on la regarde le plus
+            // souvent. Un filtre grossier la rend illisible exactement la ou
+            // elle doit etre reconnaissable d'un coup d'oeil.
+            let petite = img.resize_exact(taille, taille, image::imageops::FilterType::Lanczos3);
+            pixmap
+                .data_mut()
+                .copy_from_slice(&petite.to_rgba8().into_raw());
+        }
+    }
     pixmap
 }
 
-fn charger(chemin: &Path) -> Result<usvg::Tree, Box<dyn std::error::Error>> {
-    let donnees = std::fs::read(chemin)?;
-    Ok(usvg::Tree::from_data(&donnees, &usvg::Options::default())?)
+/// Charge `nom.png` s'il existe, sinon `nom.svg`.
+fn charger(dossier: &Path, nom: &str) -> Result<Source, Box<dyn std::error::Error>> {
+    let png = dossier.join(format!("{nom}.png"));
+    if png.exists() {
+        return Ok(Source::Bitmap(image::open(&png)?));
+    }
+    let svg = dossier.join(format!("{nom}.svg"));
+    let donnees = std::fs::read(&svg)
+        .map_err(|e| format!("ni {} ni {}: {e}", png.display(), svg.display()))?;
+    Ok(Source::Vecteur(usvg::Tree::from_data(
+        &donnees,
+        &usvg::Options::default(),
+    )?))
 }
 
 fn ecrire_png(pixmap: &tiny_skia::Pixmap, chemin: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -60,10 +97,10 @@ fn ecrire_png(pixmap: &tiny_skia::Pixmap, chemin: &Path) -> Result<(), Box<dyn s
 ///
 /// Plusieurs tailles dans un seul fichier: sinon Windows redimensionne lui-meme et le
 /// resultat bave a 16 px, la taille ou l'icone est justement le plus lue.
-fn ecrire_ico(arbre: &usvg::Tree, chemin: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn ecrire_ico(source: &Source, chemin: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut paquet = ico::IconDir::new(ico::ResourceType::Icon);
     for taille in [16u32, 32, 48, 64, 128, 256] {
-        let pixmap = rendre(arbre, taille);
+        let pixmap = rendre(source, taille);
         let image = ico::IconImage::from_rgba_data(taille, taille, pixmap.data().to_vec());
         paquet.add_entry(ico::IconDirEntry::encode(&image)?);
     }
@@ -79,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sources = racine.join("icones-source");
 
     // 1. La ruche (node) alimente aussi l'interface web et la PWA.
-    let node = charger(&sources.join("node.svg"))?;
+    let node = charger(&sources, "node")?;
     let web = racine.join("laruche-dashboard/src/templates/icones");
     for taille in [192u32, 512] {
         // Les navigateurs refusent un SVG pour l'icone installee: Windows et Android
@@ -91,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  node    -> PWA 192/512 + laruche-node/icone.ico");
 
     // 2. La coque de bureau: jeu complet impose par tauri.conf.json.
-    let bureau = charger(&sources.join("bureau.svg"))?;
+    let bureau = charger(&sources, "bureau")?;
     let dossier = racine.join("laruche-bureau/icons");
     for (taille, nom) in [
         (32u32, "32x32.png"),
@@ -106,7 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. Le client: meme jeu, dossier separe, pour que l'installeur client ne porte
     //    pas l'icone de l'application complete - c'est tout l'inverse de ce qu'il est.
-    let client = charger(&sources.join("client.svg"))?;
+    let client = charger(&sources, "client")?;
     let dossier_client = racine.join("laruche-bureau/icons-client");
     for (taille, nom) in [
         (32u32, "32x32.png"),
@@ -120,13 +157,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  client  -> laruche-bureau/icons-client/");
 
     // 4. Les binaires en ligne de commande: un .ico chacun, a cote de leur crate.
-    for (source, cible) in [
-        ("cli.svg", "laruche-cli/icone.ico"),
-        ("evals.svg", "laruche-evals/icone.ico"),
+    for (nom, cible) in [
+        ("cli", "laruche-cli/icone.ico"),
+        ("evals", "laruche-evals/icone.ico"),
     ] {
-        let arbre = charger(&sources.join(source))?;
-        ecrire_ico(&arbre, &racine.join(cible))?;
-        println!("  {:<7} -> {cible}", source.trim_end_matches(".svg"));
+        let source = charger(&sources, nom)?;
+        ecrire_ico(&source, &racine.join(cible))?;
+        println!("  {nom:<7} -> {cible}");
     }
 
     Ok(())
