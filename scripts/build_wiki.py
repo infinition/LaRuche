@@ -41,18 +41,34 @@ SECTION_LABELS = {
 # Page order inside a folder. Unlisted pages follow, alphabetically.
 PAGE_ORDER = {
     "": ["Home", "FAQ", "Security"],
-    "getting-started": ["Installation", "Quick-Start", "Local-Models"],
+    "getting-started": ["Installation", "Desktop-App", "Quick-Start", "Local-Models"],
     "concepts": [
         "Architecture",
         "Butinage-Engine",
         "Cognitive-Memory",
         "LaReine",
+        "Table-Ronde",
         "Watchers",
         "Automation",
         "Skills-and-Curator",
     ],
-    "guides": ["Voice", "Telegram", "MCP", "Secrets"],
-    "reference": ["Configuration", "Tools", "Brand-Glossary"],
+    "guides": [
+        "Computer-and-Browser",
+        "Chrome-Extension",
+        "Training-Datasets",
+        "Voice",
+        "Telegram",
+        "MCP",
+        "Secrets",
+        "Troubleshooting",
+    ],
+    "reference": [
+        "Configuration",
+        "Providers-and-Profiles",
+        "Tools",
+        "Evals",
+        "Brand-Glossary",
+    ],
 }
 
 

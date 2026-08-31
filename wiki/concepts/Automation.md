@@ -24,8 +24,21 @@ A finished mission stops occupying the scheduler; its cron disappears with it.
 ## Kanban
 
 The board behind the missions: tasks move through columns, each task can carry its own
-channel for reporting. Useful both as the agent's own work queue and as a shared
-surface where you drop tasks for the hive.
+channel for reporting, and its own profile and model. Useful both as the agent's own
+work queue and as a shared surface where you drop tasks for the hive.
+
+**Only the Ready column runs.** A task you write, or one the agent creates, lands in
+Triage or Todo and stays there until someone promotes it. Nothing you type is executed
+on the spot.
+
+This is the single most surprising thing about the board, and it is deliberate. Without
+that gate the dispatcher would take everything: the agent files five follow-ups while
+working, and five agentic runs start a few seconds later, none of which anybody asked
+for. Promotion to Ready is the moment a human says yes.
+
+Once a task is in Ready, the dispatcher picks it up within the poll interval, five
+seconds by default, adjustable in the Kanban tab. One task at a time: a board is a
+queue, not a fan-out.
 
 ## Watchers
 
