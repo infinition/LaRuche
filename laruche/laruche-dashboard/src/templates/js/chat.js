@@ -2720,6 +2720,34 @@ LaRuche.Voice = (function(){
   // Reverse stream LLM -> TTS: speak each sentence as the model produces it, so she
   // starts talking before the full answer is done. Driven from streamToken().
   var _stts = { el:null, enq:0, q:[], used:false, busy:false, seq:0, lastClean:'' };
+
+  // ── Est-elle en train de parler? ──
+  //
+  // La question a l'air simple et ne l'est pas, et s'y tromper est ce qui
+  // faisait que le micro reentendait la voix de synthese.
+  //
+  // Regarder `currentTtsAudio` ne suffit pas: la lecture se fait phrase par
+  // phrase, et entre deux phrases il n'y a AUCUN son ni aucun objet audio,
+  // pendant qu'on telecharge la suivante. Le silence dure quelques centaines de
+  // millisecondes, parfois plusieurs secondes quand le modele n'a pas encore
+  // produit la phrase d'apres. On y voyait la fin de sa reponse, on lancait
+  // l'ecoute, la phrase suivante arrivait, et le micro la transcrivait.
+  //
+  // Il faut donc compter aussi ce qui n'a pas encore de son: la requete partie
+  // (`_ttsEnVol`), la file en attente, et le fait qu'un message assistant soit
+  // encore en cours de lecture (`_ttsFluxOuvert`).
+  var _ttsEnVol = 0;        // requetes TTS parties, audio pas encore joue
+  var _ttsFluxOuvert = false; // un message assistant est en cours de lecture
+
+  function ttsEnCours(){
+    return !!currentTtsAudio
+      || _ttsEnVol > 0
+      || _stts.busy
+      || _stts.q.length > 0
+      || _ttsFluxOuvert
+      || (('speechSynthesis' in window)
+          && (speechSynthesis.speaking || speechSynthesis.pending));
+  }
   function ttsResetBtn(btn){ if(btn){ btn.classList.remove('playing'); btn.innerHTML=SPEAKER_SVG+' '+LaRuche.i18n.t('chat.lire'); } }
 
   // Split into sentences so we synthesize and play phrase by phrase (low latency).
@@ -2789,7 +2817,9 @@ LaRuche.Voice = (function(){
     var sentences=ttsSentences(cleanText);
     if(!sentences.length){ ttsResetBtn(btn); return; }
     var seq=++_ttsSeq;
+    _ttsEnVol++;
     var first=await ttsFetchBlob(sentences[0]);
+    _ttsEnVol--;
     if(seq!==_ttsSeq){ return; } // a newer call superseded this one
     if(!first){ speakBrowser(cleanText,btn); return; } // TTS unavailable: browser voice
     LaRuche.Console.log('info','TTS','voix du serveur'+(ttsBackend?' ('+ttsBackend+')':''));
@@ -2816,6 +2846,7 @@ LaRuche.Voice = (function(){
     if(currentTtsAudio){currentTtsAudio.pause();currentTtsAudio.currentTime=0;currentTtsAudio=null;}
     if('speechSynthesis' in window) speechSynthesis.cancel();
     currentTtsUtterance=null;
+    _ttsEnVol=0; _ttsFluxOuvert=false;
   }
 
   // Feed the running clean text (from streamToken). Enqueue every complete sentence except
@@ -2827,6 +2858,7 @@ LaRuche.Voice = (function(){
       _stts.el=el; _stts.enq=0; _stts.q=[]; _stts.used=false; _stts.busy=false; _stts.seq++; _stts.lastClean='';
     }
     if(!autoTtsEnabled) return;
+    _ttsFluxOuvert=true;
     _stts.lastClean=clean;
     if(vmOpen){ vmSpokenText=clean; var vmTr=document.getElementById('voiceModeTranscript'); if(vmTr) vmTr.textContent=clean; }
     var sents=ttsSentences(clean);
@@ -2839,7 +2871,9 @@ LaRuche.Voice = (function(){
     _stts.busy=true;
     var cleaned=cleanTextForTTS(_stts.q.shift());
     if(!cleaned){ _stts.busy=false; return pumpStream(seq); }
+    _ttsEnVol++;
     ttsFetchBlob(cleaned).then(function(blob){
+      _ttsEnVol--;
       if(seq!==_stts.seq) return; // superseded (stop/new message already reset busy)
       if(!blob){ // TTS service down: speak this sentence with the browser voice, keep going
         if('speechSynthesis' in window){
@@ -2863,6 +2897,9 @@ LaRuche.Voice = (function(){
   // never kicked in (e.g. a single-sentence answer, or auto-TTS toggled mid-stream).
   function finishStream(fullText, btn){
     if(!autoTtsEnabled) return;
+    // Le message est complet: ce qui reste a dire est desormais dans la file, et
+    // `ttsEnCours` la surveille. Le flux peut se refermer.
+    _ttsFluxOuvert=false;
     if(!_stts.used){ speakText(fullText, btn); return; } // streaming never ran: one-shot read
     var sents=ttsSentences(_stts.lastClean||fullText);
     for(var i=_stts.enq; i<sents.length; i++){ _stts.q.push(sents[i]); _stts.enq=i+1; }
@@ -3077,9 +3114,21 @@ LaRuche.Voice = (function(){
   function vmLoop(){
     if(!vmOpen||!vmCtx){ return; }
     // Poll the TTS state to drive transitions without touching speakText().
-    var speaking = !!currentTtsAudio || (('speechSynthesis' in window) && speechSynthesis.speaking);
-    if(vmState==='thinking' && speaking){ vmSetState('speaking'); }
-    else if(vmState==='speaking' && !speaking){ vmSetState('listening'); vmListen(); }
+    var speaking = ttsEnCours();
+    if(vmState==='thinking' && speaking){ vmSetState('speaking'); vmSilenceDepuis=0; }
+    else if(vmState==='speaking' && !speaking){
+      // Le silence doit DURER avant qu'on ouvre le micro. Deux raisons: la file
+      // peut se remplir a nouveau une fraction de seconde plus tard, et le son
+      // qui vient de sortir du haut-parleur met un moment a mourir dans la
+      // piece. Ouvrir l'ecoute sur le premier instant de calme, c'est la
+      // rouvrir pile sur sa propre queue de phrase.
+      if(!vmSilenceDepuis){ vmSilenceDepuis=performance.now(); }
+      else if(performance.now()-vmSilenceDepuis>=VM_REPOS_MS){
+        vmSilenceDepuis=0; vmSetState('listening'); vmListen();
+      }
+    } else {
+      vmSilenceDepuis=0;
+    }
 
     vmIntensity += (vmTarget - vmIntensity)*0.08;
     var w=vmCanvas.width, h=vmCanvas.height, cx=w/2, cy=h/2;
@@ -3133,6 +3182,11 @@ LaRuche.Voice = (function(){
   // transcription reste au chemin d'ecoute existant, qui prend le relais une
   // fois la voix coupee.
   var vmBargeCtx=null, vmBargeStream=null, vmBargeRaf=null, vmSpokenText='';
+
+  // Depuis quand elle se tait, et combien de temps ce silence doit tenir avant
+  // qu'on ouvre le micro.
+  var vmSilenceDepuis=0;
+  var VM_REPOS_MS=450;
 
   // Le seuil et la duree, regles pour distinguer une voix d'un residu d'echo.
   //
@@ -3228,6 +3282,11 @@ LaRuche.Voice = (function(){
   }
 
   function vmListen(){
+    // Dernier verrou. L'ecoute passe par SpeechRecognition, qui ouvre son propre
+    // micro sans annulation d'echo: si elle demarre pendant que le haut-parleur
+    // sort une phrase, elle transcrit cette phrase. Aucun filtre textuel ne
+    // rattrape ca proprement, donc on ne demarre pas, point.
+    if(ttsEnCours()){ return; }
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){ vmSetState('idle'); LaRuche.Toast.show(LaRuche.i18n.t('chat.sttUnavailable'),'err'); return; }
     if(vmRecognition){ try{ vmRecognition.stop(); }catch(e){} }
