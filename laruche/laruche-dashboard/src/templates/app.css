@@ -2989,11 +2989,17 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 /* Le soutien, dit par l'abeille. Une demande d'argent se lit mieux quand elle
    vient de quelqu'un, et elle est deja la, dans le chat. */
 .help-cafe { display:flex; flex-direction:column; gap:14px; }
-.help-cafe-scene { display:flex; align-items:center; gap:16px; }
-.help-abeille {
-  position:relative; flex:none; left:auto; top:auto;
-  width:34px; height:26px; transform:scale(1.15); transform-origin:center;
+.help-cafe-scene { display:flex; align-items:center; gap:18px; }
+/* L'abeille est dessinee en position absolue et centree sur son propre point
+   d'ancrage: elle deborde donc largement de la boite qu'on lui donne. Elle
+   etait posee dans une case de 34x26 alors qu'elle mesure 51x33, et elle
+   passait sous la bulle. Une case a sa taille reelle, et rien ne se chevauche.
+   `overflow:visible` garde les ailes, qui sortent du cadre en battant. */
+.help-abeille-case {
+  position:relative; flex:none;
+  width:64px; height:52px; overflow:visible;
 }
+.help-abeille-case .bee { transform:translate(-50%,-50%) scale(1.05); }
 .help-bulle {
   position:relative; flex:1; min-width:0;
   padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius);
@@ -3019,6 +3025,40 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 }
 .help-cafe-btn svg { width:16px; height:16px; }
 .help-cafe-btn:hover { filter:brightness(1.1); }
+
+/* Le bouton de verification: un bouton, pas un rectangle plein. Il partage la
+   ligne avec le resultat, et un aplat ambre a cote d'un texte gris attirait
+   l'oeil sur l'action au lieu de la reponse. */
+.help-maj-btn {
+  display:inline-flex; align-items:center; gap:8px; flex:none;
+  padding:7px 14px; border-radius:var(--radius);
+  border:1px solid var(--border); background:var(--bg-hover);
+  color:var(--text); font-size:12px; font-family:inherit; cursor:pointer;
+  transition:all var(--transition-fast);
+}
+.help-maj-btn:hover:not(:disabled) { border-color:var(--amber); color:var(--amber); }
+.help-maj-btn:disabled { opacity:.75; cursor:default; }
+.help-maj-ic { width:15px; height:15px; flex:none; }
+/* La recherche tourne: sans elle, un appel de deux secondes ressemble a un
+   bouton qui n'a rien fait. */
+.help-maj-cherche .help-maj-ic { animation:help-tourne .9s linear infinite; }
+@keyframes help-tourne { to { transform:rotate(360deg); } }
+
+/* Une mise a jour disponible respire, discretement: c'est la seule chose de la
+   page qui appelle une action, et elle ne doit pas se confondre avec un texte
+   d'etat parmi d'autres. */
+.help-maj-pastille {
+  display:inline-block; width:7px; height:7px; margin-right:7px;
+  border-radius:50%; background:var(--amber); vertical-align:middle;
+  animation:help-pulse 1.6s ease-in-out infinite;
+}
+@keyframes help-pulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(245,158,11,.55); }
+  60%     { box-shadow:0 0 0 6px rgba(245,158,11,0); }
+}
+@media (prefers-reduced-motion:reduce){
+  .help-maj-cherche .help-maj-ic, .help-maj-pastille { animation:none; }
+}
 
 @media (max-width:520px){
   .help-cafe-scene { align-items:flex-start; }

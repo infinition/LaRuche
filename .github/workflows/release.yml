@@ -246,8 +246,44 @@ jobs:
           path: laruche/dist-bureau/*
           if-no-files-found: error
 
+  # L'extension Chrome, en archive a charger soi-meme.
+  #
+  # Pas de .crx: depuis Chrome 33, un paquet signe glisse dans chrome://extensions
+  # est refuse sur Windows et macOS, seul le Web Store installe. Livrer un .crx
+  # reviendrait a livrer un fichier que personne ne peut ouvrir, et obligerait a
+  # publier la cle de signature, avec laquelle n'importe qui pourrait forger une
+  # mise a jour. L'archive non empaquetee, elle, se charge partout en mode
+  # developpeur, et c'est de toute facon le mode d'installation qui convient a une
+  # extension inutile sans un noeud LaRuche sur la meme machine.
+  extension:
+    name: extension-chrome
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package the extension
+        run: |
+          # Le manifeste porte deja la version; l'archive n'en a pas besoin dans
+          # son nom, et ne doit surtout pas en avoir: le site pointe sur
+          # releases/latest/download/<asset>, un lien qui casse des que le nom
+          # bouge d'une release a l'autre.
+          test -f extension-chrome/manifest.json
+          mkdir -p paquet
+          cp -r extension-chrome paquet/laruche-extension-chrome
+          cd paquet && zip -qr ../laruche-extension-chrome.zip laruche-extension-chrome
+          cd .. && unzip -l laruche-extension-chrome.zip | tail -3
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: laruche-extension-chrome
+          path: laruche-extension-chrome.zip
+          if-no-files-found: error
+
   release:
-    needs: [build, bureau]
+    needs: [build, bureau, extension]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -263,7 +299,7 @@ jobs:
           # etait sortie avec quatre assets sur huit sans que rien ne le signale.
           n=$(find dist -type f | wc -l)
           echo "fichiers a attacher: $n"
-          [ "$n" -ge 12 ] || { echo "trop peu d'assets: attendu au moins 12"; exit 1; }
+          [ "$n" -ge 13 ] || { echo "trop peu d'assets: attendu au moins 13"; exit 1; }
 
       - uses: softprops/action-gh-release@v2
         with:

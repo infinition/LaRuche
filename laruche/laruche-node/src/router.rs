@@ -163,6 +163,8 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/memory/mesh_pull", post(changes_api::api_memory_mesh_pull))
         .route("/api/state/version", get(changes_api::api_state_version))
         .route("/api/version", get(changes_api::api_version))
+        .route("/api/maj", get(changes_api::api_maj))
+        .route("/api/ouvrir", post(changes_api::api_ouvrir))
         .route(
             "/api/kanban/interval",
             get(kanban_api::api_kanban_interval_get).post(kanban_api::api_kanban_interval_set),

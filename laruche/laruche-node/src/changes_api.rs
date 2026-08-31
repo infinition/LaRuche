@@ -406,6 +406,78 @@ pub(crate) async fn api_version() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "version": env!("CARGO_PKG_VERSION") }))
 }
 
+/// POST /api/ouvrir {url} - ouvre une adresse dans le navigateur du systeme.
+///
+/// Sert a l'application de bureau, ou un lien `target="_blank"` ne fait rien:
+/// la webview n'ouvre pas d'onglet et n'a pas de navigateur autour d'elle. La
+/// page lui renvoie donc l'adresse, et le noeud la confie au systeme.
+///
+/// Le schema est verifie, et c'est la seule chose qui compte ici: cet appel
+/// lance un programme choisi par le systeme d'exploitation. Un `file://`
+/// ouvrirait un fichier local, un schema exotique un logiciel qu'on n'a pas
+/// choisi. Seuls http et https passent.
+pub(crate) async fn api_ouvrir(
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let url = body["url"].as_str().unwrap_or("").trim().to_string();
+    let sur = url.starts_with("http://") || url.starts_with("https://");
+    if !sur {
+        return Json(serde_json::json!({
+            "status": "error",
+            "error": "only http and https URLs can be opened"
+        }));
+    }
+    match open::that_detached(&url) {
+        Ok(()) => Json(serde_json::json!({ "status": "ok" })),
+        Err(e) => Json(serde_json::json!({ "status": "error", "error": e.to_string() })),
+    }
+}
+
+/// GET /api/maj - compare cette version a la derniere release publiee.
+///
+/// Cote serveur, et pas depuis la page: un appel a api.github.com depuis la
+/// webview de l'application se heurte a la politique de securite du contenu et
+/// aux regles d'origine croisee, et echouait donc silencieusement la ou il
+/// marchait dans un navigateur. Le noeud, lui, n'a ni l'une ni les autres.
+pub(crate) async fn api_maj() -> Json<serde_json::Value> {
+    let installee = env!("CARGO_PKG_VERSION");
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return Json(
+                serde_json::json!({ "installee": installee, "error": e.to_string() }),
+            )
+        }
+    };
+    // L'API de GitHub REFUSE une requete sans en-tete `User-Agent`, avec un 403
+    // qui ne dit pas pourquoi.
+    let rep = client
+        .get("https://api.github.com/repos/infinition/LaRuche/releases/latest")
+        .header("User-Agent", format!("LaRuche/{installee}"))
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await;
+    match rep {
+        Ok(r) if r.status().is_success() => match r.json::<serde_json::Value>().await {
+            Ok(v) => Json(serde_json::json!({
+                "installee": installee,
+                "derniere": v["tag_name"].as_str().unwrap_or("").trim_start_matches('v'),
+                "url": v["html_url"].as_str().unwrap_or(""),
+                "publiee": v["published_at"].as_str().unwrap_or(""),
+            })),
+            Err(e) => Json(serde_json::json!({ "installee": installee, "error": e.to_string() })),
+        },
+        Ok(r) => Json(serde_json::json!({
+            "installee": installee,
+            "error": format!("GitHub a repondu {}", r.status())
+        })),
+        Err(e) => Json(serde_json::json!({ "installee": installee, "error": e.to_string() })),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::supprimee_du_disque;

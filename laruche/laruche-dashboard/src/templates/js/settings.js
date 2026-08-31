@@ -3352,28 +3352,35 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   async function _verifierMaj(){
     var zone = document.getElementById('helpMajResultat');
     var btn  = document.getElementById('helpMajBtn');
-    if(!zone) return;
+    if(!zone || !btn) return;
+    btn.disabled = true;
+    btn.classList.add('help-maj-cherche');
     zone.className = 'help-maj-etat';
     zone.textContent = LaRuche.i18n.t('help.majEnCours');
-    if(btn) btn.disabled = true;
-    var locale = '0.0.0';
     try{
-      locale = (await fetch('/api/version').then(function(r){ return r.json(); })).version || locale;
-    }catch(e){}
-    try{
-      var rel = await fetch('https://api.github.com/repos/infinition/LaRuche/releases/latest', {
-        headers: { 'Accept': 'application/vnd.github+json' }
-      }).then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); });
-      var tag = String(rel.tag_name || '').replace(/^v/, '');
-      var c = _cmpVersion(locale, tag);
+      // Cote serveur: un appel direct a api.github.com depuis la webview de
+      // l'application se heurte a la politique de securite du contenu et aux
+      // regles d'origine croisee, et echouait sans un mot. Le noeud n'a ni
+      // l'une ni les autres, et il porte l'en-tete User-Agent que GitHub exige.
+      var d = await fetch('/api/maj').then(function(r){ return r.json(); });
+      var locale = d.installee || '0.0.0';
+      var cible = document.getElementById('helpVersionLocale');
+      if(cible) cible.textContent = 'v' + locale;
+      if(d.error || !d.derniere){
+        zone.className = 'help-maj-etat';
+        zone.textContent = LaRuche.i18n.t('help.majEchec');
+        return;
+      }
+      var c = _cmpVersion(locale, d.derniere);
       if(c < 0){
         zone.className = 'help-maj-etat help-maj-neuve';
-        zone.innerHTML = LaRuche.i18n.t('help.majDispo') + ' <strong>v' + esc(tag) + '</strong> ' +
-          '<a href="' + esc(rel.html_url || (HELP_DEPOT + '/releases')) + '" target="_blank" rel="noopener noreferrer">' +
+        zone.innerHTML = '<span class="help-maj-pastille"></span>' +
+          LaRuche.i18n.t('help.majDispo') + ' <strong>v' + esc(d.derniere) + '</strong> ' +
+          '<a href="' + esc(d.url || (HELP_DEPOT + '/releases')) + '" target="_blank" rel="noopener noreferrer">' +
           LaRuche.i18n.t('help.majTelecharger') + '</a>';
       } else if(c > 0){
-        // Un binaire compile depuis les sources est normalement en avance sur
-        // la derniere release. Le dire, plutot qu'annoncer "a jour" et laisser
+        // Un binaire compile depuis les sources est normalement en avance sur la
+        // derniere release. Le dire, plutot qu'annoncer "a jour" et laisser
         // croire que la verification a servi a quelque chose.
         zone.className = 'help-maj-etat';
         zone.textContent = LaRuche.i18n.t('help.majAvance');
@@ -3384,8 +3391,10 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     }catch(e){
       zone.className = 'help-maj-etat';
       zone.textContent = LaRuche.i18n.t('help.majEchec');
+    }finally{
+      btn.disabled = false;
+      btn.classList.remove('help-maj-cherche');
     }
-    if(btn) btn.disabled = false;
   }
 
   async function loadHelp(el){
@@ -3408,7 +3417,10 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
             '<span class="help-version-val">Miel v0.2.0</span></div>' +
         '</div>' +
         '<div class="help-maj">' +
-          '<button id="helpMajBtn" class="btn-primary">' + LaRuche.i18n.t('help.majBouton') + '</button>' +
+          '<button id="helpMajBtn" class="help-maj-btn" type="button">' +
+            '<svg class="help-maj-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>' +
+            '<span>' + LaRuche.i18n.t('help.majBouton') + '</span>' +
+          '</button>' +
           '<div id="helpMajResultat" class="help-maj-etat">' + LaRuche.i18n.t('help.majDesc') + '</div>' +
         '</div>' +
       '</div>' +
@@ -3428,7 +3440,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       //    une proposition qu'on peut ignorer sans y penser.
       '<div class="settings-card help-cafe">' +
         '<div class="help-cafe-scene">' +
-          '<div class="bee help-abeille"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div>' +
+          '<div class="help-abeille-case"><div class="bee"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div></div>' +
           '<div class="help-bulle">' +
             '<div class="help-bulle-titre">' + LaRuche.i18n.t('help.soutien') + '</div>' +
             '<div class="help-bulle-txt">' + LaRuche.i18n.t('help.soutienDesc') + '</div>' +

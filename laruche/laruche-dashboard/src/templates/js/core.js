@@ -178,6 +178,7 @@ LaRuche.i18n.add({
   // Header / model
   'core.permissionsToast':      { fr:'Permissions : {mode}', en:'Permissions: {mode}' },
   'core.rescanModels':               {fr:'Rechercher les modèles', en:'Rescan models'},
+  'core.lienEchec':                  {fr:"Impossible d'ouvrir ce lien", en:'Could not open that link'},
   'core.modelAuto':             { fr:'Auto',               en:'Auto' },
   'core.modelReady':            { fr:'Modèle {model} prêt ({ms}ms)', en:'Model {model} ready ({ms}ms)' },
   'core.modelSelected':         { fr:'Modèle : {model}',   en:'Model: {model}' },
@@ -1166,7 +1167,40 @@ LaRuche.Header = (function(){
       .catch(function(){ rendreTravaux([]); });
   }
 
+  /* Les liens externes, dans l'application de bureau.
+
+     `target="_blank"` ne fait RIEN dans la webview: elle n'ouvre pas d'onglet,
+     et il n'y a pas de navigateur autour pour en ouvrir un. Tous les liens du
+     logiciel etaient donc morts dans l'application, en silence, ce qui est la
+     pire des pannes: on clique, il ne se passe rien, et on croit avoir mal
+     clique.
+
+     Un seul point d'interception ici plutot qu'un traitement par lien: il y en
+     a des dizaines dans la SPA, et le prochain qu'on ajoutera ne pensera pas a
+     ce cas. Dans un navigateur on ne touche a rien. */
+  function brancherLiensExternes(){
+    if(!window.__LARUCHE_BUREAU__) return;
+    document.addEventListener('click', function(e){
+      var a = e.target.closest && e.target.closest('a[href]');
+      if(!a) return;
+      var href = a.getAttribute('href') || '';
+      if(!/^https?:\/\//i.test(href)) return;      // ancre, chemin relatif: la page gere
+      if(a.origin === window.location.origin) return; // meme ruche: navigation normale
+      e.preventDefault();
+      fetch('/api/ouvrir',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({url:a.href})})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d && d.status !== 'ok' && LaRuche.Toast) {
+            LaRuche.Toast.show(LaRuche.i18n.t('core.lienEchec'),'err');
+          }
+        })
+        .catch(function(){ if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('core.lienEchec'),'err'); });
+    }, true);
+  }
+
   function init() {
+    brancherLiensExternes();
     loadModels();
     loadPermissionMode();
     sondeTravaux();

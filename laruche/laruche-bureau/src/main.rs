@@ -243,6 +243,18 @@ fn main() {
                 // Meme fond que la page: sans cela la fenetre clignote en blanc le
                 // temps que la SPA peigne.
                 .background_color(tauri::window::Color(0x0f, 0x0f, 0x10, 0xff))
+                // Un marqueur, pose avant que la page ne s'execute.
+                //
+                // La SPA est la meme dans un navigateur et ici, mais un lien
+                // `target="_blank"` ne fait RIEN dans cette fenetre: la webview
+                // n'ouvre pas d'onglet, et il n'y a pas de navigateur autour
+                // pour en ouvrir un. Tous les liens du logiciel etaient donc
+                // morts dans l'application de bureau, en silence.
+                //
+                // La page a besoin de savoir ou elle tourne pour choisir: son
+                // comportement normal dans un navigateur, un passage par le
+                // noeud ici, qui sait ouvrir le navigateur du systeme.
+                .initialization_script("window.__LARUCHE_BUREAU__ = true;")
                 .build()?;
             Ok(())
         })
