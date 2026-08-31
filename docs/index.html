@@ -482,6 +482,81 @@ p:last-child { margin-bottom: 0; }
 .hv-sys { align-self: center; font-family: var(--mono); font-size: 10px; color: var(--text-muted); padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; }
 .hv-in2 { margin-top: auto; display: flex; align-items: center; gap: 9px; padding: 9px 13px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-muted); }
 
+/* ── Demande d'approbation ───────────────────────────────────────────── */
+.ap-dialog { display: flex; gap: 12px; padding: 12px 14px; margin: 4px 14px; border-radius: var(--radius);
+             background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3); }
+.ap-icon { font-size: 22px; flex: none; line-height: 1.1; }
+.ap-content { flex: 1; min-width: 0; }
+.ap-title { font-weight: 600; font-size: 13px; color: var(--amber); margin-bottom: 4px; }
+.ap-detail { font-size: 12px; color: var(--text-dim); margin-bottom: 7px; }
+.ap-args { font-family: var(--mono); font-size: 11px; background: rgba(0,0,0,.3); padding: 7px 9px;
+           border-radius: 4px; color: var(--text-dim); margin: 0 0 9px; white-space: pre-wrap; line-height: 1.5; }
+.ap-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ap-btn { padding: 5px 15px; border: 0; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.ap-btn.ok { background: var(--green); color: #000; }
+.ap-btn.no { background: var(--red); color: #fff; }
+.ap-btn.always { background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border); }
+.ap-note { margin: 2px 14px 0; font-size: 11px; color: var(--text-muted); }
+
+/* ── LaReine ─────────────────────────────────────────────────────────── */
+.rn-card { margin: 8px 14px; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid #f5c542;
+           border-radius: 8px; background: var(--bg-card); font-size: 13px; line-height: 1.5; }
+.rn-card.rework { border-left-color: #f5a623; }
+.rn-head { display: flex; gap: 7px; align-items: baseline; font-weight: 600; }
+.rn-head .cr { font-size: 15px; }
+.rn-verdict { flex: 1; min-width: 0; }
+.rn-conf { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+.rn-scores { margin-top: 9px; display: grid; gap: 5px; }
+.rn-score { display: grid; grid-template-columns: 82px 1fr 30px; gap: 8px; align-items: center; font-size: 12px; }
+.rn-score-lb { opacity: .72; color: var(--text-dim); }
+.rn-track { height: 5px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.rn-fill { display: block; height: 100%; border-radius: 99px; }
+.rn-fill.good { background: #46c46a; } .rn-fill.mid { background: #f5a623; } .rn-fill.bad { background: #e5484d; }
+.rn-score-v { font-family: var(--mono); font-size: 11px; color: var(--text-dim); text-align: right; }
+.rn-why { margin-top: 9px; font-size: 12px; color: var(--text-dim); }
+.rn-acts { margin-top: 10px; display: flex; gap: 7px; flex-wrap: wrap; }
+.rn-act { padding: 4px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); font-size: 11px; color: var(--text-dim); }
+.rn-act.on { border-color: #f5c542; color: #f5c542; }
+
+/* ── Watcher ─────────────────────────────────────────────────────────── */
+.wt-hd { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+.wt-hd .ttl { font-size: 12.5px; font-weight: 600; }
+.wt-hd .add { margin-left: auto; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 11px; color: var(--text-dim); }
+.wt-list { padding: 11px 14px; display: grid; gap: 9px; align-content: start; }
+.wt-item { border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card); overflow: hidden; }
+.wt-item.armed { border-color: rgba(96,165,250,.45); }
+.wt-bar { display: flex; align-items: center; gap: 8px; padding: 7px 11px; border-bottom: 1px solid var(--border); }
+.wt-dot { width: 7px; height: 7px; border-radius: 50%; background: #60a5fa; box-shadow: 0 0 7px #60a5fa; flex: none; }
+.wt-nom { font-size: 12px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-state { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: #60a5fa; border: 1px solid rgba(96,165,250,.4); border-radius: 5px; padding: 1px 6px; }
+.wt-tree { padding: 9px 11px; font-family: var(--mono); font-size: 11px; line-height: 1.8; color: var(--text-dim); }
+.wt-tree .op { color: var(--amber); }
+.wt-tree .k { color: var(--text); }
+.wt-tree ul { list-style: none; margin: 0; padding-left: 15px; border-left: 1px dashed var(--border-light); }
+.wt-foot { padding: 7px 11px; border-top: 1px solid var(--border); font-size: 10.5px; color: var(--text-muted); }
+.wt-cost { color: var(--green); }
+
+/* ── Capacites ───────────────────────────────────────────────────────── */
+.cp-tabs { display: flex; gap: 4px; padding: 10px 12px 0; flex-wrap: wrap; }
+.cp-tab { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); font-size: 11px; color: var(--text-dim); }
+.cp-tab.on { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
+.cp-find { margin: 10px 12px 8px; padding: 5px 10px 5px 28px; border: 1px solid var(--amber); border-radius: 6px;
+           background: var(--bg-input); font-size: 11.5px; color: var(--text-muted); position: relative; }
+.cp-find::before { content: '🔍'; position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 11px; }
+.cp-count { margin: 0 12px 6px; font-size: 11.5px; color: var(--text-dim); }
+.cp-table { margin: 0 12px 12px; font-size: 11.5px; }
+.cp-row { display: grid; grid-template-columns: 1.5fr .8fr .8fr 1fr; gap: 8px; align-items: center;
+          padding: 7px 2px; border-bottom: 1px solid rgba(42,42,46,.5); }
+.cp-row.hd { color: var(--text-dim); font-weight: 600; border-bottom-color: var(--border); font-size: 11px; }
+.cp-nom { color: #fff; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-b { justify-self: start; padding: 1px 7px; border-radius: 4px; font-size: 9.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .4px; font-family: var(--mono); border: 1px solid currentColor; }
+.cp-b.tool { color: var(--amber); } .cp-b.skill { color: var(--cyan); }
+.cp-b.mcp { color: var(--purple); } .cp-b.plug { color: var(--green); }
+.cp-b.nat { color: var(--text-muted); }
+.cp-on { color: var(--green); font-size: 10px; font-weight: 700; }
+.cp-off { color: var(--red); font-size: 10px; font-weight: 700; }
+
 /* ── Feed ────────────────────────────────────────────────────────────── */
 .fd-hd { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; font-weight: 600; }
 .fd-hd .live { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 400; color: var(--text-muted); font-family: var(--mono); }
@@ -947,11 +1022,11 @@ cargo run --release -p laruche-bureau</pre>
             </div>
             <div class="tr-verdict">
               <span class="lb">Final answer · confidence 0.72</span>
-              Keep the queue in SQLite. The throughput argument for Redis does not hold at this
-              volume, and it adds a process to keep alive.
+              Keep the queue in SQLite. Redis buys throughput nobody needs here, and adds a
+              process to keep alive.
             </div>
-            <div class="tr-dis">2 rounds · <b>1 dissenter</b> — the attacker still objects that a
-              crash between write and ack loses the task.</div>
+            <div class="tr-dis">2 rounds · <b>1 dissenter</b> — the attacker objects that a crash
+              between write and ack loses the task.</div>
           </div>
           <p class="cap"><b>Table ronde.</b> Specialists answer alone, then read each other. A
             contrarian is paid to disagree, an arbiter concludes, and anyone still dissenting is
@@ -1170,30 +1245,166 @@ cargo run --release -p laruche-bureau</pre>
             and nothing is shared that you did not mark as shared.</p>
         </div>
 
-        <!-- ── Hive to hive ────────────────────────────────────────── -->
+        <!-- ── Entre utilisateurs ──────────────────────────────────── -->
         <div class="surf">
           <div class="app">
             <div class="hv-hdr">
-              <span class="av">A</span>
-              <span><span class="nm">atelier</span><br><span class="sub">192.168.1.24 · signed</span></span>
-              <span class="st"><i></i>reachable</span>
+              <span class="av">M</span>
+              <span><span class="nm">Marion</span><br><span class="sub">atelier · 192.168.1.24</span></span>
+              <span class="st"><i></i>online</span>
             </div>
             <div class="hv-body">
               <div class="hv-sys">mDNS · atelier joined the swarm</div>
-              <div class="hv-msg hv-out">Do you still have the 70B loaded?<span class="h">21:28</span></div>
-              <div class="hv-msg hv-in">Yes, until 23:00. Queue is four deep, so expect a
-                wait.<span class="h">21:29</span></div>
-              <div class="hv-msg hv-out">Take this one then: summarise the release notes and send the
-                result back to my hive.<span class="h">21:31</span></div>
-              <div class="hv-msg hv-in">Running. I will return the answer tagged with my node id, so
-                you know which hive produced it.<span class="h">21:31</span></div>
+              <div class="hv-msg hv-in">Your hive is the one with the 70B, right? Mine keeps
+                running out of memory on it.<span class="h">21:28</span></div>
+              <div class="hv-msg hv-out">Yes. I shared it on the mesh, so just pick
+                <span style="font-family:var(--mono);font-size:11.5px">bureau / qwen3:70b</span>
+                in your model list.<span class="h">21:30</span></div>
+              <div class="hv-msg hv-in">Got it, it shows up. Thanks.<span class="h">21:31</span></div>
+              <div class="hv-msg hv-out">Careful with the queue tonight, I am building. It will
+                be slow until 23:00.<span class="h">21:31</span></div>
             </div>
-            <div class="hv-in2">Message atelier</div>
+            <div class="hv-in2">Message Marion</div>
           </div>
-          <p class="cap"><b>Hive to hive.</b> Two nodes talk to each other like two people, and one
-            can hand work to the other. The reply comes back tagged with its provenance: an answer
-            produced elsewhere is never passed off as your own hive's. Messages are signed, and a
-            hive only offers what its owner marked as shared.</p>
+          <p class="cap"><b>Between people.</b> Not the agents talking: you and whoever else runs a
+            hive on the network. Messages are signed and stay on the LAN, they show up in the
+            activity stream on both sides, and it is the natural place to say “I shared the big
+            model, help yourself” without leaving the application.</p>
+        </div>
+
+
+        <!-- ── Approbation ─────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="app-bar">
+              <div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div>
+              <span class="name">LaRuche</span>
+              <div class="app-tabs"><span class="on">CHAT</span><span>MÉMOIRE</span><span>MISSIONS</span></div>
+            </div>
+            <div class="thread">
+              <div class="row me"><div class="bubble me">Free some space, the disk is full.</div></div>
+              <div class="row">
+                <div class="av" aria-hidden="true"><div class="bee"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div></div>
+                <div class="bubble it">The build directories are the biggest thing here. I would
+                  delete the debug one and keep release, which holds the binaries you run.</div>
+              </div>
+              <div class="ap-dialog">
+                <div class="ap-icon">⚠</div>
+                <div class="ap-content">
+                  <div class="ap-title">Authorisation required</div>
+                  <div class="ap-detail">The agent wants to run <strong>shell_exec</strong></div>
+                  <pre class="ap-args">{
+  "command": "rm -rf target/debug",
+  "cwd": "C:/DEV/laruche"
+}</pre>
+                  <div class="ap-btns">
+                    <span class="ap-btn ok">Allow</span>
+                    <span class="ap-btn always">Always for shell_exec</span>
+                    <span class="ap-btn no">Deny</span>
+                  </div>
+                </div>
+              </div>
+              <div class="ap-note">Nothing runs until you click. The exact command is shown, not a
+                summary of it.</div>
+            </div>
+          </div>
+          <p class="cap"><b>Approval.</b> Sensitive tools stop and ask, with the arguments they are
+            about to use rather than a description of them. You can allow once, allow that tool for
+            good, or refuse with a reason the agent then has to work around. The permission engine
+            decides what is gated; the model never decides it for itself.</p>
+        </div>
+
+        <!-- ── LaReine ─────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="app-bar">
+              <div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div>
+              <span class="name">LaRuche</span>
+              <div class="app-tabs"><span class="on">CHAT</span><span>MÉMOIRE</span><span>MISSIONS</span></div>
+            </div>
+            <div class="thread">
+              <div class="row">
+                <div class="av" aria-hidden="true"><div class="bee"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div></div>
+                <div class="bubble it">The migration is done, everything went fine.</div>
+              </div>
+              <div class="rn-card rework">
+                <div class="rn-head"><span class="cr">👑</span>
+                  <span class="rn-verdict">Rework asked</span>
+                  <span class="rn-conf">confidence 0.41</span></div>
+                <div class="rn-scores">
+                  <div class="rn-score"><span class="rn-score-lb">grounded</span>
+                    <span class="rn-track"><i class="rn-fill bad" style="width:32%"></i></span>
+                    <span class="rn-score-v">0.32</span></div>
+                  <div class="rn-score"><span class="rn-score-lb">complete</span>
+                    <span class="rn-track"><i class="rn-fill mid" style="width:58%"></i></span>
+                    <span class="rn-score-v">0.58</span></div>
+                  <div class="rn-score"><span class="rn-score-lb">on task</span>
+                    <span class="rn-track"><i class="rn-fill good" style="width:91%"></i></span>
+                    <span class="rn-score-v">0.91</span></div>
+                </div>
+                <div class="rn-why">The tool trace shows two rows failed and were skipped. “Everything
+                  went fine” is not supported by what actually ran.</div>
+                <div class="rn-acts"><span class="rn-act on">Apply the rework</span><span class="rn-act">Keep the draft</span><span class="rn-act">See the trace</span></div>
+              </div>
+            </div>
+          </div>
+          <p class="cap"><b>LaReine.</b> A supervisor that reads the real tool trace, not just the
+            prose. She scores the answer, and when it claims more than the run supports she asks for
+            a rework before you ever see it. Three modes: autonomous, hybrid, or nothing without
+            your click.</p>
+        </div>
+
+        <!-- ── Watcher ─────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="wt-hd"><span class="ttl">Watchers</span><span class="add">+ New watcher</span></div>
+            <div class="wt-list">
+              <div class="wt-item armed">
+                <div class="wt-bar"><span class="wt-dot"></span><span class="wt-nom">release.log · errors</span><span class="wt-state">armed</span></div>
+                <div class="wt-tree">
+                  <span class="op">and</span>
+                  <ul>
+                    <li><span class="k">file_contains</span>(release.log, “ERROR”)</li>
+                    <li><span class="k">time_between</span>(08:00, 22:00)</li>
+                    <li><span class="op">not</span> <span class="k">fired_within</span>(30 min)</li>
+                  </ul>
+                </div>
+                <div class="wt-foot">Checked every 30 s · <span class="wt-cost">no model call</span> · last fired 22:03</div>
+              </div>
+              <div class="wt-item">
+                <div class="wt-bar"><span class="wt-dot" style="background:#22c55e;box-shadow:0 0 7px #22c55e"></span><span class="wt-nom">backup drive present</span><span class="wt-state" style="color:#22c55e;border-color:rgba(34,197,94,.4)">idle</span></div>
+                <div class="wt-tree"><span class="k">path_exists</span>(E:/backup) → state changed</div>
+                <div class="wt-foot">Checked every 60 s · <span class="wt-cost">no model call</span></div>
+              </div>
+            </div>
+          </div>
+          <p class="cap"><b>Watchers.</b> You describe the rule once in plain language; it is compiled
+            into a predicate tree and never asks a model again. Evaluating it costs nothing, so a
+            watcher can run every thirty seconds forever. Only an explicit check leaf involves the
+            model, and only once the deterministic part has already passed.</p>
+        </div>
+
+        <!-- ── Capacites ───────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="cp-tabs">
+              <span class="cp-tab on">All (127)</span><span class="cp-tab">Tools (89)</span>
+              <span class="cp-tab">Skills (38)</span><span class="cp-tab">MCP</span><span class="cp-tab">Plugins</span>
+            </div>
+            <div class="cp-find">blender</div>
+            <div class="cp-count">4 capabilities · native ones cannot be removed</div>
+            <div class="cp-table">
+              <div class="cp-row hd"><span>Name</span><span>Type</span><span>Origin</span><span>Status</span></div>
+              <div class="cp-row"><span class="cp-nom">blender_scene</span><span class="cp-b mcp">mcp</span><span class="cp-b nat">blender-mcp</span><span class="cp-on">ACTIVE</span></div>
+              <div class="cp-row"><span class="cp-nom">blender_render</span><span class="cp-b mcp">mcp</span><span class="cp-b nat">blender-mcp</span><span class="cp-on">ACTIVE</span></div>
+              <div class="cp-row"><span class="cp-nom">3d-turntable</span><span class="cp-b skill">skill</span><span class="cp-b nat">learned</span><span class="cp-on">ACTIVE</span></div>
+              <div class="cp-row"><span class="cp-nom">blender_headless</span><span class="cp-b plug">plugin</span><span class="cp-b nat">local</span><span class="cp-off">INACTIVE</span></div>
+            </div>
+          </div>
+          <p class="cap"><b>Capabilities.</b> What this node can actually do right now, after feature
+            flags, disabled tools, MCP servers and plugins have been applied. Not a list of what the
+            project supports in theory: the effective registry, on your machine, with a switch next
+            to each line.</p>
         </div>
 
         <!-- ── Feed ────────────────────────────────────────────────── -->
