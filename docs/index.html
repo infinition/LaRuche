@@ -235,6 +235,185 @@ p:last-child { margin-bottom: 0; }
 .gauge span { display: block; height: 100%; width: 34%; background: var(--amber); border-radius: 3px; }
 .app-foot .model { margin-left: auto; color: var(--amber); font-family: var(--mono); }
 
+/* ── Surfaces: six mock-ups of the real interfaces ──────────────────────
+   Each one reproduces a screen of the running product, simplified to what a
+   first-time reader can take in, never invented. Same amber, same panels, same
+   vocabulary as the application. */
+.surf-grid { display: grid; gap: 22px; }
+@media (min-width: 980px) { .surf-grid { grid-template-columns: 1fr 1fr; } }
+.surf { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.surf > .app { flex: 1; }
+.surf .cap { font-size: 13px; color: var(--text-dim); }
+.surf .cap b { color: var(--text); font-weight: 600; }
+
+/* Sub-tabs, as above the chat thread. */
+.app-sub { display: flex; gap: 16px; padding: 8px 14px 0; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.app-sub span { padding-bottom: 7px; border-bottom: 2px solid transparent; }
+.app-sub span.on { color: var(--amber); border-bottom-color: var(--amber); }
+
+/* ── Table ronde ─────────────────────────────────────────────────────── */
+.tr-bar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; flex-wrap: wrap; }
+.tr-sel {
+  flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-input); font-size: 12px; color: var(--text-dim);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.tr-sel::after { content: '▾'; color: var(--text-muted); }
+.tr-btn { padding: 6px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); font-size: 12px; color: var(--text-dim); }
+.tr-table { padding: 6px 14px 16px; display: grid; gap: 9px; justify-items: center; }
+.tr-line { display: flex; gap: 9px; flex-wrap: wrap; justify-content: center; }
+.tr-seat {
+  width: 92px; padding: 11px 6px 9px; border: 1px solid var(--border); border-top-width: 2px;
+  border-radius: 9px; background: var(--bg-card); text-align: center;
+}
+.tr-seat .em { font-size: 21px; line-height: 1.1; }
+.tr-seat .nm { margin-top: 5px; font-size: 10.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-seat.orch { border-top-color: var(--amber); }
+.tr-seat.sci  { border-top-color: var(--cyan); }
+.tr-seat.ing  { border-top-color: var(--green); }
+.tr-seat.att  { border-top-color: var(--red); }
+.tr-seat.con  { border-top-color: var(--purple); }
+.tr-seat.arb  { border-top-color: var(--text-muted); }
+.tr-verdict {
+  margin: 0 14px 14px; padding: 11px 13px; border: 1px solid var(--amber); border-radius: 10px;
+  background: rgba(245,158,11,.06); font-size: 12.5px; line-height: 1.55;
+}
+.tr-verdict .lb { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); display: block; margin-bottom: 5px; }
+.tr-dis { margin: 0 14px 14px; font-size: 11.5px; color: var(--text-muted); }
+.tr-dis b { color: var(--purple); font-weight: 600; }
+
+/* ── Browser under control ───────────────────────────────────────────── */
+.br { position: relative; background: #0c0c0e; }
+.br-frame { position: absolute; inset: 0; border: 2px solid var(--amber); border-radius: 0; pointer-events: none; box-shadow: inset 0 0 22px rgba(245,158,11,.16); }
+.br-tabs { display: flex; align-items: center; gap: 6px; padding: 7px 10px; background: #17171a; border-bottom: 1px solid var(--border); }
+.br-tab { padding: 4px 10px; border-radius: 6px 6px 0 0; font-size: 11px; color: var(--text-dim); background: #202024; }
+.br-tab.on { background: #0c0c0e; color: var(--text); border: 1px solid var(--border); border-bottom-color: transparent; }
+.br-tab.grp { color: var(--amber); border: 1px solid var(--amber-dim); background: rgba(245,158,11,.08); }
+.br-url { flex: 1; min-width: 0; padding: 4px 9px; border-radius: 999px; background: #0c0c0e; border: 1px solid var(--border); font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.br-page { padding: 16px 18px 74px; min-height: 236px; }
+.br-h { height: 11px; width: 46%; border-radius: 3px; background: #2f2f35; margin-bottom: 11px; }
+.br-t { height: 7px; border-radius: 3px; background: #202024; margin-bottom: 7px; }
+.br-t.s { width: 74%; } .br-t.m { width: 88%; }
+.br-field {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 9px; padding: 6px 11px;
+  border: 1px solid var(--amber); border-radius: 6px; background: rgba(245,158,11,.10);
+  font-size: 11.5px; color: var(--text);
+}
+.br-caret { width: 1px; height: 13px; background: var(--amber); animation: surf-caret 1s steps(1) infinite; }
+@keyframes surf-caret { 50% { opacity: 0; } }
+.br-cursor { position: absolute; right: 92px; top: 148px; }
+.br-cursor svg { display: block; filter: drop-shadow(0 1px 3px rgba(0,0,0,.8)); }
+.br-cursor .ring {
+  position: absolute; left: -15px; top: -15px; width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid rgba(245,166,35,.85); animation: surf-ring 1.6s ease-out infinite;
+}
+@keyframes surf-ring { 0% { transform: scale(.45); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+.br-hud {
+  position: absolute; left: 12px; bottom: 12px; width: 60%; max-width: 250px;
+  border: 1px solid rgba(245,166,35,.35); border-radius: 10px; background: rgba(14,12,9,.92);
+  color: #f0e6d2; font-family: var(--mono); font-size: 10.5px; overflow: hidden;
+}
+.br-hud .hd { display: flex; align-items: center; gap: 6px; padding: 5px 9px; background: rgba(245,166,35,.12); border-bottom: 1px solid rgba(245,166,35,.2); color: #F5D18B; font-weight: 600; letter-spacing: .05em; }
+.br-hud .hd .d { width: 6px; height: 6px; border-radius: 50%; background: #F5A623; box-shadow: 0 0 7px 2px rgba(245,166,35,.85); animation: surf-blink 1.2s ease-in-out infinite; }
+@keyframes surf-blink { 50% { opacity: .25; } }
+.br-hud .bd { padding: 7px 9px; line-height: 1.5; color: #e8e0d0; font-family: var(--font); font-size: 11.5px; }
+
+/* ── Windows desktop under control ───────────────────────────────────── */
+.win { position: relative; background: linear-gradient(150deg, #0d1b2a, #1b263b 55%, #0d1b2a); min-height: 288px; }
+.win-halo { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 3px rgba(245,166,35,.85), inset 0 0 26px rgba(245,166,35,.28); animation: surf-halo 2.4s ease-in-out infinite; }
+@keyframes surf-halo { 50% { box-shadow: inset 0 0 0 3px rgba(245,166,35,.5), inset 0 0 34px rgba(245,166,35,.16); } }
+.win-app { position: absolute; left: 30px; top: 24px; right: 40px; bottom: 62px; border-radius: 7px; background: #f3f3f3; border: 1px solid #cfcfcf; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+.win-app .ttl { display: flex; align-items: center; gap: 7px; padding: 5px 9px; background: #e8e8e8; border-bottom: 1px solid #d5d5d5; font-size: 10.5px; color: #333; }
+.win-app .ttl .dots { margin-left: auto; letter-spacing: 2px; color: #888; }
+.win-app .rib { display: flex; gap: 5px; padding: 5px 9px; background: #f7f7f7; border-bottom: 1px solid #e0e0e0; }
+.win-app .rib i { width: 17px; height: 17px; border-radius: 4px; background: #dedede; display: block; }
+.win-app .rib i.on { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,.35); }
+.win-app .canv { position: absolute; inset: 52px 0 0; background: #fff; }
+.win-app .canv svg { display: block; }
+.win-task { position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: rgba(12,14,20,.92); border-top: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; gap: 9px; padding: 0 11px; }
+.win-task i { width: 17px; height: 17px; border-radius: 4px; background: rgba(255,255,255,.13); display: block; }
+.win-task .clock { margin-left: auto; font-size: 10.5px; color: #cbd5e1; font-family: var(--mono); }
+.win-panel {
+  position: absolute; right: 14px; top: 40px; width: 46%; max-width: 210px;
+  border: 1px solid rgba(245,166,35,.4); border-radius: 9px; background: rgba(14,12,9,.93);
+  padding: 8px 10px; font-size: 11px; line-height: 1.5; color: #f0e6d2;
+}
+.win-panel .k { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: #F5D18B; margin-bottom: 5px; }
+.win-panel .k .d { width: 6px; height: 6px; border-radius: 50%; background: #F5A623; box-shadow: 0 0 7px 2px rgba(245,166,35,.85); animation: surf-blink 1.2s ease-in-out infinite; }
+.win-cursor { position: absolute; left: 44%; top: 58%; }
+.win-cursor svg { display: block; filter: drop-shadow(0 1px 3px rgba(0,0,0,.8)); }
+.win-cursor .ring { position: absolute; left: -15px; top: -15px; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(245,166,35,.85); animation: surf-ring 1.6s ease-out infinite; }
+
+/* ── Voice mode ──────────────────────────────────────────────────────── */
+.vm { position: relative; min-height: 288px; display: grid; place-items: center; background: radial-gradient(circle at 50% 45%, rgba(245,158,11,.10), transparent 62%), #08080a; text-align: center; overflow: hidden; }
+.vm-hdr { position: absolute; top: 16px; left: 0; right: 0; font-size: 11.5px; color: var(--text-muted); }
+.vm-orb { position: relative; width: 116px; height: 116px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, var(--amber-light), var(--amber-dim)); box-shadow: 0 0 44px rgba(245,158,11,.4); animation: surf-orb 2.6s ease-in-out infinite; }
+@keyframes surf-orb { 50% { transform: scale(1.06); box-shadow: 0 0 62px rgba(245,158,11,.55); } }
+.vm-orb::before, .vm-orb::after { content: ''; position: absolute; inset: -18px; border-radius: 50%; border: 1px solid rgba(245,158,11,.4); animation: surf-ring 2.6s ease-out infinite; }
+.vm-orb::after { animation-delay: 1.3s; }
+.vm-dots { position: absolute; inset: 0; pointer-events: none; }
+.vm-dots i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: rgba(245,158,11,.55); animation: surf-float 3.4s ease-in-out infinite; }
+@keyframes surf-float { 50% { transform: translateY(-9px); opacity: .35; } }
+.vm-state { margin-top: 24px; font-size: 14px; color: var(--amber); }
+.vm-said { margin-top: 7px; font-size: 12.5px; color: var(--text-dim); max-width: 30ch; }
+.vm-foot { position: absolute; bottom: 14px; left: 0; right: 0; font-size: 11px; color: var(--text-muted); }
+
+/* ── Memory ──────────────────────────────────────────────────────────── */
+.mem-hd { display: flex; align-items: center; gap: 9px; padding: 11px 14px 9px; }
+.mem-hd .ttl { font-size: 12.5px; font-weight: 600; }
+.mem-hd .st { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
+.mem-search { display: flex; gap: 5px; padding: 0 14px 11px; }
+.mem-search .in { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); font-size: 11.5px; color: var(--text-muted); }
+.mem-search .bt { width: 26px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); font-size: 11px; color: var(--text-muted); }
+.mem-tree { padding: 0 14px 14px; font-size: 12.5px; }
+.mem-node { border-left: 1px solid var(--border); padding-left: 12px; margin-bottom: 11px; }
+.mem-node > .nm { color: var(--amber); font-family: var(--mono); font-size: 11.5px; margin-bottom: 6px; }
+.mem-fact { display: flex; gap: 9px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid rgba(42,42,46,.5); }
+.mem-fact .k { color: var(--text-dim); min-width: 84px; font-family: var(--mono); font-size: 11px; }
+.mem-fact .v { flex: 1; min-width: 0; color: var(--text); }
+.mem-fact .w { width: 34px; height: 3px; border-radius: 2px; background: var(--border); position: relative; flex: none; }
+.mem-fact .w i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: var(--amber); display: block; }
+.mem-foot { padding: 0 14px 14px; font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
+
+/* ── Feed ────────────────────────────────────────────────────────────── */
+.fd-hd { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; font-weight: 600; }
+.fd-hd .live { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 400; color: var(--text-muted); font-family: var(--mono); }
+.fd-hd .live i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); animation: surf-blink 1.6s ease-in-out infinite; }
+.fd-list { padding: 10px 14px 14px; display: grid; gap: 11px; }
+.fd-item { display: flex; gap: 9px; align-items: flex-start; }
+.fd-av { width: 27px; height: 27px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.fd-av.you { background: var(--amber); color: #09090b; }
+.fd-av.hive { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); }
+.fd-av.peer { background: var(--purple); color: #fff; }
+.fd-bd { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.fd-bd b { color: var(--text); font-weight: 600; }
+.fd-meta { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.fd-kind { font-size: 8.5px; letter-spacing: .3px; text-transform: uppercase; padding: 0 5px; border-radius: 6px; border: 1px solid currentColor; opacity: .85; line-height: 1.6; }
+.k-memory { color: #a78bfa; } .k-agent { color: var(--amber); } .k-watcher { color: #60a5fa; }
+.k-mission { color: #34d399; } .k-dm { color: var(--purple); }
+.fd-time { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+
+/* -- Telegram -------------------------------------------------------- */
+.tg { background: #0e1621; min-height: 288px; display: flex; flex-direction: column; }
+.tg-hd { display: flex; align-items: center; gap: 9px; padding: 9px 13px; background: #17212b; border-bottom: 1px solid #0b1219; }
+.tg-hd .av { width: 30px; height: 30px; border-radius: 50%; background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.32); display: grid; place-items: center; flex: none; }
+.tg-hd .nm { font-size: 12.5px; font-weight: 600; color: #fff; }
+.tg-hd .sub { font-size: 10.5px; color: #6b7c8c; }
+.tg-body { flex: 1; padding: 13px 13px 9px; display: flex; flex-direction: column; gap: 7px; }
+.tg-msg { max-width: 82%; padding: 7px 11px 5px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; position: relative; }
+.tg-msg .h { display: block; margin-top: 3px; font-size: 9.5px; text-align: right; opacity: .6; }
+.tg-in { align-self: flex-start; background: #182533; color: #e6edf3; border-bottom-left-radius: 5px; }
+.tg-out { align-self: flex-end; background: #2b5278; color: #fff; border-bottom-right-radius: 5px; }
+.tg-act { align-self: flex-start; max-width: 82%; padding: 6px 10px; border-radius: 9px; background: #182533; border: 1px solid rgba(245,158,11,.28); font-family: var(--mono); font-size: 10.5px; color: #c8b48a; display: flex; align-items: center; gap: 7px; }
+.tg-act .d { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); flex: none; }
+.tg-in2 { display: flex; align-items: center; gap: 9px; padding: 9px 13px; background: #17212b; border-top: 1px solid #0b1219; font-size: 11.5px; color: #6b7c8c; }
+
+@media (prefers-reduced-motion: reduce) {
+  .br-caret, .br-cursor .ring, .win-halo, .win-cursor .ring, .vm-orb,
+  .vm-orb::before, .vm-orb::after, .vm-dots i, .br-hud .hd .d,
+  .win-panel .k .d, .fd-hd .live i { animation: none; }
+}
+
 /* ── Sections ───────────────────────────────────────────────────────── */
 section { padding-block: clamp(52px, 8vw, 92px); border-top: 1px solid var(--border); }
 .sec-head { max-width: 62ch; margin-bottom: 40px; }
@@ -306,7 +485,8 @@ footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
       <a href="#engine">Engine</a>
       <a href="#memory">Memory</a>
       <a href="#control">Control</a>
-      <a href="#watchers">Watchers</a>
+      <a href="#surfaces">Surfaces</a>
+        <a href="#watchers">Watchers</a>
       <a href="#glossary">Glossary</a>
       <a href="wiki.html">Wiki</a>
     </nav>
@@ -487,6 +667,241 @@ cargo run --release -p laruche-bureau</pre>
           <h3>Images travel through the whole run</h3>
           <p>Paste, drop or attach images in chat, capture the webcam, or return screenshots from tools. Inputs are resized before provider limits are reached and remain available across follow-up turns for models that support vision.</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== SURFACES ======================== -->
+  <section id="surfaces">
+    <div class="shell">
+      <div class="sec-head">
+        <div class="kicker">Surfaces</div>
+        <h2>One node, seven ways to work with it</h2>
+        <p>The same engine and the same memory, reached from wherever you happen to be:
+           a debate table, a browser, the desktop itself, a phone, a voice call, the map
+           of what it knows, and the stream of what it did.</p>
+      </div>
+
+      <div class="surf-grid">
+
+        <!-- ── Table ronde ─────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="app-bar">
+              <div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div>
+              <span class="name">LaRuche</span>
+              <div class="app-tabs"><span class="on">CHAT</span><span>MÉMOIRE</span><span>MISSIONS</span></div>
+            </div>
+            <div class="app-sub"><span>Chat</span><span class="on">Table ronde</span></div>
+            <div class="tr-bar">
+              <span class="tr-sel">Answer · one reply and its disagreements</span>
+              <span class="tr-btn">Manage the team</span>
+            </div>
+            <div class="tr-table">
+              <div class="tr-line">
+                <div class="tr-seat orch"><div class="em">🎛️</div><div class="nm">Orchestrator</div></div>
+              </div>
+              <div class="tr-line">
+                <div class="tr-seat sci"><div class="em">🔬</div><div class="nm">Scientist</div></div>
+                <div class="tr-seat ing"><div class="em">⚙️</div><div class="nm">Systems eng.</div></div>
+                <div class="tr-seat att"><div class="em">🔑</div><div class="nm">Attacker</div></div>
+                <div class="tr-seat con"><div class="em">⚔️</div><div class="nm">Contrarian</div></div>
+              </div>
+              <div class="tr-line">
+                <div class="tr-seat arb"><div class="em">⚖️</div><div class="nm">Arbiter</div></div>
+              </div>
+            </div>
+            <div class="tr-verdict">
+              <span class="lb">Final answer · confidence 0.72</span>
+              Keep the queue in SQLite. The throughput argument for Redis does not hold at
+              this volume, and it adds a process to keep alive.
+            </div>
+            <div class="tr-dis">2 rounds · <b>1 dissenter</b> — the attacker still objects that a
+              crash between write and ack loses the task.</div>
+          </div>
+          <p class="cap"><b>Table ronde.</b> Specialists answer alone, then read each other. A
+            contrarian is paid to disagree, an arbiter concludes, and anyone still dissenting is
+            named rather than averaged away. Each seat can run on a different provider, which is
+            what makes the disagreement real.</p>
+        </div>
+
+        <!-- ── Browser ─────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app br">
+            <div class="br-tabs">
+              <span class="br-tab grp">🐝 LaRuche</span>
+              <span class="br-tab on">Booking · Lyon</span>
+              <span class="br-tab">Mail</span>
+              <span class="br-url">https://example.com/search?city=lyon</span>
+            </div>
+            <div class="br-page">
+              <div class="br-h"></div>
+              <div class="br-t m"></div><div class="br-t"></div><div class="br-t s"></div>
+              <span class="br-field">Lyon, 12 → 14 Nov<span class="br-caret"></span></span>
+            </div>
+            <div class="br-cursor" aria-hidden="true"><span class="ring"></span><svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" fill="#fff" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/></svg></div>
+            <div class="br-hud">
+              <div class="hd"><span class="d"></span>LARUCHE</div>
+              <div class="bd">Filling the dates, then I read the result list rather than
+                screenshotting it: the text is more reliable than the pixels.</div>
+            </div>
+            <div class="br-frame" aria-hidden="true"></div>
+          </div>
+          <p class="cap"><b>Browser.</b> Your own Chrome, with your sessions, not a throwaway
+            profile. The controlled page wears an amber frame, agent tabs are grouped, every click
+            flashes, and a panel says what is being done before it happens.</p>
+        </div>
+
+        <!-- ── Computer ────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app win">
+            <div class="win-app">
+              <div class="ttl">🎨 Untitled - Paint<span class="dots">— □ ✕</span></div>
+              <div class="rib"><i></i><i class="on"></i><i></i><i></i><i></i></div>
+              <div class="canv">
+                <svg width="100%" height="100%" viewBox="0 0 240 120" aria-hidden="true">
+                  <path d="M60 78 C40 58 46 36 62 36 C72 36 78 44 82 50 C86 44 92 36 102 36 C118 36 124 58 104 78 L82 96 Z"
+                        fill="#e11d48" stroke="#9f1239" stroke-width="2"/>
+                  <path d="M150 92 L150 46" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+                  <circle cx="150" cy="40" r="7" fill="none" stroke="#334155" stroke-width="3"/>
+                </svg>
+              </div>
+            </div>
+            <div class="win-panel">
+              <div class="k"><span class="d"></span>LaRuche is acting</div>
+              Selecting the Heart shape, then drawing it on the canvas.
+            </div>
+            <div class="win-cursor" aria-hidden="true"><span class="ring"></span><svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" fill="#fff" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/></svg></div>
+            <div class="win-task"><i></i><i></i><i></i><span class="clock">21:12</span></div>
+            <div class="win-halo" aria-hidden="true"></div>
+          </div>
+          <p class="cap"><b>Computer.</b> Native control of the real desktop, through the
+            accessibility tree rather than blind pixels. A halo marks the screen while it acts, a
+            ring follows the cursor, and <span style="font-family:var(--mono);font-size:11.5px">Ctrl+Alt+Shift+H</span>
+            stops everything at once.</p>
+        </div>
+
+        <!-- ── Telegram ────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app tg">
+            <div class="tg-hd">
+              <span class="av"><div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div></span>
+              <span><span class="nm">LaRuche</span><br><span class="sub">bot · online</span></span>
+            </div>
+            <div class="tg-body">
+              <div class="tg-msg tg-out">Are the living room lights off?<span class="h">22:14</span></div>
+              <div class="tg-act"><span class="d"></span>home_assistant · light.living_room · state</div>
+              <div class="tg-msg tg-in">No, two of the three are still on: the ceiling light and the
+                floor lamp. The shelf strip is already off.<span class="h">22:14</span></div>
+              <div class="tg-msg tg-out">Turn them off then.<span class="h">22:15</span></div>
+              <div class="tg-act"><span class="d"></span>home_assistant · turn_off · 2 entities</div>
+              <div class="tg-msg tg-in">Done, the living room is dark. I left the hallway alone,
+                you did not ask for it.<span class="h">22:15</span></div>
+            </div>
+            <div class="tg-in2">Message</div>
+          </div>
+          <p class="cap"><b>Telegram.</b> The same agent, from your phone. It answers with what it
+            actually checked, and stops at what you asked: nothing in the hallway, because you
+            never mentioned the hallway.</p>
+        </div>
+
+        <!-- ── Voice ───────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app vm">
+            <div class="vm-hdr">In call with LaRuche</div>
+            <div class="vm-dots" aria-hidden="true">
+              <i style="left:18%;top:32%"></i><i style="left:31%;top:64%;animation-delay:.5s"></i>
+              <i style="left:69%;top:28%;animation-delay:1s"></i><i style="left:78%;top:61%;animation-delay:1.5s"></i>
+              <i style="left:50%;top:19%;animation-delay:2s"></i><i style="left:60%;top:78%;animation-delay:2.6s"></i>
+            </div>
+            <div>
+              <div class="vm-orb" aria-hidden="true"></div>
+              <div class="vm-state">Listening…</div>
+              <div class="vm-said">“Where did we land on the queue, in the end?”</div>
+            </div>
+            <div class="vm-foot">Tap the orb to interrupt · local speech recognition</div>
+          </div>
+          <p class="cap"><b>Voice.</b> A phone call rather than a push-to-talk button. You can cut
+            her off mid-sentence: interruption is detected on an echo-cancelled stream, so she
+            hears you and not herself coming out of the speakers.</p>
+        </div>
+
+        <!-- ── Memory ──────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="mem-hd"><span class="ttl">Memory</span><span class="st">412 facts · 37 nodes</span></div>
+            <div class="mem-search">
+              <span class="in">deployment</span><span class="bt">≈</span><span class="bt">+</span><span class="bt">−</span>
+            </div>
+            <div class="mem-tree">
+              <div class="mem-node">
+                <div class="nm">projects.laruche</div>
+                <div class="mem-fact"><span class="k">deploy</span><span class="v">tagged release, the CI publishes the assets</span><span class="w"><i style="width:86%"></i></span></div>
+                <div class="mem-fact"><span class="k">db</span><span class="v">SQLite, one file per node</span><span class="w"><i style="width:64%"></i></span></div>
+                <div class="mem-fact"><span class="k">style</span><span class="v">no emoji in commit messages</span><span class="w"><i style="width:41%"></i></span></div>
+              </div>
+              <div class="mem-node">
+                <div class="nm">user.preferences</div>
+                <div class="mem-fact"><span class="k">answers</span><span class="v">short, no filler, say when unsure</span><span class="w"><i style="width:92%"></i></span></div>
+                <div class="mem-fact"><span class="k">hours</span><span class="v">quiet between 22:00 and 08:00</span><span class="w"><i style="width:70%"></i></span></div>
+              </div>
+            </div>
+            <div class="mem-foot">git log · 214 commits · last write 3 min ago</div>
+          </div>
+          <p class="cap"><b>Memory.</b> Not a transcript: a map of facts you can read, search,
+            correct and delete. Each one carries an importance that decays unless it gets used, and
+            the whole map lives in a git repository, so <span style="font-family:var(--mono);font-size:11.5px">git log</span>
+            is the timeline of what your agent learned.</p>
+        </div>
+
+        <!-- ── Feed ────────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="fd-hd">Activity<span class="live"><i></i>live</span></div>
+            <div class="fd-list">
+              <div class="fd-item">
+                <span class="fd-av hive"><div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div></span>
+                <div class="fd-bd">
+                  <div class="fd-meta"><span class="fd-kind k-watcher">watcher</span><span class="fd-time">22:03</span></div>
+                  <b>release.log</b> matched ERROR — held until 08:00, quiet hours.
+                </div>
+              </div>
+              <div class="fd-item">
+                <span class="fd-av hive"><div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div></span>
+                <div class="fd-bd">
+                  <div class="fd-meta"><span class="fd-kind k-memory">memory</span><span class="fd-time">21:47</span></div>
+                  Superseded <b>projects.laruche.deploy</b> — the previous value said “manual upload”.
+                </div>
+              </div>
+              <div class="fd-item">
+                <span class="fd-av peer">A</span>
+                <div class="fd-bd">
+                  <div class="fd-meta"><span class="fd-kind k-dm">hive</span><span class="fd-time">21:31</span></div>
+                  <b>atelier</b> asks: can you run the 70B? Mine is busy until 23:00.
+                </div>
+              </div>
+              <div class="fd-item">
+                <span class="fd-av hive"><div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div></span>
+                <div class="fd-bd">
+                  <div class="fd-meta"><span class="fd-kind k-agent">agent</span><span class="fd-time">21:30</span></div>
+                  Accepted. Answering for <b>atelier</b> on qwen3:70b, tagged with its provenance.
+                </div>
+              </div>
+              <div class="fd-item">
+                <span class="fd-av you">F</span>
+                <div class="fd-bd">
+                  <div class="fd-meta"><span class="fd-kind k-mission">mission</span><span class="fd-time">20:58</span></div>
+                  You approved <b>shell_exec</b> — <span style="font-family:var(--mono);font-size:11.5px">cargo build --release</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="cap"><b>Activity and the swarm.</b> Everything the node did, in one stream:
+            reflexes that fired, facts that changed, approvals you gave, and requests from the other
+            hives on your network. A hive that is busy can ask another one to answer, and the answer
+            comes back tagged with where it came from.</p>
+        </div>
+
       </div>
     </div>
   </section>
