@@ -70,7 +70,11 @@ p:last-child { margin-bottom: 0; }
 /* ── Ambient glow, the app's amber bleeding through the panel ───────── */
 .glow-wrap { position: relative; }
 .glow-wrap::before {
-  content: ''; position: absolute; inset: -20% -10% auto -10%; height: 620px;
+  /* Debordait de 10 % de chaque cote, ce qui elargissait la page de 75 px sur
+     telephone et faisait apparaitre une barre de defilement horizontale. Le
+     degrade s'eteint bien avant les bords, donc on ne perd rien a l'arreter
+     a la largeur de la page. */
+  content: ''; position: absolute; inset: -20% 0 auto 0; height: 620px;
   background: radial-gradient(60% 60% at 50% 0%, rgba(245,158,11,0.10), transparent 70%);
   pointer-events: none; z-index: 0;
 }
@@ -153,7 +157,12 @@ p:last-child { margin-bottom: 0; }
 
 /* ── Hero ───────────────────────────────────────────────────────────── */
 .hero { padding-block: clamp(48px, 8vw, 92px) clamp(40px, 6vw, 72px); }
-.hero-grid { display: grid; gap: clamp(36px, 5vw, 56px); align-items: center; }
+/* `minmax(0,1fr)` et non `auto`: une colonne de grille se dimensionne sinon sur
+   le contenu le plus large, et les maquettes du carrousel poussaient la page a
+   432 px dans une fenetre de 375. C'est ce qui a fait apparaitre une barre de
+   defilement horizontale sur telephone. */
+.hero-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: clamp(36px, 5vw, 56px); align-items: center; }
+.hero-grid > * { min-width: 0; }
 @media (min-width: 1000px) { .hero-grid { grid-template-columns: minmax(0,1fr) minmax(0,1.08fr); } }
 
 .pill {
@@ -201,6 +210,7 @@ p:last-child { margin-bottom: 0; }
 .app {
   border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel);
   overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.55);
+  max-width: 100%; min-width: 0;
 }
 .app-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .app-bar .name { font-size: 13px; font-weight: 600; }
@@ -634,7 +644,13 @@ p:last-child { margin-bottom: 0; }
   position: fixed; left: 0; top: 0; margin: 0; z-index: 60;
   animation: none; will-change: transform;
 }
-@media (max-width: 720px) { .abeille-titre { display: none; } }
+/* Sur telephone elle reste, en plus petit: a taille reelle elle couvre un tiers
+   d'un titre. Le `transform-origin` en haut a gauche garde le calcul de vol
+   juste, puisque le script raisonne sur le coin de l'element. */
+@media (max-width: 720px) {
+  .abeille-titre { transform-origin: 0 0; }
+  .abeille-titre .bee { zoom: .62; }
+}
 @media (prefers-reduced-motion: reduce) {
   .abeille-titre { animation: none; }
   .abeille-titre .bee, .abeille-titre .bee * { animation: none !important; }
@@ -1597,7 +1613,7 @@ cargo run --release -p laruche-bureau</pre>
     <span>LaRuche · MPL-2.0 · <a href="https://github.com/infinition/LaRuche">github.com/infinition/LaRuche</a> · <a href="https://www.buymeacoffee.com/infinition">Support LaRuche</a></span>
     <span class="offline">
       <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="#22c55e" stroke-width="1.6"/></svg>
-      This page made zero network requests
+      No third-party request
     </span>
   </div>
 </footer>
@@ -1796,102 +1812,6 @@ window.__essaim();
 })();
 </script>
 
-<script>
-/* L'abeille quitte le titre des qu'on descend, se promene dans la fenetre, et
-   revient se poser quand on remonte en haut.
-
-   Son rapport au curseur a deux distances, et c'est ce qui la rend vivante:
-   de loin elle s'en approche, comme un insecte qui remarque quelque chose;
-   de pres elle s'enfuit. Une seule des deux forces donnerait soit un
-   aimant, soit une bestiole qui vous ignore.
-
-   Trois autres termes: une derive en sinus pour qu'elle n'aille jamais droit,
-   un rappel tres faible vers le centre pour qu'elle ne finisse pas collee dans
-   un coin, et de la friction. Un moteur physique complet donnerait un vol moins
-   credible: une abeille ne plane pas, elle corrige sans arret.
-
-   Rien ne tourne si le systeme demande moins de mouvement, ni sur les petits
-   ecrans ou elle est de toute facon masquee. */
-(function(){
-  var b = document.querySelector('.abeille-titre');
-  if (!b) return;
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-  var PRES = 170;      // en deca, elle fuit
-  var LOIN = 620;      // au dela, elle ignore
-
-  var x = 0, y = 0, vx = 0, vy = 0;    // position et vitesse, en pixels d'ecran
-  var bx = 0, by = 0;                  // origine de l'element une fois en vol
-  var mx = -9999, my = -9999;          // le curseur, hors champ tant qu'il n'a pas bouge
-  var libre = false, t = Math.random() * 1000;
-
-  document.addEventListener('mousemove', function(e){ mx = e.clientX; my = e.clientY; }, { passive: true });
-  document.addEventListener('mouseleave', function(){ mx = -9999; my = -9999; });
-
-  function boucle(){
-    // Masquee (petit ecran): on ne calcule rien. Mesure sur la boite plutot que
-    // sur `offsetParent`, que certains moteurs rendent nul pour un element
-    // pourtant affiche.
-    if (!libre && b.getBoundingClientRect().width === 0) { requestAnimationFrame(boucle); return; }
-
-    var enHaut = window.scrollY < 140;
-
-    if (!enHaut && !libre) {
-      var r = b.getBoundingClientRect();
-      x = r.left + r.width / 2; y = r.top + r.height / 2;
-      vx = 0; vy = 0; libre = true;
-      b.classList.add('vole');
-      // L'origine de l'element en position fixe n'est pas forcement le coin de
-      // la fenetre: un ancetre avec un filtre ou une transformation devient son
-      // repere. On la mesure une fois, transformation vidée, et on s'en sert
-      // ensuite; sans ca l'abeille vole a cote de la ou on la croit.
-      b.style.transform = 'none';
-      var o = b.getBoundingClientRect();
-      bx = o.left; by = o.top;
-    } else if (enHaut && libre) {
-      libre = false;
-      b.classList.remove('vole');
-      b.style.transform = '';
-    }
-
-    if (libre) {
-      t += 0.006;
-      vx += Math.cos(t * 1.7) * 0.07;
-      vy += Math.sin(t * 2.3) * 0.07;
-
-      var dx = x - mx, dy = y - my;
-      var d = Math.sqrt(dx * dx + dy * dy);
-      if (d > 0.01 && d < LOIN) {
-        if (d < PRES) {
-          var f = (PRES - d) / PRES * 2.1;      // fuite, d'autant plus vive qu'on est pres
-          vx += dx / d * f; vy += dy / d * f;
-        } else {
-          // Curiosite: elle derive vers le curseur, sans jamais l'atteindre
-          // puisque la zone de fuite l'attend.
-          var g = (LOIN - d) / (LOIN - PRES) * 0.16;
-          vx -= dx / d * g; vy -= dy / d * g;
-        }
-      }
-
-      vx += (window.innerWidth / 2 - x) * 0.0005;
-      vy += (window.innerHeight / 2 - y) * 0.0005;
-
-      vx *= 0.94; vy *= 0.94;
-      x += vx; y += vy;
-
-      x = Math.max(34, Math.min(window.innerWidth - 64, x));
-      y = Math.max(74, Math.min(window.innerHeight - 54, y));
-
-      // Elle se retourne pour aller ou elle va. Le seuil evite qu'elle clignote
-      // d'un sens a l'autre quand elle est presque immobile.
-      var sens = vx < -0.35 ? -1 : (vx > 0.35 ? 1 : (b.dataset.sens === '-1' ? -1 : 1));
-      b.dataset.sens = sens;
-      b.style.transform = 'translate(' + (x - bx - 26) + 'px,' + (y - by - 16) + 'px) scaleX(' + sens + ')';
-    }
-    requestAnimationFrame(boucle);
-  }
-  requestAnimationFrame(boucle);
-})();
-</script>
+<script src="abeille.js" defer></script>
 </body>
 </html>
