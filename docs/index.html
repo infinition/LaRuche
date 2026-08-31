@@ -117,7 +117,10 @@ p:last-child { margin-bottom: 0; }
 
 /* ── CSS bee avatar, verbatim from app.css ──────────────────────────── */
 .bee { width:51px; height:33px; position:relative; animation:bee-float .8s infinite;
-  transform:translate(-50%,-50%); left:50%; top:50%; }
+  transform:translate(-50%,-50%); left:50%; top:50%;
+  /* Le halo ambre, comme dans l'application: le corps de l'abeille est noir sur
+     un fond noir, et sans lui elle disparait presque. */
+  filter:drop-shadow(0 0 4px rgba(234,179,8,.45)); }
 @keyframes bee-float { 0%,100%{top:46%} 50%{top:50%} }
 .bee--wings { width:15px; height:15px; background:#fff; opacity:.8; position:absolute;
   top:-6px; left:9px; z-index:99; border-radius:50%; animation:bee-fly-lw .15s infinite; }
@@ -252,7 +255,7 @@ p:last-child { margin-bottom: 0; }
 .app-sub span.on { color: var(--amber); border-bottom-color: var(--amber); }
 
 /* ── Table ronde ─────────────────────────────────────────────────────── */
-.tr-bar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; flex-wrap: wrap; }
+.tr-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px 8px; flex-wrap: wrap; }
 .tr-sel {
   flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg-input); font-size: 12px; color: var(--text-dim);
@@ -260,10 +263,10 @@ p:last-child { margin-bottom: 0; }
 }
 .tr-sel::after { content: '▾'; color: var(--text-muted); }
 .tr-btn { padding: 6px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); font-size: 12px; color: var(--text-dim); }
-.tr-table { padding: 6px 14px 16px; display: grid; gap: 9px; justify-items: center; }
+.tr-table { padding: 4px 14px 12px; display: grid; gap: 7px; justify-items: center; }
 .tr-line { display: flex; gap: 9px; flex-wrap: wrap; justify-content: center; }
 .tr-seat {
-  width: 92px; padding: 11px 6px 9px; border: 1px solid var(--border); border-top-width: 2px;
+  width: 90px; padding: 9px 6px 8px; border: 1px solid var(--border); border-top-width: 2px;
   border-radius: 9px; background: var(--bg-card); text-align: center;
 }
 .tr-seat .em { font-size: 21px; line-height: 1.1; }
@@ -275,11 +278,11 @@ p:last-child { margin-bottom: 0; }
 .tr-seat.con  { border-top-color: var(--purple); }
 .tr-seat.arb  { border-top-color: var(--text-muted); }
 .tr-verdict {
-  margin: 0 14px 14px; padding: 11px 13px; border: 1px solid var(--amber); border-radius: 10px;
+  margin: 0 14px 9px; padding: 11px 13px; border: 1px solid var(--amber); border-radius: 10px;
   background: rgba(245,158,11,.06); font-size: 12.5px; line-height: 1.55;
 }
 .tr-verdict .lb { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); display: block; margin-bottom: 5px; }
-.tr-dis { margin: 0 14px 14px; font-size: 11.5px; color: var(--text-muted); }
+.tr-dis { margin: 0 14px 11px; font-size: 11.5px; color: var(--text-muted); }
 .tr-dis b { color: var(--purple); font-weight: 600; }
 
 /* ── Browser under control ───────────────────────────────────────────── */
@@ -290,7 +293,7 @@ p:last-child { margin-bottom: 0; }
 .br-tab.on { background: #0c0c0e; color: var(--text); border: 1px solid var(--border); border-bottom-color: transparent; }
 .br-tab.grp { color: var(--amber); border: 1px solid var(--amber-dim); background: rgba(245,158,11,.08); }
 .br-url { flex: 1; min-width: 0; padding: 4px 9px; border-radius: 999px; background: #0c0c0e; border: 1px solid var(--border); font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.br-page { padding: 16px 18px 74px; min-height: 236px; }
+.br-page { padding: 15px 16px 172px; min-height: 262px; }
 .br-h { height: 11px; width: 46%; border-radius: 3px; background: #2f2f35; margin-bottom: 11px; }
 .br-t { height: 7px; border-radius: 3px; background: #202024; margin-bottom: 7px; }
 .br-t.s { width: 74%; } .br-t.m { width: 88%; }
@@ -301,7 +304,7 @@ p:last-child { margin-bottom: 0; }
 }
 .br-caret { width: 1px; height: 13px; background: var(--amber); animation: surf-caret 1s steps(1) infinite; }
 @keyframes surf-caret { 50% { opacity: 0; } }
-.br-cursor { position: absolute; right: 92px; top: 148px; }
+.br-cursor { position: absolute; right: 62px; top: 50%; }
 .br-cursor svg { display: block; filter: drop-shadow(0 1px 3px rgba(0,0,0,.8)); }
 .br-cursor .ring {
   position: absolute; left: -15px; top: -15px; width: 44px; height: 44px; border-radius: 50%;
@@ -309,7 +312,7 @@ p:last-child { margin-bottom: 0; }
 }
 @keyframes surf-ring { 0% { transform: scale(.45); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
 .br-hud {
-  position: absolute; left: 12px; bottom: 12px; width: 60%; max-width: 250px;
+  position: absolute; left: 10px; bottom: 52px; width: 58%; max-width: 232px;
   border: 1px solid rgba(245,166,35,.35); border-radius: 10px; background: rgba(14,12,9,.92);
   color: #f0e6d2; font-family: var(--mono); font-size: 10.5px; overflow: hidden;
 }
@@ -317,6 +320,26 @@ p:last-child { margin-bottom: 0; }
 .br-hud .hd .d { width: 6px; height: 6px; border-radius: 50%; background: #F5A623; box-shadow: 0 0 7px 2px rgba(245,166,35,.85); animation: surf-blink 1.2s ease-in-out infinite; }
 @keyframes surf-blink { 50% { opacity: .25; } }
 .br-hud .bd { padding: 7px 9px; line-height: 1.5; color: #e8e0d0; font-family: var(--font); font-size: 11.5px; }
+
+/* Le contenu de la page pilotee: des resultats, pas des barres grises. Une
+   maquette de navigateur ou la page est un squelette abstrait ne montre pas ce
+   qui compte, c'est-a-dire ce que l'agent lit et ce sur quoi il clique. */
+.br-res { display: grid; gap: 7px; margin-top: 11px; }
+.br-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: #131317; }
+.br-card .th { width: 34px; height: 26px; border-radius: 4px; background: linear-gradient(135deg,#2b2b32,#3a3a44); flex: none; }
+.br-card .tx { flex: 1; min-width: 0; }
+.br-card .t1 { display: block; font-size: 11.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-card .t2 { display: block; margin-top: 1px; font-size: 10px; color: var(--text-muted); }
+.br-card .pr { font-family: var(--mono); font-size: 11px; color: var(--text-dim); flex: none; }
+/* L'element vise: le meme liisere ambre et le meme eclair que dans le produit. */
+.br-card.cible { position: relative; border-color: var(--amber); background: rgba(245,158,11,.09); box-shadow: 0 0 0 1px rgba(245,158,11,.25); }
+.br-card.cible .pr { color: var(--amber); }
+/* Le bandeau de consentement: signale, jamais accepte. C'est une regle du
+   produit, et elle se voit mieux en image qu'en paragraphe. */
+.br-cookie { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 9px; padding: 8px 11px; border: 1px solid #3a3a44; border-radius: 8px; background: #1b1b20; font-size: 10.5px; color: var(--text-dim); }
+.br-cookie .bt { padding: 3px 9px; border-radius: 5px; background: #2f2f38; color: var(--text-dim); font-size: 10px; }
+.br-cookie .bt.pr { background: #3b82f6; color: #fff; }
+.br-cookie .halt { margin-left: auto; font-family: var(--mono); font-size: 9.5px; color: var(--amber); border: 1px solid rgba(245,158,11,.4); border-radius: 5px; padding: 2px 7px; }
 
 /* ── Windows desktop under control ───────────────────────────────────── */
 .win { position: relative; background: linear-gradient(150deg, #0d1b2a, #1b263b 55%, #0d1b2a); min-height: 288px; }
@@ -409,6 +432,56 @@ p:last-child { margin-bottom: 0; }
 .fd-quand strong { color: var(--amber); }
 .fd-quand .sub { color: var(--text-muted); font-size: 11px; }
 
+/* ── Swarm: le panneau du tableau de bord, a l'identique ─────────────────
+   Memes classes conceptuelles que le produit: l'hexagone d'etat, le nom, le
+   modele en ambre, la ligne hote/debit/file, et les pastilles de capacite. */
+.sw-hdr { display: flex; align-items: center; justify-content: space-between; padding: 8px 11px; border-bottom: 1px solid var(--border); }
+.sw-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-dim); font-weight: 600; }
+.sw-badge { font-size: 9px; font-family: var(--mono); padding: 1px 7px; border-radius: 8px; font-weight: 600; background: rgba(34,197,94,.12); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+.sw-body { padding: 9px; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.sw-item { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.sw-item.moi { border-color: var(--amber-dim); background: rgba(245,158,11,.04); }
+.sw-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; }
+.sw-car { font-size: 8px; color: var(--text-dim); flex: none; }
+.sw-hex { width: 18px; height: 18px; flex: none; clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%); }
+.sw-hex.ok { background: var(--green); } .sw-hex.busy { background: var(--amber); }
+.sw-info { flex: 1; min-width: 0; }
+.sw-name { display: block; font-weight: 600; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw-model { display: block; font-size: 9px; color: var(--amber); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw-meta { display: block; font-size: 9px; color: var(--text-dim); font-family: var(--mono); }
+.sw-badges { display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; max-width: 108px; }
+.sw-b { padding: 1px 5px; border-radius: 3px; font-size: 8px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; font-family: var(--mono); }
+.b-llm { background: rgba(59,130,246,.12); color: var(--blue); border: 1px solid rgba(59,130,246,.25); }
+.b-rag { background: rgba(245,158,11,.12); color: var(--amber); border: 1px solid rgba(245,158,11,.25); }
+.b-vlm { background: rgba(168,85,247,.12); color: var(--purple); border: 1px solid rgba(168,85,247,.25); }
+.b-tts { background: rgba(6,182,212,.12); color: var(--cyan); border: 1px solid rgba(6,182,212,.25); }
+.sw-shard { margin: 4px 9px 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.sw-body { flex: 1; }
+.sw-shard-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.sw-shard-title { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--purple); font-weight: 700; }
+.sw-shard-up { font-size: 10px; font-family: var(--mono); font-weight: 700; color: var(--amber); }
+.sw-bars { display: flex; flex-direction: column; gap: 3px; }
+.sw-bar { display: flex; height: 9px; border-radius: 3px; overflow: hidden; }
+.sw-bar i { display: block; height: 100%; }
+.sw-leg { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; font-size: 8px; font-family: var(--mono); }
+.sw-leg span { display: flex; align-items: center; gap: 4px; color: var(--text-dim); }
+.sw-leg i { width: 8px; height: 8px; border-radius: 2px; display: block; }
+
+/* ── Messagerie entre ruches ─────────────────────────────────────────── */
+.hv-hdr { display: flex; align-items: center; gap: 9px; padding: 10px 13px; border-bottom: 1px solid var(--border); }
+.hv-hdr .av { width: 28px; height: 28px; border-radius: 50%; background: var(--purple); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.hv-hdr .nm { font-size: 12.5px; font-weight: 600; }
+.hv-hdr .sub { font-size: 10px; color: var(--text-muted); font-family: var(--mono); }
+.hv-hdr .st { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--green); font-family: var(--mono); }
+.hv-hdr .st i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+.hv-body { padding: 13px; display: flex; flex-direction: column; gap: 8px; }
+.hv-msg { max-width: 84%; padding: 8px 12px 6px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; }
+.hv-msg .h { display: block; margin-top: 3px; font-size: 9.5px; opacity: .55; }
+.hv-in { align-self: flex-start; background: var(--bg-input); border: 1px solid var(--border); border-bottom-left-radius: 5px; }
+.hv-out { align-self: flex-end; background: rgba(168,85,247,.16); border: 1px solid rgba(168,85,247,.35); border-bottom-right-radius: 5px; }
+.hv-sys { align-self: center; font-family: var(--mono); font-size: 10px; color: var(--text-muted); padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; }
+.hv-in2 { margin-top: auto; display: flex; align-items: center; gap: 9px; padding: 9px 13px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-muted); }
+
 /* ── Feed ────────────────────────────────────────────────────────────── */
 .fd-hd { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; font-weight: 600; }
 .fd-hd .live { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 400; color: var(--text-muted); font-family: var(--mono); }
@@ -446,6 +519,66 @@ p:last-child { margin-bottom: 0; }
   .br-caret, .br-cursor .ring, .win-halo, .win-cursor .ring, .vm-orb,
   .vm-orb::before, .vm-orb::after, .vm-dots i, .br-hud .hd .d,
   .win-panel .k .d, .fd-hd .live i { animation: none; }
+}
+
+/* ── Carrousel des surfaces (accueil) ────────────────────────────────────
+   Une seule diapositive visible, les autres retirees du flux pour ne pas
+   dicter la hauteur: sinon le bloc prend la taille de la plus grande et laisse
+   un vide sous les autres. */
+.carou { position: relative; }
+.carou-piste { position: relative; }
+.carou-slide { display: none; }
+.carou-slide.on { display: block; animation: carou-entree .32s cubic-bezier(.22,.61,.36,1) both; }
+@keyframes carou-entree { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.carou-barre { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.carou-fl {
+  width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--bg-card);
+  color: var(--text-dim); font-size: 16px; line-height: 1; cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.carou-fl:hover { border-color: var(--amber); color: var(--amber); }
+.carou-nom { font-size: 12px; color: var(--text-dim); min-width: 9ch; }
+.carou-points { display: flex; gap: 6px; margin-left: auto; }
+.carou-pt {
+  width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--border-light); cursor: pointer; transition: background var(--transition-fast), transform var(--transition-fast);
+}
+.carou-pt:hover { background: var(--amber-dim); }
+.carou-pt.on { background: var(--amber); transform: scale(1.25); }
+@media (prefers-reduced-motion: reduce) { .carou-slide.on { animation: none; } }
+
+/* Une hauteur commune a toutes les maquettes.
+
+   Elles allaient de 288 a 520 px, ce qui donnait une grille en escalier et une
+   diapositive qui sautait a chaque passage du carrousel. Plutot que d'ajouter
+   du vide sous les plus courtes, chaque maquette ETIRE son contenu: le fil de
+   discussion, la page du navigateur, la liste du flux prennent la place
+   disponible, comme dans l'application ou ces zones remplissent la fenetre.
+
+   Hauteur libre sous 620 px de large: la table ronde replie ses sieges sur deux
+   rangees, et une hauteur figee y couperait le verdict. */
+@media (min-width: 620px) {
+  /* `flex: none` d'abord: `.surf` est une colonne flex et son `.app` portait
+     `flex: 1`, dont le `flex-basis: 0` fait ignorer la hauteur demandee. */
+  .surf > .app, .carou-slide > .app {
+    flex: none; height: 466px; display: flex; flex-direction: column; overflow: hidden;
+  }
+  /* Deux maquettes ne sont pas des colonnes: la memoire est une grille a deux
+     panneaux, le mode vocal centre son contenu. Leur imposer `flex` empilait
+     l'arbre au-dessus des entrees, ce qui est exactement la mise en page qu'on
+     venait de corriger. */
+  .surf > .app.mem, .carou-slide > .app.mem,
+  .surf > .app.vm,  .carou-slide > .app.vm { display: grid; }
+
+  /* Ce qui s'etire dans chacune: la zone qui, dans l'application, remplit la
+     fenetre. Le reste garde sa taille. */
+  .app > .thread { flex: 1; min-height: 0; }
+  .app > .tr-table { flex: 1; align-content: center; }
+  .app.br > .br-page { flex: 1; min-height: 0; }
+  .app.tg > .tg-body { flex: 1; min-height: 0; }
+  .app > .fd-list { flex: 1; align-content: start; }
+  .app.mem .mem-body, .app.mem .mem-tree { overflow: hidden; }
 }
 
 /* ── Sections ───────────────────────────────────────────────────────── */
@@ -560,49 +693,65 @@ cargo run --release -p laruche-bureau</pre>
           <p class="hint">Desktop installers are available for Windows and Linux. The node and terminal remain available separately on every platform.</p>
         </div>
 
-        <!-- The product's own chat surface. -->
-        <div class="app">
-          <div class="app-bar">
-            <div class="honeycomb-loader hc-sm" aria-hidden="true">
-              <div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div>
-              <div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div>
-              <div class="hexagon hx7"></div>
-            </div>
-            <span class="name">LaRuche</span>
-            <div class="app-tabs">
-              <span class="on">CHAT</span><span>MÉMOIRE</span><span>MISSIONS</span><span>CAPACITÉS</span>
-            </div>
-          </div>
-
-          <div class="thread">
-            <div class="row me">
-              <div class="bubble me">Watch release.log and ping me on Telegram if a line contains ERROR, but not at night.</div>
-            </div>
-
-            <div class="row">
-              <div class="av" aria-hidden="true">
-                <div class="bee">
-                  <div class="bee--wings"></div>
-                  <div class="bee--body"><span></span><span></span></div>
-                  <div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div>
-                </div>
+        <!-- Le carrousel des surfaces.
+             Les diapositives ne sont pas ecrites ici: elles sont CLONEES depuis la
+             section Surfaces, plus bas. Une maquette corrigee la-bas se corrige donc
+             ici aussi, ce qu'un doublon de balisage n'aurait pas tenu trois semaines.
+             Sans JavaScript, la premiere reste affichee telle quelle. -->
+        <div class="carou" id="carou">
+          <div class="carou-piste" id="carouPiste">
+            <div class="carou-slide on" data-nom="Chat">
+          <div class="app">
+            <div class="app-bar">
+              <div class="honeycomb-loader hc-sm" aria-hidden="true">
+                <div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div>
+                <div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div>
+                <div class="hexagon hx7"></div>
               </div>
-              <div class="bubble it">On it. I will compile that into a rule so it costs nothing to evaluate, and keep quiet between 10pm and 8am.</div>
+              <span class="name">LaRuche</span>
+              <div class="app-tabs">
+                <span class="on">CHAT</span><span>MÉMOIRE</span><span>MISSIONS</span><span>CAPACITÉS</span>
+              </div>
             </div>
 
-            <div class="tool"><span class="ok"></span><b>watcher_create</b> · release.log · quiet hours 22:00-08:00<span class="t">0.4s</span></div>
+            <div class="thread">
+              <div class="row me">
+                <div class="bubble me">Watch release.log and ping me on Telegram if a line contains ERROR, but not at night.</div>
+              </div>
 
-            <div class="plan">
-              <div><i>✓</i> Read the log path and confirm it exists</div>
-              <div><i>✓</i> Compile the condition into a predicate tree</div>
-              <div class="now"><i>▸</i> Register the watcher and arm it</div>
+              <div class="row">
+                <div class="av" aria-hidden="true">
+                  <div class="bee">
+                    <div class="bee--wings"></div>
+                    <div class="bee--body"><span></span><span></span></div>
+                    <div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div>
+                  </div>
+                </div>
+                <div class="bubble it">On it. I will compile that into a rule so it costs nothing to evaluate, and keep quiet between 10pm and 8am.</div>
+              </div>
+
+              <div class="tool"><span class="ok"></span><b>watcher_create</b> · release.log · quiet hours 22:00-08:00<span class="t">0.4s</span></div>
+
+              <div class="plan">
+                <div><i>✓</i> Read the log path and confirm it exists</div>
+                <div><i>✓</i> Compile the condition into a predicate tree</div>
+                <div class="now"><i>▸</i> Register the watcher and arm it</div>
+              </div>
+            </div>
+
+            <div class="app-foot">
+              <span>4.3k / 128k</span>
+              <span class="gauge"><span></span></span>
+              <span class="model">qwen3:8b</span>
             </div>
           </div>
-
-          <div class="app-foot">
-            <span>4.3k / 128k</span>
-            <span class="gauge"><span></span></span>
-            <span class="model">qwen3:8b</span>
+            </div>
+          </div>
+          <div class="carou-barre">
+            <button class="carou-fl" id="carouPrec" type="button" aria-label="Previous surface">‹</button>
+            <div class="carou-nom" id="carouNom">Chat</div>
+            <div class="carou-points" id="carouPoints"></div>
+            <button class="carou-fl" id="carouSuiv" type="button" aria-label="Next surface">›</button>
           </div>
         </div>
       </div>
@@ -718,6 +867,57 @@ cargo run --release -p laruche-bureau</pre>
 
       <div class="surf-grid">
 
+        <!-- ── Chat ────────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="app-bar">
+              <div class="honeycomb-loader hc-sm" aria-hidden="true">
+                <div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div>
+                <div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div>
+                <div class="hexagon hx7"></div>
+              </div>
+              <span class="name">LaRuche</span>
+              <div class="app-tabs">
+                <span class="on">CHAT</span><span>MÉMOIRE</span><span>MISSIONS</span><span>CAPACITÉS</span>
+              </div>
+            </div>
+
+            <div class="thread">
+              <div class="row me">
+                <div class="bubble me">Watch release.log and ping me on Telegram if a line contains ERROR, but not at night.</div>
+              </div>
+
+              <div class="row">
+                <div class="av" aria-hidden="true">
+                  <div class="bee">
+                    <div class="bee--wings"></div>
+                    <div class="bee--body"><span></span><span></span></div>
+                    <div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div>
+                  </div>
+                </div>
+                <div class="bubble it">On it. I will compile that into a rule so it costs nothing to evaluate, and keep quiet between 10pm and 8am.</div>
+              </div>
+
+              <div class="tool"><span class="ok"></span><b>watcher_create</b> · release.log · quiet hours 22:00-08:00<span class="t">0.4s</span></div>
+
+              <div class="plan">
+                <div><i>✓</i> Read the log path and confirm it exists</div>
+                <div><i>✓</i> Compile the condition into a predicate tree</div>
+                <div class="now"><i>▸</i> Register the watcher and arm it</div>
+              </div>
+            </div>
+
+            <div class="app-foot">
+              <span>4.3k / 128k</span>
+              <span class="gauge"><span></span></span>
+              <span class="model">qwen3:8b</span>
+            </div>
+          </div>
+          <p class="cap"><b>Chat.</b> Where most of it happens. She says what she is about to
+            do, the tool call is shown with its arguments and its duration, and the plan is
+            ticked off as it goes. Nothing is hidden behind a spinner.</p>
+        </div>
+
         <!-- ── Table ronde ─────────────────────────────────────────── -->
         <div class="surf">
           <div class="app">
@@ -747,8 +947,8 @@ cargo run --release -p laruche-bureau</pre>
             </div>
             <div class="tr-verdict">
               <span class="lb">Final answer · confidence 0.72</span>
-              Keep the queue in SQLite. The throughput argument for Redis does not hold at
-              this volume, and it adds a process to keep alive.
+              Keep the queue in SQLite. The throughput argument for Redis does not hold at this
+              volume, and it adds a process to keep alive.
             </div>
             <div class="tr-dis">2 rounds · <b>1 dissenter</b> — the attacker still objects that a
               crash between write and ack loses the task.</div>
@@ -764,26 +964,36 @@ cargo run --release -p laruche-bureau</pre>
           <div class="app br">
             <div class="br-tabs">
               <span class="br-tab grp">🐝 LaRuche</span>
-              <span class="br-tab on">Booking · Lyon</span>
+              <span class="br-tab on">Trains · Lyon</span>
               <span class="br-tab">Mail</span>
-              <span class="br-url">https://example.com/search?city=lyon</span>
+              <span class="br-url">https://example-rail.com/search?to=lyon&amp;d=12-11</span>
             </div>
             <div class="br-page">
               <div class="br-h"></div>
-              <div class="br-t m"></div><div class="br-t"></div><div class="br-t s"></div>
-              <span class="br-field">Lyon, 12 → 14 Nov<span class="br-caret"></span></span>
+              <span class="br-field">Lyon · 12 Nov · 2 passengers<span class="br-caret"></span></span>
+              <div class="br-res">
+                <div class="br-card"><span class="th"></span><span class="tx"><span class="t1">06:44 → 08:41 · direct</span><span class="t2">TGV 6602 · 1 seat left</span></span><span class="pr">€89</span></div>
+                <div class="br-card cible"><span class="th"></span><span class="tx"><span class="t1">09:12 → 11:03 · direct</span><span class="t2">TGV 6608 · aisle available</span></span><span class="pr">€54</span><span class="br-cursor" aria-hidden="true"><span class="ring"></span><svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" fill="#fff" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/></svg></span></div>
+                <div class="br-card"><span class="th"></span><span class="tx"><span class="t1">11:20 → 14:07 · 1 change</span><span class="t2">via Dijon · 27 min connection</span></span><span class="pr">€41</span></div>
+              </div>
             </div>
-            <div class="br-cursor" aria-hidden="true"><span class="ring"></span><svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" fill="#fff" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/></svg></div>
+            <div class="br-cookie">
+              <span>We use cookies to improve your experience.</span>
+              <span class="bt">Refuse</span><span class="bt pr">Accept all</span>
+              <span class="halt">reported, not clicked</span>
+            </div>
             <div class="br-hud">
               <div class="hd"><span class="d"></span>LARUCHE</div>
-              <div class="bd">Filling the dates, then I read the result list rather than
-                screenshotting it: the text is more reliable than the pixels.</div>
+              <div class="bd">Three departures read from the page, not from a screenshot. The
+                09:12 is the cheapest direct one. A consent banner is in the way: I am telling
+                you rather than answering for you.</div>
             </div>
             <div class="br-frame" aria-hidden="true"></div>
           </div>
           <p class="cap"><b>Browser.</b> Your own Chrome, with your sessions, not a throwaway
-            profile. The controlled page wears an amber frame, agent tabs are grouped, every click
-            flashes, and a panel says what is being done before it happens.</p>
+            profile. The controlled page wears an amber frame, agent tabs are grouped, the element
+            about to be clicked lights up, and a panel says what is happening before it happens.
+            Consent banners are reported and never accepted for you.</p>
         </div>
 
         <!-- ── Computer ────────────────────────────────────────────── -->
@@ -901,6 +1111,89 @@ cargo run --release -p laruche-bureau</pre>
             updated fact replaces the stale one instead of piling up beside it, and the whole map
             lives in a git repository, so <span style="font-family:var(--mono);font-size:11.5px">git log</span>
             is the timeline of what your agent learned.</p>
+        </div>
+
+        <!-- ── Swarm ───────────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="sw-hdr">
+              <span class="sw-title">↺ Swarm Intelligence</span>
+              <span class="sw-badge">3 nodes</span>
+            </div>
+            <div class="sw-body">
+              <div class="sw-item moi">
+                <div class="sw-row">
+                  <span class="sw-car">▶</span><span class="sw-hex ok"></span>
+                  <span class="sw-info"><span class="sw-name">bureau</span>
+                    <span class="sw-model">◈ qwen3:8b</span>
+                    <span class="sw-meta">127.0.0.1 · 41.2 t/s · Q:0</span></span>
+                  <span class="sw-badges"><span class="sw-b b-llm">llm</span><span class="sw-b b-rag">rag</span></span>
+                </div>
+              </div>
+              <div class="sw-item">
+                <div class="sw-row">
+                  <span class="sw-car">▶</span><span class="sw-hex busy"></span>
+                  <span class="sw-info"><span class="sw-name">atelier</span>
+                    <span class="sw-model">◈ qwen3:70b</span>
+                    <span class="sw-meta">192.168.1.24 · 12.8 t/s · Q:4</span></span>
+                  <span class="sw-badges"><span class="sw-b b-llm">llm</span><span class="sw-b b-vlm">vlm</span></span>
+                </div>
+              </div>
+              <div class="sw-item">
+                <div class="sw-row">
+                  <span class="sw-car">▶</span><span class="sw-hex ok"></span>
+                  <span class="sw-info"><span class="sw-name">grenier</span>
+                    <span class="sw-model">◈ kokoro-82m</span>
+                    <span class="sw-meta">192.168.1.31 · 0.0 t/s · Q:0</span></span>
+                  <span class="sw-badges"><span class="sw-b b-tts">tts</span><span class="sw-b b-llm">stt</span></span>
+                </div>
+              </div>
+            </div>
+            <div class="sw-shard">
+              <div class="sw-shard-hdr">
+                <span class="sw-shard-title">⬡ Tensor Sharding</span>
+                <span class="sw-shard-up">×1.8</span>
+              </div>
+              <div class="sw-bars">
+                <div class="sw-bar"><i style="width:58%;background:var(--amber)"></i><i style="width:42%;background:var(--purple)"></i></div>
+                <div class="sw-bar"><i style="width:36%;background:var(--amber)"></i><i style="width:64%;background:var(--purple)"></i></div>
+              </div>
+              <div class="sw-leg">
+                <span><i style="background:var(--amber)"></i>bureau · 18 layers</span>
+                <span><i style="background:var(--purple)"></i>atelier · 22 layers</span>
+              </div>
+            </div>
+          </div>
+          <p class="cap"><b>The swarm.</b> Hives on the same network find each other over mDNS and
+            announce what they can do. You see their models, their throughput and their queue, and a
+            model too large for one machine can be split across two. Nothing leaves the network,
+            and nothing is shared that you did not mark as shared.</p>
+        </div>
+
+        <!-- ── Hive to hive ────────────────────────────────────────── -->
+        <div class="surf">
+          <div class="app">
+            <div class="hv-hdr">
+              <span class="av">A</span>
+              <span><span class="nm">atelier</span><br><span class="sub">192.168.1.24 · signed</span></span>
+              <span class="st"><i></i>reachable</span>
+            </div>
+            <div class="hv-body">
+              <div class="hv-sys">mDNS · atelier joined the swarm</div>
+              <div class="hv-msg hv-out">Do you still have the 70B loaded?<span class="h">21:28</span></div>
+              <div class="hv-msg hv-in">Yes, until 23:00. Queue is four deep, so expect a
+                wait.<span class="h">21:29</span></div>
+              <div class="hv-msg hv-out">Take this one then: summarise the release notes and send the
+                result back to my hive.<span class="h">21:31</span></div>
+              <div class="hv-msg hv-in">Running. I will return the answer tagged with my node id, so
+                you know which hive produced it.<span class="h">21:31</span></div>
+            </div>
+            <div class="hv-in2">Message atelier</div>
+          </div>
+          <p class="cap"><b>Hive to hive.</b> Two nodes talk to each other like two people, and one
+            can hand work to the other. The reply comes back tagged with its provenance: an answer
+            produced elsewhere is never passed off as your own hive's. Messages are signed, and a
+            hive only offers what its owner marked as shared.</p>
         </div>
 
         <!-- ── Feed ────────────────────────────────────────────────── -->
@@ -1087,58 +1380,162 @@ cargo run --release -p laruche-bureau</pre>
 /* L'essaim du mode vocal, avec les formules du produit: 150 particules sur une
    orbite elliptique (le 0.85 sur y), une intensite qui accelere la rotation et
    fait vibrer le rayon, et le bleu de l'ecoute plutot que l'ambre de la parole.
-   Copie du comportement, pas une approximation: c'est ce qu'on montre. */
-(function(){
-  var c = document.querySelector('.vm-canvas');
-  if (!c || !c.getContext) return;
-  var ctx = c.getContext('2d');
-  var lent = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var ps = [];
-  for (var i = 0; i < 150; i++) {
-    ps.push({
-      ang: Math.random() * Math.PI * 2,
-      rad: 46 + Math.random() * 108,
-      speed: (0.15 + Math.random() * 0.6) * (Math.random() < 0.5 ? -1 : 1),
-      size: 1 + Math.random() * 2.5,
-      phase: Math.random() * Math.PI * 2
-    });
-  }
-  var intensite = 0.45; // l'etat "listening"
-  function taille(){
-    var r = c.getBoundingClientRect();
-    if (r.width && c.width !== Math.round(r.width)) { c.width = Math.round(r.width); c.height = Math.round(r.height); }
-  }
-  function dessiner(){
-    taille();
-    var w = c.width, h = c.height, cx = w / 2, cy = h / 2;
-    ctx.clearRect(0, 0, w, h);
-    var t = Date.now() / 1000;
-    var pulse = 1 + intensite * 0.6 * (0.7 + 0.3 * Math.sin(t * 8));
-    for (var i = 0; i < ps.length; i++) {
-      var p = ps[i];
-      if (!lent) p.ang += p.speed * 0.01 * (1 + intensite * 2);
-      var jitter = intensite * 18 * Math.sin(t * 6 + p.phase);
-      var r = (p.rad + jitter) * pulse;
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(p.ang) * r, cy + Math.sin(p.ang) * r * 0.85,
-              p.size * (1 + intensite * 0.8), 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(56,189,248,' + (0.22 + intensite * 0.6) + ')';
-      ctx.fill();
+
+   Deux choses qu'il a fallu corriger apres coup:
+
+   - la fonction est exposee, et rappelee par le carrousel apres qu'il a clone
+     ses diapositives. Sans ca le canvas clone restait noir, puisque le script
+     ne connaissait que les canvas presents au chargement;
+
+   - l'essaim tourne autour de l'ORBE et non du centre du cadre. Dans le
+     produit l'ecran est plein et l'ecart ne se voit pas; dans une vignette de
+     466 px, un essaim centre 45 px sous son orbe se remarque tout de suite. */
+window.__essaim = function(){
+  document.querySelectorAll('.vm-canvas').forEach(function(c){
+    if (!c.getContext || c.dataset.arme) return;
+    c.dataset.arme = '1';
+    var ctx = c.getContext('2d');
+    var lent = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var orbe = c.parentElement.querySelector('.vm-orb');
+    var ps = [];
+    for (var i = 0; i < 150; i++) {
+      ps.push({
+        ang: Math.random() * Math.PI * 2,
+        rad: 46 + Math.random() * 108,
+        speed: (0.15 + Math.random() * 0.6) * (Math.random() < 0.5 ? -1 : 1),
+        size: 1 + Math.random() * 2.5,
+        phase: Math.random() * Math.PI * 2
+      });
     }
-    if (!lent) requestAnimationFrame(dessiner);
+    var intensite = 0.45;                       // l'etat "listening"
+    var vivant = false;
+
+    function taille(){
+      var r = c.getBoundingClientRect();
+      if (r.width && c.width !== Math.round(r.width)) {
+        c.width = Math.round(r.width); c.height = Math.round(r.height);
+      }
+    }
+    function centre(){
+      // Le centre de l'orbe, ramene dans le repere du canvas. Repli sur le
+      // milieu du cadre si l'orbe n'est pas encore mesurable.
+      if (!orbe) return [c.width / 2, c.height / 2];
+      var a = c.getBoundingClientRect(), b = orbe.getBoundingClientRect();
+      if (!b.width) return [c.width / 2, c.height / 2];
+      return [b.left - a.left + b.width / 2, b.top - a.top + b.height / 2];
+    }
+    function dessiner(){
+      if (!vivant && !lent) return;
+      taille();
+      var cc = centre(), cx = cc[0], cy = cc[1];
+      ctx.clearRect(0, 0, c.width, c.height);
+      var t = Date.now() / 1000;
+      var pulse = 1 + intensite * 0.6 * (0.7 + 0.3 * Math.sin(t * 8));
+      for (var i = 0; i < ps.length; i++) {
+        var pp = ps[i];
+        if (!lent) pp.ang += pp.speed * 0.01 * (1 + intensite * 2);
+        var jitter = intensite * 18 * Math.sin(t * 6 + pp.phase);
+        var r = (pp.rad + jitter) * pulse;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(pp.ang) * r, cy + Math.sin(pp.ang) * r * 0.85,
+                pp.size * (1 + intensite * 0.8), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(56,189,248,' + (0.22 + intensite * 0.6) + ')';
+        ctx.fill();
+      }
+      if (!lent) requestAnimationFrame(dessiner);
+    }
+    // On ne fait tourner l'essaim que quand il est a l'ecran: une animation qui
+    // occupe un coeur pendant qu'on lit le reste de la page est une nuisance.
+    new IntersectionObserver(function(es){
+      var vu = es[0].isIntersecting;
+      if (vu && !vivant) { vivant = true; dessiner(); } else if (!vu) { vivant = false; }
+    }, { threshold: 0.05 }).observe(c);
+    if (lent) { vivant = true; dessiner(); }
+  });
+};
+window.__essaim();
+</script>
+
+<script>
+/* Le carrousel de l'accueil.
+
+   Les diapositives sont clonees depuis la section Surfaces: une maquette n'est
+   ecrite qu'une fois. Le chat est deja en place dans le balisage, pour que la
+   page montre quelque chose meme si ce script ne tourne pas. */
+(function(){
+  var piste = document.getElementById('carouPiste');
+  var points = document.getElementById('carouPoints');
+  var nom = document.getElementById('carouNom');
+  if (!piste || !points) return;
+
+  var surfaces = document.querySelectorAll('#surfaces .surf');
+  for (var i = 1; i < surfaces.length; i++) {   // 0 = le chat, deja la
+    var app = surfaces[i].querySelector('.app');
+    if (!app) continue;
+    var titre = surfaces[i].querySelector('.cap b');
+    var slide = document.createElement('div');
+    slide.className = 'carou-slide';
+    slide.dataset.nom = titre ? titre.textContent.replace(/\.$/, '') : '';
+    var copie = app.cloneNode(true);
+    // cloneNode copie AUSSI les attributs de donnees, dont celui qui marque un
+    // canvas comme deja anime. Le clone arrivait donc estampille « fait », le
+    // moteur de l'essaim le sautait, et la diapositive vocale restait noire
+    // dans le carrousel alors qu'elle tournait dans la liste.
+    copie.querySelectorAll('canvas[data-arme]').forEach(function(cv){ delete cv.dataset.arme; });
+    slide.appendChild(copie);
+    piste.appendChild(slide);
   }
-  // On ne fait tourner l'essaim que quand il est a l'ecran: une animation qui
-  // consomme un coeur pendant qu'on lit le reste de la page est une nuisance.
-  var vivant = false;
-  var obs = new IntersectionObserver(function(es){
-    var vu = es[0].isIntersecting;
-    if (vu && !vivant) { vivant = true; dessiner(); }
-    else if (!vu) { vivant = false; }
-  }, { threshold: 0.1 });
-  obs.observe(c);
-  var boucle = dessiner;
-  dessiner = function(){ if (vivant || lent) boucle(); };
-  dessiner();
+
+  // Les canvas clones n'existaient pas quand l'essaim s'est arme: on le rappelle.
+  if (window.__essaim) window.__essaim();
+
+  var slides = piste.querySelectorAll('.carou-slide');
+  if (slides.length < 2) return;
+  var courant = 0;
+
+  slides.forEach(function(_, i){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'carou-pt' + (i === 0 ? ' on' : '');
+    b.setAttribute('aria-label', 'Surface ' + (i + 1));
+    b.addEventListener('click', function(){ aller(i, true); });
+    points.appendChild(b);
+  });
+
+  function aller(i, manuel){
+    slides[courant].classList.remove('on');
+    points.children[courant].classList.remove('on');
+    courant = (i + slides.length) % slides.length;
+    slides[courant].classList.add('on');
+    points.children[courant].classList.add('on');
+    if (nom) nom.textContent = slides[courant].dataset.nom || '';
+    // Un canvas cache mesure zero: on le laisse se redimensionner maintenant
+    // qu'il est visible, sinon l'essaim garde la taille par defaut du canvas.
+    var cv = slides[courant].querySelector('.vm-canvas');
+    if (cv) { cv.width = 0; }
+    if (manuel) repartir();
+  }
+
+  document.getElementById('carouPrec').addEventListener('click', function(){ aller(courant - 1, true); });
+  document.getElementById('carouSuiv').addEventListener('click', function(){ aller(courant + 1, true); });
+
+  var lent = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var minuteur = null;
+  function repartir(){
+    if (lent) return;
+    clearInterval(minuteur);
+    minuteur = setInterval(function(){ aller(courant + 1); }, 8000);
+  }
+  // On s'arrete quand la souris est dessus, et quand la page n'est pas visible:
+  // faire defiler des images dans un onglet que personne ne regarde ne sert qu'a
+  // chauffer la machine.
+  var boite = document.getElementById('carou');
+  boite.addEventListener('mouseenter', function(){ clearInterval(minuteur); });
+  boite.addEventListener('mouseleave', repartir);
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) clearInterval(minuteur); else repartir();
+  });
+  repartir();
 })();
 </script>
 </body>
