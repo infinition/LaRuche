@@ -36,6 +36,7 @@ LaRuche.TableRonde = (function(){
   async function charger(){
     try{
       var d = await fetch('/api/deliberation/pool').then(function(r){ return r.json(); });
+      if(d && d.jetons_max) _jetonsMax = d.jetons_max;
       pool = d.specialistes||[]; missions = d.missions||[];
     }catch(e){ pool=[]; missions=[]; }
   }
@@ -207,6 +208,7 @@ LaRuche.TableRonde = (function(){
 
   /* ── Rendu ───────────────────────────────────────────────────────────── */
   function rendre(){
+    majJauge();
     var el = document.getElementById('tableRonde');
     if(!el) return;
     var m = missions.map(function(mi){
@@ -342,7 +344,7 @@ LaRuche.TableRonde = (function(){
           return '<option value="'+r+'"'+(s.role===r?' selected':'')+'>'+r+'</option>';
         }).join('')+
       '</select>'+
-      '<input type="text" class="tr-prof" value="'+esc(s.profil||'')+'" placeholder="'+esc(LaRuche.i18n.t('tr.profilDefaut'))+'">'+
+      '<select class="tr-prof" title="'+esc(LaRuche.i18n.t('tr.profilAide'))+'">'+optionsProfils(s.profil||'')+'</select>'+
       '<button class="tr-strat-btn" title="'+esc(LaRuche.i18n.t('tr.editerStrategie'))+'">✎</button>'+
       '<button class="tr-sup-btn" title="'+esc(LaRuche.i18n.t('tr.retirer'))+'">✕</button>'+
       '<textarea class="tr-strat" rows="7" hidden>'+esc(s.strategie||'')+'</textarea>'+
@@ -368,7 +370,11 @@ LaRuche.TableRonde = (function(){
     l.querySelector('.tr-sup-btn').onclick = function(){ l.remove(); };
   }
 
-  function ouvrirPool(){
+  async function ouvrirPool(){
+    // Les profils AVANT de construire les listes: sinon la premiere ouverture
+    // n'offre que « profil actif », et il faut refermer et rouvrir pour voir
+    // les autres, ce que personne ne devine.
+    await chargerProfils();
     var ov = document.createElement('div');
     ov.className = 'lr-modal-ov'; ov.id = 'trPoolModal';
     ov.innerHTML = '<div class="lr-modal tr-pool" role="dialog" aria-modal="true">'+
@@ -434,6 +440,73 @@ LaRuche.TableRonde = (function(){
     };
   }
 
+  /* Le champ « fournisseur » d'un specialiste.
+     C'etait une zone de texte libre, ou il fallait taper de tete un identifiant
+     de `provider-profiles.json`, avec pour seule aide un texte de substitution
+     disant « profil actif ». Personne ne pouvait deviner ni ce qu'on attendait,
+     ni quelles valeurs existaient: le reglage le plus important du dispositif
+     etait aussi le seul qu'on ne pouvait pas remplir sans lire le code.
+     Une liste des profils reellement configures repond aux deux questions a la
+     fois. */
+  var _profils = [];
+
+  async function chargerProfils(){
+    try{
+      var d = await fetch('/api/profiles').then(function(r){ return r.json(); });
+      _profils = Object.keys(d.profiles || {});
+    }catch(e){ _profils = []; }
+  }
+
+  function optionsProfils(actuel){
+    // Le vide en premier, et nomme: c'est le comportement par defaut, et il doit
+    // se lire comme un choix plutot que comme un champ qu'on a oublie de remplir.
+    var out = '<option value=""'+(actuel ? '' : ' selected')+'>'+
+              esc(LaRuche.i18n.t('tr.profilDefaut'))+'</option>';
+    var liste = _profils.slice();
+    // Un profil retire de la configuration mais encore assigne a quelqu'un doit
+    // rester visible, sinon l'ouverture du panneau le remplacerait en silence
+    // par « profil actif » et effacerait un reglage voulu.
+    if(actuel && liste.indexOf(actuel) < 0) liste.push(actuel);
+    liste.forEach(function(id){
+      out += '<option value="'+esc(id)+'"'+(id===actuel ? ' selected' : '')+'>'+esc(id)+'</option>';
+    });
+    return out;
+  }
+
+  /* La jauge de contexte, en haut, quand l'onglet de la table est ouvert.
+
+     Elle est partagee avec le chat, qui la remplit en permanence. Sur la table
+     ronde elle affichait donc le contexte de la CONVERSATION: un chiffre exact,
+     pose au mauvais endroit, ce qui en fait un chiffre faux. On la reprend ici
+     avec ce qui a vraiment ete consomme par le debat, contre le plafond du
+     moteur (`jetons_max`), qui est un budget par debat et pas une fenetre de
+     contexte. */
+  var _jetonsMax = 0;
+
+  function jetonsDuDebat(){
+    return (flux || []).reduce(function(n, i){ return n + (i.jetons || 0); }, 0);
+  }
+
+  function majJauge(){
+    var jauge = document.getElementById('chatCtxGauge');
+    if(!jauge) return;
+    var utilises = jetonsDuDebat();
+    var max = _jetonsMax || 0;
+    var pct = max > 0 ? Math.min(100, Math.round(utilises / max * 100)) : 0;
+    var fill = document.getElementById('chatCtxFill');
+    if(fill){ fill.style.width = pct+'%'; fill.className = 'chat-ctx-fill'+(pct>66?' hot':pct>33?' warm':''); }
+    var pctEl = document.getElementById('chatCtxPct');
+    if(pctEl) pctEl.textContent = pct+'%';
+    var detail = document.getElementById('chatCtxDetail');
+    if(detail){
+      function court(n){ return n >= 1000 ? (n/1000).toFixed(n>=10000?0:1)+'k' : String(n); }
+      var n = (flux || []).length;
+      detail.textContent = max
+        ? court(utilises)+' / '+court(max)+' '+LaRuche.i18n.t('tr.jetonsDebat')+' · '+n+' '+LaRuche.i18n.t('tr.interventionsCourt')
+        : n+' '+LaRuche.i18n.t('tr.interventionsCourt');
+    }
+  }
+
   /* ── Volet lateral: les tours de table remplacent les conversations ──── */
   async function chargerTours(){
     var liste = document.getElementById('toursSidebarList');
@@ -496,6 +569,9 @@ LaRuche.TableRonde = (function(){
     var vTours = document.getElementById('toursSidebarSection');
     if(vConv) vConv.style.display = surTable ? 'none' : '';
     if(vTours){ vTours.style.display = surTable ? '' : 'none'; if(surTable) chargerTours(); }
+    // Reprendre la jauge tout de suite: sinon elle garde les chiffres du chat
+    // pendant la seconde et demie qui separe deux sondages.
+    if(surTable) majJauge();
     if(surTable){ if(!pool.length){ charger().then(rendre); } else { rendre(); } }
   }
 
@@ -542,13 +618,17 @@ LaRuche.i18n.add({
                         en:'Hiring, avatar, name and provider. The reasoning strategy is edited in Settings.' },
   'tr.poolAide':      { fr:"Un fournisseur vide = le profil actif. Faire varier les modèles est le seul moyen d'avoir de vrais désaccords : dix stratégies sur un même modèle partagent ses angles morts.",
                         en:'Empty provider = active profile. Varying models is the only way to get real disagreement: ten strategies on one model share its blind spots.' },
-  'tr.profilDefaut':  { fr:'profil actif', en:'active profile' },
+  'tr.profilDefaut':  { fr:'Profil actif (par défaut)', en:'Active profile (default)' },
+  'tr.profilAide':    { fr:"Le fournisseur que ce spécialiste utilise. Laissé sur le profil actif, il parle avec le même modèle que le chat. En choisir un autre est le seul moyen d'obtenir de vrais désaccords: dix stratégies sur un même modèle partagent ses angles morts.",
+                        en:'The provider this specialist uses. Left on the active profile, it speaks with the same model as the chat. Picking another one is the only way to get real disagreement: ten strategies on one model share its blind spots.' },
   'tr.question':      { fr:'Question', en:'Question' },
   'tr.verdict':       { fr:'Réponse finale', en:'Final answer' },
   'tr.sansOutils':    { fr:"Aucun outil n'est encore ouvert : les spécialistes raisonnent et rendent du texte. Ils n'écrivent aucun fichier et ne consultent aucune page.",
                         en:'No tools are wired yet: the specialists reason and return text. They write no files and browse nothing.' },
   'tr.aucunTour':     { fr:'Aucun tour de table.', en:'No round table yet.' },
   'tr.toursCourt':    { fr:'tours', en:'rounds' },
+  'tr.jetonsDebat':   { fr:'jetons du débat', en:'debate tokens' },
+  'tr.interventionsCourt': { fr:'interventions', en:'interventions' },
   'tr.dissidentsCourt':{ fr:'dissident(s)', en:'dissenter(s)' },
   'tr.confiance':     { fr:'confiance', en:'confidence' },
   'tr.ajouter':       { fr:'+ Nouveau spécialiste', en:'+ New specialist' },

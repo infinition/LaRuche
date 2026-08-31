@@ -216,6 +216,10 @@ LaRuche.i18n.add({
   'settings.kanbanCreate':       {fr:'Créer',            en:'Create'},
   'settings.kanbanDefaultChannelLabel': {fr:'Canal par défaut du board', en:'Board default channel'},
   'settings.kanbanDefaultUpdated': {fr:'Canal par défaut du board mis à jour', en:'Board default channel updated'},
+  'settings.kanbanInterval':       {fr:'Relève', en:'Poll'},
+  'settings.kanbanIntervalDesc':   {fr:"secondes entre deux relèves de la colonne Ready",
+                                    en:'seconds between two sweeps of the Ready column'},
+  'settings.kanbanIntervalUpdated':{fr:'Relève réglée sur {n} s', en:'Poll set to {n} s'},
   'settings.kanbanTaskCreated':  {fr:'Tâche créée',      en:'Task created'},
   'settings.kanbanEditTitle':    {fr:'Éditer la tâche',  en:'Edit task'},
   'settings.kanbanEditTitleLabel': {fr:'Titre',          en:'Title'},
@@ -465,6 +469,36 @@ LaRuche.i18n.add({
   'settings.navCapabilities':  {fr:'Capacités',          en:'Capabilities'},
   'settings.navProfile':       {fr:'Profil',             en:'Profile'},
   'settings.navAdmin':         {fr:'Admin',              en:'Admin'},
+  'settings.navHelp':          {fr:'Aide',               en:'Help'},
+  'help.aproposTitre':   {fr:'À propos de LaRuche',  en:'About LaRuche'},
+  'help.aproposDesc':    {fr:'La version qui tourne sur cette machine, et le protocole qu\'elle parle.',
+                          en:'The build running on this machine, and the protocol it speaks.'},
+  'help.depot':          {fr:'Dépôt GitHub',         en:'GitHub repository'},
+  'help.depotDesc':      {fr:'Le code source, les tickets et les releases.',
+                          en:'Source code, issues and releases.'},
+  'help.wiki':           {fr:'Wiki',                 en:'Wiki'},
+  'help.wikiDesc':       {fr:'Comprendre comment LaRuche fonctionne, et comment la régler.',
+                          en:'Understand how LaRuche works, and how to tune it.'},
+  'help.soutien':        {fr:'Ça vous plaît ? Soutenez le projet',
+                          en:'Like it? Support the project'},
+  'help.soutienDesc':    {fr:'LaRuche est gratuite et le restera. Un café aide à la faire avancer.',
+                          en:'LaRuche is free and will stay free. A coffee helps it move forward.'},
+  'help.majTitre':       {fr:'Mise à jour',          en:'Update'},
+  'help.majDesc':        {fr:'Compare cette version avec la dernière release publiée sur GitHub.',
+                          en:'Compares this build with the latest release published on GitHub.'},
+  'help.majBouton':      {fr:'Vérifier les mises à jour', en:'Check for updates'},
+  'help.majEnCours':     {fr:'Vérification...',      en:'Checking...'},
+  'help.majAJour':       {fr:'À jour.',              en:'Up to date.'},
+  'help.majDispo':       {fr:'Une version plus récente est disponible',
+                          en:'A newer version is available'},
+  'help.majAvance':      {fr:'Cette version est en avance sur la dernière release.',
+                          en:'This build is ahead of the latest release.'},
+  'help.majEchec':       {fr:"Impossible de joindre GitHub. Vérifiez la connexion, ou réessayez plus tard: l'API limite le nombre d'appels.",
+                          en:'Could not reach GitHub. Check the connection, or try again later: the API rate-limits requests.'},
+  'help.majVersionLocale':{fr:'Version installée',   en:'Installed version'},
+  'help.majTelecharger': {fr:'Voir la release',      en:'View the release'},
+  'help.ressourcesTitre':{fr:'Documentation et code', en:'Documentation and code'},
+  'help.cafeBouton':     {fr:'Offrir un café',      en:'Buy a coffee'},
   'settings.profileAccount':   {fr:'Compte',             en:'Account'},
   'settings.profileAvatar':    {fr:'Photo',              en:'Photo'},
   'settings.profileChangePhoto':{fr:'Changer',           en:'Change'},
@@ -522,7 +556,8 @@ LaRuche.Settings = (function(){
     { id:'secrets',      i18n:'settings.navSecrets',      icon:_ic('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>') },
     { id:'network',      i18n:'settings.navNetwork',      icon:_ic('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>') },
     { id:'capabilities', i18n:'settings.navCapabilities', icon:_ic('<path d="M19.4 13a2.4 2.4 0 0 1 0-4.8h.6V6a2 2 0 0 0-2-2h-2.2v-.6a2.4 2.4 0 0 0-4.8 0V4H8a2 2 0 0 0-2 2v2.2H5.4a2.4 2.4 0 0 0 0 4.8H6V17a2 2 0 0 0 2 2h2.2v.6a2.4 2.4 0 0 0 4.8 0V19H18a2 2 0 0 0 2-2v-4z"/>') },
-    { id:'admin', i18n:'settings.navAdmin', adminOnly:true, icon:_ic('<path d="M12 2l8 4v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.5 16a3.5 3.5 0 0 1 7 0"/>') }
+    { id:'admin', i18n:'settings.navAdmin', adminOnly:true, icon:_ic('<path d="M12 2l8 4v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.5 16a3.5 3.5 0 0 1 7 0"/>') },
+    { id:'help', i18n:'settings.navHelp', icon:_ic('<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/><line x1="12" y1="17" x2="12" y2="17.01"/>') }
   ];
   function _visibleSections(){
     var admin = !!(LaRuche.Auth && LaRuche.Auth.isAdmin && LaRuche.Auth.isAdmin());
@@ -683,6 +718,7 @@ LaRuche.Settings = (function(){
       case 'kanban': loadKanban(el); break;
       case 'skills': loadSkills(el); break;
       case 'onboarding': loadOnboarding(el); break;
+      case 'help': loadHelp(el); break;
     }
   }
 
@@ -2913,12 +2949,20 @@ LaRuche.Settings = (function(){
       '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">'+LaRuche.i18n.t('settings.kanbanCreate')+'</button></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
         '<div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0">'+LaRuche.i18n.t('settings.kanbanDefaultChannelLabel')+'</label>' +
-        '<select class="form-input" id="kanban-default-channel" style="width:auto" onchange="LaRuche.Settings.setKanbanDefaultChannel(this.value)"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannelNone')+'</option></select></div>' +
+        '<select class="form-input" id="kanban-default-channel" style="width:auto" onchange="LaRuche.Settings.setKanbanDefaultChannel(this.value)"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannelNone')+'</option></select>' +
+        '<label class="form-label" style="margin:0 0 0 14px">'+LaRuche.i18n.t('settings.kanbanInterval')+'</label>' +
+        '<input class="form-input" id="kanban-interval" type="number" min="1" max="3600" step="1" style="width:74px" onchange="LaRuche.Settings.setKanbanInterval(this.value)">' +
+        '<span class="settings-card-desc" style="margin:0">'+LaRuche.i18n.t('settings.kanbanIntervalDesc')+'</span></div>' +
         '<div id="kanbanViewToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+kanbanToggleInner()+'</div></div>' +
       '<div id="kanbanCols"></div>';
     _kanbanLast='';
     window.__fillChannels(document.getElementById('kanban-channel'), '', LaRuche.i18n.t('settings.kanbanBoardChannel'));
     try{ var dc=await fetch('/api/kanban/default_channel').then(function(r){return r.json();}); window.__fillChannels(document.getElementById('kanban-default-channel'), (dc&&dc.channel)||'', LaRuche.i18n.t('settings.kanbanBoardChannelNone')); }catch(e){}
+    try{
+      var iv=await fetch('/api/kanban/interval').then(function(r){return r.json();});
+      var champ=document.getElementById('kanban-interval');
+      if(champ && iv && iv.seconds) champ.value=iv.seconds;
+    }catch(e){}
     await refreshKanbanCols();
     if(_kanbanTimer) LaRuche.Poll.stop(_kanbanTimer);
     // Auto-refresh (the agent/daemon can modify the board): re-render
@@ -2951,19 +2995,39 @@ LaRuche.Settings = (function(){
       });
       html+='</div>';
     } else {
-      // Column mode (existing).
-      html='<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;min-height:400px">';
+      // Mode colonnes. Les sept colonnes avaient une largeur fixe de 250 px,
+      // pleines ou vides, et une hauteur plancher de 400 px: sur un tableau
+      // neuf, sept colonnes vides prenaient 1750 px de large, imposaient une
+      // barre de defilement horizontale, et couvraient la moitie de l'ecran
+      // pour ne rien montrer. Une colonne vide se contente maintenant de son
+      // titre, et les colonnes se replient sur plusieurs rangees plutot que de
+      // deborder.
+      html='<div class="kb-board">';
       cols.forEach(function(c){
-        html+='<div style="flex:0 0 250px;background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;display:flex;flex-direction:column" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
         var colTasks=tasks.filter(function(t){return t.status===c;});
-        html+='<div style="padding:10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);text-align:center">'+kanbanColLabel(c)+(colTasks.length?(' ('+colTasks.length+')'):'')+'</div>';
-        html+='<div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:8px">';
+        var vide = !colTasks.length;
+        html+='<div class="kb-col'+(vide?' kb-col-vide':'')+'" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
+        html+='<div class="kb-col-hdr"><span>'+kanbanColLabel(c)+'</span>'+(colTasks.length?('<span class="kb-col-n">'+colTasks.length+'</span>'):'')+'</div>';
+        html+='<div class="kb-col-corps">';
         colTasks.forEach(function(t){ html+=kanbanCardHtml(t); });
         html+='</div></div>';
       });
       html+='</div>';
     }
     host.innerHTML=html;
+  }
+
+  function setKanbanInterval(v){
+    fetch('/api/kanban/interval',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seconds: parseInt(v,10)||5})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        // On reaffiche la valeur RETENUE: elle est bornee cote serveur, et un
+        // champ qui garde 0 alors que le serveur applique 1 ment a la personne
+        // qui vient de le regler.
+        var champ=document.getElementById('kanban-interval');
+        if(champ && d && d.seconds) champ.value=d.seconds;
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanIntervalUpdated',{n:(d&&d.seconds)||v}),'ok');
+      });
   }
 
   function setKanbanDefaultChannel(ch){
@@ -3241,6 +3305,153 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       if(res.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.save'),'ok');
       else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
     } catch(e) { LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); }
+  }
+
+  /* -- Aide: le dehors du logiciel -------------------------------------
+     Une section qui ne regle rien. Elle rassemble ce qu'on cherche justement
+     quand on ne sait plus quoi regler: la documentation, le code, un endroit
+     ou signaler un probleme, et la reponse a "est-ce que ma version est
+     vieille". Ces liens vivaient dans le README, c'est-a-dire nulle part pour
+     quelqu'un qui utilise l'application sans avoir clone le depot. */
+  var HELP_DEPOT = 'https://github.com/infinition/LaRuche';
+  var HELP_WIKI  = 'https://infinition.github.io/LaRuche/wiki.html';
+  var HELP_CAFE  = 'https://www.buymeacoffee.com/infinition';
+
+  function _helpLien(href, ic, titre, desc){
+    // rel="noopener": sans lui la page ouverte recoit `window.opener` et peut
+    // rediriger celle-ci. noreferrer en prime, on n'a aucune raison d'annoncer
+    // d'ou vient le clic.
+    return '<a class="help-lien" href="' + href + '" target="_blank" rel="noopener noreferrer">' +
+      '<span class="help-lien-ic">' + ic + '</span>' +
+      '<span class="help-lien-txt">' +
+        '<span class="help-lien-titre">' + titre + '</span>' +
+        '<span class="help-lien-desc">' + desc + '</span>' +
+      '</span>' +
+      '<svg class="help-lien-fleche" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+    '</a>';
+  }
+
+  // Compare deux versions "x.y.z". Rend -1, 0 ou 1.
+  //
+  // Comparaison NUMERIQUE segment par segment, pas alphabetique: "0.10.0" est
+  // plus recent que "0.9.0", alors qu'un simple `<` sur les chaines dit
+  // l'inverse. Le piege se declenche pile au moment ou le projet commence a
+  // vivre, donc autant ne pas le poser.
+  function _cmpVersion(a, b){
+    var pa = String(a).replace(/^v/, '').split(/[.\-+]/);
+    var pb = String(b).replace(/^v/, '').split(/[.\-+]/);
+    for(var i = 0; i < Math.max(pa.length, pb.length); i++){
+      var na = parseInt(pa[i], 10), nb = parseInt(pb[i], 10);
+      if(isNaN(na)) na = -1;
+      if(isNaN(nb)) nb = -1;
+      if(na !== nb) return na < nb ? -1 : 1;
+    }
+    return 0;
+  }
+
+  async function _verifierMaj(){
+    var zone = document.getElementById('helpMajResultat');
+    var btn  = document.getElementById('helpMajBtn');
+    if(!zone) return;
+    zone.className = 'help-maj-etat';
+    zone.textContent = LaRuche.i18n.t('help.majEnCours');
+    if(btn) btn.disabled = true;
+    var locale = '0.0.0';
+    try{
+      locale = (await fetch('/api/version').then(function(r){ return r.json(); })).version || locale;
+    }catch(e){}
+    try{
+      var rel = await fetch('https://api.github.com/repos/infinition/LaRuche/releases/latest', {
+        headers: { 'Accept': 'application/vnd.github+json' }
+      }).then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); });
+      var tag = String(rel.tag_name || '').replace(/^v/, '');
+      var c = _cmpVersion(locale, tag);
+      if(c < 0){
+        zone.className = 'help-maj-etat help-maj-neuve';
+        zone.innerHTML = LaRuche.i18n.t('help.majDispo') + ' <strong>v' + esc(tag) + '</strong> ' +
+          '<a href="' + esc(rel.html_url || (HELP_DEPOT + '/releases')) + '" target="_blank" rel="noopener noreferrer">' +
+          LaRuche.i18n.t('help.majTelecharger') + '</a>';
+      } else if(c > 0){
+        // Un binaire compile depuis les sources est normalement en avance sur
+        // la derniere release. Le dire, plutot qu'annoncer "a jour" et laisser
+        // croire que la verification a servi a quelque chose.
+        zone.className = 'help-maj-etat';
+        zone.textContent = LaRuche.i18n.t('help.majAvance');
+      } else {
+        zone.className = 'help-maj-etat help-maj-ok';
+        zone.textContent = LaRuche.i18n.t('help.majAJour');
+      }
+    }catch(e){
+      zone.className = 'help-maj-etat';
+      zone.textContent = LaRuche.i18n.t('help.majEchec');
+    }
+    if(btn) btn.disabled = false;
+  }
+
+  async function loadHelp(el){
+    var icGithub = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.42c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.24 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>';
+    var icLivre  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
+
+    el.innerHTML =
+      // 1. Ce que c'est, et quelle version tourne. La pastille "Miel v0.2.0"
+      //    vivait dans la barre du haut, ou elle occupait une place permanente
+      //    pour une information qu'on regarde deux fois par an.
+      '<div class="settings-card help-entete">' +
+        '<div class="help-entete-txt">' +
+          '<div class="settings-card-title">' + LaRuche.i18n.t('help.aproposTitre') + '</div>' +
+          '<div class="settings-card-desc">' + LaRuche.i18n.t('help.aproposDesc') + '</div>' +
+        '</div>' +
+        '<div class="help-versions">' +
+          '<div class="help-version"><span class="help-version-eti">' + LaRuche.i18n.t('help.majVersionLocale') + '</span>' +
+            '<span class="help-version-val" id="helpVersionLocale">...</span></div>' +
+          '<div class="help-version"><span class="help-version-eti">' + LaRuche.i18n.t('settings.protocol') + '</span>' +
+            '<span class="help-version-val">Miel v0.2.0</span></div>' +
+        '</div>' +
+        '<div class="help-maj">' +
+          '<button id="helpMajBtn" class="btn-primary">' + LaRuche.i18n.t('help.majBouton') + '</button>' +
+          '<div id="helpMajResultat" class="help-maj-etat">' + LaRuche.i18n.t('help.majDesc') + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // 2. Ou aller quand quelque chose resiste.
+      '<div class="settings-card">' +
+        '<div class="settings-card-title">' + LaRuche.i18n.t('help.ressourcesTitre') + '</div>' +
+        '<div class="help-liens">' +
+          _helpLien(HELP_WIKI,  icLivre,  LaRuche.i18n.t('help.wiki'),  LaRuche.i18n.t('help.wikiDesc')) +
+          _helpLien(HELP_DEPOT, icGithub, LaRuche.i18n.t('help.depot'), LaRuche.i18n.t('help.depotDesc')) +
+        '</div>' +
+      '</div>' +
+
+      // 3. Le soutien. C'est elle qui demande, pas nous: la meme abeille que
+      //    dans le chat, avec une bulle. Une demande d'argent est toujours un
+      //    peu genante a lire; venant d'elle elle passe pour ce qu'elle est,
+      //    une proposition qu'on peut ignorer sans y penser.
+      '<div class="settings-card help-cafe">' +
+        '<div class="help-cafe-scene">' +
+          '<div class="bee help-abeille"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div>' +
+          '<div class="help-bulle">' +
+            '<div class="help-bulle-titre">' + LaRuche.i18n.t('help.soutien') + '</div>' +
+            '<div class="help-bulle-txt">' + LaRuche.i18n.t('help.soutienDesc') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<a class="help-cafe-btn" href="' + HELP_CAFE + '" target="_blank" rel="noopener noreferrer">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>' +
+          '<span>' + LaRuche.i18n.t('help.cafeBouton') + '</span>' +
+        '</a>' +
+      '</div>';
+
+    var b = document.getElementById('helpMajBtn');
+    if(b) b.addEventListener('click', _verifierMaj);
+    // La version affichee vient du binaire, pas d'une constante ecrite dans la
+    // page: une version en dur ment des la publication suivante.
+    try{
+      var v = (await fetch('/api/version').then(function(r){ return r.json(); })).version;
+      var cible = document.getElementById('helpVersionLocale');
+      if(cible && v) cible.textContent = 'v' + v;
+    }catch(e){
+      var c2 = document.getElementById('helpVersionLocale');
+      if(c2) c2.textContent = '?';
+    }
   }
 
   async function loadOnboarding(el) {
@@ -3767,7 +3978,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

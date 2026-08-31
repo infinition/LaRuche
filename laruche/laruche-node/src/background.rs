@@ -993,13 +993,18 @@ pub(crate) fn spawn_missions_tick(state: &Arc<AppState>) {
     });
 }
 
-// Background: Kanban Dispatcher (every 5 seconds)
+// Background: repartiteur Kanban.
+//
+// Le delai entre deux releves est relu A CHAQUE TOUR plutot que fige a la
+// creation de la boucle: un reglage qui n'agit qu'apres un redemarrage n'est
+// pas un reglage, c'est un piege. Le regler a 2 secondes doit se sentir tout de
+// suite.
 pub(crate) fn spawn_kanban_dispatcher(state: &Arc<AppState>) {
     let kanban_state = state.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
         loop {
-            interval.tick().await;
+            let attente = kanban_state.kanban_board.read().await.delai_secs();
+            tokio::time::sleep(std::time::Duration::from_secs(attente)).await;
 
             let task_opt = {
                 let mut board = kanban_state.kanban_board.write().await;

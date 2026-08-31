@@ -10,7 +10,8 @@ LaRuche.i18n.add({
   'dashboard.modelActiveFor':        {fr:'{name} actif pour {cap}',       en:'{name} active for {cap}'},
   'dashboard.error':                 {fr:'Erreur: {msg}',                 en:'Error: {msg}'},
   'dashboard.noService':             {fr:'Aucun service',                 en:'No service'},
-  'dashboard.modelCount':            {fr:'{count} modèles sur {src} sources', en:'{count} models from {src} sources'},
+  'dashboard.modelCount':            {fr:'{count} modèles · {src} sources', en:'{count} models · {src} sources'},
+  'dashboard.modelCountOne':         {fr:'{count} modèles · 1 source',      en:'{count} models · 1 source'},
   'dashboard.capLlm':                {fr:'💬 Conversation (LLM)',         en:'💬 Conversation (LLM)'},
   'dashboard.capAgent':              {fr:'🤖 Agent',                      en:'🤖 Agent'},
   'dashboard.capCode':               {fr:'💻 Code',                       en:'💻 Code'},
@@ -21,8 +22,10 @@ LaRuche.i18n.add({
   'dashboard.myLocalModel':          {fr:'Mon modèle local',               en:'My local model'},
   'dashboard.remoteModel':           {fr:'Modèle distant (ruche {name})',  en:'Remote model (ruche {name})'},
   'dashboard.selected':              {fr:'● SÉLECTIONNÉ',                 en:'● SELECTED'},
-  'dashboard.myLocal':               {fr:'🖥️ à moi (local)',               en:'🖥️ mine (local)'},
-  'dashboard.used':                  {fr:'✓ Utilisé',                     en:'✓ In use'},
+  'dashboard.myLocal':               {fr:'cette machine',                  en:'this machine'},
+  'dashboard.used':                  {fr:'Utilisé',                       en:'In use'},
+  'dashboard.meshAide':              {fr:'Cliquer une ligne pour employer ce modèle.',
+                                      en:'Click a row to use that model.'},
   'dashboard.use':                   {fr:'Utiliser',                      en:'Use'},
   'dashboard.waitingData':           {fr:'En attente de données...',       en:'Waiting for data...'},
   'dashboard.initialized':           {fr:'Dashboard initialisé',           en:'Dashboard initialized'},
@@ -31,7 +34,7 @@ LaRuche.i18n.add({
   'dashboard.instantiate':           {fr:'Instancier',                    en:'Instantiate'},
   'dashboard.blueprintSuccess':      {fr:'Blueprint instancié avec succès', en:'Blueprint instantiated successfully'},
   'dashboard.blueprintError':        {fr:"Erreur d'instanciation",         en:'Instantiation error'},
-  'dashboard.remoteBadge':           {fr:'🐝 {name} · distant',            en:'🐝 {name} · remote'},
+  'dashboard.remoteBadge':           {fr:'{name}',                        en:'{name}'},
   'dashboard.noDetailedMetrics':     {fr:'Aucune métrique détaillée',     en:'No detailed metrics'},
   'dashboard.speedupWithNodes':      {fr:'{x}x avec {n} nœuds',           en:'{x}x with {n} nodes'},
   'dashboard.shardAttention':        {fr:'Attention',                     en:'Attention'},
@@ -374,99 +377,105 @@ LaRuche.Dashboard = (function(){
       
       document.getElementById('model-badge').textContent=LaRuche.i18n.t('dashboard.modelCount',{count:d.models.length,src:sourcesCount});
       
+      // Regroupement par capacite, en dedoublonnant: un meme modele offert par
+      // plusieurs sources ne doit apparaitre qu'une fois.
       var groups={};
-      
       d.models.forEach(function(m){
         var cap=(m.capability||'llm').toLowerCase();
         if(!groups[cap]){groups[cap]=[];}
-        // DEDUP: the same model (name + source) must appear only once (otherwise "Used
-        // everywhere" and duplicate cards when a model comes from multiple sources).
         var dup = groups[cap].some(function(x){ return x.name===m.name && x.host===m.host && x.node_id===m.node_id; });
         if(!dup) groups[cap].push(m);
       });
-      
+
       var allCaps = Object.keys(groups);
       var orderedCaps = ['llm', 'code', 'stt', 'tts', 'vlm', 'vla'];
-      var groupOrder = orderedCaps.filter(c => allCaps.includes(c));
-      allCaps.forEach(c => { if(!groupOrder.includes(c)) groupOrder.push(c); });
-      
+      var groupOrder = orderedCaps.filter(function(c){ return allCaps.indexOf(c) >= 0; });
+      allCaps.forEach(function(c){ if(groupOrder.indexOf(c) < 0) groupOrder.push(c); });
+
       if(LaRuche.Voice && LaRuche.Voice.updateVoiceSelectors) {
         LaRuche.Voice.updateVoiceSelectors(d.models);
       }
-      
+
+      // Le decompte compte ce qui est AFFICHE, donc apres dedoublonnage. Il
+      // annoncait le brut, et le total du bandeau ne correspondait pas a la
+      // somme des sections juste en dessous.
+      var affiches = groupOrder.reduce(function(n, c){ return n + groups[c].length; }, 0);
+      document.getElementById('model-badge').textContent = LaRuche.i18n.t(
+        sourcesCount === 1 ? 'dashboard.modelCountOne' : 'dashboard.modelCount',
+        {count: affiches, src: sourcesCount}
+      );
+
       groupOrder.forEach(function(cap){
         var section = document.createElement('div');
         section.className = 'mesh-cap-section';
-        if(cap === 'code') section.style.border = '1px solid var(--green-dim)';
-        
+
         var CAP_LABEL = { llm:LaRuche.i18n.t('dashboard.capLlm'), agent:LaRuche.i18n.t('dashboard.capAgent'), code:LaRuche.i18n.t('dashboard.capCode'), stt:LaRuche.i18n.t('dashboard.capStt'), tts:LaRuche.i18n.t('dashboard.capTts'), vlm:LaRuche.i18n.t('dashboard.capVlm'), vla:LaRuche.i18n.t('dashboard.capVla') };
         var hdr = document.createElement('div');
         hdr.className = 'mesh-cap-hdr';
-        hdr.innerHTML = '<span>' + (CAP_LABEL[cap]||cap) + '</span> <span>' + groups[cap].length + '</span>';
+        hdr.innerHTML = '<span>' + (CAP_LABEL[cap]||cap) + '</span><span class="mesh-cap-n">' + groups[cap].length + '</span>';
         section.appendChild(hdr);
-        
-        var grid = document.createElement('div');
-        grid.className = 'mesh-grid';
-        
+
+        var liste = document.createElement('div');
+        liste.className = 'mesh-liste';
+
         groups[cap].forEach(function(m){
-          // Selected = matches EXACTLY the server choice for this capability (name + source).
-          // No fallback on is_default (which could mark several cards as "Used").
+          // Employe = correspond EXACTEMENT au choix du serveur pour cette
+          // capacite (nom + source). Pas de repli sur is_default, qui marquerait
+          // plusieurs lignes a la fois.
           var _sp = serverPreferred[cap];
-          var isPreferred = !!(_sp && m.name === _sp.model && (_sp.backend == null || m.host === _sp.backend));
-          var card = document.createElement('div');
-          card.className = 'mesh-card';
-          if(isPreferred){ card.style.borderColor = 'var(--amber)'; card.style.background = 'rgba(245,158,11,0.06)'; }
-          card.title = m.is_local ? LaRuche.i18n.t('dashboard.myLocalModel') : LaRuche.i18n.t('dashboard.remoteModel',{name:(m.node_name||'pair')});
+          var employe = !!(_sp && m.name === _sp.model && (_sp.backend == null || m.host === _sp.backend));
 
-          var nameDiv = document.createElement('div');
-          nameDiv.className = 'mesh-card-name';
-          nameDiv.textContent = m.name;
-          if(isPreferred) nameDiv.innerHTML += ' <span style="background:var(--amber);color:var(--bg);font-size:9px;font-weight:700;padding:0 5px;border-radius:7px;margin-left:4px;vertical-align:middle;">'+LaRuche.i18n.t('dashboard.selected')+'</span>';
+          // Un vrai <button>: la ligne entiere est l'action, et elle doit donc
+          // etre atteignable au clavier et annoncee comme cliquable. Avant, la
+          // ligne portait une action (choisir par defaut) et le bouton a
+          // l'interieur une AUTRE (employer maintenant), qui n'ecrivaient meme
+          // pas au meme endroit. Cliquer a un pixel pres changeait le sens du
+          // geste, sans que rien ne le dise.
+          var ligne = document.createElement('button');
+          ligne.type = 'button';
+          ligne.className = 'mesh-ligne' + (employe ? ' mesh-ligne-active' : '');
+          ligne.title = m.is_local
+            ? LaRuche.i18n.t('dashboard.myLocalModel')
+            : LaRuche.i18n.t('dashboard.remoteModel', {name:(m.node_name||'pair')});
 
-          var metaDiv = document.createElement('div');
-          metaDiv.className = 'mesh-card-meta';
+          var source = m.is_local
+            ? LaRuche.i18n.t('dashboard.myLocal')
+            : LaRuche.i18n.t('dashboard.remoteBadge', {name:(m.node_name||'pair')});
+          var taille = m.size_gb > 0 ? m.size_gb.toFixed(1) + ' GB' : '';
 
-          var sizeSpan = document.createElement('span');
-          sizeSpan.textContent = m.size_gb > 0 ? m.size_gb.toFixed(1) + ' GB' : '';
+          ligne.innerHTML =
+            '<span class="mesh-point ' + (m.is_local ? 'mesh-point-local' : 'mesh-point-distant') + '"></span>' +
+            '<span class="mesh-ligne-txt">' +
+              '<span class="mesh-nom"></span>' +
+              '<span class="mesh-meta">' +
+                '<span class="mesh-src"></span>' +
+                (taille ? '<span class="mesh-taille"></span>' : '') +
+              '</span>' +
+            '</span>' +
+            '<span class="mesh-action">' + (employe ? LaRuche.i18n.t('dashboard.used') : LaRuche.i18n.t('dashboard.use')) + '</span>';
+          // textContent et pas innerHTML pour ce qui vient du reseau: un nom de
+          // modele ou de pair arrive d'une autre machine.
+          ligne.querySelector('.mesh-nom').textContent = m.name;
+          ligne.querySelector('.mesh-src').textContent = source;
+          if(taille) ligne.querySelector('.mesh-taille').textContent = taille;
 
-          // CLEAR provenance: 🖥️ my local · 🐝 remote (which ruche).
-          var badgeSpan = document.createElement('span');
-          badgeSpan.className = 'mesh-badge ' + (m.is_local ? 'mesh-local' : 'mesh-remote');
-          badgeSpan.textContent = m.is_local ? LaRuche.i18n.t('dashboard.myLocal') : LaRuche.i18n.t('dashboard.remoteBadge',{name:(m.node_name||'pair')});
-
-          metaDiv.appendChild(sizeSpan);
-          metaDiv.appendChild(badgeSpan);
-
-          card.appendChild(nameDiv);
-          card.appendChild(metaDiv);
-
-          var useBtn = document.createElement('button');
-          useBtn.style.cssText = 'background:rgba(245,158,11,0.1); border:1px solid var(--amber); color:var(--amber); border-radius:4px; padding:4px 8px; font-size:10px; cursor:pointer; margin-top:4px; transition:var(--transition-fast); text-align:center;';
-          if(isPreferred){
-            useBtn.textContent = LaRuche.i18n.t('dashboard.used');
-            useBtn.style.background = 'var(--amber)'; useBtn.style.color = 'var(--bg)'; useBtn.disabled = true; useBtn.style.cursor = 'default';
+          if(employe){
+            ligne.disabled = true;
           } else {
-            useBtn.textContent = LaRuche.i18n.t('dashboard.use');
-            useBtn.onmouseover = function() { this.style.background = 'rgba(245,158,11,0.2)'; };
-            useBtn.onmouseout = function() { this.style.background = 'rgba(245,158,11,0.1)'; };
-            useBtn.onclick = function(e){
-              e.stopPropagation();
-              useBtn.disabled = true;
-              useBtn.textContent = '...';
+            ligne.addEventListener('click', function(){
+              ligne.disabled = true;
+              ligne.querySelector('.mesh-action').textContent = '...';
               useMeshModel(m.host, m.name, cap, m.node_id, m.base_url);
-            };
+            });
           }
-          card.appendChild(useBtn);
-          
-          card.addEventListener('click', function(){ setPreferredModel(m.name, cap); });
-          
-          grid.appendChild(card);
+
+          liste.appendChild(ligne);
         });
-        
-        section.appendChild(grid);
+
+        section.appendChild(liste);
         list.appendChild(section);
       });
-      
+
       lastModelCount=d.models.length;
     } catch(e){}
   }

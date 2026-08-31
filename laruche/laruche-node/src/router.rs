@@ -162,6 +162,11 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/memory/import_changes", post(changes_api::api_memory_import_changes))
         .route("/api/memory/mesh_pull", post(changes_api::api_memory_mesh_pull))
         .route("/api/state/version", get(changes_api::api_state_version))
+        .route("/api/version", get(changes_api::api_version))
+        .route(
+            "/api/kanban/interval",
+            get(kanban_api::api_kanban_interval_get).post(kanban_api::api_kanban_interval_set),
+        )
         .route("/api/memory/tree", get(memory_api::api_memory_tree))
         .route(
             "/api/system/prompt-defaults",

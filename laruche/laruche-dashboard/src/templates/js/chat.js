@@ -309,7 +309,41 @@ LaRuche.Chat = (function(){
     }
   }
 
+  /* Le survol qui commande les deux boutons flottants (reaction, appel a la
+     Reine).
+
+     Le declencheur est l'AVATAR, plus le message entier: passer la souris sur
+     un paragraphe qu'on est en train de lire faisait surgir deux boutons, a
+     chaque message, sans qu'on ait rien demande. L'avatar est une cible qu'on
+     ne touche que si on la vise.
+
+     Pourquoi en JS et pas en CSS: les boutons sont ailleurs dans la ligne que
+     l'avatar. Un `:hover` sur l'avatar seul les ferait disparaitre a l'instant
+     ou l'on quitte celui-ci pour aller les cliquer. On ouvre donc au survol de
+     l'avatar, et on ne referme qu'en sortant de la ligne entiere. */
+  function brancherSurvolAbeille(){
+    var zone = document.getElementById('chatContainer');
+    if(!zone || zone._survolAbeille) return;
+    zone._survolAbeille = true;
+    zone.addEventListener('mouseover', function(e){
+      var av = e.target.closest && e.target.closest('.avatar.assistant-avatar');
+      if(!av) return;
+      var ligne = av.closest('.message-row.assistant');
+      if(ligne) ligne.classList.add('survol-abeille');
+    });
+    zone.addEventListener('mouseout', function(e){
+      var ligne = e.target.closest && e.target.closest('.message-row.assistant.survol-abeille');
+      if(!ligne) return;
+      // On ne referme que si le curseur a vraiment quitte la ligne: passer d'un
+      // element a l'autre A L'INTERIEUR declenche aussi mouseout, et refermerait
+      // sous le doigt.
+      if(e.relatedTarget && ligne.contains(e.relatedTarget)) return;
+      ligne.classList.remove('survol-abeille');
+    });
+  }
+
   function init() {
+    brancherSurvolAbeille();
     ensureFeedStyle();
     bindMessageDisclosure();
     var userInput = document.getElementById('userInput');

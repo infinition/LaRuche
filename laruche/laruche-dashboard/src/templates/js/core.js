@@ -177,6 +177,7 @@ LaRuche.i18n.add({
   'core.watcherLabel':          { fr:'Watcher',            en:'Watcher' },
   // Header / model
   'core.permissionsToast':      { fr:'Permissions : {mode}', en:'Permissions: {mode}' },
+  'core.rescanModels':               {fr:'Rechercher les modèles', en:'Rescan models'},
   'core.modelAuto':             { fr:'Auto',               en:'Auto' },
   'core.modelReady':            { fr:'Modèle {model} prêt ({ms}ms)', en:'Model {model} ready ({ms}ms)' },
   'core.modelSelected':         { fr:'Modèle : {model}',   en:'Model: {model}' },
@@ -1174,12 +1175,16 @@ LaRuche.Header = (function(){
     // Refresh the model list in the background (without F5): a closed local provider
     // (llama.cpp/ollama) disappears, and reappears as soon as it comes back. Avoid re-rendering
     // while the user has the menu open.
+    // 8 s: on demarre un llama.cpp ou un ollama et on veut le voir apparaitre
+    // dans la foulee. A 20 s l'attente etait assez longue pour qu'on croie que
+    // la liste ne se met jamais a jour, et qu'on recharge la page. L'appel est
+    // local et rend une petite liste, donc le cout est negligeable.
     LaRuche.Poll.every(function(){
       var drop=document.getElementById('sbModelDrop');
       if(drop && drop.classList.contains('open')) return;
       if(Date.now()-lastModelChangeAt < 8000) return; // not right after a manual choice
       loadModels();
-    }, 20000);
+    }, 8000);
     LaRuche.Poll.every(fetchContextStats, 1500);
     fetchContextStats();
     initNavFit();
@@ -1238,6 +1243,15 @@ LaRuche.Header = (function(){
       var isChat = chatPage.classList.contains('active');
       gauge.style.display = isChat ? 'flex' : 'none';
       if(!isChat) return;
+
+      // La table ronde vit dans la meme page que le chat, mais ce n'est pas la
+      // meme conversation ni le meme budget. La jauge continuait d'afficher le
+      // contexte du chat pendant qu'on regardait un debat: un chiffre juste,
+      // pose au mauvais endroit, ce qui en fait un chiffre faux. C'est le
+      // module de la table ronde qui remplit la jauge quand son onglet est
+      // ouvert; ici on se retire.
+      var ongletTable = document.querySelector('#chatOnglets .chat-onglet.actif');
+      if(ongletTable && ongletTable.dataset.vue === 'table') return;
 
       var sid = (window.LaRuche && LaRuche.Chat && typeof LaRuche.Chat.getSessionId === 'function') ? LaRuche.Chat.getSessionId() : null;
       var url = '/api/context/stats';

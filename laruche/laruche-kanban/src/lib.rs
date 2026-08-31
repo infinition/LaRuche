@@ -47,12 +47,37 @@ pub struct KanbanTask {
     pub completed_at: Option<DateTime<Utc>>,
 }
 
+/// Delai par defaut entre deux releves de la colonne Ready, en secondes.
+pub const DELAI_DEFAUT: u64 = 5;
+
+/// Ce qui est ECRIT sur le disque.
+///
+/// Le fichier ne contenait que la table des taches, alors que le tableau porte
+/// aussi des reglages. `set_default_channel` appelait bien `save`, mais `save`
+/// n'ecrivait pas ce champ: le canal par defaut etait donc perdu a chaque
+/// redemarrage, silencieusement, et le reglage semblait ne servir a rien.
+#[derive(Serialize, Deserialize)]
+struct Disque {
+    tasks: HashMap<Uuid, KanbanTask>,
+    #[serde(default)]
+    default_channel: Option<String>,
+    #[serde(default = "delai_defaut")]
+    delai_secs: u64,
+}
+
+fn delai_defaut() -> u64 {
+    DELAI_DEFAUT
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KanbanBoard {
     tasks: HashMap<Uuid, KanbanTask>,
     /// Board default channel: used to deliver the result of a task without its own channel.
     #[serde(default)]
     default_channel: Option<String>,
+    /// Secondes entre deux releves de la colonne Ready par le repartiteur.
+    #[serde(default = "delai_defaut")]
+    delai_secs: u64,
     #[serde(skip)]
     storage_path: PathBuf,
 }
@@ -62,6 +87,7 @@ impl KanbanBoard {
         let mut board = Self {
             tasks: HashMap::new(),
             default_channel: None,
+            delai_secs: DELAI_DEFAUT,
             storage_path: path.to_path_buf(),
         };
         board.load();
@@ -69,10 +95,19 @@ impl KanbanBoard {
     }
 
     fn load(&mut self) {
-        if let Ok(content) = fs::read_to_string(&self.storage_path) {
-            if let Ok(tasks) = serde_json::from_str::<HashMap<Uuid, KanbanTask>>(&content) {
-                self.tasks = tasks;
-            }
+        let Ok(content) = fs::read_to_string(&self.storage_path) else {
+            return;
+        };
+        // Nouveau format d'abord, ancien ensuite. Un tableau ecrit par une
+        // version precedente est une simple table de taches, et il doit
+        // continuer a s'ouvrir: personne ne devrait perdre son tableau en
+        // mettant a jour.
+        if let Ok(d) = serde_json::from_str::<Disque>(&content) {
+            self.tasks = d.tasks;
+            self.default_channel = d.default_channel;
+            self.delai_secs = d.delai_secs;
+        } else if let Ok(tasks) = serde_json::from_str::<HashMap<Uuid, KanbanTask>>(&content) {
+            self.tasks = tasks;
         }
     }
 
@@ -80,9 +115,27 @@ impl KanbanBoard {
         if let Some(parent) = self.storage_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        if let Ok(content) = serde_json::to_string_pretty(&self.tasks) {
+        let d = Disque {
+            tasks: self.tasks.clone(),
+            default_channel: self.default_channel.clone(),
+            delai_secs: self.delai_secs,
+        };
+        if let Ok(content) = serde_json::to_string_pretty(&d) {
             let _ = fs::write(&self.storage_path, content);
         }
+    }
+
+    /// Secondes entre deux releves de la colonne Ready.
+    pub fn delai_secs(&self) -> u64 {
+        self.delai_secs.clamp(1, 3600)
+    }
+
+    /// Regle ce delai. Borne a une seconde au minimum: en dessous, le
+    /// repartiteur passerait son temps a prendre un verrou d'ecriture sur le
+    /// tableau pour ne rien y trouver.
+    pub fn set_delai_secs(&mut self, secs: u64) {
+        self.delai_secs = secs.clamp(1, 3600);
+        self.save();
     }
 
     pub fn list(&self) -> Vec<KanbanTask> {

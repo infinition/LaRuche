@@ -227,6 +227,10 @@ impl delib::Appel for AppelNoeud {
 pub(crate) async fn api_pool() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "specialistes": delib::pool(),
+        // Le plafond de jetons d'un debat. Il vit dans le moteur, et l'interface
+        // en a besoin pour sa jauge: sans lui elle afficherait le budget du
+        // CHAT, qui n'a aucun rapport avec ce qui se passe a la table.
+        "jetons_max": delib::Reglages::default().jetons_max,
         "missions": [
             { "id": "reponse", "nom": "Répondre", "acces": delib::Mission::Reponse.acces(),
               "livrable": delib::Mission::Reponse.livrable(), "outils": delib::Mission::Reponse.outils_disponibles() },

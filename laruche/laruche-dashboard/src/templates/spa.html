@@ -47,7 +47,6 @@
     <button class="feed-toggle-btn" id="feedToggleBtn" onclick="LaRuche.Feed.toggle()" data-i18n-title="shell.tipActivity" title="Real-time activity (memory + agent)">
       <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
     </button>
-    <span class="version-pill">Miel v0.2.0</span>
     <div class="user-badge" id="userBadge" style="display:none; position:relative; cursor:pointer;" onclick="document.getElementById('userDropdown').classList.toggle('show')">
       <div class="user-avatar" id="userAvatar"></div>
       <span class="user-name" id="userName"></span>
@@ -238,15 +237,19 @@
         </div>
         <div id="dropZone" class="drop-zone" style="display:none"><div class="drop-zone-text" data-i18n="shell.dropFile">Drop the file here</div></div>
         <div id="attachmentPreview" class="attachment-preview" style="display:none"></div>
-        <!-- Context gauge (chat only: context is session-bound) -->
+        <!-- Table ronde: meme place que le fil de conversation, affichee a la place.
+             La zone de saisie reste commune aux deux vues. -->
+        <div class="table-ronde" id="tableRonde" style="display:none"></div>
+        <!-- La jauge, APRES la table ronde et juste avant la saisie.
+             Elle etait placee avant: en mode chat le fil la poussait au bas de
+             l'ecran, mais en table ronde ce fil est masque, donc elle remontait
+             tout en haut. Le meme element changeait de place selon l'onglet.
+             Ici elle est collee a la zone de saisie dans les deux vues. -->
         <div class="chat-ctx-gauge" id="chatCtxGauge">
           <div class="chat-ctx-bar"><div class="chat-ctx-fill" id="chatCtxFill"></div></div>
           <span class="chat-ctx-pct" id="chatCtxPct">0%</span>
           <span class="chat-ctx-detail" id="chatCtxDetail">-</span>
         </div>
-        <!-- Table ronde: meme place que le fil de conversation, affichee a la place.
-             La zone de saisie reste commune aux deux vues. -->
-        <div class="table-ronde" id="tableRonde" style="display:none"></div>
         <div class="input-area" id="mainInputArea">
           <!-- Retour au fil. Cachee tant que l'auto-defilement suit; elle apparait
                des qu'on remonte lire, et le clic recolle au bas. -->
@@ -664,6 +667,22 @@
       d.onclick=function(){ sel.value=this.dataset.value; sel.dispatchEvent(new Event('change')); sel._updateLabel(); buildDrop(); drop.classList.remove('open'); };
       drop.appendChild(d);
     }
+    // Relance manuelle, en bas de la liste. La liste se rafraichit deja toute
+    // seule, mais on demarre un serveur local et on veut le voir MAINTENANT,
+    // pas au prochain tour: sans ce bouton la seule issue etait de recharger la
+    // page, ce qui n'est pas une reponse.
+    var maj=document.createElement('div');
+    maj.className='sb-model-maj';
+    maj.textContent=(window.LaRuche&&LaRuche.i18n)?LaRuche.i18n.t('core.rescanModels'):'Rescan';
+    maj.onclick=function(e){
+      e.stopPropagation();
+      maj.textContent='...';
+      if(window.LaRuche&&LaRuche.Header&&LaRuche.Header.loadModels) LaRuche.Header.loadModels();
+      // Le rendu suit la mutation du <select>, observee plus bas: on laisse le
+      // temps a la reponse d'arriver avant de rendre la main.
+      setTimeout(function(){ buildDrop(); }, 900);
+    };
+    drop.appendChild(maj);
   }
   sel._rebuild=buildDrop;
   // observe changes (options added dynamically by LaRuche.Header)

@@ -394,6 +394,18 @@ pub(crate) async fn api_state_version(State(state): State<Arc<AppState>>) -> Jso
     Json(serde_json::json!({ "version": v }))
 }
 
+/// GET /api/version: la version de CE binaire.
+///
+/// `/api/state/version` porte deja un nom proche mais rend l'horodatage de la
+/// derniere mutation de la memoire, ce qui n'a rien a voir. Ici c'est la version
+/// du logiciel, celle qu'on compare a la derniere release publiee. Elle vient de
+/// `CARGO_PKG_VERSION` et pas d'une constante ecrite a la main: une version
+/// codee en dur ment des la publication suivante, et c'est precisement la chose
+/// qu'une verification de mise a jour ne doit pas faire.
+pub(crate) async fn api_version() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "version": env!("CARGO_PKG_VERSION") }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::supprimee_du_disque;

@@ -66,6 +66,14 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .status-bar .sb-model-wrap { position:relative; }
 .status-bar .sb-model-drop { position:absolute; bottom:100%; left:0; margin-bottom:4px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 -4px 16px rgba(0,0,0,.4); display:none; min-width:180px; max-height:240px; overflow-y:auto; z-index:10000; padding:4px 0; }
 .status-bar .sb-model-drop.open { display:block; }
+/* La relance manuelle, detachee de la liste des modeles par un trait: c'est une
+   action, pas un choix de modele, et on ne doit pas la cliquer par erreur en
+   visant la derniere ligne. */
+.status-bar .sb-model-drop .sb-model-maj {
+  border-top:1px solid var(--border); margin-top:4px;
+  color:var(--text-dim); font-size:11px;
+}
+.status-bar .sb-model-drop .sb-model-maj:hover { color:var(--amber); }
 .status-bar .sb-model-drop div { padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text); transition:background .12s; }
 .status-bar .sb-model-drop div:hover { background:rgba(245,158,11,0.12); color:var(--amber); }
 .status-bar .sb-model-drop div.active { color:var(--amber); font-weight:600; background:rgba(245,158,11,0.08); }
@@ -666,7 +674,8 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 .activity-item.collapsible .activity-body { display:none; }
 .activity-item.collapsible.expanded .activity-body { display:block; }
 .sessions-list-sidebar { border-top:1px solid var(--border); flex:1; min-height:0; display:flex; flex-direction:column; }
-.sessions-list-sidebar > #sessionsSidebarList { flex:1; overflow-y:auto; overflow-x:hidden; }
+.sessions-list-sidebar > #sessionsSidebarList,
+.sessions-list-sidebar > #toursSidebarList { flex:1; overflow-y:auto; overflow-x:hidden; }
 .session-item {
   padding:8px 12px; font-size:12px; cursor:pointer;
   display:flex; justify-content:space-between; align-items:center;
@@ -734,6 +743,9 @@ body.nav-en-bas .mobile-tabs { display:flex; }
   animation:bee-float .8s infinite;
   transform:translate(-50%,-50%);
   left:50%; top:50%;
+  /* Le halo ambre. Le corps de l'abeille est noir sur un fond noir: sans lui
+     elle se decoupe mal, et sur les captures elle disparait presque. */
+  filter:drop-shadow(0 0 4px rgba(234,179,8,.45));
 }
 @keyframes bee-float { 0%,100%{top:46%} 50%{top:50%} }
 
@@ -1948,16 +1960,76 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 /* ============================== */
 /* MESH CARDS                     */
 /* ============================== */
-.mesh-cap-section { margin-bottom: 16px; }
-.mesh-cap-hdr { font-size: 11px; font-weight: bold; color: var(--amber); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; display:flex; justify-content:space-between;}
-.mesh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
-.mesh-card { background: rgba(245,158,11,0.03); border: 1px solid rgba(245,158,11,0.2); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; position: relative; transition: var(--transition-fast); }
-.mesh-card:hover { border-color: var(--amber); background: rgba(245,158,11,0.08); }
-.mesh-card-name { font-size: 12px; font-weight: 600; color: var(--text); word-break: break-all; }
-.mesh-card-meta { font-size: 10px; color: var(--text-dim); display: flex; justify-content: space-between; align-items: center; }
-.mesh-badge { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-.mesh-local { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
-.mesh-remote { background: rgba(59,130,246,0.15); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); }
+/* ── Mesh services: une ligne par modele ─────────────────────────────────
+   C'etait une grille de cartes a deux colonnes, chacune avec un gros bouton
+   « Use » aussi visible que le nom du modele, et une etiquette de provenance
+   qui flottait hors du cadre. Cette etiquette portait la classe `.mesh-badge`,
+   deja prise plus haut par la pastille de notification, en position absolue et
+   decalee de -3px: elle chevauchait la bordure et se faisait rogner. Le nom de
+   classe est donc unique maintenant (`.mesh-src`), et la carte laisse place a
+   une ligne, qui tient deux fois plus de modeles dans la meme hauteur et se
+   parcourt du regard au lieu de se dechiffrer. */
+.mesh-cap-section { margin-bottom: 14px; }
+.mesh-cap-hdr {
+  font-size: 10px; font-weight: 700; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 6px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.mesh-cap-n { color: var(--text-muted); font-weight: 600; }
+
+.mesh-liste { display: flex; flex-direction: column; gap: 2px; }
+.mesh-ligne {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 8px; border: 1px solid transparent; border-radius: 5px;
+  background: transparent; color: inherit; font: inherit; text-align: left;
+  cursor: pointer; transition: all var(--transition-fast);
+}
+.mesh-ligne:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--border); }
+.mesh-ligne:focus-visible { outline: 2px solid var(--amber); outline-offset: -2px; }
+.mesh-ligne-active {
+  background: rgba(245,158,11,0.07);
+  border-color: rgba(245,158,11,0.35);
+  cursor: default;
+}
+
+/* La provenance en pastille de couleur plutot qu'en etiquette: vert pour cette
+   machine, bleu pour une ruche du reseau. Une information qu'on lit d'un coup
+   d'oeil n'a pas besoin d'un cadre autour d'elle. */
+.mesh-point { flex: none; width: 6px; height: 6px; border-radius: 50%; }
+.mesh-point-local { background: var(--green, #22c55e); }
+.mesh-point-distant { background: var(--blue, #3b82f6); }
+
+.mesh-ligne-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mesh-nom {
+  font-size: 12px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mesh-ligne-active .mesh-nom { color: var(--amber); }
+.mesh-meta { display: flex; gap: 6px; font-size: 10px; color: var(--text-muted); min-width: 0; }
+.mesh-src { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mesh-taille { flex: none; }
+.mesh-taille::before { content: '· '; }
+
+/* L'action reste discrete jusqu'au survol: sur une liste de vingt modeles,
+   vingt boutons pleins font vingt appels a l'attention pour un seul clic. */
+.mesh-action {
+  flex: none; font-size: 10px; color: var(--text-muted);
+  padding: 2px 7px; border-radius: 4px; border: 1px solid transparent;
+  transition: all var(--transition-fast);
+}
+.mesh-ligne:hover:not(:disabled) .mesh-action {
+  color: var(--amber); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.08);
+}
+.mesh-ligne-active .mesh-action { color: var(--amber); }
+.mesh-ligne-active .mesh-action::before { content: '\2713 '; }
+
+/* Le doigt ne survole pas: sur tactile l'action reste visible. */
+@media (hover: none) {
+  .mesh-action { color: var(--amber); border-color: rgba(245,158,11,0.3); }
+  .mesh-ligne { padding: 10px 8px; }
+}
 
 /* ============================== */
 /* GLOBAL FEED DRAWER             */
@@ -2251,18 +2323,38 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 .reine-revised-header{font-size:11px;color:var(--amber);font-family:var(--mono);font-weight:600;margin:4px 0 2px}
 .reine-revised-row .message,.reine-rework-row .message{border-left:2px solid rgba(245,158,11,.45);padding-left:10px}
 
-/* LaReine avatar: the same animated bee, crowned and gilded (queen). */
-.bee-reine{filter:drop-shadow(0 0 3px rgba(234,179,8,.55))}
+/* LaReine: la meme abeille, doree et couronnee.
+
+   Le probleme etait qu'on ne la distinguait pas de l'abeille ordinaire. La
+   couronne existait mais faisait 16 px sur 9, posee au bord gauche du crane
+   plutot qu'au sommet, dans un jaune proche de celui des rayures: a la taille
+   ou l'avatar est reellement affiche, elle se lisait comme une tache. Elle est
+   maintenant plus grande, centree sur la tete, cerclee d'ambre sombre pour se
+   detacher du corps noir, et portee par un halo plus large que celui de
+   l'abeille ordinaire. */
+.bee-reine{filter:drop-shadow(0 0 8px rgba(251,191,36,.8))}
 .bee-reine .bee--body span:first-child::after,
 .bee-reine .bee--body span:last-child::after{background:#fbbf24}
 .bee--crown{
-  position:absolute; z-index:100; width:16px; height:9px;
-  left:23px; top:-8px;
-  background:linear-gradient(#fde047,#eab308);
-  clip-path:polygon(0% 100%,0% 38%,25% 62%,50% 0%,75% 62%,100% 38%,100% 100%);
+  position:absolute; z-index:100; width:24px; height:14px;
+  /* La tete fait 32 px et commence a 20 px: son milieu est a 36 px. Une
+     couronne de 24 px centree commence donc a 24 px. Elle etait a 23 px pour
+     une largeur de 16, c'est-a-dire posee sur la tempe gauche. */
+  left:24px; top:-11px;
+  background:linear-gradient(#fef3c7,#fde047 45%,#eab308);
+  clip-path:polygon(0% 100%,0% 34%,22% 64%,50% 0%,78% 64%,100% 34%,100% 100%);
+  filter:drop-shadow(0 1px 0 rgba(120,53,15,.9)) drop-shadow(0 0 3px rgba(253,224,71,.7));
   animation:bee-crown .8s infinite;
 }
-@keyframes bee-crown{0%,100%{top:-8px}50%{top:-10px}}
+/* Les trois pointes prennent un joyau: c'est ce qui fait lire « couronne »
+   plutot que « triangle jaune » quand l'image ne fait que quelques dizaines de
+   pixels. */
+.bee--crown::after{
+  content:''; position:absolute; left:0; right:0; bottom:1px; height:3px;
+  background:linear-gradient(90deg,#b45309 0 18%,transparent 18% 82%,#b45309 82% 100%);
+  border-radius:1px;
+}
+@keyframes bee-crown{0%,100%{top:-11px}50%{top:-13px}}
 .reine-analyse-toggle{opacity:.7;font-size:9px}
 .reine-analyse{margin-top:3px;padding:6px 10px;border-radius:10px;background:rgba(245,158,11,.10);border:1px dashed rgba(245,158,11,.4);color:#f0d9a8;font-size:11px;line-height:1.5;max-width:100%;font-style:italic}
 .reine-analyse::before{content:'💭 ';font-style:normal}
@@ -2294,10 +2386,10 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .reaction-host.has-chip { height:auto; margin-top:6px; }
 
 .reaction-trigger {
-  position:absolute; left:0; top:-13px;
-  flex:none; width:26px; height:26px; padding:0;
+  position:absolute; left:0; top:-15px;
+  flex:none; width:30px; height:30px; padding:0;
   display:grid; place-items:center;
-  font-size:13px; line-height:1;
+  font-size:16px; line-height:1;
   border:1px solid var(--border); border-radius:50%;
   background:var(--bg-card); color:var(--text);
   cursor:pointer;
@@ -2313,13 +2405,18 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   transition:width .16s ease, opacity .16s ease, border-color .16s ease;
 }
 /* It widens next to the chip on hover instead of appearing on top of it. */
-.message-row.assistant:hover .reaction-host.has-chip .reaction-trigger,
+.message-row.assistant.survol-abeille .reaction-host.has-chip .reaction-trigger,
 .message-row.assistant:focus-within .reaction-host.has-chip .reaction-trigger {
-  width:26px; border-width:1px;
+  width:30px; border-width:1px;
 }
-/* Revealed on hover or keyboard focus anywhere in the row, and kept visible
-   while the picker is open so it does not vanish under the cursor. */
-.message-row.assistant:hover .reaction-trigger,
+/* Declenche par l'AVATAR, pas par le message.
+   Passer la souris sur un paragraphe qu'on est en train de lire faisait
+   apparaitre deux boutons, a chaque message, sans qu'on ait rien demande.
+   L'avatar est une cible qu'on ne touche que si on la vise.
+   La classe est posee en JS au survol de l'avatar et retiree en quittant la
+   ligne: en CSS pur, le bouton disparaitrait des qu'on quitte l'avatar pour
+   aller le cliquer, puisqu'il est ailleurs dans la ligne. */
+.message-row.assistant.survol-abeille .reaction-trigger,
 .message-row.assistant:focus-within .reaction-trigger,
 .message-row.assistant .reaction-trigger[aria-expanded="true"] {
   opacity:.75; transform:none; pointer-events:auto;
@@ -2328,7 +2425,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .reaction-trigger:focus-visible { outline:2px solid var(--accent, #f5a623); outline-offset:2px; opacity:1; }
 
 .reaction-picker {
-  position:absolute; bottom:20px; left:0; z-index:20;
+  position:absolute; bottom:24px; left:0; z-index:20;
   display:flex; gap:2px; padding:5px 7px;
   border:1px solid var(--border); border-radius:999px;
   background:var(--bg-card);
@@ -2339,10 +2436,13 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 }
 .reaction-picker.open { opacity:1; visibility:visible; transform:none; }
 
+/* Le double de la taille precedente. A 19 px on ne distinguait pas un pouce
+   d'un coeur sans se pencher, ce qui est un comble pour un emoji: il n'est la
+   que pour etre reconnu d'un coup d'oeil. */
 .reaction-option {
-  width:32px; height:32px; padding:0;
+  width:52px; height:52px; padding:0;
   display:grid; place-items:center;
-  font-size:19px; line-height:1;
+  font-size:38px; line-height:1;
   border:0; border-radius:50%; background:transparent;
   cursor:pointer;
   transition:transform .13s cubic-bezier(.2,.9,.3,1.5), background-color .13s ease;
@@ -2356,9 +2456,9 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .reaction-option:active { transform:scale(1.05); }
 
 .reaction-chip {
-  flex:none; padding:2px 8px;
+  flex:none; padding:3px 12px;
   display:inline-flex; align-items:center;
-  font-size:13px; line-height:1.5;
+  font-size:26px; line-height:1.2;
   border:1px solid var(--border); border-radius:999px;
   background:var(--bg-card); cursor:pointer;
   transition:transform .13s ease, border-color .13s ease;
@@ -2402,7 +2502,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   transition:opacity .16s ease, transform .16s cubic-bezier(.2,.9,.3,1.4);
   pointer-events:none;
 }
-.message-row.assistant:hover .reine-call-btn,
+.message-row.assistant.survol-abeille .reine-call-btn,
 .message-row.assistant:focus-within .reine-call-btn { opacity:1; transform:none; pointer-events:auto; }
 .reine-call-btn:hover { transform:scale(1.18); border-color:#f5c542; }
 .reine-call-btn:focus-visible { outline:2px solid #f5c542; outline-offset:2px; opacity:1; transform:none; pointer-events:auto; }
@@ -2686,7 +2786,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
    sans qu'un faux compteur de progression pretende savoir combien de temps. */
 .tr-place--actif { animation:tr-respire 1.8s ease-in-out infinite; }
 @keyframes tr-respire { 0%,100% { opacity:.55; } 50% { opacity:1; } }
-.tr-avatar { font-size:22px; line-height:1.2; }
+.tr-avatar { font-size:44px; line-height:1.1; }
 .tr-nom { font-size:10.5px; color:var(--text-dim); margin-top:2px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tr-indics { display:flex; gap:4px; justify-content:center; align-items:center;
@@ -2729,7 +2829,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 }
 .tr-av   { width:44px; text-align:center; }
 .tr-nom-in { flex:1; min-width:80px; }
-.tr-prof { width:130px; font-family:var(--mono); font-size:11px; }
+.tr-prof { width:150px; font-family:var(--mono); font-size:11px; }
 @media (max-width:560px){
   .tr-pool-ligne { flex-wrap:wrap; }
   .tr-prof { width:100%; }
@@ -2763,8 +2863,11 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;
 }
 .tr-av-btn:hover { border-color:var(--amber); }
-.tr-av-img { width:24px; height:24px; border-radius:50%; object-fit:cover; }
-.tr-place .tr-av-img { width:26px; height:26px; }
+/* Deux fois plus grandes. A 24 px un portrait n'etait qu'une tache de
+   couleur: on ne reconnaissait pas le specialiste, donc l'avatar ne servait a
+   rien et la table se lisait uniquement au nom, ecrit en 10 px juste dessous. */
+.tr-av-img { width:48px; height:48px; border-radius:50%; object-fit:cover; }
+.tr-place .tr-av-img { width:52px; height:52px; }
 .tr-role {
   background:#16161a; border:1px solid var(--border); border-radius:6px;
   color:var(--text-dim); font-size:11px; padding:5px 4px; font-family:inherit;
@@ -2787,9 +2890,11 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
    affichee par erreur en texte brut s'etalait sur toute la largeur de l'ecran. */
 .tr-place { overflow:hidden; }
 .tr-avatar { overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  display:flex; align-items:center; justify-content:center; min-height:26px; }
+  display:flex; align-items:center; justify-content:center; min-height:52px; }
 .tr-inter-tete { overflow:hidden; }
-.tr-inter-tete .tr-av-img { width:18px; height:18px; }
+/* Dans le fil des interventions l'avatar accompagne une ligne de texte: il
+   grandit aussi, mais reste a hauteur de ligne, sinon il pousse le texte. */
+.tr-inter-tete .tr-av-img { width:36px; height:36px; }
 
 /* La reponse finale, en evidence. Elle etait noyee au fond du transcript, et la
    ligne « aucun desaccord » pouvait passer pour la conclusion alors qu'elle ne
@@ -2813,8 +2918,15 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   font-size:11.5px; font-family:inherit; text-align:left;
 }
 .tr-nouveau-btn:hover { border-color:var(--amber); background:rgba(245,158,11,.05); }
-.tr-tour-item { display:flex; flex-direction:column; gap:1px; cursor:pointer; }
-.tr-tour-q { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* `align-items:center` vient de `.session-item`, pense pour une ligne. En
+   colonne il devient un centrage HORIZONTAL, et un element centre est
+   dimensionne sur son contenu au lieu de la largeur du volet: le titre
+   depassait donc des deux cotes, et l'ellipse ne se declenchait jamais faute
+   de largeur a respecter. `stretch` lui redonne la largeur du conteneur.
+   `min-width:0` leve la taille minimale automatique des elements flex, sans
+   laquelle un texte long refuse encore de se laisser couper. */
+.tr-tour-item { display:flex; flex-direction:column; align-items:stretch; gap:1px; cursor:pointer; min-width:0; }
+.tr-tour-q { font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 /* Avertissement honnete quand une mission promet plus que ce qui existe. */
 .tr-avertit {
@@ -2833,5 +2945,139 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
      reste plutot que de manger la moitie de l'ecran. */
   .tr-table { position:static; border-bottom:none; }
   .tr-place { width:70px; padding:6px 4px; }
-  .tr-avatar { font-size:18px; }
+  .tr-avatar { font-size:34px; }
+}
+
+/* ── Settings / Aide ────────────────────────────────────────────────────
+   Une section sans reglage: elle doit se lire d'un coup d'oeil, pas se
+   parcourir. D'ou trois blocs nets plutot qu'une liste de lignes. */
+.help-entete { display:flex; flex-direction:column; gap:12px; }
+.help-versions { display:flex; flex-wrap:wrap; gap:8px; }
+.help-version {
+  display:flex; flex-direction:column; gap:2px; min-width:0;
+  padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg-hover);
+}
+.help-version-eti { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); }
+.help-version-val { font-family:var(--mono); font-size:13px; color:var(--text); }
+
+.help-maj { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.help-maj-etat { font-size:12px; color:var(--text-dim); min-width:0; flex:1; }
+.help-maj-ok { color:#22c55e; }
+.help-maj-neuve { color:var(--amber); }
+.help-maj-etat a { color:var(--amber); text-decoration:underline; }
+
+/* Les liens: une cible entiere cliquable plutot qu'un mot souligne au milieu
+   d'une phrase. Sur un ecran tactile c'est la difference entre viser et
+   toucher. */
+.help-liens { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.help-lien {
+  display:flex; align-items:center; gap:12px; padding:12px;
+  border:1px solid var(--border); border-radius:var(--radius);
+  text-decoration:none; color:inherit; background:var(--bg-hover);
+  transition:all var(--transition-fast);
+}
+.help-lien:hover { border-color:var(--amber); background:var(--amber-glow); }
+.help-lien-ic { flex:none; width:24px; height:24px; color:var(--text-dim); }
+.help-lien-ic svg { width:24px; height:24px; display:block; }
+.help-lien:hover .help-lien-ic { color:var(--amber); }
+.help-lien-txt { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.help-lien-titre { font-size:13px; color:var(--text); }
+.help-lien-desc { font-size:11px; color:var(--text-muted); }
+.help-lien-fleche { flex:none; width:16px; height:16px; color:var(--text-muted); }
+
+/* Le soutien, dit par l'abeille. Une demande d'argent se lit mieux quand elle
+   vient de quelqu'un, et elle est deja la, dans le chat. */
+.help-cafe { display:flex; flex-direction:column; gap:14px; }
+.help-cafe-scene { display:flex; align-items:center; gap:16px; }
+.help-abeille {
+  position:relative; flex:none; left:auto; top:auto;
+  width:34px; height:26px; transform:scale(1.15); transform-origin:center;
+}
+.help-bulle {
+  position:relative; flex:1; min-width:0;
+  padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg-hover);
+}
+/* La pointe de la bulle: deux triangles superposes, le second decale d'un
+   pixel, pour que la bordure reste visible sur son bord. */
+.help-bulle::before, .help-bulle::after {
+  content:''; position:absolute; left:-8px; top:16px;
+  border:8px solid transparent; border-left:0;
+}
+.help-bulle::before { border-right-color:var(--border); }
+.help-bulle::after { left:-7px; border-right-color:var(--bg-hover); }
+.help-bulle-titre { font-size:13px; color:var(--text); margin-bottom:3px; }
+.help-bulle-txt { font-size:11px; color:var(--text-muted); line-height:1.5; }
+
+.help-cafe-btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  align-self:flex-start; padding:9px 16px; border-radius:var(--radius);
+  background:var(--amber); color:#1a1300; font-size:13px; font-weight:600;
+  text-decoration:none; border:1px solid var(--amber);
+  transition:all var(--transition-fast);
+}
+.help-cafe-btn svg { width:16px; height:16px; }
+.help-cafe-btn:hover { filter:brightness(1.1); }
+
+@media (max-width:520px){
+  .help-cafe-scene { align-items:flex-start; }
+  .help-versions .help-version { flex:1 1 100%; }
+}
+@media (prefers-reduced-motion:reduce){
+  .help-abeille, .help-abeille * { animation:none !important; }
+}
+
+/* ── Kanban, mode colonnes ──────────────────────────────────────────────
+   `flex-wrap` plutot qu'un defilement horizontal: sept colonnes a largeur
+   fixe ne tiennent sur aucun ecran, et une barre de defilement cache le
+   travail au lieu de le montrer. Les colonnes se replient sur plusieurs
+   rangees, et une colonne vide retombe a la largeur de son titre.
+
+   `align-items:flex-start` est ce qui permet a chaque colonne de prendre la
+   hauteur de son contenu: sans lui, l'etirement par defaut donne a toutes la
+   hauteur de la plus remplie, y compris aux vides. */
+.kb-board {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  gap: 10px; padding-bottom: 10px;
+}
+.kb-col {
+  display: flex; flex-direction: column;
+  flex: 1 1 220px; min-width: 0; max-width: 340px;
+  background: rgba(30,30,32,0.8);
+  border: 1px solid var(--amber-dim); border-radius: 6px;
+  transition: flex-basis var(--transition-fast);
+}
+/* Une colonne vide n'a rien a montrer: elle reste comme cible de depot, mais
+   ne reclame plus que la place de son nom. */
+.kb-col-vide {
+  flex: 0 1 auto; max-width: none;
+  background: rgba(30,30,32,0.4);
+  border-color: var(--border);
+}
+.kb-col-vide .kb-col-hdr { color: var(--text-dim); border-bottom: 0; }
+.kb-col-vide .kb-col-corps { display: none; }
+/* Pendant un glisser, la cible vide se signale: sinon on depose dans une
+   bande de trois centimetres sans savoir si elle accepte. */
+.kb-col-vide:hover { border-color: var(--amber-dim); background: rgba(245,158,11,0.05); }
+
+.kb-col-hdr {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 12px; font-weight: 600; color: var(--amber);
+  border-bottom: 1px solid var(--border); text-align: center;
+}
+.kb-col-n {
+  font-size: 10px; font-weight: 700; color: var(--bg);
+  background: var(--amber); border-radius: 8px; padding: 1px 6px;
+}
+.kb-col-corps {
+  flex: 1; min-height: 60px; padding: 8px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+@media (max-width: 560px) {
+  /* Sur telephone, une colonne pleine occupe la largeur; les vides restent
+     cote a cote sur une rangee, ou elles ne genent personne. */
+  .kb-col { flex: 1 1 100%; max-width: none; }
+  .kb-col-vide { flex: 0 1 auto; }
 }

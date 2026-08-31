@@ -104,6 +104,27 @@ pub(crate) async fn api_kanban_default_channel_get(
     Json(serde_json::json!({ "channel": ch }))
 }
 
+/// GET /api/kanban/interval - secondes entre deux releves de la colonne Ready.
+pub(crate) async fn api_kanban_interval_get(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let secs = state.kanban_board.read().await.delai_secs();
+    Json(serde_json::json!({ "seconds": secs }))
+}
+
+/// POST /api/kanban/interval {seconds} - regle ce delai.
+pub(crate) async fn api_kanban_interval_set(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let demande = body["seconds"].as_u64().unwrap_or(laruche_kanban::DELAI_DEFAUT);
+    state.kanban_board.write().await.set_delai_secs(demande);
+    // On rend la valeur RETENUE et pas celle demandee: elle est bornee, et
+    // l'interface doit afficher ce qui s'applique vraiment.
+    let secs = state.kanban_board.read().await.delai_secs();
+    Json(serde_json::json!({ "seconds": secs }))
+}
+
 /// POST /api/kanban/default_channel {channel} - sets the board's default channel.
 pub(crate) async fn api_kanban_default_channel_set(
     State(state): State<Arc<AppState>>,
