@@ -613,6 +613,12 @@ p:last-child { margin-bottom: 0; }
 .abeille-titre .bee {
   position: absolute; left: 0; top: 0; transform: none; animation: none;
 }
+/* Les parties de l'abeille sont ecrites pour des `div`. Ici ce sont des `span`,
+   parce qu'un `h1` n'accepte que du contenu de phrase, et un span reste inline:
+   la tete et le corps ignoraient donc leur largeur et leur hauteur, et
+   l'abeille s'ecrasait. Un `display:block` rend le dessin identique a celui des
+   maquettes sans toucher au balisage. */
+.abeille-titre .bee > *, .abeille-titre .bee--body > span { display: block; }
 @keyframes butine {
   0%, 100% { transform: translate(0, 0) rotate(0deg); }
   20%      { transform: translate(-14px, -13px) rotate(-7deg); }
