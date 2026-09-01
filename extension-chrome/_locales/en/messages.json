@@ -19,13 +19,25 @@
     "message": "Bee companion on pages",
     "description": "Companion switch label"
   },
+  "popup_agent_cursor": {
+    "message": "Agent bee cursor",
+    "description": "Replaces the virtual driving cursor with the bee"
+  },
+  "visual_permission_denied": {
+    "message": "Site access was not granted. The visual option remains disabled.",
+    "description": "Shown when the user declines optional site access"
+  },
   "popup_port": {
     "message": "Node port",
     "description": "Port field label"
   },
   "popup_note": {
-    "message": "The extension only connects to your own machine, locally. Flip the switch off to take back control at any time.",
+    "message": "While control is enabled, LaRuche can read and change the driven pages and inspect open-tab titles and addresses. Recording only starts when you enable it. The extension connects only to the LaRuche node on this computer.",
     "description": "Footnote in the popup"
+  },
+  "popup_privacy_link": {
+    "message": "Privacy policy",
+    "description": "Link to the extension privacy policy"
   },
   "popup_driving": {
     "message": "Driving tab: $URL$",
@@ -130,6 +142,10 @@
         "example": "capture cancelled"
       }
     }
+  },
+  "capture_permission_denied": {
+    "message": "recording permission was not granted",
+    "description": "Shown when optional recording permissions are declined"
   },
   "state_off": {
     "message": "Control disabled",

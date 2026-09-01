@@ -3503,7 +3503,10 @@ impl Abeille for Browser {
                         // possiblement chez un fournisseur de modele. On rend de
                         // quoi raisonner, jamais de quoi se faire passer pour
                         // l'utilisateur.
-                        let taille = c["value"].as_str().unwrap_or("").len();
+                        let taille = c["valueLength"]
+                            .as_u64()
+                            .map(|n| n as usize)
+                            .unwrap_or_else(|| c["value"].as_str().unwrap_or("").len());
                         format!(
                             "{}  {} bytes  domain {}{}{}",
                             c["name"].as_str().unwrap_or(""),

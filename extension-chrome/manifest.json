@@ -1,33 +1,30 @@
 {
   "manifest_version": 3,
   "name": "__MSG_ext_name__",
-  "description": "__MSG_ext_description__",
-  "version": "0.3.0",
+  "description": "Lets your hive drive this browser: it opens its own tabs in a visible group and marks the page it controls.",
+  "version": "0.3.1",
   "default_locale": "en",
+  "homepage_url": "https://github.com/infinition/LaRuche",
+  "incognito": "not_allowed",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtwI8oHKUr2G2OoaSdwPqXA3yCTFSIkXNgmczPEZ+TZdLpOCs4Ag+fdEPh1lpDTLAWsPi525wQmCfwKlSld3ZZ6IquYR4DQ+A+/Net5wo9BssIlP3whScsE1LrIM20oXLIZ3Wy/QHVuvYvsJc2gWPvEEv7IwKcLQtGqIoRQeMq8S+ZO+VzdWShIYTSgXaT1/qK3Ttugai9TIss0fCBr3bRR3QUcxdxHyFSzGPKmaHMbSjDDNJpyOSVfZHwZRtUGmkiqwLsnsk5sV/ml1zQDchvY0PCsyAjZAuGeByc/Fhu8QrxIKQ2bR7lFudy4njaYVNdWWG/c5kkJnqSDcH+ugPmwIDAQAB",
   "minimum_chrome_version": "116",
   "permissions": [
     "activeTab",
     "alarms",
     "debugger",
-    "desktopCapture",
-    "downloads",
-    "offscreen",
-    "scripting",
     "storage",
-    "tabCapture",
     "tabGroups",
     "tabs"
   ],
-  "host_permissions": [
-    "<all_urls>"
+  "optional_permissions": [
+    "downloads",
+    "offscreen",
+    "scripting",
+    "tabCapture"
   ],
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["rencontre.js", "compagnon.js"],
-      "run_at": "document_idle"
-    }
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js",

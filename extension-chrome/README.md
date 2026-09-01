@@ -27,6 +27,10 @@ connecter une fois pour toutes. L'extension est un confort, pas une dependance.
 
 La pastille passe a l'ambre quand la connexion au noeud est etablie.
 
+Le popup s'ouvre en anglais sur une nouvelle installation. Le bouton **FR**
+bascule l'interface en francais et le bouton **EN** la remet en anglais. Le
+choix est conserve localement pour les ouvertures suivantes.
+
 Si le noeud refuse la connexion en journalisant un identifiant different, c'est
 que le manifeste a ete modifie ou qu'il s'agit d'un autre build. Pointer
 `LARUCHE_EXTENSION_ID` sur le nouvel identifiant, ou restaurer le `key`.
@@ -42,8 +46,14 @@ developpement.
 - Chrome active automatiquement l'onglet que l'agent ouvre, selectionne ou
   navigue, y compris s'il se trouve dans une autre fenetre.
 - La page pilotee porte un cadre ambre qui respire et un badge en bas a droite.
+- L'option **Curseur abeille de l'agent** remplace la fleche virtuelle par
+  l'abeille. Elle suit exactement les deplacements et les clics du moteur.
 - Chaque element clique ou rempli s'illumine une demi-seconde.
 - Chrome affiche sa propre banniere de debogage, que l'extension ne masque pas.
+
+Le curseur abeille est desactive par defaut et reste independant du compagnon
+abeille. Le compagnon vit librement sur les pages. Le curseur abeille apparait
+uniquement dans le halo de pilotage et disparait avec lui.
 
 Le panneau LaRuche conserve sa position, sa taille, son historique, la narration
 et un brouillon non envoye quand la page navigue ou est rechargee avec F5. Le DOM

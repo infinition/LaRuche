@@ -74,7 +74,8 @@ The dedicated [Chrome extension](wiki/guides/Chrome-Extension.md) connects LaRuc
 the browser you already use, including its open tabs and signed-in sessions. The browser
 tool handles frames, shadow DOM, overlays, uploads, downloads, dialogs, touch emulation
 and responsive viewport checks. Consent banners are reported, never accepted
-automatically.
+automatically. Its data handling is documented in the
+[Chrome extension privacy policy](extension-chrome/PRIVACY.md).
 
 Images can be pasted, dropped or attached in chat. Tool screenshots and webcam captures
 reach vision-capable models, and oversized PNG or JPEG inputs are resized before they

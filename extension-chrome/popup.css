@@ -254,6 +254,31 @@ h1 {
   line-height: 1.35;
 }
 
+.note.divulgation {
+  margin-top: 0;
+}
+
+.lien-confidentialite + .bascule {
+  margin-top: 6px;
+}
+
+.lien-confidentialite {
+  display: inline-block;
+  margin-top: 3px;
+  color: var(--miel);
+  font-size: 10.5px;
+  text-decoration: none;
+}
+
+.lien-confidentialite:hover {
+  text-decoration: underline;
+}
+
+.lien-confidentialite:focus-visible {
+  outline: 2px solid var(--miel);
+  outline-offset: 2px;
+}
+
 /* Le selecteur de langue: discret, dans l'entete, pousse a droite. */
 .langue {
   margin-left: auto;

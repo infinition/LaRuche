@@ -114,6 +114,9 @@ laruche/eval_scratch/
 # Windows shortcuts dropped in the repo
 *.lnk
 
+# Paquets de l'extension: fabriques par la release, jamais versionnes
+extension-chrome*.zip
+
 # Feuille de route: document de travail, tenu en local et non publie.
 ROADMAP.md
 # Notes de conception du controle machine. L'etat des lieux et les limites de la

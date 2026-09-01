@@ -17,6 +17,7 @@ function sur(id, evenement, action) {
 let dernierEtat = null;
 let actionCaptureEnCours = false;
 let messagesSecours = null;
+let interfacePrete = false;
 
 /// La langue choisie par l'utilisateur, ou l'anglais.
 ///
@@ -40,18 +41,17 @@ async function chargerLangue() {
 
 async function chargerMessagesSecours() {
   if (messagesSecours) return messagesSecours;
-  try {
-    const lang = langue;
-    let url = chrome.runtime.getURL(`_locales/${lang}/messages.json`);
-    let rep = await fetch(url).catch(() => null);
-    if (!rep || !rep.ok) {
-      url = chrome.runtime.getURL('_locales/fr/messages.json');
-      rep = await fetch(url).catch(() => null);
-    }
-    if (rep && rep.ok) {
-      messagesSecours = await rep.json();
-    }
-  } catch {}
+  const essais = [...new Set([langue, 'en', 'fr'])];
+  for (const code of essais) {
+    try {
+      const url = chrome.runtime.getURL(`_locales/${code}/messages.json`);
+      const rep = await fetch(url).catch(() => null);
+      if (rep && rep.ok) {
+        messagesSecours = await rep.json();
+        break;
+      }
+    } catch {}
+  }
   return messagesSecours;
 }
 
@@ -112,7 +112,10 @@ function traduire() {
     ['aideGarder', 'garder_aide'],
     ['libelleActif', 'popup_enable'],
     ['libelleCompagnon', 'popup_compagnon'],
+    ['libelleCurseurAgent', 'popup_agent_cursor'],
     ['libellePort', 'popup_port'],
+    ['noteConfidentialite', 'popup_note'],
+    ['lienConfidentialite', 'popup_privacy_link'],
     ['titreCapture', 'capture_title'],
     ['libelleCaptureActivee', 'capture_enable'],
     ['libelleCaptureSource', 'capture_source'],
@@ -140,6 +143,7 @@ function traduire() {
     console.warn('LaRuche: elements absents du popup:', manquants.join(', '));
   }
   document.title = msg('ext_name');
+  document.documentElement.lang = langue;
   // Le bouton montre la langue vers laquelle il bascule, pas la langue courante:
   // "FR" quand on est en anglais. C'est ce que fait tout selecteur de langue, et
   // l'inverse fait hesiter.
@@ -163,6 +167,7 @@ async function basculerLangue() {
 
 function peindre(etat) {
   dernierEtat = etat;
+  if (!interfacePrete) return;
   const pastille = $('pastille');
   pastille.classList.toggle('on', etat.connecte);
   pastille.classList.toggle('erreur', etat.actif && !etat.connecte);
@@ -173,6 +178,7 @@ function peindre(etat) {
 
   $('actif').checked = !!etat.actif;
   $('compagnon').checked = !!etat.compagnon;
+  $('curseurAgent').checked = !!etat.curseurAgent;
   if (document.activeElement !== $('port')) $('port').value = etat.port;
 
   const pilote = $('pilote');
@@ -244,19 +250,37 @@ sur('actif', 'change', async (e) => {
 });
 
 sur('compagnon', 'change', async (e) => {
+  if (e.target.checked && !(await demanderPermissionsVisuelles())) {
+    e.target.checked = false;
+    $('etat').textContent = msg('visual_permission_denied');
+    return;
+  }
   await chrome.storage.local.set({ compagnon: e.target.checked });
   setTimeout(rafraichir, 150);
 });
 
+sur('curseurAgent', 'change', async (e) => {
+  if (e.target.checked && !(await demanderPermissionsVisuelles())) {
+    e.target.checked = false;
+    $('etat').textContent = msg('visual_permission_denied');
+    return;
+  }
+  await chrome.storage.local.set({ curseurAgent: e.target.checked });
+  setTimeout(rafraichir, 150);
+});
+
+async function demanderPermissionsVisuelles() {
+  const demande = {
+    permissions: ['scripting'],
+    origins: ['http://*/*', 'https://*/*'],
+  };
+  if (await chrome.permissions.contains(demande)) return true;
+  return await chrome.permissions.request(demande);
+}
+
 sur('port', 'change', async (e) => {
   const port = parseInt(e.target.value, 10);
   if (!Number.isInteger(port) || port < 1 || port > 65535) return lirePageCourante().catch(() => {});
-chrome.storage.local.get({ vueActive: 'garder' }).then((r) => {
-  montrer(r.vueActive === 'pilotage' ? 'pilotage' : 'garder');
-});
-majFileGarder().catch(() => {});
-
-rafraichir();
   await chrome.runtime.sendMessage({ type: 'set-port', port });
   setTimeout(rafraichir, 250);
 });
@@ -306,9 +330,36 @@ function peindreCapture(etat) {
 
 async function sauverCapture() {
   const patch = valeursCapture();
+  try {
+    await demanderPermissionsCapture(patch);
+  } catch (err) {
+    $('captureActivee').checked = false;
+    await chrome.runtime.sendMessage({
+      type: 'set-capture-settings',
+      patch: { ...patch, captureActivee: false },
+    }).catch(() => {});
+    $('etatCapture').classList.add('erreur');
+    $('etatCapture').textContent = msg('capture_state_error', [
+      String((err && err.message) || err),
+    ]);
+    return;
+  }
   await chrome.runtime.sendMessage({ type: 'set-capture-settings', patch });
   await armerSiNecessaire(patch);
   await rafraichir();
+}
+
+/// L'enregistrement est annexe au pilotage. Ses droits ne sont donc demandes
+/// qu'au moment ou l'utilisateur l'active, avec le clic qui permet a Chrome
+/// d'afficher sa boite de permission. Le pilotage de base n'en a pas besoin.
+async function demanderPermissionsCapture(patch) {
+  if (!patch.captureActivee) return;
+  const permissions = ['downloads', 'offscreen'];
+  if (patch.captureSource === 'tab') permissions.push('tabCapture');
+  const deja = await chrome.permissions.contains({ permissions });
+  if (deja) return;
+  const accord = await chrome.permissions.request({ permissions });
+  if (!accord) throw new Error(msg('capture_permission_denied'));
 }
 
 /// Demande la source MAINTENANT, si elle a besoin d'etre choisie.
@@ -477,6 +528,7 @@ sur('demarrerCapture', 'click', async () => {
   actionCaptureEnCours = true;
   peindre(dernierEtat || {});
   try {
+    await demanderPermissionsCapture(valeursCapture());
     const resultat = await chrome.runtime.sendMessage({
       type: 'enregistrement-preparer',
       source: $('captureSource').value,
@@ -513,15 +565,27 @@ sur('langue', 'click', () => {
   basculerLangue().catch(() => {});
 });
 
-// La langue se lit AVANT les messages, sinon le premier rendu part dans la
-// mauvaise et corrige ensuite, ce qui se voit.
-chargerLangue()
-  .then(chargerMessagesSecours)
-  .then(() => {
-    traduire();
-    if (dernierEtat) peindre(dernierEtat);
-  });
+// Rien ne se peint avant que le catalogue choisi soit charge. Sinon le premier
+// rafraichissement passe par chrome.i18n, qui suit la langue du navigateur et
+// affiche brièvement du francais sur un Chrome francais, meme si l'anglais est
+// bien le choix par defaut de l'extension.
+async function initialiser() {
+  await chargerLangue();
+  await chargerMessagesSecours();
+  interfacePrete = true;
+  traduire();
+  const { vueActive = 'garder' } = await chrome.storage.local.get({ vueActive: 'garder' });
+  montrer(vueActive === 'pilotage' ? 'pilotage' : 'garder');
+  await lirePageCourante().catch(() => {});
+  await majFileGarder().catch(() => {});
+  await rafraichir();
+  // The socket may settle a moment after the popup opens.
+  setInterval(rafraichir, 1500);
+}
 
-rafraichir();
-// The socket may settle a moment after the popup opens.
-setInterval(rafraichir, 1500);
+initialiser().catch(() => {
+  langue = 'en';
+  interfacePrete = true;
+  traduire();
+  rafraichir().catch(() => {});
+});

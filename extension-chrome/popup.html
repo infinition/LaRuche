@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
@@ -48,6 +48,15 @@
     <section id="vuePilotage" hidden role="tabpanel">
       <p class="etat" id="etat" role="status" aria-live="polite"></p>
 
+      <p class="note divulgation" id="noteConfidentialite"></p>
+      <a
+        class="lien-confidentialite"
+        id="lienConfidentialite"
+        href="https://github.com/infinition/LaRuche/blob/main/extension-chrome/PRIVACY.md"
+        target="_blank"
+        rel="noreferrer"
+      ></a>
+
       <label class="bascule">
         <input type="checkbox" id="actif" />
         <span id="libelleActif"></span>
@@ -56,6 +65,11 @@
       <label class="bascule">
         <input type="checkbox" id="compagnon" />
         <span id="libelleCompagnon"></span>
+      </label>
+
+      <label class="bascule">
+        <input type="checkbox" id="curseurAgent" />
+        <span id="libelleCurseurAgent"></span>
       </label>
 
       <label class="champ">
@@ -117,6 +131,7 @@
         <p class="aide" id="aideCapture"></p>
       </div>
     </section>
+
     </section>
 
     <script src="popup.js"></script>

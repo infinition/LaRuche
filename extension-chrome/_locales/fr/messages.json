@@ -19,13 +19,25 @@
     "message": "Compagnon abeille sur les pages",
     "description": "Libellé de l'interrupteur du compagnon"
   },
+  "popup_agent_cursor": {
+    "message": "Curseur abeille de l'agent",
+    "description": "Remplace le curseur virtuel du pilotage par l'abeille"
+  },
+  "visual_permission_denied": {
+    "message": "L'acces aux sites n'a pas ete accorde. L'option visuelle reste desactivee.",
+    "description": "Affiche quand l'utilisateur refuse l'acces optionnel aux sites"
+  },
   "popup_port": {
     "message": "Port du noeud",
     "description": "Libellé du champ de port"
   },
   "popup_note": {
-    "message": "L'extension ne se connecte qu'a votre machine, en local. Coupez l'interrupteur pour reprendre la main a tout moment.",
+    "message": "Quand le pilotage est actif, LaRuche peut lire et modifier les pages pilotees, ainsi que consulter les titres et adresses des onglets ouverts. L'enregistrement ne demarre que si vous l'activez. L'extension se connecte uniquement au noeud LaRuche de cet ordinateur.",
     "description": "Note de bas de popup"
+  },
+  "popup_privacy_link": {
+    "message": "Politique de confidentialite",
+    "description": "Lien vers la politique de confidentialite de l'extension"
   },
   "popup_driving": {
     "message": "Onglet pilote : $URL$",
@@ -130,6 +142,10 @@
         "example": "capture cancelled"
       }
     }
+  },
+  "capture_permission_denied": {
+    "message": "les autorisations d'enregistrement n'ont pas ete accordees",
+    "description": "Affiche quand les autorisations optionnelles sont refusees"
   },
   "state_off": {
     "message": "Pilotage desactive",

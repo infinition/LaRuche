@@ -22,6 +22,7 @@ const REGLAGES_DEFAUT = {
   port: 8419, 
   actif: false,
   compagnon: false,
+  curseurAgent: false,
   captureActivee: false,
   captureSource: 'tab',
   captureAudio: false,
@@ -68,6 +69,18 @@ let minuteurControle = null;
 // L'onglet auquel la capture est liee, pour savoir quand l'agent s'en eloigne.
 let ongletEnregistre = null;
 const CONTROLE_IDLE_MS = 20000;
+
+// Le pont n'est pas un proxy DevTools general. Cette liste correspond aux
+// commandes structurees que l'outil browser utilise vraiment. Toute nouvelle
+// methode doit arriver avec son cas d'usage et sa revue, pas par effet de bord.
+const METHODES_CDP_AUTORISEES = new Set([
+  'Input.dispatchMouseEvent',
+  'Input.dispatchKeyEvent',
+  'Runtime.evaluate',
+  'DOM.setFileInputFiles',
+  'Emulation.setDeviceMetricsOverride',
+  'Network.getCookies',
+]);
 
 let etatEnregistrement = {
   etat: 'inactif',
@@ -579,11 +592,29 @@ async function executer(action, params) {
     }
 
     case 'cdp': {
-      // Raw DevTools passthrough, used for Input events: a key press or a mouse
-      // move synthesised from page script is untrusted and widely ignored, so
-      // those two have to come from the protocol itself.
+      if (!METHODES_CDP_AUTORISEES.has(params.methode)) {
+        throw new Error(`CDP method not allowed: ${params.methode || '(missing)'}`);
+      }
       await attacher();
-      return await cdp(params.methode, params.params || {});
+      const resultat = await cdp(params.methode, params.params || {});
+      // Une valeur de cookie est un jeton de session. L'outil n'en montre que
+      // le nom, la taille et les attributs, donc elle ne doit jamais franchir
+      // le pont local pour etre jetee ensuite cote noeud.
+      if (params.methode === 'Network.getCookies' && Array.isArray(resultat.cookies)) {
+        return {
+          cookies: resultat.cookies.map((cookie) => ({
+            name: cookie.name || '',
+            domain: cookie.domain || '',
+            path: cookie.path || '',
+            secure: !!cookie.secure,
+            httpOnly: !!cookie.httpOnly,
+            sameSite: cookie.sameSite || '',
+            expires: cookie.expires,
+            valueLength: String(cookie.value || '').length,
+          })),
+        };
+      }
+      return resultat;
     }
 
     case 'tab': {
@@ -1184,8 +1215,82 @@ async function injecterCompagnonDansOnglets() {
   } catch {}
 }
 
+async function injecterCurseurAgentDansOnglets() {
+  try {
+    const onglets = await chrome.tabs.query({});
+    for (const o of onglets) {
+      if (!o.id || !o.url) continue;
+      if (!o.url.startsWith('http://') && !o.url.startsWith('https://') && !o.url.startsWith('file://')) continue;
+      chrome.scripting.executeScript({
+        target: { tabId: o.id },
+        files: ['curseur-agent.js'],
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+const ACCES_SITES_VISUELS = {
+  permissions: ['scripting'],
+  origins: ['http://*/*', 'https://*/*'],
+};
+
+const SCRIPTS_VISUELS = {
+  compagnon: {
+    id: 'laruche-compagnon',
+    js: ['rencontre.js', 'compagnon.js'],
+  },
+  curseurAgent: {
+    id: 'laruche-curseur-agent',
+    js: ['curseur-agent.js'],
+  },
+};
+
+async function reglerScriptVisuel(definition, actif) {
+  const trouves = await chrome.scripting.getRegisteredContentScripts({ ids: [definition.id] });
+  const existe = trouves.length > 0;
+  if (actif && !existe) {
+    await chrome.scripting.registerContentScripts([{
+      id: definition.id,
+      matches: ['http://*/*', 'https://*/*'],
+      js: definition.js,
+      runAt: 'document_idle',
+      persistAcrossSessions: true,
+    }]);
+  } else if (!actif && existe) {
+    await chrome.scripting.unregisterContentScripts({ ids: [definition.id] });
+  }
+}
+
+/// Le compagnon et le curseur sont facultatifs. Ils ne justifient pas un acces
+/// permanent a tous les sites au moment de l'installation: Chrome le demande
+/// au premier usage, puis seuls les scripts effectivement actives sont
+/// enregistres pour les navigations suivantes.
+async function synchroniserScriptsVisuels(injecter = false) {
+  const etat = await chrome.storage.local.get({ compagnon: false, curseurAgent: false });
+  const autorise = await chrome.permissions.contains(ACCES_SITES_VISUELS);
+
+  if (!autorise) {
+    if (etat.compagnon || etat.curseurAgent) {
+      await chrome.storage.local.set({ compagnon: false, curseurAgent: false });
+    }
+    return;
+  }
+
+  await reglerScriptVisuel(SCRIPTS_VISUELS.compagnon, !!etat.compagnon);
+  await reglerScriptVisuel(SCRIPTS_VISUELS.curseurAgent, !!etat.curseurAgent);
+
+  if (injecter && etat.compagnon) await injecterCompagnonDansOnglets();
+  if (injecter && etat.curseurAgent) await injecterCurseurAgentDansOnglets();
+
+  if (!etat.compagnon && !etat.curseurAgent) {
+    await chrome.permissions.remove(ACCES_SITES_VISUELS).catch(() => false);
+  }
+}
+
 chrome.storage.onChanged.addListener((changes, zone) => {
-  if (zone === 'local' && changes.compagnon && changes.compagnon.newValue) {
-    injecterCompagnonDansOnglets();
+  if (zone === 'local' && (changes.compagnon || changes.curseurAgent)) {
+    synchroniserScriptsVisuels(true).catch(() => {});
   }
 });
+
+synchroniserScriptsVisuels(true).catch(() => {});
