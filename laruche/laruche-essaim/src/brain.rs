@@ -12,7 +12,8 @@ pub use crate::config::{EssaimConfig, ReineConfig};
 pub use crate::contexte::{
     boucle_react, boucle_react_memoire, boucle_react_memoire_multimodal, boucle_react_multimodal,
     boucle_react_multimodal_ext, build_capability_index, charger_doc_systeme,
-    demande_recherche_longue, indexer_abeilles_memoire, schema_outils_pour_prompt,
+    demande_recherche_longue, indexer_abeilles_memoire, indexer_abeilles_memoire_ex,
+    schema_outils_pour_prompt,
 };
 pub use crate::curation::{
     consolider_memoire, consolider_node, detecter_contradictions, extraire_json_array,

@@ -3344,7 +3344,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-bureau"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "miel-protocol",
  "tauri",
@@ -3354,7 +3354,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-butinage"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3369,7 +3369,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-cli"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3392,7 +3392,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-client"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "chrono",
  "miel-protocol",
@@ -3416,11 +3416,11 @@ dependencies = [
 
 [[package]]
 name = "laruche-dashboard"
-version = "0.2.0"
+version = "1.4.0"
 
 [[package]]
 name = "laruche-essaim"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3462,7 +3462,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-evals"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3485,7 +3485,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-icones"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "ico 0.3.0",
  "image",
@@ -3497,7 +3497,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-kanban"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "chrono",
  "serde",
@@ -3509,7 +3509,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-memoire"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3524,7 +3524,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-node"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3580,7 +3580,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-skills"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "laruche-memoire",
@@ -3591,7 +3591,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-watchers"
-version = "0.2.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "chrono",

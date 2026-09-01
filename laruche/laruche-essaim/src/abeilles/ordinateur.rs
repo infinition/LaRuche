@@ -116,9 +116,9 @@ fn position_physique(_enigo: &Enigo, _facteur: f64) -> Option<(f64, f64)> {
     #[cfg(windows)]
     unsafe {
         let mut point = POINT::default();
-        return GetCursorPos(&mut point)
+        GetCursorPos(&mut point)
             .ok()
-            .map(|_| (point.x as f64, point.y as f64));
+            .map(|_| (point.x as f64, point.y as f64))
     }
 
     #[cfg(not(windows))]
@@ -138,8 +138,8 @@ fn position_physique(_enigo: &Enigo, _facteur: f64) -> Option<(f64, f64)> {
 fn deplacer_physique(_enigo: &mut Enigo, x: f64, y: f64, _facteur: f64) -> Result<()> {
     #[cfg(windows)]
     unsafe {
-        return SetCursorPos(x.round() as i32, y.round() as i32)
-            .map_err(|e| anyhow!("cannot move the pointer on the virtual desktop: {e}"));
+        SetCursorPos(x.round() as i32, y.round() as i32)
+            .map_err(|e| anyhow!("cannot move the pointer on the virtual desktop: {e}"))
     }
 
     #[cfg(not(windows))]
@@ -765,6 +765,39 @@ fn resoudre(x: f64, y: f64) -> Result<(f64, f64)> {
 
 pub struct Ordinateur;
 
+/// La liste des actions vient du schema, jamais d'une copie posee a cote: une
+/// action ajoutee au schema est reconnue sans que personne ait a y penser.
+fn action_connue(action: &str) -> bool {
+    static ACTIONS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    ACTIONS
+        .get_or_init(|| {
+            Ordinateur.schema()["properties"]["action"]["enum"]
+                .as_array()
+                .map(|v| {
+                    v.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default()
+        })
+        .iter()
+        .any(|a| a == action)
+}
+
+/// Le message d'erreur est le seul endroit ou un modele apprend la liste des
+/// actions quand il s'est trompe: il nomme d'abord le chemin fiable.
+fn erreur_action_inconnue(action: &str) -> anyhow::Error {
+    anyhow!(
+        "Unknown action '{action}'. The reliable path first: windows (list them), \
+         focus_window, read (numbered map of the controls), find (the same, filtered), \
+         then click, fill, scroll or hover with a `ref`, plus focus. By pixels: \
+         screens, screenshot, cursor_position, mouse_move, left_click, right_click, \
+         middle_click, double_click, triple_click, left_click_drag, mouse_down, \
+         mouse_up, scroll. Keyboard: type, key, key_down, key_up, release_all. \
+         Also: wait, read_clipboard, write_clipboard."
+    )
+}
+
 impl Ordinateur {
     /// Tout le travail bloquant. enigo et xcap sont synchrones et parlent a
     /// l'OS: les laisser sur l'executeur async bloquerait le noeud entier
@@ -772,6 +805,14 @@ impl Ordinateur {
     fn executer_bloquant(args: Value) -> Result<ResultatAbeille> {
         let action = alias_action(args["action"].as_str().unwrap_or_default());
         let action = action.as_str();
+        // Le nom est verifie AVANT de toucher a l'ecran. Une faute de frappe
+        // repondait sinon "cannot enumerate monitors" sur une machine sans
+        // affichage: on part alors chercher un probleme de materiel la ou il y
+        // a une lettre en trop. C'est aussi ce qui faisait echouer la CI, qui
+        // tourne sans ecran.
+        if !action_connue(action) {
+            return Err(erreur_action_inconnue(action));
+        }
         // Le decor suit les memes reglages que celui du navigateur, pour qu'un
         // utilisateur n'ait pas deux vocabulaires a retenir.
         // Le reglage du noeud decide, l'appel peut encore trancher au cas par cas:
@@ -1072,15 +1113,7 @@ impl Ordinateur {
 
             "key" | "key_down" | "key_up" => Self::geste_clavier(action, &args, &mut enigo),
 
-            autre => Err(anyhow!(
-                "Unknown action '{autre}'. The reliable path first: windows (list them), \
-                 focus_window, read (numbered map of the controls), find (the same, filtered), \
-                 then click, fill, scroll or hover with a `ref`, plus focus. By pixels: \
-                 screens, screenshot, cursor_position, mouse_move, left_click, right_click, \
-                 middle_click, double_click, triple_click, left_click_drag, mouse_down, \
-                 mouse_up, scroll. Keyboard: type, key, key_down, key_up, release_all. \
-                 Also: wait, read_clipboard, write_clipboard."
-            )),
+            autre => Err(erreur_action_inconnue(autre)),
         }
     }
 

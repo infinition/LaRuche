@@ -10,6 +10,8 @@ LaRuche is a desktop and server application for running an AI agent on your own
 machine. It combines a resilient agent engine, cognitive memory, supervised automation,
 native computer and browser control, voice, messaging channels and a local mesh.
 
+**[infinition.github.io/LaRuche](https://infinition.github.io/LaRuche/)**
+
 [![License](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat&logo=windows&logoColor=white)

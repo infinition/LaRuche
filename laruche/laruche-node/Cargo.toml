@@ -50,7 +50,7 @@ sha1_smol = "1"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 base64.workspace = true
 laruche-watchers.workspace = true
-laruche-kanban = { version = "0.2.0", path = "../laruche-kanban" }
+laruche-kanban = { path = "../laruche-kanban" }
 zip.workspace = true
 
 [target.'cfg(windows)'.dependencies]

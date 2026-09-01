@@ -1107,18 +1107,26 @@ async fn main() -> Result<()> {
             ));
             if count > 0 {
                 info!(tools = count, "MCP servers ready (background load)");
-                // Index them NOW. The startup pass above ran before this load, so the
-                // mcp family was empty, and the only other trigger was the first chat
-                // turn: no conversation after a boot meant capacities.mcp stayed empty
-                // while the server was running and its tools callable.
-                if let Err(e) = laruche_essaim::brain::indexer_abeilles_memoire(
-                    &registry_mcp,
-                    &memoire_mcp,
-                )
-                .await
-                {
-                    tracing::warn!(error = %e, "MCP tool indexing skipped");
-                }
+            } else {
+                info!("MCP load finished with no tool");
+            }
+            // Index them NOW. The startup pass above ran before this load, so the
+            // mcp family was empty, and the only other trigger was the first chat
+            // turn: no conversation after a boot meant capacities.mcp stayed empty
+            // while the server was running and its tools callable.
+            //
+            // Et on passe AUSSI quand le compte est nul. C'etait la condition de
+            // cet appel, donc un serveur devenu injoignable laissait ses outils
+            // dans l'arbre de la memoire pour toujours: personne ne venait plus
+            // constater leur absence.
+            if let Err(e) = laruche_essaim::brain::indexer_abeilles_memoire_ex(
+                &registry_mcp,
+                &memoire_mcp,
+                true,
+            )
+            .await
+            {
+                tracing::warn!(error = %e, "MCP tool indexing skipped");
             }
         });
     }

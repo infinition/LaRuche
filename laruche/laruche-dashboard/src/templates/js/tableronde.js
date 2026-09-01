@@ -523,13 +523,113 @@ LaRuche.TableRonde = (function(){
     liste.innerHTML = tours.map(function(t){
       var n = (t.dissidents||[]).length;
       return '<div class="session-item tr-tour-item" data-id="'+esc(t.id)+'">'+
-        '<span class="tr-tour-q">'+esc(String(t.question||'').slice(0,64))+'</span>'+
-        '<span class="tr-note">'+(t.tours||0)+' '+LaRuche.i18n.t('tr.toursCourt')+
-          (n ? ' · '+n+' '+LaRuche.i18n.t('tr.dissidentsCourt') : '')+'</span>'+
+        '<div style="flex:1;min-width:0;overflow:hidden">'+
+          '<span class="tr-tour-q">'+esc(String(t.question||'').slice(0,64))+'</span>'+
+          '<span class="tr-note">'+(t.tours||0)+' '+LaRuche.i18n.t('tr.toursCourt')+
+            (n ? ' · '+n+' '+LaRuche.i18n.t('tr.dissidentsCourt') : '')+'</span>'+
+        '</div>'+
+        '<span class="session-delete" data-suppr="'+esc(t.id)+'">&times;</span>'+
       '</div>';
     }).join('');
     liste.querySelectorAll('.tr-tour-item').forEach(function(el){
       el.onclick = function(){ ouvrirTour(el.getAttribute('data-id')); };
+    });
+    liste.querySelectorAll('[data-suppr]').forEach(function(x){
+      x.onclick = function(e){
+        e.stopPropagation();                  // la croix n'ouvre pas le debat
+        supprimerTour(x.getAttribute('data-suppr'));
+      };
+    });
+  }
+
+  /* Un debat se supprime comme une conversation. La route existait cote noeud
+     depuis le debut; c'est l'interface qui n'en offrait pas le chemin. */
+  async function supprimerTour(id){
+    if(!confirm(LaRuche.i18n.t('tr.supprimer'))) return;
+    try{
+      var r = await fetch('/api/deliberation/tour/'+encodeURIComponent(id), { method:'DELETE' });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      LaRuche.Toast.show(LaRuche.i18n.t('tr.supprime'), 'ok');
+      // Le debat efface etait peut-etre celui affiche: on rend la page blanche
+      // plutot que de laisser a l'ecran quelque chose qui n'existe plus.
+      if(dernier && dernier.id === id) nouveauTour();
+      chargerTours();
+      if(historiqueOuvert()) chargerHistorique();
+    }catch(e){ LaRuche.Toast.show(LaRuche.i18n.t('toast.failed'), 'error'); }
+  }
+
+  /* ── Historique et recherche, sur le modele de celui du chat ─────────── */
+  var _histo = [], _histoTerme = '';
+
+  function historiqueOuvert(){
+    var ov = document.getElementById('trHistoOverlay');
+    return !!(ov && ov.classList.contains('open'));
+  }
+  function ouvrirHistorique(){
+    var ov = document.getElementById('trHistoOverlay');
+    if(!ov) return;
+    ov.classList.add('open');
+    var ch = document.getElementById('trHistoSearch');
+    if(ch){ ch.value = ''; _histoTerme = ''; ch.focus(); }
+    chargerHistorique();
+  }
+  function fermerHistorique(){
+    var ov = document.getElementById('trHistoOverlay');
+    if(ov) ov.classList.remove('open');
+  }
+  async function chargerHistorique(){
+    try{
+      _histo = (await fetch('/api/deliberation/tours').then(function(r){ return r.json(); })).tours||[];
+    }catch(e){ _histo = []; }
+    rendreHistorique();
+  }
+  function chercherHistorique(v){ _histoTerme = String(v||'').toLowerCase(); rendreHistorique(); }
+
+  // Le terme surligne dans le titre, comme dans l'historique du chat: sans lui
+  // on ne voit pas POURQUOI une ligne a ete retenue.
+  function surligner(texte, terme){
+    texte = String(texte||'');
+    if(!terme) return esc(texte);
+    var i = texte.toLowerCase().indexOf(terme);
+    if(i < 0) return esc(texte);
+    return esc(texte.slice(0, i)) + '<mark>' + esc(texte.slice(i, i+terme.length)) +
+           '</mark>' + esc(texte.slice(i+terme.length));
+  }
+
+  function quandTexte(q){
+    if(!q) return '';
+    var d = new Date(typeof q === 'number' ? q*1000 : q);
+    return isNaN(d.getTime()) ? '' : d.toLocaleString();
+  }
+
+  function rendreHistorique(){
+    var el = document.getElementById('trHistoList');
+    if(!el) return;
+    var vus = _histo.filter(function(t){
+      return !_histoTerme || String(t.question||'').toLowerCase().indexOf(_histoTerme) >= 0;
+    });
+    if(!vus.length){
+      el.innerHTML = '<div class="tr-note" style="padding:14px">'+
+        LaRuche.i18n.t(_histo.length ? 'tr.histoRien' : 'tr.aucunTour')+'</div>';
+      return;
+    }
+    el.innerHTML = vus.map(function(t){
+      var n = (t.dissidents||[]).length;
+      return '<div class="history-item" data-id="'+esc(t.id)+'">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div class="history-item-title">'+surligner(String(t.question||''), _histoTerme)+'</div>'+
+          '<div class="tr-note">'+quandTexte(t.quand)+' · '+(t.tours||0)+' '+
+            LaRuche.i18n.t('tr.toursCourt')+
+            (n ? ' · '+n+' '+LaRuche.i18n.t('tr.dissidentsCourt') : '')+'</div>'+
+        '</div>'+
+        '<span class="session-delete" data-suppr="'+esc(t.id)+'">&times;</span>'+
+      '</div>';
+    }).join('');
+    el.querySelectorAll('.history-item').forEach(function(l){
+      l.onclick = function(){ fermerHistorique(); ouvrirTour(l.getAttribute('data-id')); };
+    });
+    el.querySelectorAll('[data-suppr]').forEach(function(x){
+      x.onclick = function(e){ e.stopPropagation(); supprimerTour(x.getAttribute('data-suppr')); };
     });
   }
 
@@ -593,7 +693,9 @@ LaRuche.TableRonde = (function(){
   }
 
   return { init:init, basculer:basculer, lancer:lancer, surTable:surTable,
-           ouvrirPool:ouvrirPool, nouveauTour:nouveauTour, ouvrirTour:ouvrirTour };
+           ouvrirPool:ouvrirPool, nouveauTour:nouveauTour, ouvrirTour:ouvrirTour,
+           supprimerTour:supprimerTour, ouvrirHistorique:ouvrirHistorique,
+           fermerHistorique:fermerHistorique, chercherHistorique:chercherHistorique };
 })();
 
 LaRuche.i18n.add({
@@ -625,7 +727,13 @@ LaRuche.i18n.add({
   'tr.verdict':       { fr:'Réponse finale', en:'Final answer' },
   'tr.sansOutils':    { fr:"Aucun outil n'est encore ouvert : les spécialistes raisonnent et rendent du texte. Ils n'écrivent aucun fichier et ne consultent aucune page.",
                         en:'No tools are wired yet: the specialists reason and return text. They write no files and browse nothing.' },
+  'tr.toursDeTable':  { fr:'Tours de table', en:'Round tables' },
   'tr.aucunTour':     { fr:'Aucun tour de table.', en:'No round table yet.' },
+  'tr.supprimer':     { fr:'Supprimer ce tour de table ?', en:'Delete this round table?' },
+  'tr.supprime':      { fr:'Tour de table supprime', en:'Round table deleted' },
+  'tr.histoTitre':    { fr:'Historique des tours de table', en:'Round table history' },
+  'tr.histoChercher': { fr:'Chercher un tour de table...', en:'Search a round table...' },
+  'tr.histoRien':     { fr:'Rien ne correspond.', en:'Nothing matches.' },
   'tr.toursCourt':    { fr:'tours', en:'rounds' },
   'tr.jetonsDebat':   { fr:'jetons du débat', en:'debate tokens' },
   'tr.interventionsCourt': { fr:'interventions', en:'interventions' },

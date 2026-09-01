@@ -51,6 +51,24 @@ Le kanban, la verification de mise a jour et le glisser-deposer des cartes vienn
 - Une image rendue par un outil arrive enfin jusqu'au modele, apres l'observation.
 - Coller une image marche, et un fichier lache sur la zone d'envoi aussi.
 - Le halo anime debordait de sa pastille dans les maquettes de la page de presentation.
+- **La version affichee**. Les paquets sont restes en 0.2.0 pendant que les releases
+  partaient en v1.x: l'onglet Aide annoncait v0.2.0 et se croyait en retard de trois
+  versions sur lui-meme. L'espace de travail passe en 1.4.0, la coque de bureau aussi.
+- **Table ronde**: un debat se supprime, et l'historique s'ouvre et se cherche comme
+  celui des conversations. La route de suppression existait cote noeud depuis le debut,
+  l'interface n'en offrait simplement pas le chemin.
+- **La constitution de la table ronde est en anglais**, comme les autres prompts systeme.
+- **Les capacites MCP disparues**. Un serveur devenu injoignable laissait ses outils dans
+  l'arbre de la memoire pour toujours: le balayage ne passait que si le registre
+  contenait au moins un outil MCP, et zero serveur joignable veut dire zero outil. La
+  memoire annoncait des capacites que le noeud n'avait plus, `capacities.mcp.computer`
+  en tete, longtemps apres la suppression du serveur Python qu'il decrivait.
+- **La CI**. Un test verifiait le message d'une action inconnue, mais l'outil enumerait
+  les ecrans avant de lire le nom de l'action: sur une machine sans affichage il
+  echouait sur les moniteurs. Le nom est verifie d'abord, ce qui est aussi la bonne
+  reponse a donner a une faute de frappe. Deux avertissements clippy corriges avec.
+- Les releases ne sortent plus en brouillon: il fallait venir cliquer Publish a la main
+  apres chaque tag, sans que rien ne le dise.
 
 ## [1.3.0] - 2026-08-27
 

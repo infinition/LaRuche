@@ -1,5 +1,7 @@
 # LaRuche Wiki
 
+**[infinition.github.io/LaRuche](https://infinition.github.io/LaRuche/)**
+
 Welcome to the hive. LaRuche is a local-first AI agent with a desktop application, a
 server node and a lightweight LAN client. Its main systems are written in Rust: the
 agent engine, cognitive memory, automation, supervision, native computer control and

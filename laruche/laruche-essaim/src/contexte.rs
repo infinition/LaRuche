@@ -954,6 +954,27 @@ pub async fn indexer_abeilles_memoire(
     registry: &AbeilleRegistry,
     memoire: &Arc<dyn MemoireCognitive>,
 ) -> Result<()> {
+    indexer_abeilles_memoire_ex(registry, memoire, false).await
+}
+
+/// La meme chose, en disant si la passe de chargement MCP est TERMINEE.
+///
+/// La difference porte sur le balayage de la famille `capacities.mcp`. Il ne
+/// s'y fait normalement que si le registre contient au moins un outil MCP, une
+/// garde contre la course au demarrage: les serveurs se chargent en tache de
+/// fond, et purger avant leur arrivee effacerait des noeuds valides.
+///
+/// Cette garde avait un angle mort. Quand AUCUN serveur ne repond, le registre
+/// n'a aucun outil MCP, la famille n'est jamais reconciliee, et ses noeuds
+/// survivent indefiniment. C'est ce qui laissait `capacities.mcp.computer` dans
+/// l'arbre longtemps apres la suppression du serveur Python qu'il decrivait.
+/// Une fois le chargement fini, zero outil est une reponse, pas une absence de
+/// reponse: on balaie.
+pub async fn indexer_abeilles_memoire_ex(
+    registry: &AbeilleRegistry,
+    memoire: &Arc<dyn MemoireCognitive>,
+    mcp_charge: bool,
+) -> Result<()> {
     rafraichir_projections(registry, memoire).await;
     // INCREMENTAL reconciliation: ids already indexed under the 3 tool families.
     let mut deja: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -1026,7 +1047,7 @@ pub async fn indexer_abeilles_memoire(
     for (parent, actif) in [
         ("capacities.tools", a_natifs),
         ("capacities.plugins", a_plugins),
-        ("capacities.mcp", a_mcp),
+        ("capacities.mcp", a_mcp || mcp_charge),
     ] {
         if !actif {
             continue;

@@ -306,5 +306,10 @@ jobs:
           # `dist/**/*` et non `dist/*`: un asset depose dans un sous-dossier par un
           # job amont serait sinon ignore en silence.
           files: dist/**/*
-          draft: true
+          # Publiee directement, plus en brouillon: le brouillon obligeait a venir
+          # cliquer Publish a la main apres chaque tag, sans que rien ne le dise, et
+          # une release invisible ressemble a une release ratee. Le comptage d'assets
+          # juste au-dessus est le garde-fou: une construction incomplete s'arrete la
+          # et ne devient jamais une release.
+          draft: false
           generate_release_notes: true

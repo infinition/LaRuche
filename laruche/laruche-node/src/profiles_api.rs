@@ -195,7 +195,7 @@ pub(crate) async fn api_upsert_profile(
 
     // Meme raisonnement pour le partage sur le maillage: le formulaire ne
     // l'expose pas, donc il ne doit pas pouvoir le remettre a zero en passant.
-    let visibilite = ancien.map(|a| a.visibilite.clone()).unwrap_or_default();
+    let visibilite = ancien.map(|a| a.visibilite).unwrap_or_default();
     let allowed_peers = ancien.map(|a| a.allowed_peers.clone()).unwrap_or_default();
 
     let profile = profiles::ProviderProfile {

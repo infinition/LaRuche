@@ -206,7 +206,10 @@
                debat et une conversation ne se reprennent pas de la meme facon. -->
           <div class="sessions-list-sidebar" id="toursSidebarSection" style="display:none">
             <div class="sidebar-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-              <span>Tours de table</span>
+              <span data-i18n="tr.toursDeTable">Tours de table</span>
+              <span style="display:flex; gap:6px; align-items:center;">
+                <button onclick="LaRuche.TableRonde.ouvrirHistorique()" data-i18n-title="shell.tipHistorySearch" title="History &amp; search" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:15px; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--text-dim)'"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></button>
+              </span>
             </div>
             <div style="padding:2px 8px 4px;">
               <button id="trNouveau" class="tr-nouveau-btn">+ Nouveau tour de table</button>
@@ -617,6 +620,22 @@
       <input type="text" id="historySearch" data-i18n-ph="shell.phSearchConversation" placeholder="Search a conversation..." spellcheck="false" oninput="LaRuche.Chat.searchHistory(this.value)">
     </div>
     <div class="history-list" id="historyList"></div>
+  </div>
+</div>
+
+<!-- Historique des tours de table. Meme habillage que celui des conversations:
+     c'est le meme geste, et deux presentations pour un meme geste sont deux
+     choses a apprendre au lieu d'une. -->
+<div class="history-overlay" id="trHistoOverlay" onclick="if(event.target===this)LaRuche.TableRonde.fermerHistorique()">
+  <div class="history-panel">
+    <div class="history-head">
+      <span class="history-title"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> <span data-i18n="tr.histoTitre">Round table history</span></span>
+      <button class="history-close" onclick="LaRuche.TableRonde.fermerHistorique()" data-i18n-title="shell.tipClose" title="Close">&times;</button>
+    </div>
+    <div class="history-search">
+      <input type="text" id="trHistoSearch" data-i18n-ph="tr.histoChercher" placeholder="Search a round table..." spellcheck="false" oninput="LaRuche.TableRonde.chercherHistorique(this.value)">
+    </div>
+    <div class="history-list" id="trHistoList"></div>
   </div>
 </div>
 

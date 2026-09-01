@@ -785,6 +785,22 @@ LaRuche.Feed = (function(){
       '<span class="hexagon hx4"></span><span class="hexagon hx5"></span><span class="hexagon hx6"></span>'+
       '<span class="hexagon hx7"></span></span></span>';
   }
+  /* Markdown du flux: le meme moteur que le chat, la meme desinfection. Rendu
+     court sans paragraphe superflu quand le message tient sur une ligne. */
+  function feedMd(texte){
+    var t = String(texte||'');
+    if(!t.trim()) return '';
+    if(!(LaRuche.Utils && LaRuche.Utils.safeMarkdown)) return esc(t);
+    var html = LaRuche.Utils.safeMarkdown(t);
+    // Un message d'une seule ligne n'a pas besoin de son enveloppe <p>: elle
+    // ajoute une marge que la densite du flux ne supporte pas.
+    var seul = html.match(/^\s*<p>([\s\S]*)<\/p>\s*$/);
+    if(seul && seul[1].indexOf('<p>') < 0) return seul[1];
+    return html;
+  }
+
+  var _feedLongs = {}, _feedSeq = 0;
+
   function rowHtml(ev){
     var actorCls = actorClass(ev);
     var kind = kindOf(ev);
@@ -799,10 +815,19 @@ LaRuche.Feed = (function(){
     if(ev.ref){
       bodyHtml = esc(prefix)+'<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>';
     } else {
+      // Le corps passe par le meme rendu markdown que le chat, assaini de la
+      // meme facon. Il arrivait ici echappe et colle en un seul bloc: les
+      // titres, les tableaux et les listes que le modele ecrit s'affichaient
+      // avec leurs `#` et leurs `|`, sur une seule ligne. Ce que l'agent rend
+      // dans le flux est du texte redige, pas une etiquette.
       var expandable = ev.full && String(ev.full).length > String(ev.object||'').length;
-      bodyHtml = esc(prefix+ev.object) + (expandable ? ' <span class="feed-more">⌄</span>' : '');
+      bodyHtml = feedMd(prefix+ev.object) + (expandable ? ' <span class="feed-more">⌄</span>' : '');
       if(expandable){
-        extraAttr = ' class="feed-row-text feed-expandable" data-short="'+esc(prefix+ev.object)+'" data-full="'+esc(prefix+ev.full)+'"';
+        var cle = 'e'+(_feedSeq++);
+        _feedLongs[cle] = { court: prefix+ev.object, full: prefix+ev.full };
+        extraAttr = ' class="feed-row-text feed-md feed-expandable" data-i="'+cle+'"';
+      } else {
+        extraAttr = ' class="feed-row-text feed-md"';
       }
     }
     var textOpen = extraAttr ? '<div'+extraAttr+'>' : '<div class="feed-row-text">';
@@ -829,6 +854,7 @@ LaRuche.Feed = (function(){
     for(var i=0;i<shown.length;i++){ var e=shown[i]; sig += '|'+e.ts+e.actor+e.action+e.object+(e.ref||''); }
     if(sig === lastSig) return; // no change: avoids flicker
     lastSig = sig;
+    _feedLongs = {};              // rebati avec les lignes, jamais accumule
     var atTop = list.scrollTop <= 4;
     var prevScroll = list.scrollTop;
     if(!shown.length){
@@ -850,10 +876,14 @@ LaRuche.Feed = (function(){
       };
     });
     // click to expand the full message
-    list.querySelectorAll('.feed-expandable').forEach(function(t){
+    list.querySelectorAll('.feed-expandable').forEach(function(t, i){
+      var e = _feedLongs[t.getAttribute('data-i')];
+      if(!e) return;
       t.onclick = function(){
-        if(t.dataset.exp==='1'){ t.textContent=t.dataset.short; t.insertAdjacentHTML('beforeend',' <span class="feed-more">⌄</span>'); t.dataset.exp='0'; }
-        else { t.textContent=t.dataset.full; t.insertAdjacentHTML('beforeend',' <span class="feed-more">⌃</span>'); t.dataset.exp='1'; }
+        var replie = t.dataset.exp !== '1';
+        t.innerHTML = feedMd(replie ? e.full : e.court) +
+          ' <span class="feed-more">'+(replie ? '⌃' : '⌄')+'</span>';
+        t.dataset.exp = replie ? '1' : '0';
       };
     });
     // preserve scroll position (unless we were at the very top → stay at top to see recent items)

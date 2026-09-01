@@ -40,7 +40,7 @@ fn racine() -> PathBuf {
 /// aucune source. Les deux sont acceptes, le PNG l'emporte s'il existe: c'est
 /// lui qu'on vient de deposer.
 enum Source {
-    Vecteur(usvg::Tree),
+    Vecteur(Box<usvg::Tree>),
     Bitmap(image::DynamicImage),
 }
 
@@ -79,10 +79,10 @@ fn charger(dossier: &Path, nom: &str) -> Result<Source, Box<dyn std::error::Erro
     let svg = dossier.join(format!("{nom}.svg"));
     let donnees = std::fs::read(&svg)
         .map_err(|e| format!("ni {} ni {}: {e}", png.display(), svg.display()))?;
-    Ok(Source::Vecteur(usvg::Tree::from_data(
+    Ok(Source::Vecteur(Box::new(usvg::Tree::from_data(
         &donnees,
         &usvg::Options::default(),
-    )?))
+    )?)))
 }
 
 fn ecrire_png(pixmap: &tiny_skia::Pixmap, chemin: &Path) -> Result<(), Box<dyn std::error::Error>> {
