@@ -2,10 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
 <title>LaRuche Wiki</title>
 <meta name="description" content="Documentation for LaRuche: installation, the butinage engine, cognitive memory, watchers, voice, MCP and the full configuration reference.">
 <meta name="color-scheme" content="dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="theme-color" content="#09090b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="laruche.png">
 <link rel="icon" type="image/png" href="laruche.png?v=2">
 <style id="feuille">
 /* ===================================================================
@@ -29,7 +35,9 @@
 *,*::before,*::after { box-sizing:border-box; }
 html { -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
 body { margin:0; font-family:var(--font); background:var(--bg); color:var(--text);
-  font-size:15px; line-height:1.7; }
+  font-size:15px; line-height:1.7;
+  padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right);
+  overscroll-behavior-y:contain; }
 a { color:var(--amber); text-decoration:none; }
 a:hover { text-decoration:underline; }
 :focus-visible { outline:2px solid var(--amber); outline-offset:3px; border-radius:4px; }

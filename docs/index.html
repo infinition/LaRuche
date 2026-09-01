@@ -2,10 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
 <title>LaRuche - your personal AI hive</title>
 <meta name="description" content="A local-first AI agent with a desktop app, cognitive memory, auditable automation and native computer control.">
 <meta name="color-scheme" content="dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="theme-color" content="#09090b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="laruche.png">
 <meta property="og:title" content="LaRuche - your personal AI hive">
 <meta property="og:description" content="A local-first AI agent with a desktop app, cognitive memory, auditable automation and native computer control.">
 <meta property="og:type" content="website">
@@ -56,6 +62,12 @@ body {
   font-size: 15px;
   line-height: 1.65;
   overflow-x: hidden;
+  /* `viewport-fit=cover` laisse la page passer sous l'encoche et sous la barre
+     de gestes: les marges laterales les recuperent. Et le rebond de fin de
+     course ne doit pas entrainer la page derriere lui. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  overscroll-behavior-y: contain;
 }
 a { color: inherit; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
@@ -1091,7 +1103,7 @@ cargo run --release -p laruche-bureau</pre>
               Keep the queue in SQLite. Redis buys throughput nobody needs here, and adds a
               process to keep alive.
             </div>
-            <div class="tr-dis">2 rounds · <b>1 dissenter</b> — the attacker objects that a crash
+            <div class="tr-dis">2 rounds · <b>1 dissenter</b>: the attacker objects that a crash
               between write and ack loses the task.</div>
           </div>
           <p class="cap"><b>Table ronde.</b> Specialists answer alone, then read each other. A
@@ -1141,7 +1153,7 @@ cargo run --release -p laruche-bureau</pre>
         <div class="surf">
           <div class="app win">
             <div class="win-app">
-              <div class="ttl">🎨 Untitled - Paint<span class="dots">— □ ✕</span></div>
+              <div class="ttl">🎨 Untitled - Paint<span class="dots">─ □ ✕</span></div>
               <div class="rib"><i></i><i class="on"></i><i></i><i></i><i></i></div>
               <div class="canv">
                 <svg width="100%" height="100%" viewBox="0 0 240 120" aria-hidden="true">
@@ -1491,14 +1503,14 @@ cargo run --release -p laruche-bureau</pre>
                 <span class="fd-av hive"><div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div></span>
                 <div class="fd-bd">
                   <div class="fd-meta"><span class="fd-kind k-watcher">watcher</span><span class="fd-time">22:03</span></div>
-                  <b>release.log</b> matched ERROR — held until 08:00, quiet hours.
+                  <b>release.log</b> matched ERROR, held until 08:00, quiet hours.
                 </div>
               </div>
               <div class="fd-item">
                 <span class="fd-av hive"><div class="honeycomb-loader hc-sm" aria-hidden="true"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div></span>
                 <div class="fd-bd">
                   <div class="fd-meta"><span class="fd-kind k-memory">memory</span><span class="fd-time">21:47</span></div>
-                  Superseded <b>projects.laruche.deploy</b> — the previous value said “manual upload”.
+                  Superseded <b>projects.laruche.deploy</b>: the previous value said “manual upload”.
                 </div>
               </div>
               <div class="fd-item">
@@ -1519,7 +1531,7 @@ cargo run --release -p laruche-bureau</pre>
                 <span class="fd-av you">F</span>
                 <div class="fd-bd">
                   <div class="fd-meta"><span class="fd-kind k-mission">mission</span><span class="fd-time">20:58</span></div>
-                  You approved <b>shell_exec</b> — <span style="font-family:var(--mono);font-size:11.5px">cargo build --release</span>
+                  You approved <b>shell_exec</b>: <span style="font-family:var(--mono);font-size:11.5px">cargo build --release</span>
                 </div>
               </div>
             </div>
