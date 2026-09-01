@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.4.0] - 2026-09-01
+
+Une version de surface: la page de presentation, le wiki et l'extension. Le moteur ne bouge
+presque pas, mais trois pannes de l'interface se ressemblaient toutes: le code rapportait un
+etat qui n'etait pas le vrai, et l'affichage remplacait la cause par une phrase toute faite.
+Le kanban, la verification de mise a jour et le glisser-deposer des cartes viennent de la.
+
+### Ajoute
+
+- **Compagnon abeille** dans l'extension Chrome: eteint par defaut, allume depuis le popup,
+  present sur les pages visitees et retrouve la ou il etait quand on change d'onglet.
+- **Page de presentation** refaite: quatorze maquettes des vraies interfaces (table ronde,
+  pilotage du navigateur et du bureau, mode vocal, memoire, flux, Telegram, essaim, messagerie
+  entre ruches, approbation, LaReine, watchers, capacites), un carrousel qui les fait defiler,
+  et une abeille qui vit sur les deux pages: elle se pose, cligne, s'endort et reve.
+- **Navigation douce** entre l'accueil et le wiki, sans rechargement.
+- **Interrupteur de l'abeille** dans la barre du haut du site, retenu d'une visite a l'autre.
+- **Kanban**: un bouton Lancer sur les cartes qui attendent, et le choix de la colonne des la
+  creation. Une tache naissait toujours dans A faire, et seule Pret est relevee.
+- Onglet **Aide** dans les reglages: version installee, verification des mises a jour, liens
+  vers le wiki et le depot.
+- Releve du kanban reglable, panneau mesh lisible, et une reine qu'on distingue du reste.
+- **Camera**: une image de la webcam, rendue au modele.
+- Un backend TTS generique, au lieu d'un par moteur.
+- L'extension garde un lien ou une note dans la memoire, en un clic.
+- Le transcript porte le raisonnement des modeles thinking.
+- La **constitution** de la table ronde a son icone, son titre et son editeur dans l'arbre de
+  la memoire, comme les autres prompts systeme. Elle s'ouvrait en noeud ordinaire, et son
+  editeur aurait propose d'enregistrer le texte de l'identite a sa place.
+
+### Corrige
+
+- **Kanban, edition d'une tache**: les champs s'ouvraient vides. Le code relisait la SIGNATURE
+  de comparaison du tableau comme si c'etait la liste des taches; l'exception etait avalee par
+  un `catch` vide, et enregistrer aurait ecrase la tache avec du vide.
+- **Kanban, glisser-deposer**: les cartes ne se deplacaient pas. Le glisser-deposer HTML5 ne
+  se declenche pas dans la fenetre de l'application et n'existe pas au doigt; le deplacement
+  est desormais suivi au pointeur, avec la colonne visee mise en evidence.
+- **Verification de mise a jour**: elle annoncait "impossible de joindre GitHub" alors que le
+  noeud repondait et que GitHub aussi. C'etait une faute de code dans l'affichage du resultat,
+  attrapee par le filet qui remplacait toute panne par cette phrase. Elle ne se declenchait
+  que lorsqu'une mise a jour existait vraiment. Le filet dit maintenant ce qu'il a attrape.
+- Les liens externes de l'aide s'ouvrent dans l'application.
+- Images: mises au gabarit avant l'envoi, refus d'image reconnu sous son deguisement et
+  verifie avant de conclure, l'image reste visible aux tours suivants, et enregistrer un
+  profil n'efface plus sa cle.
+- Le micro ne s'ouvre plus au milieu de sa propre phrase.
+- Le repli sur la voix du navigateur cesse d'etre silencieux.
+- Une image rendue par un outil arrive enfin jusqu'au modele, apres l'observation.
+- Coller une image marche, et un fichier lache sur la zone d'envoi aussi.
+- Le halo anime debordait de sa pastille dans les maquettes de la page de presentation.
+
 ## [1.3.0] - 2026-08-27
 
 Les deux outils de pilotage, `computer` et `browser`, passent de "ca marche sur les cas

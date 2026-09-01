@@ -18,7 +18,7 @@ native computer and browser control, voice, messaging channels and a local mesh.
 [![CI](https://github.com/infinition/LaRuche/actions/workflows/ci.yml/badge.svg)](https://github.com/infinition/LaRuche/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/infinition/LaRuche?style=flat)](https://github.com/infinition/LaRuche/releases)
 
-[Quick start](#quick-start) · [Capabilities](#what-laruche-does) · [Architecture](#architecture) · [Wiki](wiki/Home.md) · [Roadmap](ROADMAP.md)
+[Quick start](#quick-start) · [Capabilities](#what-laruche-does) · [Architecture](#architecture) · [Wiki](wiki/Home.md) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -258,7 +258,7 @@ and editor integrations live in `extension-chrome/` and `laruche/laruche-vscode/
 
 LaRuche is beta software, used daily by its author and changing quickly. Cargo currently
 lists 741 workspace tests, with tests and lint checks run in CI. The
-[roadmap](ROADMAP.md) tracks delivered work and remaining plans.
+[changelog](CHANGELOG.md) records what each release delivered.
 
 ## Contributing
 

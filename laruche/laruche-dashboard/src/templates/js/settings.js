@@ -234,6 +234,13 @@ LaRuche.i18n.add({
   'settings.kanbanTaskIntrouvable': {fr:"Cette tâche n'est plus sur le tableau.",
                                      en:'That task is no longer on the board.'},
   'settings.kanbanDelBtn':       {fr:'Suppr',            en:'Del'},
+  'settings.kanbanLancerBtn':    {fr:'Lancer',           en:'Run'},
+  'settings.kanbanColonne':      {fr:'Colonne',          en:'Column'},
+  'settings.kanbanLancerHint':   {fr:'Envoyer cette tache dans Pret: la releve la prendra au prochain passage.',
+                                  en:'Send this task to Ready: the next poll picks it up.'},
+  'settings.kanbanLancee':       {fr:'Tache envoyee dans Pret', en:'Task moved to Ready'},
+  'settings.kanbanFluxAide':     {fr:"Une tache creee arrive dans A faire et y reste. Seule la colonne Pret est relevee: glissez-la dedans, ou cliquez Lancer.",
+                                  en:'A new task lands in Todo and stays there. Only Ready is polled: drag it there, or click Run.'},
   'settings.kanbanResultLabel':  {fr:'Résultat',         en:'Result'},
   'settings.kanbanCols':         {fr:'Colonnes',         en:'Columns'},
   'settings.kanbanHorizontal':   {fr:'Horizontal',       en:'Horizontal'},
@@ -483,8 +490,8 @@ LaRuche.i18n.add({
                           en:'Understand how LaRuche works, and how to tune it.'},
   'help.soutien':        {fr:'Ça vous plaît ? Soutenez le projet',
                           en:'Like it? Support the project'},
-  'help.soutienDesc':    {fr:'LaRuche est gratuite et le restera. Un café aide à la faire avancer.',
-                          en:'LaRuche is free and will stay free. A coffee helps it move forward.'},
+  'help.soutienDesc':    {fr:'LaRuche est gratuite. Un café aide à la faire avancer.',
+                          en:'LaRuche is free. A coffee helps it move forward.'},
   'help.majTitre':       {fr:'Mise à jour',          en:'Update'},
   'help.majDesc':        {fr:'Compare cette version avec la dernière release publiée sur GitHub.',
                           en:'Compares this build with the latest release published on GitHub.'},
@@ -502,7 +509,7 @@ LaRuche.i18n.add({
   'help.majVersionLocale':{fr:'Version installée',   en:'Installed version'},
   'help.majTelecharger': {fr:'Voir la release',      en:'View the release'},
   'help.ressourcesTitre':{fr:'Documentation et code', en:'Documentation and code'},
-  'help.cafeBouton':     {fr:'Offrir un café',      en:'Buy a coffee'},
+  'help.cafeBouton':     {fr:'Offrir un café (ou une bière)', en:'Buy a coffee (or a beer)'},
   'settings.profileAccount':   {fr:'Compte',             en:'Account'},
   'settings.profileAvatar':    {fr:'Photo',              en:'Photo'},
   'settings.profileChangePhoto':{fr:'Changer',           en:'Change'},
@@ -2898,7 +2905,7 @@ LaRuche.Settings = (function(){
   }
   // Kanban card (HTML), shared between column mode and horizontal mode.
   function kanbanCardHtml(t){
-    var h='<div draggable="true" ondragstart="LaRuche.Settings.kanbanDragStart(event,\''+t.id+'\')" style="background:#2a2a2e;border:1px solid var(--border);border-radius:4px;padding:8px;cursor:grab">';
+    var h='<div class="kb-carte" data-id="'+t.id+'" style="background:#2a2a2e;border:1px solid var(--border);border-radius:4px;padding:8px;cursor:grab;touch-action:none">';
     h+='<div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px">'+LaRuche.Utils.esc(t.title)+'</div>';
     h+='<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">'+LaRuche.Utils.esc(t.description||'')+'</div>';
     if(t.profile_id || t.model){
@@ -2922,7 +2929,11 @@ LaRuche.Settings = (function(){
     }
     h+='<div style="display:flex;justify-content:space-between;align-items:center">';
     h+='<span style="font-size:9px;color:var(--text-muted);font-family:var(--mono)">'+t.id.split('-')[0]+'</span>';
-    h+='<span><button onclick="LaRuche.Settings.editKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.kanbanEditBtn')+'</button> <button onclick="LaRuche.Settings.deleteKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.kanbanDelBtn')+'</button></span>';
+    h+='<span>';
+    if(t.status==='Triage' || t.status==='Todo' || t.status==='Blocked'){
+      h+='<button onclick="LaRuche.Settings.lancerKanbanTask(\''+t.id+'\')" title="'+LaRuche.Utils.esc(LaRuche.i18n.t('settings.kanbanLancerHint'))+'" style="background:none;border:none;color:var(--green);cursor:pointer;font-size:10px;font-weight:600">'+LaRuche.i18n.t('settings.kanbanLancerBtn')+'</button> ';
+    }
+    h+='<button onclick="LaRuche.Settings.editKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.kanbanEditBtn')+'</button> <button onclick="LaRuche.Settings.deleteKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.kanbanDelBtn')+'</button></span>';
     h+='</div></div>';
     return h;
   }
@@ -2958,6 +2969,10 @@ LaRuche.Settings = (function(){
       '<div style="flex:1;min-width:130px"><label class="form-label">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select class="form-input" id="kanban-profile" onchange="LaRuche.Settings.updateKanbanModelSelect()">'+profOpts+'</select></div>' +
       '<div style="flex:1;min-width:130px"><label class="form-label">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select class="form-input" id="kanban-model"><option value="">'+LaRuche.i18n.t('settings.kanbanParDefault')+'</option></select></div>' +
       '<div style="flex:1;min-width:150px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanChannel')+'</label><select class="form-input" id="kanban-channel"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannel')+'</option></select></div>' +
+      '<div style="flex:0 1 130px;min-width:110px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanColonne')+'</label><select class="form-input" id="kanban-statut">'+
+        ['Triage','Todo','Ready','Blocked','Done','Archived'].map(function(c){
+          return '<option value="'+c+'"'+(c==='Todo'?' selected':'')+'>'+LaRuche.i18n.t('kanban.col.'+c.toLowerCase())+'</option>';
+        }).join('')+'</select></div>' +
       '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">'+LaRuche.i18n.t('settings.kanbanCreate')+'</button></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
         '<div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0">'+LaRuche.i18n.t('settings.kanbanDefaultChannelLabel')+'</label>' +
@@ -2966,6 +2981,7 @@ LaRuche.Settings = (function(){
         '<input class="form-input" id="kanban-interval" type="number" min="1" max="3600" step="1" style="width:74px" onchange="LaRuche.Settings.setKanbanInterval(this.value)">' +
         '<span class="settings-card-desc" style="margin:0">'+LaRuche.i18n.t('settings.kanbanIntervalDesc')+'</span></div>' +
         '<div id="kanbanViewToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+kanbanToggleInner()+'</div></div>' +
+      '<p class="settings-card-desc" style="margin:0 0 10px">'+LaRuche.i18n.t('settings.kanbanFluxAide')+'</p>' +
       '<div id="kanbanCols"></div>';
     _kanbanLast='';
     window.__fillChannels(document.getElementById('kanban-channel'), '', LaRuche.i18n.t('settings.kanbanBoardChannel'));
@@ -2987,6 +3003,7 @@ LaRuche.Settings = (function(){
 
   async function refreshKanbanCols(){
     var host=document.getElementById('kanbanCols'); if(!host)return;
+    if(_kbGlisse && _kbGlisse.parti) return;   // une carte est en l'air
     var tasks=await fetch(LaRuche.API.base+'/api/kanban').then(function(r){return r.json();}).catch(function(){return [];});
     _kanbanTaches=tasks;
     var sig=_kanbanView+'|'+JSON.stringify(tasks); if(sig===_kanbanLast) return; _kanbanLast=sig;
@@ -2999,7 +3016,7 @@ LaRuche.Settings = (function(){
       html='<div style="display:flex;flex-direction:column;gap:10px">';
       cols.forEach(function(c){
         var colTasks=tasks.filter(function(t){return t.status===c;});
-        html+='<div style="background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;overflow:hidden" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
+        html+='<div class="kb-cible" data-col="'+c+'" style="background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;overflow:hidden">';
         html+='<div style="padding:6px 10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span>'+kanbanColLabel(c)+'</span><span style="font-size:10px;color:var(--text-dim)">'+colTasks.length+'</span></div>';
         html+='<div style="padding:8px;display:flex;flex-wrap:wrap;gap:8px;min-height:36px">';
         if(!colTasks.length){ html+='<span style="font-size:10px;color:var(--text-muted);align-self:center">-</span>'; }
@@ -3019,7 +3036,7 @@ LaRuche.Settings = (function(){
       cols.forEach(function(c){
         var colTasks=tasks.filter(function(t){return t.status===c;});
         var vide = !colTasks.length;
-        html+='<div class="kb-col'+(vide?' kb-col-vide':'')+'" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
+        html+='<div class="kb-col kb-cible'+(vide?' kb-col-vide':'')+'" data-col="'+c+'">';
         html+='<div class="kb-col-hdr"><span>'+kanbanColLabel(c)+'</span>'+(colTasks.length?('<span class="kb-col-n">'+colTasks.length+'</span>'):'')+'</div>';
         html+='<div class="kb-col-corps">';
         colTasks.forEach(function(t){ html+=kanbanCardHtml(t); });
@@ -3028,6 +3045,10 @@ LaRuche.Settings = (function(){
       html+='</div>';
     }
     host.innerHTML=html;
+    if(!host.dataset.glisse){
+      host.dataset.glisse = '1';
+      host.addEventListener('pointerdown', kanbanDebutGlisse);
+    }
   }
 
   function setKanbanInterval(v){
@@ -3053,8 +3074,9 @@ LaRuche.Settings = (function(){
 var pId = document.getElementById('kanban-profile')?document.getElementById('kanban-profile').value:'';
 var m = document.getElementById('kanban-model')?document.getElementById('kanban-model').value:'';
 var ch = document.getElementById('kanban-channel')?document.getElementById('kanban-channel').value:'';
+var st = document.getElementById('kanban-statut')?document.getElementById('kanban-statut').value:'';
     if(!title) return;
-    fetch(LaRuche.API.base+'/api/kanban',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null, channel: ch||null})})
+    fetch(LaRuche.API.base+'/api/kanban',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null, channel: ch||null, status: st||null})})
       .then(function(r){if(r.ok) { LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanTaskCreated'),'ok'); document.getElementById('kanban-title').value=''; document.getElementById('kanban-desc').value=''; _kanbanLast=''; refreshKanbanCols(); }});
   }
 
@@ -3122,21 +3144,103 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanTaskUpdated'),'ok'); _kanbanLast=''; refreshKanbanCols(); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); } });
   }
 
-  function kanbanDragStart(e, id) {
-    e.dataTransfer.setData('text/plain', id);
+  function lancerKanbanTask(id){
+    fetch(LaRuche.API.base+'/api/kanban/'+id+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'Ready'})})
+      .then(function(r){
+        if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanLancee'),'ok'); _kanbanLast=''; refreshKanbanCols(); }
+      });
   }
 
-  function kanbanDragOver(e) {
-    e.preventDefault();
-  }
+  /* Le glissement des cartes.
+   *
+   * A la souris et au doigt, pas en glisser-deposer HTML5. Celui-ci ne se
+   * declenchait pas dans la fenetre de l'application, et n'existe pas du tout
+   * sur ecran tactile. Ici: on suit le pointeur, on porte une copie de la carte
+   * sous lui, et on lit la colonne qui se trouve dessous au moment du lacher.
+   *
+   * Le rafraichissement automatique du tableau est suspendu pendant le
+   * glissement: il reecrit tout le HTML des que le contenu change, et emportait
+   * la carte en cours de deplacement avec le reste.
+   */
+  var _kbGlisse = null;
 
-  function kanbanDrop(e, status) {
-    e.preventDefault();
-    var id = e.dataTransfer.getData('text/plain');
-    if(id) {
-       fetch(LaRuche.API.base+'/api/kanban/'+id+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status})})
-         .then(function(r){if(r.ok) { _kanbanLast=''; refreshKanbanCols(); }});
+  function kanbanCibleSous(x, y){
+    var el = document.elementFromPoint(x, y);
+    while(el && el !== document.body){
+      if(el.classList && el.classList.contains('kb-cible')) return el;
+      el = el.parentElement;
     }
+    return null;
+  }
+
+  function kanbanFinGlisse(e){
+    var g = _kbGlisse;
+    if(!g) return;
+    _kbGlisse = null;
+    document.removeEventListener('pointermove', kanbanEnGlisse);
+    document.removeEventListener('pointerup', kanbanFinGlisse);
+    document.removeEventListener('pointercancel', kanbanFinGlisse);
+    if(g.fantome && g.fantome.parentNode) g.fantome.parentNode.removeChild(g.fantome);
+    var host = document.getElementById('kanbanCols');
+    if(host) host.classList.remove('kb-glisse');
+    if(g.carte) g.carte.style.opacity = '';
+    if(g.derniere) g.derniere.classList.remove('kb-survol');
+
+    if(!g.parti) return;                       // un simple clic, rien a deplacer
+    var cible = kanbanCibleSous(e.clientX, e.clientY);
+    var col = cible && cible.getAttribute('data-col');
+    if(!col || col === g.depart){ _kanbanLast=''; refreshKanbanCols(); return; }
+    fetch(LaRuche.API.base+'/api/kanban/'+g.id+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:col})})
+      .then(function(r){ if(r.ok){ _kanbanLast=''; refreshKanbanCols(); } });
+  }
+
+  function kanbanEnGlisse(e){
+    var g = _kbGlisse;
+    if(!g) return;
+    var dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+    // Quelques pixels avant de considerer que c'est un glissement: sans ce
+    // seuil, le moindre tremblement sur un bouton devient un deplacement.
+    if(!g.parti){
+      if(Math.abs(dx) + Math.abs(dy) < 6) return;
+      g.parti = true;
+      g.carte.style.opacity = '.35';
+      var host = document.getElementById('kanbanCols');
+      if(host) host.classList.add('kb-glisse');
+      g.fantome = g.carte.cloneNode(true);
+      g.fantome.style.cssText += ';position:fixed;z-index:9999;pointer-events:none;width:'+
+        g.larg+'px;opacity:.92;transform:rotate(1.5deg);box-shadow:0 8px 24px rgba(0,0,0,.5)';
+      document.body.appendChild(g.fantome);
+    }
+    g.fantome.style.left = (e.clientX - g.dx) + 'px';
+    g.fantome.style.top  = (e.clientY - g.dy) + 'px';
+    var cible = kanbanCibleSous(e.clientX, e.clientY);
+    if(cible !== g.derniere){
+      if(g.derniere) g.derniere.classList.remove('kb-survol');
+      if(cible) cible.classList.add('kb-survol');
+      g.derniere = cible;
+    }
+  }
+
+  function kanbanDebutGlisse(e){
+    if(e.button !== undefined && e.button !== 0) return;      // clic droit: non
+    var carte = e.target.closest ? e.target.closest('.kb-carte') : null;
+    if(!carte) return;
+    // Les boutons de la carte gardent leur clic.
+    if(e.target.closest('button') || e.target.closest('.kb-result')) return;
+    var r = carte.getBoundingClientRect();
+    _kbGlisse = {
+      id: carte.getAttribute('data-id'),
+      carte: carte,
+      depart: (carte.closest('.kb-cible') || {}).getAttribute
+              ? carte.closest('.kb-cible').getAttribute('data-col') : null,
+      x0: e.clientX, y0: e.clientY,
+      dx: e.clientX - r.left, dy: e.clientY - r.top,
+      larg: r.width, parti: false, fantome: null, derniere: null
+    };
+    document.addEventListener('pointermove', kanbanEnGlisse);
+    document.addEventListener('pointerup', kanbanFinGlisse);
+    document.addEventListener('pointercancel', kanbanFinGlisse);
+    e.preventDefault();
   }
 
   function _avatarInner(u){
@@ -3370,6 +3474,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   async function _verifierMaj(){
+    var esc = LaRuche.Utils.esc;
     var zone = document.getElementById('helpMajResultat');
     var btn  = document.getElementById('helpMajBtn');
     if(!zone || !btn) return;
@@ -3421,8 +3526,12 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
         zone.textContent = LaRuche.i18n.t('help.majAJour');
       }
     }catch(e){
+      // Le message de l'exception, et pas une phrase choisie d'avance: ce filet
+      // a deja cache une faute de code en la faisant passer pour une coupure
+      // reseau, et personne n'avait de raison d'aller regarder ailleurs.
       zone.className = 'help-maj-etat';
-      zone.textContent = LaRuche.i18n.t('help.majEchec');
+      zone.textContent = LaRuche.i18n.t('help.majEchec') +
+        ' (' + String((e && e.message) || e).slice(0, 140) + ')';
     }finally{
       btn.disabled = false;
       btn.classList.remove('help-maj-cherche');
@@ -4022,7 +4131,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

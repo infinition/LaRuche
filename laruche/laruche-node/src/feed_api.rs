@@ -373,5 +373,9 @@ pub(crate) async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
         "prompt_extraction": laruche_essaim::butinage_pont::prompt_extraction_defaut(),
         "prompt_planning": laruche_essaim::prompt::section_planification(),
         "prompt_reine": laruche_essaim::reine_live::prompt_reine_defaut(),
+        // Le socle de la table ronde. Sans lui, l'editeur de `system.constitution`
+        // tombait sur la valeur par defaut de la chaine, l'identite, et proposait
+        // donc d'enregistrer le mauvais texte a la place des regles communes.
+        "constitution": laruche_essaim::deliberation::CONSTITUTION,
     }))
 }

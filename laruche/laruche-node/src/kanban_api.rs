@@ -29,7 +29,15 @@ pub(crate) async fn api_kanban_create(
         .filter(|s| !s.trim().is_empty());
     let log_title = title.clone();
     let mut board = state.kanban_board.write().await;
-    board.create(title, description, idempotency_key, profile_id, model, channel);
+    let tache = board.create(title, description, idempotency_key, profile_id, model, channel);
+    // La colonne d'arrivee, quand elle est demandee. Une tache naissait toujours
+    // dans Todo, et seul Ready est releve: creer directement dans la colonne
+    // voulue evite un aller-retour a la souris pour la chose la plus courante.
+    if let Some(vise) = body["status"].as_str().and_then(statut_depuis_str) {
+        if vise != laruche_kanban::TaskStatus::Todo {
+            board.change_status(tache.id, vise);
+        }
+    }
     drop(board);
     laruche_essaim::feed_journal::record(
         "User",
@@ -135,6 +143,20 @@ pub(crate) async fn api_kanban_default_channel_set(
     StatusCode::OK
 }
 
+/// Le nom d'une colonne, tel que l'interface l'envoie, vers son statut.
+fn statut_depuis_str(v: &str) -> Option<laruche_kanban::TaskStatus> {
+    Some(match v {
+        "Triage" => laruche_kanban::TaskStatus::Triage,
+        "Todo" => laruche_kanban::TaskStatus::Todo,
+        "Ready" => laruche_kanban::TaskStatus::Ready,
+        "Running" => laruche_kanban::TaskStatus::Running,
+        "Blocked" => laruche_kanban::TaskStatus::Blocked,
+        "Done" => laruche_kanban::TaskStatus::Done,
+        "Archived" => laruche_kanban::TaskStatus::Archived,
+        _ => return None,
+    })
+}
+
 /// PUT /api/kanban/:id/status - update status
 pub(crate) async fn api_kanban_update_status(
     State(state): State<Arc<AppState>>,
@@ -142,16 +164,9 @@ pub(crate) async fn api_kanban_update_status(
     axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
 ) -> StatusCode {
     if let Ok(uuid) = Uuid::parse_str(&id) {
-        let status_str = body["status"].as_str().unwrap_or("");
-        let status = match status_str {
-            "Triage" => laruche_kanban::TaskStatus::Triage,
-            "Todo" => laruche_kanban::TaskStatus::Todo,
-            "Ready" => laruche_kanban::TaskStatus::Ready,
-            "Running" => laruche_kanban::TaskStatus::Running,
-            "Blocked" => laruche_kanban::TaskStatus::Blocked,
-            "Done" => laruche_kanban::TaskStatus::Done,
-            "Archived" => laruche_kanban::TaskStatus::Archived,
-            _ => return StatusCode::BAD_REQUEST,
+        let status = match body["status"].as_str().and_then(statut_depuis_str) {
+            Some(s) => s,
+            None => return StatusCode::BAD_REQUEST,
         };
         let mut board = state.kanban_board.write().await;
         if board.change_status(uuid, status) {

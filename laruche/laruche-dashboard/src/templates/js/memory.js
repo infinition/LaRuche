@@ -61,6 +61,7 @@ LaRuche.i18n.add({
   'memory.titlePlanning':         {fr:'Prompt Planification', en:'Planning Prompt'},
   'memory.titleReine':            {fr:'Prompt LaReine', en:'LaReine Prompt'},
   'memory.titleIdentity':         {fr:'Identite', en:'Identity'},
+  'memory.titleConstitution':     {fr:'Constitution', en:'Constitution'},
   'memory.soulEnabled':           {fr:'Activee', en:'Enabled'},
   'memory.soulDisabled':          {fr:'Desactivee', en:'Disabled'},
   'memory.systemProtectedAdmin':  {fr:'Gere par le systeme : l\'agent ne peut pas modifier ce contenu. Edition reservee a l\'administrateur ici.', en:'Managed by the system: the agent cannot modify this content. Editing reserved for the administrator here.'},
@@ -414,7 +415,7 @@ LaRuche.Memory = (function(){
     return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul'
         || id === 'system.prompt_curateur' || id === 'system.prompt_extraction'
         || id === 'system.prompt_planning' || id === 'system.prompt_reine'
-        || id === 'system.user';
+        || id === 'system.constitution' || id === 'system.user';
   }
 
   // inline SVG (inherit currentColor)
@@ -440,6 +441,7 @@ LaRuche.Memory = (function(){
     // built-in tool.
     plugin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/></svg>',
     mcp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>',
+    constitution:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M7 21h10"/><path d="M4 7h16"/><path d="M4 7l-2 6a3 3 0 0 0 6 0z"/><path d="M20 7l2 6a3 3 0 0 1-6 0z"/></svg>',
     // Behavior shared the root's gear, so two rows of the same branch looked alike.
     // A compass: the rules that keep a heading.
     comportement:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>'
@@ -460,6 +462,7 @@ LaRuche.Memory = (function(){
     if(id === 'system.prompt_extraction') return SVG.consolidation;
     if(id === 'system.prompt_planning') return SVG.planning;
     if(id === 'system.prompt_reine') return SVG.reine;
+    if(id === 'system.constitution') return SVG.constitution;
     if(id === 'system.user') return SVG.user;
     if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return SVG.file;
     if(id === 'capacities.plugins' || id.indexOf('capacities.plugins.') === 0) return SVG.plugin;
@@ -750,6 +753,7 @@ LaRuche.Memory = (function(){
     // The editor already titled these properly; the tree was still showing the raw id.
     prompt_curateur:'memory.titleCurateur', prompt_extraction:'memory.titleExtraction',
     prompt_planning:'memory.titlePlanning', prompt_reine:'memory.titleReine',
+    constitution:'memory.titleConstitution',
     user:'memory.segUser'
   };
   MEM2_SEG_LABEL_KEYS[VNODE] = 'memory.segMemory';
@@ -1054,7 +1058,8 @@ LaRuche.Memory = (function(){
     'system.soul':'memory.titleSoul', 'system.behavior':'memory.titleBehavior',
     'system.prompt_curateur':'memory.titleCurateur', 'system.prompt_extraction':'memory.titleExtraction',
     'system.prompt_planning':'memory.titlePlanning', 'system.prompt_reine':'memory.titleReine',
-    'system.user':'memory.segUser', 'system.prompt':'memory.titleIdentity'
+    'system.user':'memory.segUser', 'system.prompt':'memory.titleIdentity',
+    'system.constitution':'memory.titleConstitution'
   };
 
   var _sysDefaults = null; // cache of default texts (hard-coded)
@@ -1093,6 +1098,7 @@ LaRuche.Memory = (function(){
               : (nodeId === 'system.prompt_extraction') ? (_sysDefaults.prompt_extraction || '')
               : (nodeId === 'system.prompt_planning') ? (_sysDefaults.prompt_planning || '')
               : (nodeId === 'system.prompt_reine') ? (_sysDefaults.prompt_reine || '')
+              : (nodeId === 'system.constitution') ? (_sysDefaults.constitution || '')
               : (_sysDefaults.identity || '');
     }
     // Title and icon come from the SAME source as the tree: the panel showed a terminal

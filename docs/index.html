@@ -596,6 +596,11 @@ p:last-child { margin-bottom: 0; }
 .fd-av.you { background: var(--amber); color: #09090b; }
 .fd-av.hive { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); }
 .fd-av.peer { background: var(--purple); color: #fff; }
+/* La ruche animee dans une pastille ronde. Le loader mesure 30 px et ses
+   hexagones pulsent jusqu'a 1.1: dans une pastille de 27 il debordait par les
+   quatre cotes. Il garde sa boite, on reduit ce qui est dessine. */
+.fd-av > .honeycomb-loader, .tg-hd .av > .honeycomb-loader { transform: scale(.66); }
+.fd-av, .tg-hd .av { overflow: hidden; }
 .fd-bd { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
 .fd-bd b { color: var(--text); font-weight: 600; }
 .fd-meta { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
@@ -1629,7 +1634,7 @@ cargo run --release -p laruche-bureau</pre>
       <div class="cta" style="margin-top:0">
         <a class="btn btn--primary" href="https://github.com/infinition/LaRuche/releases/latest">Get LaRuche</a>
         <a class="btn" href="wiki.html">Read the docs</a>
-        <a class="btn" href="https://github.com/infinition/LaRuche/blob/main/ROADMAP.md">Read the roadmap</a>
+        <a class="btn" href="https://github.com/infinition/LaRuche/blob/main/CHANGELOG.md">Read the changelog</a>
       </div>
     </div>
   </section>

@@ -1044,7 +1044,7 @@ async fn main() -> Result<()> {
         (
             "system.constitution",
             "Constitution",
-            "Regles communes a tous les specialistes de la table ronde (vide = socle du code)",
+            "Shared rules for every Table Ronde specialist (empty = code baseline, hot-reload)",
         ),
     ] {
         let _ = memoire

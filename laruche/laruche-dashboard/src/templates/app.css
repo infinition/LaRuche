@@ -3100,6 +3100,12 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 /* Pendant un glisser, la cible vide se signale: sinon on depose dans une
    bande de trois centimetres sans savoir si elle accepte. */
 .kb-col-vide:hover { border-color: var(--amber-dim); background: rgba(245,158,11,0.05); }
+/* La colonne sous la carte portee. Sans ce retour, on lache a l'aveugle. */
+.kb-survol { border-color: var(--amber) !important; background: rgba(245,158,11,0.10) !important; }
+/* Pendant un glissement, une colonne vide reprend du corps: repliee sur son
+   titre, elle offrait une cible de vingt pixels de haut. */
+.kb-glisse .kb-col-vide .kb-col-corps { display: block; min-height: 44px; }
+.kb-glisse .kb-col-vide { flex: 1 1 200px; }
 
 .kb-col-hdr {
   display: flex; align-items: center; justify-content: center; gap: 6px;
