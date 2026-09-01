@@ -74,6 +74,7 @@
     '  0%{opacity:0;transform:translate(0,0) scale(-.6,.6) rotate(8deg)}',
     '  18%{opacity:.95}',
     '  100%{opacity:0;transform:translate(16px,-38px) scale(-1.18,1.18) rotate(-10deg)}}',
+    '.abeille-titre.eteinte{display:none}',
     '@media (prefers-reduced-motion:reduce){.abeille-titre.dort .bee,.lr-songe{animation:none}.lr-songe{display:none}}'
   ].join('');
   (function(){
@@ -90,6 +91,20 @@
      donc de la ou celle de la vue qui s'en va en etait, plutot que de reapparaitre
      dans un coin. */
   var dernierPoint = null;
+
+  /* L'interrupteur.
+   *
+   * Une abeille qui traverse le champ de vision est charmante la premiere fois
+   * et genante la dixieme, surtout en train de lire. Le choix se prend dans la
+   * barre du haut et tient d'une visite a l'autre.
+   *
+   * Eteinte, elle est retiree de la mise en page: sa boite fait alors zero de
+   * large, ce que le protocole des rencontres lit deja comme une absence. Rien
+   * d'autre a debrancher de ce cote. */
+  var CLE = 'laruche.abeille';
+  var allumee = true;
+  try { allumee = localStorage.getItem(CLE) !== '0'; } catch (e) {}
+  var reprises = [];
 
   function installer(el) {
     if (!el || el.dataset.vivante) return;
@@ -311,7 +326,16 @@
     }) : null;
 
     /* ── La boucle ──────────────────────────────────────────────────────── */
+    var enVol = false;
+
+    function reprendre() {
+      if (allumee && !LENT && !enVol) { enVol = true; requestAnimationFrame(boucle); }
+    }
+    reprises.push(reprendre);
+
     function boucle() {
+      if (!allumee) { enVol = false; return; }
+
       // Vue detachee: la navigation douce garde son DOM de cote pendant qu'on
       // lit l'autre page. La boucle reste en vie, mais ne calcule rien, et
       // l'abeille reprend exactement ou elle en etait si la vue revient.
@@ -447,10 +471,12 @@
       requestAnimationFrame(boucle);
     }
 
-    if (!LENT) requestAnimationFrame(boucle);
+    el.classList.toggle('eteinte', !allumee);
+    reprendre();
   }
 
   function demarrer() {
+    cablerBascule();
     var els = document.querySelectorAll('.abeille-titre');
     for (var i = 0; i < els.length; i++) installer(els[i]);
   }
@@ -459,5 +485,40 @@
 
   // La navigation douce rappelle `demarrer` apres chaque echange de vue: les
   // abeilles deja installees sont reconnues et laissees tranquilles.
-  window.LaRucheAbeille = { demarrer: demarrer };
+  function reglage(actif) {
+    allumee = !!actif;
+    try { localStorage.setItem(CLE, allumee ? '1' : '0'); } catch (e) {}
+    var els = document.querySelectorAll('.abeille-titre');
+    for (var i = 0; i < els.length; i++) els[i].classList.toggle('eteinte', !allumee);
+    for (var j = 0; j < reprises.length; j++) reprises[j]();
+    peindreBascule();
+    return allumee;
+  }
+
+  /* Le bouton de la barre du haut. Il est cable ici et non dans chaque page:
+     les deux barres sont identiques a l'attribut pres, et la navigation douce
+     rappelle `demarrer` apres chaque echange de vue. */
+  function peindreBascule() {
+    var b = document.getElementById('bascule-abeille');
+    if (!b) return;
+    b.setAttribute('aria-pressed', allumee ? 'true' : 'false');
+    b.classList.toggle('eteinte', !allumee);
+    var texte = allumee ? 'Hide the bee' : 'Show the bee';
+    b.title = texte;
+    b.setAttribute('aria-label', texte);
+  }
+
+  function cablerBascule() {
+    var b = document.getElementById('bascule-abeille');
+    if (!b || b.dataset.cable) return;
+    b.dataset.cable = '1';
+    b.addEventListener('click', function () { reglage(!allumee); });
+    peindreBascule();
+  }
+
+  window.LaRucheAbeille = {
+    demarrer: demarrer,
+    reglage: reglage,
+    active: function () { return allumee; }
+  };
 })();

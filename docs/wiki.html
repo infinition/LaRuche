@@ -59,6 +59,20 @@ a:hover { text-decoration:underline; }
 .topbar .lnk { padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius);
   font-size:13px; color:var(--text-dim); transition:border-color var(--transition-fast), color var(--transition-fast); }
 .topbar .lnk:hover { border-color:var(--amber-dim); color:var(--amber); text-decoration:none; }
+/* L'interrupteur de l'abeille. Meme boite que les liens voisins, l'emoji tient
+   lieu d'etiquette. Eteint, il reste lisible mais cesse de se presenter comme
+   actif: c'est un reglage, pas une decoration. */
+.topbar .bascule-abeille { background: none; cursor: pointer; font-family: inherit;
+  font-size: 15px; line-height: 1; padding: 5px 9px; }
+.topbar .bascule-abeille.eteinte { opacity: .4; filter: grayscale(1); }
+.topbar .bascule-abeille.eteinte:hover { opacity: .75; }
+/* Sous 560px la barre n'a plus la place de tout porter, et elle debordait deja
+   avant l'interrupteur. Le lien Home fait double emploi avec le logo, qui mene
+   a l'accueil, et la puce WIKI avec le titre de la page. */
+@media (max-width:560px) {
+  .topbar .inner { gap:10px; }
+  .topbar .lnk[href="index.html"], .brand .tag { display:none; }
+}
 .burger { display:none; background:none; border:1px solid var(--border); border-radius:var(--radius);
   color:var(--text-dim); padding:6px 10px; cursor:pointer; font:inherit; font-size:13px; }
 
@@ -269,6 +283,8 @@ html.lr-haut-visible #clear-highlight-btn { bottom:74px; }
     <span class="spacer"></span>
     <a class="lnk" href="index.html">Home</a>
     <a class="lnk" href="https://github.com/infinition/LaRuche">GitHub</a>
+    <button class="lnk bascule-abeille" id="bascule-abeille" type="button"
+            aria-pressed="true" title="Hide the bee" aria-label="Hide the bee">&#128029;</button>
   </div>
 </header>
 

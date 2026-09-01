@@ -115,6 +115,13 @@ p:last-child { margin-bottom: 0; }
   transition: border-color var(--transition-fast), color var(--transition-fast);
 }
 .topbar .ghost:hover { border-color: var(--amber-dim); color: var(--amber); }
+/* L'interrupteur de l'abeille. Meme boite que les liens voisins, l'emoji tient
+   lieu d'etiquette. Eteint, il reste lisible mais cesse de se presenter comme
+   actif: c'est un reglage, pas une decoration. */
+.topbar .bascule-abeille { background: none; cursor: pointer; font-family: inherit;
+  font-size: 15px; line-height: 1; padding: 5px 9px; }
+.topbar .bascule-abeille.eteinte { opacity: .4; filter: grayscale(1); }
+.topbar .bascule-abeille.eteinte:hover { opacity: .75; }
 
 /* ── Honeycomb loader, verbatim from app.css ─────────────────────────── */
 @keyframes pulse-hex { 0%, 100% { opacity: 0.2; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
@@ -812,6 +819,8 @@ footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
     </nav>
     <a class="ghost" href="wiki.html">Docs</a>
     <a class="ghost" href="https://github.com/infinition/LaRuche">GitHub</a>
+    <button class="ghost bascule-abeille" id="bascule-abeille" type="button"
+            aria-pressed="true" title="Hide the bee" aria-label="Hide the bee">&#128029;</button>
   </div>
 </header>
 
