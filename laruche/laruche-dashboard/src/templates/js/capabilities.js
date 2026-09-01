@@ -46,6 +46,11 @@ LaRuche.i18n.add({
   'capabilities.kindMission':   { fr:'Mission',           en:'Mission' },
   'capabilities.kindWatcher':   { fr:'Watcher',           en:'Watcher' },
   'capabilities.kindDm':        { fr:'DM',                en:'DM' },
+  'capabilities.feedVide':       {fr:'Flux vide. Ce qui arrive ensuite s\'affichera.',
+                                  en:'Feed cleared. What comes next will show.'},
+  'capabilities.feedMasque':     {fr:'Les evenements anterieurs sont masques.',
+                                  en:'Earlier events are hidden.'},
+  'capabilities.feedRevoirTout': {fr:'Tout revoir', en:'Show them again'},
   'capabilities.you':           { fr:'Vous',              en:'You' },
   'capabilities.noMatchFilter': { fr:'Aucun événement ne correspond aux filtres actifs.', en:'No event matches the active filters.' },
   'capabilities.filtersAll':    { fr:'tout',               en:'all' },
@@ -645,6 +650,54 @@ LaRuche.Feed = (function(){
     reRender();
   }
 
+  /* Vider le flux.
+   *
+   * Rien n'est SUPPRIME: le flux n'est pas une liste rangee quelque part, c'est
+   * une vue des mutations de la memoire et du journal. Les effacer pour nettoyer
+   * un affichage reviendrait a perdre l'historique de la memoire pour ranger une
+   * colonne. On pose donc une borne, gardee localement: tout ce qui precede est
+   * masque, tout ce qui arrive ensuite s'affiche. Le bouton se reprend d'un
+   * clic tant qu'on n'a pas recharge.
+   */
+  var _borne = (function(){ try{ return parseInt(localStorage.getItem('lr_feed_borne')||'0',10)||0; }catch(e){ return 0; } })();
+
+  /* Quand la borne masque quelque chose, on le DIT, avec de quoi revenir. Un
+     flux vide sans explication ressemble a une panne. */
+  function bandeauBorne(){
+    if(!_borne) return '';
+    return '<div class="fd-borne" style="text-align:center;padding:8px 10px;font-size:11px;color:var(--text-muted)">'+
+      LaRuche.i18n.t('capabilities.feedMasque')+
+      ' <a href="#" onclick="event.preventDefault();LaRuche.Feed.revoirTout()" style="color:var(--amber)">'+
+      LaRuche.i18n.t('capabilities.feedRevoirTout')+'</a></div>';
+  }
+
+  function viderFlux(){
+    _borne = Date.now();
+    try{ localStorage.setItem('lr_feed_borne', String(_borne)); }catch(e){}
+    lastSig = '';
+    render(lastEvents);
+    LaRuche.Toast.show(LaRuche.i18n.t('capabilities.feedVide'), 'ok');
+  }
+
+  function revoirToutLeFlux(){
+    _borne = 0;
+    try{ localStorage.removeItem('lr_feed_borne'); }catch(e){}
+    lastSig = '';
+    render(lastEvents);
+  }
+
+  /* L'evenement est-il posterieur a la borne ? Les horodatages arrivent en
+     secondes ou en millisecondes selon la source: on ramene tout au meme etalon
+     plutot que de comparer des pommes et des poires. */
+  function apresLaBorne(ev){
+    if(!_borne) return true;
+    var t = ev && ev.ts;
+    if(t === undefined || t === null) return true;
+    if(typeof t === 'string'){ var d = Date.parse(t); if(isNaN(d)) return true; t = d; }
+    if(t < 1e12) t = t * 1000;      // secondes -> millisecondes
+    return t >= _borne;
+  }
+
   function passFilter(ev){
     var kind = kindOf(ev);
     if(KINDS_CANAUX[kind]) kind = 'canaux';
@@ -848,9 +901,9 @@ LaRuche.Feed = (function(){
     lastEvents = events || [];
     // client-side filtering on already loaded events
     var shown = [];
-    for(var k=0;k<lastEvents.length;k++){ if(passFilter(lastEvents[k])) shown.push(lastEvents[k]); }
+    for(var k=0;k<lastEvents.length;k++){ if(passFilter(lastEvents[k]) && apresLaBorne(lastEvents[k])) shown.push(lastEvents[k]); }
     // signature includes the filter state to re-render when they change
-    var sig = 'f:'+(filters.memory?1:0)+(filters.agent?1:0)+(filters.cron?1:0)+(filters.mission?1:0)+(filters.watcher?1:0)+(filters.user?1:0)+(filters.laruche?1:0)+';n:'+shown.length;
+    var sig = 'b:'+_borne+';f:'+(filters.memory?1:0)+(filters.agent?1:0)+(filters.cron?1:0)+(filters.mission?1:0)+(filters.watcher?1:0)+(filters.user?1:0)+(filters.laruche?1:0)+';n:'+shown.length;
     for(var i=0;i<shown.length;i++){ var e=shown[i]; sig += '|'+e.ts+e.actor+e.action+e.object+(e.ref||''); }
     if(sig === lastSig) return; // no change: avoids flicker
     lastSig = sig;
@@ -887,6 +940,7 @@ LaRuche.Feed = (function(){
       };
     });
     // preserve scroll position (unless we were at the very top → stay at top to see recent items)
+    if(_borne){ list.insertAdjacentHTML('beforeend', bandeauBorne()); }
     list.scrollTop = atTop ? 0 : prevScroll;
   }
 
@@ -1041,7 +1095,7 @@ LaRuche.Feed = (function(){
     setTimeout(poll, 1500); // fetch the response quickly
   }
 
-  return { init:init, toggle:toggle, open:openDrawer, close:closeDrawer, toggleAnchor:toggleAnchor, ask:ask };
+  return { init:init, toggle:toggle, open:openDrawer, close:closeDrawer, toggleAnchor:toggleAnchor, ask:ask, viderFlux:viderFlux, revoirTout:revoirToutLeFlux };
 })();
 
 // ========================= Mesh messaging (Phase 4) =========================

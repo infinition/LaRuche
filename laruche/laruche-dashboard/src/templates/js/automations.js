@@ -46,6 +46,10 @@ LaRuche.i18n.add({
   'automations.cadenceLabel':       {fr:'Cadence : ', en:'Schedule: '},
   'automations.supprimerConfirm':   {fr:'Supprimer définitivement ?', en:'Delete permanently?'},
   'automations.supprime':           {fr:'Supprimé', en:'Deleted'},
+  'automations.lancerMaintenant':   {fr:'Lancer maintenant', en:'Run now'},
+  'automations.lancement':          {fr:'Lancement...', en:'Starting...'},
+  'automations.lance':              {fr:'Lance', en:'Started'},
+  'automations.echecLancement':     {fr:'Le lancement a echoue', en:'Could not start it'},
   'automations.echecSuppression':   {fr:'Échec suppression', en:'Delete failed'},
   'automations.agenda':             {fr:'Agenda', en:'Agenda'},
   'automations.gantt':              {fr:'Gantt', en:'Gantt'},
@@ -607,13 +611,20 @@ LaRuche.Timeline = (function(){
   function carteDetailHtml(m){
     if(!m) return '';
     var occHtml = m.when ? '<div style="color:var(--text-dim)">'+LaRuche.i18n.t('automations.occurrence')+'<b style="color:#fff">'+fmtFull(m.when)+'</b>'+(m.when<Date.now()?LaRuche.i18n.t('automations.passee'):LaRuche.i18n.t('automations.aVenir'))+'</div>' : '';
+    // Lancer sans attendre l'echeance. Une tache planifiee ne se verifie pas
+    // autrement qu'en attendant l'heure dite, ce qui rend une erreur de prompt
+    // penible a corriger: on la lance, on lit le resultat, on recommence.
+    var lancer = '<button class="tl-btn tl-btn--active" onclick="LaRuche.Timeline.ganttLancer(\'{K}\',\'{I}\')">'+
+      LaRuche.i18n.t('automations.lancerMaintenant')+'</button>';
     var actions = '';
     if(m.kind==='cron' && m.id){
-      actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
+      actions = '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+
+        lancer.replace('{K}','cron').replace('{I}', LaRuche.Utils.esc(m.id))+
         '<button class="tl-btn" onclick="LaRuche.Router.go(\'automations\');setTimeout(function(){var b=document.querySelector(\'#autoTabsBar [data-tab=cron]\');if(b)b.click();},60)">'+LaRuche.i18n.t('automations.editerOngletCron')+'</button>'+
         '<button class="tl-btn tl-btn--danger" onclick="LaRuche.Timeline.ganttDelete(\'cron\',\''+LaRuche.Utils.esc(m.id)+'\')">'+LaRuche.i18n.t('automations.supprimer')+'</button></div>';
     } else if(m.kind==='mission' && m.slug){
-      actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
+      actions = '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+
+        lancer.replace('{K}','mission').replace('{I}', LaRuche.Utils.esc(m.slug))+
         '<button class="tl-btn tl-btn--danger" onclick="LaRuche.Timeline.ganttDelete(\'mission\',\''+LaRuche.Utils.esc(m.slug)+'\')">'+LaRuche.i18n.t('automations.supprimerMission')+'</button></div>';
     }
     var ico = m.kind==='cron' ? '⏰ ' : (m.kind==='watcher' ? '👁 ' : '👑 ');
@@ -635,6 +646,29 @@ LaRuche.Timeline = (function(){
     var ln = (window._tlGanttLanes||{})[li];
     if(ln) ganttFiltrer((ln.kind||'')+':'+(ln.id||ln.slug||ln.name||''));
   }
+  /* Le lancement immediat. Les deux routes existaient cote noeud, personne ne
+     les appelait depuis cette vue. */
+  function ganttLancer(kind, idOrSlug){
+    var url = kind==='mission'
+      ? '/api/missions/'+encodeURIComponent(idOrSlug)+'/run'
+      : '/api/cron/'+encodeURIComponent(idOrSlug)+'/run';
+    LaRuche.Toast.show(LaRuche.i18n.t('automations.lancement'), 'info');
+    fetch(LaRuche.API.base+url, {method:'POST'})
+      .then(function(r){ return r.json().catch(function(){ return {}; }); })
+      .then(function(d){
+        // Le noeud rend `started`, ou un `error` qu'on montre tel quel: une
+        // execution refusee pour cause de droits ne doit pas ressembler a une
+        // execution partie.
+        if(d && (d.status==='started' || d.status==='ok')){
+          LaRuche.Toast.show(LaRuche.i18n.t('automations.lance'), 'ok');
+          setTimeout(reload, 1200);
+        } else {
+          LaRuche.Toast.show((d && d.error) ? String(d.error) : LaRuche.i18n.t('automations.echecLancement'), 'err');
+        }
+      })
+      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('automations.echecLancement'), 'err'); });
+  }
+
   function ganttDelete(kind, idOrSlug){
     if(!confirm(LaRuche.i18n.t('automations.supprimerConfirm'))) return;
     var url = kind==='mission' ? '/api/missions/'+encodeURIComponent(idOrSlug) : '/api/cron/'+encodeURIComponent(idOrSlug);
@@ -703,7 +737,7 @@ LaRuche.Timeline = (function(){
   }
 
   return { render:render, reload:reload, nextCron:nextCron, humanCron:humanCron, occurrencesIn:occurrencesIn,
-    setView:setView, ganttZoom:ganttZoom, ganttRecenter:ganttRecenter, ganttMark:ganttMark, ganttDelete:ganttDelete, ganttFiltrer:ganttFiltrer };
+    setView:setView, ganttZoom:ganttZoom, ganttRecenter:ganttRecenter, ganttMark:ganttMark, ganttDelete:ganttDelete, ganttLancer:ganttLancer, ganttFiltrer:ganttFiltrer };
 })();
 
 /* ── Automations (Cron · Watchers · Kanban · Blueprints · Timeline) ── */

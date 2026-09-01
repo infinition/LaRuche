@@ -2100,6 +2100,75 @@ fn systeme_en_queue_pour(config: &EssaimConfig) -> bool {
     }
 }
 
+/// Le trajet d'une image RENDUE PAR UN OUTIL, de bout en bout.
+///
+/// Une capture ne peut pas voyager dans le message `tool` qui la produit: les
+/// fournisseurs compatibles OpenAI refusent une image hors d'un message `user`.
+/// `recolte.rs` la repousse donc dans un message utilisateur juste apres
+/// l'observation, et c'est ce message-la qui doit ressortir d'ici avec ses
+/// pieces intactes.
+///
+/// Ce chemin s'etait deja casse une fois en silence, et le symptome ne
+/// ressemble a rien: le modele repond poliment qu'il n'a pas de vision.
+#[cfg(test)]
+mod tests_image_outil {
+    use super::*;
+    use but::messagerie::{Message, Piece};
+
+    fn capture() -> Piece {
+        Piece {
+            kind: "image".into(),
+            mime: "image/png".into(),
+            data: "AAAAdGVzdA==".into(),
+        }
+    }
+
+    fn image_du_message(v: &serde_json::Value) -> Option<&str> {
+        v.get("attachments")?
+            .as_array()?
+            .iter()
+            .find(|a| a.get("kind").and_then(|k| k.as_str()) == Some("image"))?
+            .get("data")?
+            .as_str()
+    }
+
+    #[test]
+    fn une_capture_rendue_par_un_outil_survit_a_la_conversion() {
+        let msgs = vec![
+            Message::utilisateur("prends une capture"),
+            Message::assistant("je regarde"),
+            Message::observation("browser", "Screenshot of the current page."),
+            Message::utilisateur_multimodal("[1 image(s) rendue(s) par browser.]", vec![capture()]),
+        ];
+        let out = convertir_messages(&msgs);
+        let porteur = out
+            .iter()
+            .find(|m| image_du_message(m).is_some())
+            .expect("aucun message ne porte l'image apres conversion");
+        assert_eq!(porteur["role"], "user", "l'image doit voyager en `user`");
+        assert_eq!(image_du_message(porteur), Some("AAAAdGVzdA=="));
+    }
+
+    /// Le cas reel: l'observation arrive en repli texte, donc en `user`, et se
+    /// fait fusionner avec le message qui porte l'image. La fusion doit garder
+    /// les pieces, sinon l'image disparait pile dans le cas courant.
+    #[test]
+    fn la_fusion_avec_l_observation_garde_l_image() {
+        let msgs = vec![
+            Message::utilisateur("prends une capture"),
+            Message::observation("browser", "Screenshot of the current page."),
+            Message::utilisateur_multimodal("[1 image(s) rendue(s) par browser.]", vec![capture()]),
+        ];
+        let out = convertir_messages(&msgs);
+        let n = out
+            .iter()
+            .filter(|m| image_du_message(m).is_some())
+            .count();
+        assert_eq!(n, 1, "exactement un message doit porter l'image: {out:#?}");
+    }
+
+}
+
 #[cfg(test)]
 mod tests_systeme_en_queue {
     use super::*;

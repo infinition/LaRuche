@@ -5331,6 +5331,10 @@
     "en": "Tool permissions (Click to choose)",
     "fr": "Permissions des outils (Cliquer pour choisir)"
   },
+  "shell.tipClearFeed": {
+    "en": "Clear the feed (hides what is already there)",
+    "fr": "Vider le flux (masque ce qui est déjà là)"
+  },
   "shell.tipPin": {
     "en": "Pin / unpin the panel",
     "fr": "Épingler / désépingler le panneau"
