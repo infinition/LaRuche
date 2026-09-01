@@ -1,6 +1,6 @@
 [package]
 name = "laruche-compaction"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 license = "MPL-2.0"
 description = "Compaction de conversations et stockage des gros resultats d'outils pour LaRuche."

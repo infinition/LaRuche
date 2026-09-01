@@ -1,6 +1,6 @@
 [package]
 name = "laruche-permissions"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 license = "MPL-2.0"
 description = "Moteur de permissions autonome pour LaRuche."
