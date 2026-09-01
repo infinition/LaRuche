@@ -1056,6 +1056,11 @@ impl Ordinateur {
                 // Ou va la frappe, LU AVANT de taper: apres, une fenetre a pu
                 // s'ouvrir, et on rapporterait la mauvaise.
                 let ou = ou_part_la_frappe();
+                // `mut` et lecture n'existent que sous Windows, ou le bloc
+                // `hors_datteinte` ci-dessous ecrit dedans. Ailleurs ce bloc est
+                // retire par cfg, et il ne reste qu'une variable que personne ne
+                // mute: le marquer ici plutot que de dedoubler la fonction.
+                #[allow(unused_mut)]
                 let mut avertissement = String::new();
                 if let Some((nom, pid)) = fenetre_active() {
                     if pid == std::process::id() {
@@ -1081,6 +1086,9 @@ impl Ordinateur {
                     // deux cents caracteres ce serait une punition, pas une
                     // demonstration.
                     let par_char = if texte.chars().count() > 60 { 18 } else { 32 };
+                    // `ecrits` ne sert qu'au message du coupe-circuit, lui aussi
+                    // sous cfg(windows).
+                    #[allow(unused_variables)]
                     for (ecrits, c) in texte.chars().enumerate() {
                         // Le coupe-circuit se consulte a CHAQUE caractere. Une
                         // longue frappe est precisement ce qu'on veut pouvoir

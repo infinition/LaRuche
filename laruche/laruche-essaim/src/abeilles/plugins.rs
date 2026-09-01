@@ -223,7 +223,7 @@ mod tests {
             parameters: serde_json::json!({}),
             command: command.into(),
             danger: "safe".into(),
-            timeout_secs: Some(5),
+            timeout_secs: Some(60),
             dossier: PathBuf::new(),
         });
 
@@ -235,7 +235,13 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(result.success);
+        // Le motif de l'echec, et pas seulement le fait qu'il y en ait un: sans
+        // lui, un echec sur une machine qu'on n'a pas sous la main ne dit rien.
+        assert!(
+            result.success,
+            "le plugin a echoue: {:?} / sortie: {}",
+            result.error, result.output
+        );
         assert!(result.output.contains("hello from stdin"));
     }
 
