@@ -2065,14 +2065,98 @@ fn protocole_texte_pour(config: &EssaimConfig) -> bool {
 /// "System message must be at the beginning". Those backends get the same tail text
 /// merged into the last user turn, which keeps both the position and the recency.
 ///
+/// Et non plus pour un service distant qui parle le dialecte OpenAI sans etre
+/// OpenAI. `provider: "openai"` decrit un DIALECTE, pas une maison: DeepSeek,
+/// Mistral, Groq et OpenRouter se declarent tous ainsi. DeepSeek accepte ce
+/// message en queue tant que le tour ne porte pas d'image, et refuse des qu'il y
+/// en a une, avec une erreur qui parle de JSON et pas de structure:
+///
+/// ```text
+/// 400 Failed to parse the request body as JSON:
+///     messages[11].content: EOF while parsing a string at line 1 column 92842
+/// ```
+///
+/// 92842 etait la taille exacte du corps, et ce corps se relisait comme du JSON
+/// parfaitement valide de notre cote. On a donc cherche une troncature pendant
+/// des heures, et on a rabote la taille des images pour rien: le message
+/// `system` en douzieme position, apres l'image, etait la seule anomalie. La
+/// documentation de DeepSeek le dit d'ailleurs a sa facon, en precisant que les
+/// images ne voyagent que dans des messages `user`.
+///
+/// L'adresse tranche donc, comme pour les backends locaux, et le texte part
+/// fusionne dans le dernier tour utilisateur, ce qui garde sa position et sa
+/// fraicheur.
+///
 /// Deliberately its own function rather than the negation of `protocole_texte_pour`:
 /// the two happen to agree today, they answer different questions.
 fn systeme_en_queue_pour(config: &EssaimConfig) -> bool {
-    !backend_local(config)
-        && matches!(
-            config.provider.as_str(),
-            "openai" | "miel" | "anthropic" | "codex"
-        )
+    if backend_local(config) {
+        return false;
+    }
+    match config.provider.as_str() {
+        "openai" => crate::providers::est_openai_officiel(config.api_base.as_deref()),
+        "miel" | "anthropic" | "codex" => true,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests_systeme_en_queue {
+    use super::*;
+
+    fn cfg(provider: &str, base: Option<&str>) -> EssaimConfig {
+        EssaimConfig {
+            provider: provider.to_string(),
+            api_base: base.map(str::to_string),
+            ..EssaimConfig::default()
+        }
+    }
+
+    #[test]
+    fn openai_sans_base_garde_le_systeme_en_queue() {
+        assert!(systeme_en_queue_pour(&cfg("openai", None)));
+        assert!(systeme_en_queue_pour(&cfg(
+            "openai",
+            Some("https://api.openai.com/v1")
+        )));
+    }
+
+    /// Le cas qui a coute des heures: un profil DeepSeek se declare `openai`.
+    #[test]
+    fn deepseek_declare_openai_ne_le_garde_pas() {
+        assert!(!systeme_en_queue_pour(&cfg(
+            "openai",
+            Some("https://api.deepseek.com")
+        )));
+    }
+
+    #[test]
+    fn les_autres_compatibles_openai_non_plus() {
+        for base in [
+            "https://api.mistral.ai/v1",
+            "https://api.groq.com/openai/v1",
+            "https://openrouter.ai/api/v1",
+        ] {
+            assert!(
+                !systeme_en_queue_pour(&cfg("openai", Some(base))),
+                "{base} ne doit pas recevoir de system en queue"
+            );
+        }
+    }
+
+    #[test]
+    fn un_serveur_local_ne_le_garde_pas() {
+        assert!(!systeme_en_queue_pour(&cfg(
+            "openai",
+            Some("http://127.0.0.1:8001/v1")
+        )));
+    }
+
+    #[test]
+    fn anthropic_et_codex_le_gardent() {
+        assert!(systeme_en_queue_pour(&cfg("anthropic", None)));
+        assert!(systeme_en_queue_pour(&cfg("codex", None)));
+    }
 }
 
 /// Is the model served from THIS machine?

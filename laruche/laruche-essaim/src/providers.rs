@@ -1854,6 +1854,33 @@ fn normalize_base_url(url: &str) -> String {
     }
 }
 
+/// L'adresse designe-t-elle OpenAI lui-meme ?
+///
+/// `provider: "openai"` ne veut pas dire OpenAI: il veut dire "parle le dialecte
+/// OpenAI". DeepSeek, Mistral, Groq, OpenRouter et un llama.cpp sur le reseau se
+/// declarent tous ainsi. Le nom ne dit donc rien de ce que l'endpoint tolere;
+/// l'adresse, si.
+///
+/// Une base vide vaut OpenAI: c'est la valeur par defaut du client.
+pub fn est_openai_officiel(base: Option<&str>) -> bool {
+    let Some(b) = base.map(str::trim).filter(|b| !b.is_empty()) else {
+        return true;
+    };
+    let hote = b
+        .to_lowercase()
+        .split("//")
+        .nth(1)
+        .unwrap_or(b)
+        .split('/')
+        .next()
+        .unwrap_or_default()
+        .split(':')
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    hote == "openai.com" || hote.ends_with(".openai.com")
+}
+
 pub fn is_local_base_url(url: &str) -> bool {
     let u = url.to_lowercase();
     if u.contains("localhost")

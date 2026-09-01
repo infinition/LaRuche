@@ -26,7 +26,18 @@ use std::sync::Arc;
 /// which is what a fork or a second build needs. `*` allows any extension, the
 /// behaviour this route had before, kept for anyone driving it from their own
 /// unpacked build without wanting to touch the manifest.
-const EXTENSION_ID: &str = "ahgfjacmpohglimmcfnlbeccdghpkboo";
+///
+/// Plusieurs identifiants, et non un seul, parce qu'une meme extension en a deux
+/// dans sa vie: celui que le champ `key` fige pour le chargement local, et celui
+/// que le Chrome Web Store attribue lors de la publication, qui n'est pas le
+/// meme et qu'on ne choisit pas. Avec un seul identifiant admis, l'extension
+/// installee depuis le Store se faisait refuser cette socket chez tout le monde,
+/// et la seule issue etait de poser une variable d'environnement que personne
+/// n'a de raison de connaitre.
+const EXTENSION_IDS: &[&str] = &[
+    // Chargement local, fige par le champ `key` du manifeste.
+    "ahgfjacmpohglimmcfnlbeccdghpkboo",
+];
 
 /// Only the LaRuche extension may take this socket.
 ///
@@ -65,7 +76,7 @@ fn origine_autorisee(headers: &axum::http::HeaderMap) -> bool {
     match std::env::var("LARUCHE_EXTENSION_ID") {
         Ok(liste) if liste.trim() == "*" => true,
         Ok(liste) if !liste.trim().is_empty() => liste.split(',').any(|a| a.trim() == id),
-        _ => id == EXTENSION_ID,
+        _ => EXTENSION_IDS.contains(&id),
     }
 }
 
@@ -81,15 +92,16 @@ pub(crate) async fn ws_navigateur_handler(
         // cause is usually a build whose id is not the pinned one.
         tracing::warn!(
             origin = ?headers.get(axum::http::header::ORIGIN),
-            attendu = EXTENSION_ID,
+            attendus = ?EXTENSION_IDS,
             "browser bridge: rejected a connection that is not the LaRuche extension"
         );
         return (
             axum::http::StatusCode::FORBIDDEN,
             axum::Json(serde_json::json!({
                 "error": format!(
-                    "this socket only accepts the LaRuche extension (id {EXTENSION_ID}); \
-                     set LARUCHE_EXTENSION_ID to allow another build"
+                    "this socket only accepts the LaRuche extension (ids {}); \
+                     set LARUCHE_EXTENSION_ID to allow another build",
+                    EXTENSION_IDS.join(", ")
                 )
             })),
         )
@@ -200,8 +212,11 @@ mod tests {
 
     #[test]
     fn accepte_l_extension_laruche() {
-        let h = avec_origine(&format!("chrome-extension://{EXTENSION_ID}"));
-        assert!(origine_autorisee(&h));
+        assert!(!EXTENSION_IDS.is_empty(), "aucun identifiant admis");
+        for id in EXTENSION_IDS {
+            let h = avec_origine(&format!("chrome-extension://{id}"));
+            assert!(origine_autorisee(&h), "{id} doit passer");
+        }
     }
 
     #[test]
