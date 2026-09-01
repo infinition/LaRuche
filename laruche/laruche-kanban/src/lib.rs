@@ -63,10 +63,25 @@ struct Disque {
     default_channel: Option<String>,
     #[serde(default = "delai_defaut")]
     delai_secs: u64,
+    #[serde(default)]
+    todo_actif: bool,
+    #[serde(default = "todo_periode_defaut")]
+    todo_periode_min: u64,
+    #[serde(default)]
+    todo_dernier: Option<DateTime<Utc>>,
 }
 
 fn delai_defaut() -> u64 {
     DELAI_DEFAUT
+}
+
+/// Une fois par jour. Une releve de la colonne A faire lance du travail sans
+/// que personne n'ait rien demande ce jour-la: la cadence par defaut doit etre
+/// celle qu'on remarque a peine, pas celle qui surprend.
+pub const TODO_PERIODE_DEFAUT_MIN: u64 = 1440;
+
+fn todo_periode_defaut() -> u64 {
+    TODO_PERIODE_DEFAUT_MIN
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +93,15 @@ pub struct KanbanBoard {
     /// Secondes entre deux releves de la colonne Ready par le repartiteur.
     #[serde(default = "delai_defaut")]
     delai_secs: u64,
+    /// La releve de la colonne A faire. Eteinte par defaut: une tache posee la
+    /// est une intention, pas un ordre, et elle ne doit se mettre a tourner que
+    /// si on l'a demande.
+    #[serde(default)]
+    todo_actif: bool,
+    #[serde(default = "todo_periode_defaut")]
+    todo_periode_min: u64,
+    #[serde(default)]
+    todo_dernier: Option<DateTime<Utc>>,
     #[serde(skip)]
     storage_path: PathBuf,
 }
@@ -88,6 +112,9 @@ impl KanbanBoard {
             tasks: HashMap::new(),
             default_channel: None,
             delai_secs: DELAI_DEFAUT,
+            todo_actif: false,
+            todo_periode_min: TODO_PERIODE_DEFAUT_MIN,
+            todo_dernier: None,
             storage_path: path.to_path_buf(),
         };
         board.load();
@@ -106,6 +133,9 @@ impl KanbanBoard {
             self.tasks = d.tasks;
             self.default_channel = d.default_channel;
             self.delai_secs = d.delai_secs;
+            self.todo_actif = d.todo_actif;
+            self.todo_periode_min = d.todo_periode_min;
+            self.todo_dernier = d.todo_dernier;
         } else if let Ok(tasks) = serde_json::from_str::<HashMap<Uuid, KanbanTask>>(&content) {
             self.tasks = tasks;
         }
@@ -119,6 +149,9 @@ impl KanbanBoard {
             tasks: self.tasks.clone(),
             default_channel: self.default_channel.clone(),
             delai_secs: self.delai_secs,
+            todo_actif: self.todo_actif,
+            todo_periode_min: self.todo_periode_min,
+            todo_dernier: self.todo_dernier,
         };
         if let Ok(content) = serde_json::to_string_pretty(&d) {
             let _ = fs::write(&self.storage_path, content);
@@ -133,6 +166,73 @@ impl KanbanBoard {
     /// Regle ce delai. Borne a une seconde au minimum: en dessous, le
     /// repartiteur passerait son temps a prendre un verrou d'ecriture sur le
     /// tableau pour ne rien y trouver.
+    /* ── La releve de la colonne A faire ──────────────────────────────────
+     *
+     * Elle ne LANCE rien elle-meme: elle fait passer les taches de A faire a
+     * Pret, et le repartiteur les prend une par une comme il le fait deja.
+     *
+     * C'est ce qui rend la chose simple. Un second executeur aurait sa propre
+     * boucle, sa propre question de concurrence, et sa propre facon de resoudre
+     * le fournisseur de chaque tache. En promouvant, tout cela reste ou c'est
+     * deja ecrit: chaque tache garde son profil, elles s'executent une a la
+     * fois, et on les voit s'aligner dans Pret au lieu de partir en silence.
+     */
+    pub fn todo_actif(&self) -> bool {
+        self.todo_actif
+    }
+
+    pub fn todo_periode_min(&self) -> u64 {
+        self.todo_periode_min.clamp(5, 60 * 24 * 30)
+    }
+
+    pub fn todo_dernier(&self) -> Option<DateTime<Utc>> {
+        self.todo_dernier
+    }
+
+    pub fn set_todo_releve(&mut self, actif: bool, periode_min: u64) {
+        self.todo_actif = actif;
+        self.todo_periode_min = periode_min.clamp(5, 60 * 24 * 30);
+        self.save();
+    }
+
+    /// L'echeance est-elle passee ? Une releve jamais faite est due tout de
+    /// suite: sinon activer le reglage ne se voit qu'au bout d'une periode, et
+    /// on croit que ca ne marche pas.
+    pub fn todo_est_du(&self, maintenant: DateTime<Utc>) -> bool {
+        if !self.todo_actif {
+            return false;
+        }
+        match self.todo_dernier {
+            None => true,
+            Some(d) => {
+                (maintenant - d).num_minutes() >= self.todo_periode_min() as i64
+            }
+        }
+    }
+
+    /// Fait passer les taches A faire dans Pret, les plus anciennes d'abord.
+    /// Rend le nombre promu.
+    pub fn promouvoir_todo(&mut self, maintenant: DateTime<Utc>) -> usize {
+        let mut ids: Vec<(DateTime<Utc>, Uuid)> = self
+            .tasks
+            .values()
+            .filter(|t| t.status == TaskStatus::Todo)
+            .map(|t| (t.created_at, t.id))
+            .collect();
+        ids.sort_by_key(|(d, _)| *d);
+        for (_, id) in &ids {
+            if let Some(t) = self.tasks.get_mut(id) {
+                t.status = TaskStatus::Ready;
+            }
+        }
+        // L'horodatage bouge meme quand la colonne est vide: sans cela, une
+        // colonne vide rend la releve due en permanence, et le journal se
+        // remplit d'une ligne par minute pour ne rien faire.
+        self.todo_dernier = Some(maintenant);
+        self.save();
+        ids.len()
+    }
+
     pub fn set_delai_secs(&mut self, secs: u64) {
         self.delai_secs = secs.clamp(1, 3600);
         self.save();

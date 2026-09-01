@@ -133,6 +133,52 @@ pub(crate) async fn api_kanban_interval_set(
     Json(serde_json::json!({ "seconds": secs }))
 }
 
+/// GET /api/kanban/todo_sweep - l'etat de la releve de la colonne A faire.
+pub(crate) async fn api_kanban_todo_get(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let b = state.kanban_board.read().await;
+    Json(serde_json::json!({
+        "actif": b.todo_actif(),
+        "periode_min": b.todo_periode_min(),
+        "dernier": b.todo_dernier(),
+    }))
+}
+
+/// POST /api/kanban/todo_sweep {actif, periode_min} - la regle.
+pub(crate) async fn api_kanban_todo_set(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let actif = body["actif"].as_bool().unwrap_or(false);
+    let periode = body["periode_min"]
+        .as_u64()
+        .unwrap_or(laruche_kanban::TODO_PERIODE_DEFAUT_MIN);
+    state.kanban_board.write().await.set_todo_releve(actif, periode);
+    // On rend la valeur RETENUE: elle est bornee, et l'interface doit afficher
+    // ce qui s'applique vraiment.
+    let b = state.kanban_board.read().await;
+    Json(serde_json::json!({
+        "actif": b.todo_actif(),
+        "periode_min": b.todo_periode_min(),
+        "dernier": b.todo_dernier(),
+    }))
+}
+
+/// POST /api/kanban/todo_sweep/now - la releve tout de suite, sans attendre
+/// l'echeance. Un reglage recurrent qu'on ne peut pas essayer sur le champ ne
+/// se regle qu'a l'aveugle.
+pub(crate) async fn api_kanban_todo_maintenant(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let n = state
+        .kanban_board
+        .write()
+        .await
+        .promouvoir_todo(chrono::Utc::now());
+    Json(serde_json::json!({ "promues": n }))
+}
+
 /// POST /api/kanban/default_channel {channel} - sets the board's default channel.
 pub(crate) async fn api_kanban_default_channel_set(
     State(state): State<Arc<AppState>>,

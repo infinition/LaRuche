@@ -351,6 +351,14 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             "/api/kanban/default_channel",
             get(kanban_api::api_kanban_default_channel_get).post(kanban_api::api_kanban_default_channel_set),
         )
+        .route(
+            "/api/kanban/todo_sweep",
+            get(kanban_api::api_kanban_todo_get).post(kanban_api::api_kanban_todo_set),
+        )
+        .route(
+            "/api/kanban/todo_sweep/now",
+            post(kanban_api::api_kanban_todo_maintenant),
+        )
         .route("/api/kanban", get(kanban_api::api_kanban_list).post(kanban_api::api_kanban_create))
         .route(
             "/api/kanban/:id",

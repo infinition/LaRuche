@@ -999,6 +999,40 @@ pub(crate) fn spawn_missions_tick(state: &Arc<AppState>) {
 // creation de la boucle: un reglage qui n'agit qu'apres un redemarrage n'est
 // pas un reglage, c'est un piege. Le regler a 2 secondes doit se sentir tout de
 // suite.
+/// La releve de la colonne A faire.
+///
+/// Elle ne lance rien: elle promeut les taches de A faire vers Pret, et le
+/// repartiteur ci-dessous les prend une par une avec le profil de chacune.
+/// Un seul chemin d'execution, donc une seule facon de se tromper.
+///
+/// Le tour de boucle est d'une minute, quelle que soit la cadence reglee: c'est
+/// l'echeance qui decide, pas le rythme du reveil, et une minute suffit pour
+/// une cadence qui se compte en heures.
+pub(crate) fn spawn_kanban_todo_sweeper(state: &Arc<AppState>) {
+    let etat = state.clone();
+    tokio::spawn(async move {
+        let mut tic = tokio::time::interval(std::time::Duration::from_secs(60));
+        tic.tick().await; // le premier tick est immediat: on le laisse passer
+        loop {
+            tic.tick().await;
+            let maintenant = chrono::Utc::now();
+            let du = etat.kanban_board.read().await.todo_est_du(maintenant);
+            if !du {
+                continue;
+            }
+            let n = etat.kanban_board.write().await.promouvoir_todo(maintenant);
+            if n > 0 {
+                info!(taches = n, "Kanban: colonne A faire relevee vers Pret");
+                let _ = etat.events.write().await.emit(
+                    laruche_events::EventKind::AgentStarted,
+                    "kanban_todo_sweeper",
+                    serde_json::json!({ "promues": n }),
+                );
+            }
+        }
+    });
+}
+
 pub(crate) fn spawn_kanban_dispatcher(state: &Arc<AppState>) {
     let kanban_state = state.clone();
     tokio::spawn(async move {

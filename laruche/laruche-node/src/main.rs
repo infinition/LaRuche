@@ -1318,6 +1318,7 @@ async fn main() -> Result<()> {
     background::spawn_missions_tick(&state);
 
     background::spawn_kanban_dispatcher(&state);
+    background::spawn_kanban_todo_sweeper(&state);
 
     background::spawn_idle_dream(&state);
 

@@ -67,6 +67,12 @@ Le kanban, la verification de mise a jour et le glisser-deposer des cartes vienn
   les ecrans avant de lire le nom de l'action: sur une machine sans affichage il
   echouait sur les moniteurs. Le nom est verifie d'abord, ce qui est aussi la bonne
   reponse a donner a une faute de frappe. Deux avertissements clippy corriges avec.
+- **Releve de la colonne A faire** (Missions / Kanban): a l'echeance reglee, les taches
+  de A faire passent dans Pret, les plus anciennes d'abord, et la releve de Pret les
+  execute une par une avec le fournisseur de chacune. Elle ne lance rien elle-meme:
+  promouvoir plutot qu'executer garde un seul chemin d'execution, donc une seule facon
+  de se tromper. Eteinte par defaut, cadence en heures, jours ou semaines, et un bouton
+  pour relever tout de suite.
 - Les releases ne sortent plus en brouillon: il fallait venir cliquer Publish a la main
   apres chaque tag, sans que rien ne le dise.
 

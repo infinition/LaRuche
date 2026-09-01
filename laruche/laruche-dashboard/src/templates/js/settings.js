@@ -236,6 +236,19 @@ LaRuche.i18n.add({
   'settings.kanbanDelBtn':       {fr:'Suppr',            en:'Del'},
   'settings.kanbanLancerBtn':    {fr:'Lancer',           en:'Run'},
   'settings.kanbanColonne':      {fr:'Colonne',          en:'Column'},
+  'settings.kanbanTodoTitre':    {fr:'Relever la colonne A faire', en:'Sweep the Todo column'},
+  'settings.kanbanTodoAide':     {fr:"A l'echeance, les taches de A faire passent dans Pret, les plus anciennes d'abord. C'est la releve de Pret qui les execute ensuite, une par une, chacune avec son propre fournisseur.",
+                                  en:'On schedule, Todo tasks move to Ready, oldest first. The Ready poll then runs them one at a time, each with its own provider.'},
+  'settings.kanbanTodoPeriode':  {fr:'Tous les',           en:'Every'},
+  'settings.kanbanTodoMaintenant': {fr:'Relever maintenant', en:'Sweep now'},
+  'settings.kanbanTodoFait':     {fr:'{n} tache(s) passee(s) dans Pret', en:'{n} task(s) moved to Ready'},
+  'settings.kanbanTodoRien':     {fr:'La colonne A faire est vide', en:'The Todo column is empty'},
+  'settings.kanbanTodoRegle':    {fr:'Releve reglee',      en:'Sweep updated'},
+  'settings.kanbanTodoJamais':   {fr:'jamais relevee',     en:'never swept'},
+  'settings.kanbanTodoDernier':  {fr:'derniere releve {q}', en:'last sweep {q}'},
+  'settings.uniteHeures':        {fr:'heures',             en:'hours'},
+  'settings.uniteJours':         {fr:'jours',              en:'days'},
+  'settings.uniteSemaines':      {fr:'semaines',           en:'weeks'},
   'settings.kanbanLancerHint':   {fr:'Envoyer cette tache dans Pret: la releve la prendra au prochain passage.',
                                   en:'Send this task to Ready: the next poll picks it up.'},
   'settings.kanbanLancee':       {fr:'Tache envoyee dans Pret', en:'Task moved to Ready'},
@@ -2982,6 +2995,7 @@ LaRuche.Settings = (function(){
         '<span class="settings-card-desc" style="margin:0">'+LaRuche.i18n.t('settings.kanbanIntervalDesc')+'</span></div>' +
         '<div id="kanbanViewToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+kanbanToggleInner()+'</div></div>' +
       '<p class="settings-card-desc" style="margin:0 0 10px">'+LaRuche.i18n.t('settings.kanbanFluxAide')+'</p>' +
+      '<div id="kanbanTodoBloc" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:0 0 12px"></div>' +
       '<div id="kanbanCols"></div>';
     _kanbanLast='';
     window.__fillChannels(document.getElementById('kanban-channel'), '', LaRuche.i18n.t('settings.kanbanBoardChannel'));
@@ -2992,6 +3006,7 @@ LaRuche.Settings = (function(){
       if(champ && iv && iv.seconds) champ.value=iv.seconds;
     }catch(e){}
     await refreshKanbanCols();
+    loadKanbanTodo();
     if(_kanbanTimer) LaRuche.Poll.stop(_kanbanTimer);
     // Auto-refresh (the agent/daemon can modify the board): re-render
     // only if the content changed -> doesn't break in-progress input.
@@ -2999,6 +3014,74 @@ LaRuche.Settings = (function(){
       if(!document.getElementById('kanbanCols')){ LaRuche.Poll.stop(_kanbanTimer); _kanbanTimer=null; return; }
       refreshKanbanCols();
     }, 4000);
+  }
+
+  /* La releve de la colonne A faire.
+   *
+   * La cadence se saisit en nombre plus unite, et voyage en minutes: un champ
+   * unique en minutes se lit mal des qu'on veut « tous les deux jours », et
+   * trois champs separes se contredisent. */
+  var _TODO_UNITES = { h: 60, j: 1440, s: 10080 };
+
+  function todoDecouper(min){
+    if(min % 10080 === 0) return { n: min/10080, u: 's' };
+    if(min % 1440 === 0)  return { n: min/1440,  u: 'j' };
+    return { n: Math.max(1, Math.round(min/60)), u: 'h' };
+  }
+
+  async function loadKanbanTodo(){
+    var hote = document.getElementById('kanbanTodoBloc');
+    if(!hote) return;
+    var d = {};
+    try{ d = await fetch('/api/kanban/todo_sweep').then(function(r){ return r.json(); }); }catch(e){}
+    var actif = !!d.actif;
+    var c = todoDecouper(d.periode_min || 1440);
+    var quand = d.dernier ? new Date(d.dernier).toLocaleString() : null;
+    var T = LaRuche.i18n.t.bind(LaRuche.i18n);
+    hote.innerHTML =
+      '<label class="bascule" style="display:flex;align-items:center;gap:8px;margin:0 0 6px">'+
+        '<input type="checkbox" id="kanbanTodoActif"'+(actif?' checked':'')+' onchange="LaRuche.Settings.saveKanbanTodo()">'+
+        '<span style="font-weight:600">'+T('settings.kanbanTodoTitre')+'</span>'+
+      '</label>'+
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'+
+        '<label class="form-label" style="margin:0">'+T('settings.kanbanTodoPeriode')+'</label>'+
+        '<input class="form-input" id="kanbanTodoN" type="number" min="1" max="90" step="1" style="width:70px" value="'+c.n+'" onchange="LaRuche.Settings.saveKanbanTodo()">'+
+        '<select class="form-input" id="kanbanTodoU" style="width:auto" onchange="LaRuche.Settings.saveKanbanTodo()">'+
+          '<option value="h"'+(c.u==='h'?' selected':'')+'>'+T('settings.uniteHeures')+'</option>'+
+          '<option value="j"'+(c.u==='j'?' selected':'')+'>'+T('settings.uniteJours')+'</option>'+
+          '<option value="s"'+(c.u==='s'?' selected':'')+'>'+T('settings.uniteSemaines')+'</option>'+
+        '</select>'+
+        '<button class="tl-btn" onclick="LaRuche.Settings.kanbanTodoMaintenant()">'+T('settings.kanbanTodoMaintenant')+'</button>'+
+        '<span class="settings-card-desc" style="margin:0">'+
+          (quand ? T('settings.kanbanTodoDernier', {q: quand}) : T('settings.kanbanTodoJamais'))+'</span>'+
+      '</div>'+
+      '<p class="settings-card-desc" style="margin:0">'+T('settings.kanbanTodoAide')+'</p>';
+  }
+
+  function saveKanbanTodo(){
+    var a = document.getElementById('kanbanTodoActif');
+    var n = parseInt((document.getElementById('kanbanTodoN')||{}).value, 10);
+    var u = (document.getElementById('kanbanTodoU')||{}).value || 'j';
+    if(!Number.isInteger(n) || n < 1) n = 1;
+    var min = n * (_TODO_UNITES[u] || 1440);
+    fetch('/api/kanban/todo_sweep',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ actif: !!(a && a.checked), periode_min: min })})
+      .then(function(r){ return r.json(); })
+      .then(function(){
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanTodoRegle'),'ok');
+        loadKanbanTodo();
+      });
+  }
+
+  function kanbanTodoMaintenant(){
+    fetch('/api/kanban/todo_sweep/now',{method:'POST'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var n = (d && d.promues) || 0;
+        LaRuche.Toast.show(n ? LaRuche.i18n.t('settings.kanbanTodoFait',{n:n})
+                             : LaRuche.i18n.t('settings.kanbanTodoRien'), n ? 'ok' : 'info');
+        _kanbanLast=''; refreshKanbanCols(); loadKanbanTodo();
+      });
   }
 
   async function refreshKanbanCols(){
@@ -4131,7 +4214,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */
