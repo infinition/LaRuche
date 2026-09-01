@@ -273,21 +273,32 @@ jobs:
           test -f extension-chrome/manifest.json
           mkdir -p paquet
           cp -r extension-chrome paquet/laruche-extension-chrome
-          # Le champ `key` fige l'identifiant de l'extension en developpement, et le
-          # noeud n'accepte que celui-la sur sa socket de pilotage. Le Chrome Web Store,
-          # lui, le REFUSE: c'est lui qui attribue l'identifiant. Le depot le garde donc
-          # pour le chargement local, et le paquet publie en est debarrasse, sinon
-          # l'envoi echoue sur "Le champ key n'est pas autorise dans le fichier
-          # manifeste" et il faut le retirer a la main a chaque version.
+          # DEUX paquets, parce que le champ `key` est exige d'un cote et interdit de
+          # l'autre, et qu'un seul fichier ne peut pas satisfaire les deux.
+          #
+          #   - celui qu'on TELECHARGE garde `key`. Il sert au chargement manuel, et
+          #     sans ce champ l'identifiant de l'extension derive du chemin du dossier
+          #     sur le disque: il differe donc d'une machine a l'autre, et la socket de
+          #     pilotage du noeud, qui n'admet que des identifiants connus, la refuse.
+          #     C'est le cas courant aujourd'hui, celui qu'il ne faut pas casser.
+          #   - celui qu'on SOUMET au Chrome Web Store en est debarrasse: le Store
+          #     refuse l'envoi avec "Le champ key n'est pas autorise dans le fichier
+          #     manifeste", et c'est lui qui attribue l'identifiant.
+          cd paquet && zip -qr ../laruche-extension-chrome.zip laruche-extension-chrome && cd ..
+          jq -e '.key' paquet/laruche-extension-chrome/manifest.json > /dev/null             || { echo "le paquet de chargement manuel a perdu sa key"; exit 1; }
+
           jq 'del(.key)' extension-chrome/manifest.json > paquet/laruche-extension-chrome/manifest.json
-          grep -q '"key"' paquet/laruche-extension-chrome/manifest.json && { echo "key toujours presente"; exit 1; } || true
-          cd paquet && zip -qr ../laruche-extension-chrome.zip laruche-extension-chrome
-          cd .. && unzip -l laruche-extension-chrome.zip | tail -3
+          jq -e '.key' paquet/laruche-extension-chrome/manifest.json > /dev/null             && { echo "key toujours presente dans le paquet du Store"; exit 1; } || true
+          cd paquet && zip -qr ../laruche-extension-chrome-store.zip laruche-extension-chrome && cd ..
+          unzip -l laruche-extension-chrome.zip | tail -3
+          unzip -l laruche-extension-chrome-store.zip | tail -3
 
       - uses: actions/upload-artifact@v4
         with:
           name: laruche-extension-chrome
-          path: laruche-extension-chrome.zip
+          path: |
+            laruche-extension-chrome.zip
+            laruche-extension-chrome-store.zip
           if-no-files-found: error
 
   release:

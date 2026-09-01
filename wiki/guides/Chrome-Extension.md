@@ -12,6 +12,11 @@ extension is the supported path to the user's normal browsing session.
 Two sources, one procedure. From a release, download `laruche-extension-chrome.zip` and
 unzip it. From a clone, use `extension-chrome/` directly.
 
+A release also carries `laruche-extension-chrome-store.zip`. That one is the
+Chrome Web Store submission and has the manifest `key` removed, which the Store
+forbids. Loading it by hand gives the extension an id derived from the folder
+path, and the node refuses that id: use `laruche-extension-chrome.zip`.
+
 1. Open `chrome://extensions`.
 2. Enable developer mode.
 3. Choose **Load unpacked** and select the folder.
