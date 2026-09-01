@@ -111,6 +111,7 @@ function traduire() {
     ['garderNote', 'garder_note'],
     ['aideGarder', 'garder_aide'],
     ['libelleActif', 'popup_enable'],
+    ['libelleCompagnon', 'popup_compagnon'],
     ['libellePort', 'popup_port'],
     ['titreCapture', 'capture_title'],
     ['libelleCaptureActivee', 'capture_enable'],
@@ -171,6 +172,7 @@ function peindre(etat) {
   $('etat').textContent = msg(cle);
 
   $('actif').checked = !!etat.actif;
+  $('compagnon').checked = !!etat.compagnon;
   if (document.activeElement !== $('port')) $('port').value = etat.port;
 
   const pilote = $('pilote');
@@ -239,6 +241,11 @@ async function rafraichir() {
 sur('actif', 'change', async (e) => {
   await chrome.runtime.sendMessage({ type: 'set-actif', actif: e.target.checked });
   setTimeout(rafraichir, 250);
+});
+
+sur('compagnon', 'change', async (e) => {
+  await chrome.storage.local.set({ compagnon: e.target.checked });
+  setTimeout(rafraichir, 150);
 });
 
 sur('port', 'change', async (e) => {

@@ -156,7 +156,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ecrire_ico(&client, &dossier_client.join("icon.ico"))?;
     println!("  client  -> laruche-bureau/icons-client/");
 
-    // 4. Les binaires en ligne de commande: un .ico chacun, a cote de leur crate.
+    // 4. L'extension Chrome. Elle porte l'icone de l'APPLICATION et non celle du
+    //    noeud: dans la barre d'outils du navigateur, elle represente LaRuche
+    //    aux yeux de la personne, pas le service qui tourne derriere. Trois
+    //    tailles imposees par Chrome, et elles vivent hors de `laruche/`.
+    if let Some(depot) = racine.parent() {
+        let ext = depot.join("extension-chrome/icones");
+        if ext.exists() {
+            for taille in [16u32, 48, 128] {
+                ecrire_png(
+                    &rendre(&bureau, taille),
+                    &ext.join(format!("icon-{taille}.png")),
+                )?;
+            }
+            println!("  ext     -> extension-chrome/icones/ (16, 48, 128)");
+        }
+    }
+
+    // 5. Les binaires en ligne de commande: un .ico chacun, a cote de leur crate.
     for (nom, cible) in [
         ("cli", "laruche-cli/icone.ico"),
         ("evals", "laruche-evals/icone.ico"),

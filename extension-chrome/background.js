@@ -21,6 +21,7 @@
 const REGLAGES_DEFAUT = { 
   port: 8419, 
   actif: false,
+  compagnon: false,
   captureActivee: false,
   captureSource: 'tab',
   captureAudio: false,
@@ -1164,3 +1165,27 @@ connecter();
 // Au reveil du worker: si quelque chose attend, on retente sans attendre
 // l'alarme, et sans dependre de la socket de pilotage.
 viderFileGarder().catch(() => {});
+
+async function injecterCompagnonDansOnglets() {
+  try {
+    const onglets = await chrome.tabs.query({});
+    for (const o of onglets) {
+      if (!o.id || !o.url) continue;
+      if (!o.url.startsWith('http://') && !o.url.startsWith('https://') && !o.url.startsWith('file://')) continue;
+      // Les deux fichiers, et dans cet ordre: `compagnon.js` cherche
+      // `LaRucheRencontre` au moment de rejoindre le canal des rencontres.
+      // Chacun se garde d'une double installation, donc reinjecter un onglet
+      // qui a deja recu le script de la declaration ne fait rien.
+      chrome.scripting.executeScript({
+        target: { tabId: o.id },
+        files: ['rencontre.js', 'compagnon.js'],
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+chrome.storage.onChanged.addListener((changes, zone) => {
+  if (zone === 'local' && changes.compagnon && changes.compagnon.newValue) {
+    injecterCompagnonDansOnglets();
+  }
+});

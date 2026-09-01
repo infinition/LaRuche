@@ -15,6 +15,10 @@
     "message": "Allow control",
     "description": "Main switch label"
   },
+  "popup_compagnon": {
+    "message": "Bee companion on pages",
+    "description": "Companion switch label"
+  },
   "popup_port": {
     "message": "Node port",
     "description": "Port field label"

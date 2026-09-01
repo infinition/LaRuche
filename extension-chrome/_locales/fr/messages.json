@@ -15,6 +15,10 @@
     "message": "Autoriser le pilotage",
     "description": "Libellé de l'interrupteur principal"
   },
+  "popup_compagnon": {
+    "message": "Compagnon abeille sur les pages",
+    "description": "Libellé de l'interrupteur du compagnon"
+  },
   "popup_port": {
     "message": "Port du noeud",
     "description": "Libellé du champ de port"

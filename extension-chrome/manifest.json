@@ -13,6 +13,7 @@
     "desktopCapture",
     "downloads",
     "offscreen",
+    "scripting",
     "storage",
     "tabCapture",
     "tabGroups",
@@ -20,6 +21,13 @@
   ],
   "host_permissions": [
     "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["rencontre.js", "compagnon.js"],
+      "run_at": "document_idle"
+    }
   ],
   "background": {
     "service_worker": "background.js",
