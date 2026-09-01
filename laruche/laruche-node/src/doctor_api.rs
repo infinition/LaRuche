@@ -107,14 +107,34 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
         "anthropic" => ("Anthropic", None),
         "codex" => ("ChatGPT Codex", None),
         autre if autre.starts_with("peer:") => ("Swarm node", None),
-        _ => ("OpenAI-compatible", ec.api_base.clone().map(|b| format!("{b}/v1/models"))),
+        // Tout le reste parle le dialecte OpenAI, et cela ne dit RIEN sur l'endroit
+        // ou ca tourne: un llama.cpp sur la machine comme DeepSeek a l'autre bout
+        // du monde. C'est l'adresse qui tranche, pas le nom du fournisseur. Sonder
+        // un service distant coute une requete facturable, et le sondage se faisait
+        // ici sans la cle: `/v1/models` repondait 401, que le panneau lisait comme
+        // une panne. LaRuche annoncait donc en rouge un fournisseur qui repondait
+        // parfaitement dans le chat, juste a cote.
+        _ => (
+            "OpenAI-compatible",
+            ec.api_base
+                .clone()
+                .filter(|b| adresse_locale(b))
+                .map(|b| format!("{b}/v1/models")),
+        ),
     };
 
     match url_sonde {
         Some(url) => {
-            let joignable = reqwest::Client::new()
+            // La cle part avec la sonde quand il y en a une. Un serveur local n'en
+            // demande pas, et s'en trouve indifferent; un service qui en veut une
+            // repondait sinon 401, ce qui se lisait comme une panne de reseau.
+            let mut req = reqwest::Client::new()
                 .get(&url)
-                .timeout(std::time::Duration::from_millis(1500))
+                .timeout(std::time::Duration::from_millis(1500));
+            if !ec.api_key.trim().is_empty() {
+                req = req.bearer_auth(&ec.api_key);
+            }
+            let joignable = req
                 .send()
                 .await
                 .map(|r| r.status().is_success())
@@ -131,6 +151,35 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
             "status": "ok",
             "detail": "Remote provider, configured",
         })),
+    }
+
+    fn adresse_locale(base: &str) -> bool {
+        let hote = base
+            .split("://")
+            .nth(1)
+            .unwrap_or(base)
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .split('@')
+            .next_back()
+            .unwrap_or("");
+        let hote = hote.split(':').next().unwrap_or("").to_ascii_lowercase();
+        hote == "localhost"
+            || hote == "127.0.0.1"
+            || hote == "::1"
+            || hote == "[::1]"
+            || hote == "0.0.0.0"
+            || hote.ends_with(".local")
+            || hote.starts_with("192.168.")
+            || hote.starts_with("10.")
+            || hote.starts_with("172.16.")
+            || hote.starts_with("172.17.")
+            || hote.starts_with("172.18.")
+            || hote.starts_with("172.19.")
+            || hote.starts_with("172.2")
+            || hote.starts_with("172.30.")
+            || hote.starts_with("172.31.")
     }
 
     // Check model availability

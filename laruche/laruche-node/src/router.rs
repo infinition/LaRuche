@@ -411,6 +411,10 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             "/api/admin/users/:id/password",
             post(auth_api::api_admin_set_password),
         )
+        .route(
+            "/api/admin/users/:id/avatar",
+            post(auth_api::api_admin_set_avatar),
+        )
         .route("/api/auth/password", post(auth_api::api_auth_set_password))
         .route("/api/auth/account", post(auth_api::api_auth_update_account))
         .route("/api/auth/totp/setup", post(auth_api::api_totp_setup))

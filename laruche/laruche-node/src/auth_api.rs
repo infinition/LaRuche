@@ -483,27 +483,108 @@ pub(crate) async fn api_auth_set_model(
     }
 }
 
+/// Taille maximale d'une photo de profil, en octets de la data URL. Le client
+/// redimensionne en 128x128 avant l'envoi; ce plafond est la pour que le fichier
+/// du compte et la synchronisation entre ruches restent legers meme si l'appel
+/// vient d'ailleurs que de l'interface.
+const AVATAR_MAX: usize = 200_000;
+
 // ======================== Admin: user management ========================
 
 /// GET /api/admin/users - list all accounts (admin only).
-/// The SUPER-ADMIN is the oldest account, and it is derived rather than stored: there is
+/// The SUPER-ADMIN is the oldest ADMIN, and it is derived rather than stored: there is
 /// no flag anyone can flip, and no way to end up with zero of them. It exists so the
 /// instance always keeps one account that cannot be demoted, deleted or locked out by
 /// another admin - including one promoted by mistake.
+///
+/// C'etait le compte le plus ancien tous roles confondus, et cette regle avait un
+/// defaut qu'on ne voit qu'une fois qu'il est arrive: un compte cree en passant pour
+/// une verification, ou par un canal Telegram, prime pour toujours sur le proprietaire
+/// de la machine. Un compte de simple utilisateur devenait le seul intouchable de
+/// l'instance, et son proprietaire ne pouvait plus rien y faire. L'anciennete se
+/// mesure donc parmi ceux qui portent deja la responsabilite.
+///
+/// Le repli sur le plus ancien tout court demeure: sans lui, une instance sans aucun
+/// admin n'aurait plus de super-admin du tout, ce qui est precisement ce que cette
+/// fonction existe pour empecher.
 ///
 /// Ties on `created_at` (two accounts made in the same instant) are broken by id so the
 /// answer is stable across restarts instead of depending on map iteration order.
 pub(crate) fn super_admin_id(
     users: &std::collections::HashMap<Uuid, auth_user::User>,
 ) -> Option<Uuid> {
-    users
-        .values()
-        .min_by(|a, b| {
-            a.created_at
-                .cmp(&b.created_at)
-                .then_with(|| a.id.cmp(&b.id))
+    fn plus_ancien<'a>(
+        mut it: impl Iterator<Item = &'a auth_user::User>,
+    ) -> Option<&'a auth_user::User> {
+        it.next().map(|premier| {
+            it.fold(premier, |meilleur, u| {
+                match u.created_at.cmp(&meilleur.created_at).then_with(|| u.id.cmp(&meilleur.id)) {
+                    std::cmp::Ordering::Less => u,
+                    _ => meilleur,
+                }
+            })
         })
-        .map(|u| u.id)
+    }
+
+    plus_ancien(
+        users
+            .values()
+            .filter(|u| u.role == auth_user::UserRole::Admin),
+    )
+    .or_else(|| plus_ancien(users.values()))
+    .map(|u| u.id)
+}
+
+#[cfg(test)]
+mod tests_super_admin {
+    use super::*;
+    use chrono::{Duration, Utc};
+
+    fn compte(nom: &str, role: auth_user::UserRole, age_jours: i64) -> auth_user::User {
+        let mut u = auth_user::create_user(nom, role, None);
+        u.created_at = Utc::now() - Duration::days(age_jours);
+        u
+    }
+
+    fn table(v: Vec<auth_user::User>) -> std::collections::HashMap<Uuid, auth_user::User> {
+        v.into_iter().map(|u| (u.id, u)).collect()
+    }
+
+    /// Le cas qui a motive la regle: un compte de verification cree avant tout le
+    /// monde, mais simple utilisateur, ne doit pas prendre le pas sur l'admin.
+    #[test]
+    fn un_utilisateur_plus_ancien_ne_prime_pas_sur_un_admin() {
+        let vieux = compte("Codex Verif", auth_user::UserRole::User, 90);
+        let patron = compte("infinition", auth_user::UserRole::Admin, 60);
+        let attendu = patron.id;
+        let m = table(vec![vieux, patron]);
+        assert_eq!(super_admin_id(&m), Some(attendu));
+    }
+
+    #[test]
+    fn entre_deux_admins_c_est_le_plus_ancien() {
+        let ancien = compte("premier", auth_user::UserRole::Admin, 90);
+        let recent = compte("second", auth_user::UserRole::Admin, 10);
+        let attendu = ancien.id;
+        let m = table(vec![recent, ancien]);
+        assert_eq!(super_admin_id(&m), Some(attendu));
+    }
+
+    /// Sans aucun admin, l'instance garde quand meme un super-admin: c'est toute la
+    /// raison d'etre de cette fonction.
+    #[test]
+    fn sans_admin_on_retombe_sur_le_plus_ancien_compte() {
+        let a = compte("a", auth_user::UserRole::User, 90);
+        let b = compte("b", auth_user::UserRole::User, 10);
+        let attendu = a.id;
+        let m = table(vec![b, a]);
+        assert_eq!(super_admin_id(&m), Some(attendu));
+    }
+
+    #[test]
+    fn une_instance_vide_n_a_pas_de_super_admin() {
+        assert_eq!(super_admin_id(&table(vec![])), None);
+    }
 }
 
 pub(crate) async fn api_admin_list_users(
@@ -567,6 +648,49 @@ pub(crate) async fn api_admin_set_password(
         "warn",
         "ADMIN",
         format!("Super-admin reset the password of {target}"),
+        uid,
+    )
+    .await;
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id })))
+}
+
+/// POST /api/admin/users/:id/avatar {avatar} - la photo d'un autre compte.
+///
+/// Reserve au super-admin, comme la reinitialisation de mot de passe: changer
+/// l'image de quelqu'un est un geste sur SON compte, pas sur le sien. `null`
+/// efface et fait revenir l'initiale.
+pub(crate) async fn api_admin_set_avatar(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let target = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let mut users = state.users.write().await;
+    let (uid, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
+    if !is_admin || uid.is_none() || uid != super_admin_id(&users) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let user = users.get_mut(&target).ok_or(StatusCode::NOT_FOUND)?;
+    match body.get("avatar") {
+        Some(serde_json::Value::Null) | None => user.avatar = None,
+        Some(serde_json::Value::String(s)) => {
+            // Meme garde que sur son propre compte: une image est une data URL
+            // bornee, jamais une adresse distante que la page irait chercher.
+            if !s.starts_with("data:image/") || s.len() > AVATAR_MAX {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+            user.avatar = Some(s.clone());
+        }
+        _ => return Err(StatusCode::BAD_REQUEST),
+    }
+    let _ = auth_user::save_user(user, std::path::Path::new("users"));
+    drop(users);
+    crate::log_activite(
+        &state,
+        "info",
+        "ADMIN",
+        format!("Super-admin changed the avatar of {target}"),
         uid,
     )
     .await;
@@ -667,9 +791,10 @@ pub(crate) async fn api_auth_update_account(
         if av.is_null() {
             user.avatar = None;
         } else if let Some(s) = av.as_str() {
-            // Cap the data URL (client resizes to a small thumbnail) to keep the user file
-            // and peer sync light.
-            if s.len() <= 200_000 {
+            // Une data URL d'image, et rien d'autre: cette valeur finit dans le
+            // `src` d'une balise img, ou une adresse distante ferait fuiter
+            // l'adresse IP de chaque personne qui affiche la liste des comptes.
+            if s.starts_with("data:image/") && s.len() <= AVATAR_MAX {
                 user.avatar = Some(s.to_string());
             }
         }

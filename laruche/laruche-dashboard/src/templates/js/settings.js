@@ -236,6 +236,10 @@ LaRuche.i18n.add({
   'settings.kanbanDelBtn':       {fr:'Suppr',            en:'Del'},
   'settings.kanbanLancerBtn':    {fr:'Lancer',           en:'Run'},
   'settings.kanbanColonne':      {fr:'Colonne',          en:'Column'},
+  'settings.profilePhotoAide':   {fr:'Cliquez sur la photo pour la remplacer. Carree, redimensionnee en 128 px.',
+                                  en:'Click the photo to replace it. Square, resized to 128 px.'},
+  'settings.adminPhoto':         {fr:'Photo',              en:'Photo'},
+  'settings.adminPhotoFaite':    {fr:'Photo mise a jour',  en:'Photo updated'},
   'settings.kanbanTodoTitre':    {fr:'Relever la colonne A faire', en:'Sweep the Todo column'},
   'settings.kanbanTodoAide':     {fr:"A l'echeance, les taches de A faire passent dans Pret, les plus anciennes d'abord. C'est la releve de Pret qui les execute ensuite, une par une, chacune avec son propre fournisseur.",
                                   en:'On schedule, Todo tasks move to Ready, oldest first. The Ready poll then runs them one at a time, each with its own provider.'},
@@ -3336,11 +3340,12 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
     el.innerHTML =
       '<div class="settings-card"><div class="settings-card-title">'+T('settings.profileAccount')+'</div>'+
         '<div class="settings-row"><span class="settings-label">'+T('settings.profileAvatar')+'</span><span style="display:flex;align-items:center;gap:8px">'+
-          '<span id="profAvatar" style="width:44px;height:44px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;overflow:hidden">'+_avatarInner(u)+'</span>'+
+          '<span id="profAvatar" title="'+T('settings.profileChangePhoto')+'" onclick="document.getElementById(\'profAvatarFile\').click()" style="width:44px;height:44px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;overflow:hidden;cursor:pointer">'+_avatarInner(u)+'</span>'+
           '<input type="file" id="profAvatarFile" accept="image/*" style="display:none">'+
           '<button class="form-btn" style="font-size:10px;padding:2px 8px" onclick="document.getElementById(\'profAvatarFile\').click()">'+T('settings.profileChangePhoto')+'</button>'+
           (u.avatar?'<button class="form-btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red)" onclick="LaRuche.Settings.profileRemoveAvatar()">'+T('settings.tlDelete')+'</button>':'')+
         '</span></div>'+
+        '<div class="settings-card-desc" style="margin:-4px 0 8px">'+T('settings.profilePhotoAide')+'</div>'+
         '<div class="settings-row"><span class="settings-label">'+T('settings.profileName')+'</span><span style="display:flex;gap:6px"><input type="text" id="profName" class="form-input" style="width:160px;padding:2px 6px" value="'+esc(u.display_name||'')+'"><button class="form-btn" style="font-size:10px;padding:2px 8px" onclick="LaRuche.Settings.profileSaveName()">'+T('settings.save')+'</button></span></div>'+
       '</div>'+
       '<div class="settings-card"><div class="settings-card-title">'+T('settings.profilePassword')+'</div><div class="settings-card-desc">'+(u.has_password?T('settings.profilePwSet'):T('settings.profilePwNone'))+'</div>'+
@@ -3360,21 +3365,15 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
     fetch('/api/profile').then(function(r){return r.json();}).then(function(d){ var ta=document.getElementById('profFiche'); if(ta) ta.value=(d&&(d.fiche||d.content||d.text))||''; }).catch(function(){});
   }
   function _profAvatarPick(e){
-    var file=e.target.files&&e.target.files[0]; if(!file) return;
-    var reader=new FileReader();
-    reader.onload=function(ev){
-      var img=new Image();
-      img.onload=function(){
-        var c=document.createElement('canvas'); c.width=c.height=128;
-        var ctx=c.getContext('2d');
-        var s=Math.min(img.width,img.height), sx=(img.width-s)/2, sy=(img.height-s)/2;
-        ctx.drawImage(img,sx,sy,s,s,0,0,128,128);
-        var data=c.toDataURL('image/jpeg',0.82);
-        _profSave({avatar:data}, function(){ var a=document.getElementById('profAvatar'); if(a) a.innerHTML='<img src="'+data+'" alt="" style="width:100%;height:100%;object-fit:cover">'; if(LaRuche.Auth.getUser()) LaRuche.Auth.getUser().avatar=data; if(LaRuche.Auth.refreshBadge) LaRuche.Auth.refreshBadge(); });
-      };
-      img.src=ev.target.result;
-    };
-    reader.readAsDataURL(file);
+    _avatarDepuisFichier(e.target.files && e.target.files[0], function(data){
+      _profSave({avatar:data}, function(){
+        var a=document.getElementById('profAvatar');
+        if(a) a.innerHTML='<img src="'+data+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+        if(LaRuche.Auth.getUser()) LaRuche.Auth.getUser().avatar=data;
+        if(LaRuche.Auth.refreshBadge) LaRuche.Auth.refreshBadge();
+        loadProfile(document.getElementById('settingsContent'));
+      });
+    });
   }
   function _profSave(body, ok){
     fetch('/api/auth/account',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){
@@ -3450,6 +3449,10 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
         // absent rather than present-and-rejected.
         var roleBtn = (u.is_self || u.is_super) ? '' : '<button class="form-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.adminSetRole(\''+u.id+'\',\''+(isAdmin?'user':'admin')+'\')">'+(isAdmin?LaRuche.i18n.t('settings.adminDemote'):LaRuche.i18n.t('settings.adminPromote'))+'</button>';
         var pwBtn = jeSuisSuper ? '<button class="form-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.adminSetPassword(\''+u.id+'\',\''+safeName+'\')">'+LaRuche.i18n.t('settings.adminSetPw')+'</button>' : '';
+        // La photo des autres comptes: meme porte que le mot de passe, le
+        // super-admin seulement. La liste les MONTRAIT sans permettre d'en
+        // changer une seule, pas meme celle d'un compte cree par un canal.
+        var phBtn = jeSuisSuper ? '<button class="form-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.adminPickAvatar(\''+u.id+'\')">'+LaRuche.i18n.t('settings.adminPhoto')+'</button>' : '';
         var delBtn = u.is_super
           ? ''
           : (u.is_self ? '<span style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.adminYou')+'</span>'
@@ -3457,10 +3460,49 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
         return '<div class="admin-user'+(u.is_self?' admin-user-self':'')+'">'+vignette+
           '<span class="admin-user-id"><span class="admin-user-name">'+LaRuche.Utils.esc(u.display_name)+'</span>'+
           '<span class="admin-user-badges">'+badges+'</span></span>'+
-          '<span style="display:flex;gap:6px;align-items:center;flex-shrink:0">'+roleBtn+pwBtn+delBtn+'</span></div>';
+          '<span style="display:flex;gap:6px;align-items:center;flex-shrink:0">'+roleBtn+phBtn+pwBtn+delBtn+'</span></div>';
       }).join('');
     }).catch(function(){ var host=document.getElementById('adminUserList'); if(host) host.innerHTML='<div style="color:var(--red);font-size:11px">'+LaRuche.i18n.t('settings.adminLoadError')+'</div>'; });
   }
+  /* Le recadrage carre en 128, partage par le profil et la liste des comptes:
+     deux implementations du meme geste finissent toujours par diverger. */
+  function _avatarDepuisFichier(file, apres){
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var img = new Image();
+      img.onload = function(){
+        var c = document.createElement('canvas'); c.width = c.height = 128;
+        var ctx = c.getContext('2d');
+        var cote = Math.min(img.width, img.height);
+        var sx = (img.width - cote)/2, sy = (img.height - cote)/2;
+        ctx.drawImage(img, sx, sy, cote, cote, 0, 0, 128, 128);
+        apres(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function adminPickAvatar(id){
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = function(){
+      _avatarDepuisFichier(inp.files && inp.files[0], function(data){
+        fetch('/api/admin/users/'+encodeURIComponent(id)+'/avatar',
+              {method:'POST',headers:{'Content-Type':'application/json'},
+               body:JSON.stringify({avatar:data})})
+          .then(function(r){
+            if(r.ok){
+              LaRuche.Toast.show(LaRuche.i18n.t('settings.adminPhotoFaite'),'ok');
+              loadAdmin(document.getElementById('settingsContent'));
+            } else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
+          });
+      });
+    };
+    inp.click();
+  }
+
   function adminDeleteUser(id, name){
     if(!confirm(LaRuche.i18n.t('settings.adminConfirmDelete',{name:name}))) return;
     fetch('/api/admin/users/'+encodeURIComponent(id),{method:'DELETE'}).then(function(r){
@@ -4214,7 +4256,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */
