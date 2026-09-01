@@ -274,7 +274,9 @@ async function demanderPermissionsVisuelles() {
     permissions: ['scripting'],
     origins: ['http://*/*', 'https://*/*'],
   };
-  if (await chrome.permissions.contains(demande)) return true;
+  // `request` doit etre le premier appel asynchrone issu du clic. Un
+  // `contains` attendu juste avant suffit a faire perdre le geste utilisateur
+  // dans certaines versions de Chrome.
   return await chrome.permissions.request(demande);
 }
 
@@ -356,8 +358,6 @@ async function demanderPermissionsCapture(patch) {
   if (!patch.captureActivee) return;
   const permissions = ['downloads', 'offscreen'];
   if (patch.captureSource === 'tab') permissions.push('tabCapture');
-  const deja = await chrome.permissions.contains({ permissions });
-  if (deja) return;
   const accord = await chrome.permissions.request({ permissions });
   if (!accord) throw new Error(msg('capture_permission_denied'));
 }
@@ -530,7 +530,7 @@ sur('demarrerCapture', 'click', async () => {
   try {
     await demanderPermissionsCapture(valeursCapture());
     const resultat = await chrome.runtime.sendMessage({
-      type: 'enregistrement-preparer',
+      type: 'enregistrement-demarrer-manuel',
       source: $('captureSource').value,
       audio: $('captureAudio').checked,
     });

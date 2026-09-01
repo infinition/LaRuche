@@ -801,6 +801,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     });
     return true;
   }
+  if (msg.type === 'enregistrement-demarrer-manuel') {
+    demarrerEnregistrementManuel(msg).then(sendResponse).catch(e => {
+      sendResponse({ ok: false, error: String(e.message || e) });
+    });
+    return true;
+  }
   if (msg.type === 'enregistrement-arreter') {
     arreterEnregistrement('manuel').then(sendResponse).catch(e => {
       sendResponse({ ok: false, error: String(e.message || e) });
@@ -987,6 +993,29 @@ async function lancerSiArme() {
   }
   majEtat({ enregistrement: etatEnregistrement });
   rafraichirBadge();
+}
+
+/// Le bouton du popup ne depend jamais d'une prise de controle par l'agent.
+/// Une source ecran ou fenetre est deja armee par le selecteur Chrome: le clic
+/// lance ce flux. Pour un onglet, il cree et demarre directement le flux de
+/// l'onglet actif.
+async function demarrerEnregistrementManuel(msg) {
+  if (etatEnregistrement.etat === 'arme') {
+    if (etatEnregistrement.source !== msg.source) {
+      await arreterEnregistrement('changement de source');
+    } else {
+      await lancerSiArme();
+      if (etatEnregistrement.etat !== 'enregistrement') {
+        throw new Error(etatEnregistrement.erreur || "La source armee n'a pas demarre");
+      }
+      return { ok: true, manuel: true };
+    }
+  }
+
+  return await preparerEnregistrement({
+    ...msg,
+    differe: false,
+  });
 }
 
 async function verifierDemarrageAuto(targetId) {

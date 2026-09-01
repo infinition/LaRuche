@@ -69,6 +69,10 @@ complet. Activez l'enregistrement, choisissez la source, puis cliquez sur
 **Demarrer le showcase**. La capture continue dans un document hors ecran, y
 compris pendant les navigations et apres la fermeture du popup.
 
+Le bouton demarre aussi sans agent connecte ni pilotage en cours. Pour une
+fenetre ou un ecran, la source choisie est d'abord armee puis le bouton lance
+l'enregistrement. Pour un onglet, il capture directement l'onglet actif.
+
 La video est arretee et sauvegardee automatiquement lorsque LaRuche ferme la
 session de navigation ou apres quarante secondes sans commande. Le bouton
 **Arreter et sauvegarder** permet aussi de terminer manuellement.
@@ -106,7 +110,7 @@ etre mise a jour quand l'outil gagne une capacite.
 | `screenshot` | Capture PNG en base64 |
 | `glow` | Installe ou retire l'indicateur de pilotage, reinjecte a chaque navigation |
 | `tap` | Installe l'enregistreur console et reseau, une fois par onglet attache |
-| `cdp` | Passthrough DevTools brut |
+| `cdp` | Appelle une liste fermee de commandes DevTools necessaires aux entrees, fichiers, cookies et tailles d'ecran |
 | `tab` | Cree ou retrouve l'onglet pilote, le met au premier plan |
 | `tabs` | Liste tous les onglets de toutes les fenetres, en lecture seule |
 | `open_tab` | Ouvre et pilote un nouvel onglet dans la meme fenetre Chrome |
@@ -129,12 +133,12 @@ qu'executer du texte de script recu a l'execution passe forcement par `eval` ou
 `new Function`, tous deux soumis a la CSP du site visite. Sur la plupart des
 sites interessants, l'injection echouerait.
 
-`cdp` existe pour la seule chose qu'`eval` ne peut pas faire : un evenement
-`Input.*`. Une frappe synthetisee depuis un script de page porte
-`isTrusted: false`, que les controles natifs et beaucoup de sites ignorent. Cote
-extension, ce passthrough n'est pas restreint au domaine `Input` : le noeud peut
-y envoyer n'importe quelle methode du protocole. C'est assume, et c'est la raison
-pour laquelle l'identite du noeud compte autant que celle de l'extension.
+`cdp` couvre les operations qu'`eval` ne peut pas faire proprement : les vrais
+evenements `Input.*`, le depot d'un fichier, l'emulation d'une taille d'ecran et
+la lecture des attributs de cookies. L'extension refuse toute methode qui ne se
+trouve pas dans cette liste. Les valeurs des cookies sont retirees avant que la
+reponse quitte l'extension. Seuls leur nom, domaine, taille et attributs passent
+sur le pont local.
 
 ## Securite
 
@@ -144,13 +148,15 @@ pour laquelle l'identite du noeud compte autant que celle de l'extension.
   sinon se connecter et repondre a la place de l'extension ; et une autre
   extension installee pourrait prendre le canal, puisque le pont remplace sans
   bruit celle qui etait connectee.
-- Aucune donnee n'est envoyee ailleurs, aucune analytique, aucun serveur tiers.
+- L'extension elle-meme ne contacte aucun serveur tiers et n'integre aucune
+  analytique. Le noeud local peut utiliser les fournisseurs que l'utilisateur a
+  configures dans LaRuche.
 - La permission `debugger` est large par nature. Elle n'est utilisee que sur
   l'onglet du groupe LaRuche, jamais sur vos autres onglets.
 - Ce qui reste ouvert : l'extension se connecte a ce qui ecoute sur le port
   configure, sans verifier que c'est bien LaRuche. Noeud eteint, un autre
-  processus local qui prend le port obtient du CDP brut sur votre Chrome. Ne
-  laissez pas le pilotage actif quand le noeud ne tourne pas.
+  processus local qui prend le port peut utiliser les commandes de pilotage
+  autorisees. Ne laissez pas le pilotage actif quand le noeud ne tourne pas.
 
 ## Protocole
 

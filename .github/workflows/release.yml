@@ -289,7 +289,15 @@ jobs:
 
           jq 'del(.key)' extension-chrome/manifest.json > paquet/laruche-extension-chrome/manifest.json
           jq -e '.key' paquet/laruche-extension-chrome/manifest.json > /dev/null             && { echo "key toujours presente dans le paquet du Store"; exit 1; } || true
-          cd paquet && zip -qr ../laruche-extension-chrome-store.zip laruche-extension-chrome && cd ..
+          # Le Web Store exige manifest.json a la RACINE du ZIP. Le paquet de
+          # chargement manuel garde son dossier englobant pour etre agreable a
+          # extraire, mais le paquet Store est construit depuis son contenu.
+          cd paquet/laruche-extension-chrome && zip -qr ../../laruche-extension-chrome-store.zip . && cd ../..
+          unzip -Z1 laruche-extension-chrome-store.zip | grep -qx 'manifest.json' \
+            || { echo "manifest.json absent de la racine du paquet Store"; exit 1; }
+          unzip -p laruche-extension-chrome-store.zip manifest.json | jq -e \
+            '.manifest_version == 3 and (.key | not)' > /dev/null \
+            || { echo "manifeste Store invalide"; exit 1; }
           unzip -l laruche-extension-chrome.zip | tail -3
           unzip -l laruche-extension-chrome-store.zip | tail -3
 

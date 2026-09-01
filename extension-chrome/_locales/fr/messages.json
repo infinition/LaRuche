@@ -94,7 +94,7 @@
     "description": "Bouton d arret"
   },
   "capture_help": {
-    "message": "Coche la case: tout demarre quand l'agent prend la main, et la video le suit d'onglet en onglet. En haute qualite, l'onglet filme devient sensiblement plus lent.",
+    "message": "Enregistrer maintenant demarre tout de suite, avec ou sans agent. Sinon, l'enregistrement demarre automatiquement quand l'agent prend la main. La haute qualite peut ralentir l'onglet filme.",
     "description": "Explication du fonctionnement"
   },
   "capture_state_disabled": {

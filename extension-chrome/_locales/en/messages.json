@@ -94,7 +94,7 @@
     "description": "Recording stop button"
   },
   "capture_help": {
-    "message": "Tick the box: it all starts when the agent takes control, and the video follows it across tabs. On high quality the recorded tab gets noticeably slower.",
+    "message": "Record now starts immediately, with or without an agent. If left ready, recording starts automatically when the agent takes control. High quality can noticeably slow the recorded tab.",
     "description": "How recording works"
   },
   "capture_state_disabled": {
