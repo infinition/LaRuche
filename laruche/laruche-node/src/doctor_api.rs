@@ -153,6 +153,28 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
         })),
     }
 
+    // La vision du modele actif. Un modele ecarte apres un refus d'image ne le
+    // disait nulle part: on voyait un modele de vision jurer ne pas voir, et la
+    // seule issue connue etait de redemarrer. Le controle de sante est
+    // exactement l'endroit ou l'on vient chercher ce genre de reponse.
+    match laruche_essaim::vision::ecarte_depuis(&ec.model) {
+        Some((_, restant)) => checks.push(serde_json::json!({
+            "name": "Vision",
+            "status": "warning",
+            "detail": format!(
+                "{} refused an image: none is being sent to it. Retried automatically in {} min.",
+                ec.model,
+                restant.div_ceil(60)
+            ),
+            "action": "vision_reset",
+        })),
+        None => checks.push(serde_json::json!({
+            "name": "Vision",
+            "status": "ok",
+            "detail": format!("Images are sent to {}", ec.model),
+        })),
+    }
+
     fn adresse_locale(base: &str) -> bool {
         let hote = base
             .split("://")

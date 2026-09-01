@@ -170,6 +170,8 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             get(kanban_api::api_kanban_interval_get).post(kanban_api::api_kanban_interval_set),
         )
         .route("/api/memory/tree", get(memory_api::api_memory_tree))
+        .route("/api/vision", get(feed_api::api_vision))
+        .route("/api/vision/reset", post(feed_api::api_vision_reset))
         .route(
             "/api/system/prompt-defaults",
             get(feed_api::api_system_prompt_defaults),

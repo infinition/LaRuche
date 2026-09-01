@@ -51,6 +51,67 @@ pub fn marquer_aveugle(modele: &str) {
     if let Ok(mut s) = aveugles().lock() {
         s.insert(modele.to_lowercase(), Instant::now());
     }
+    // A voix haute, et dans le JOURNAL. Un message dans le fil de discussion
+    // defile et se perd; c'est apres coup qu'on cherche pourquoi un modele de
+    // vision jure ne pas voir, et il faut alors une trace qui ait survecu.
+    tracing::warn!(
+        modele = %modele,
+        repit_s = REPIT.as_secs(),
+        "vision: plus aucune image envoyee a ce modele, il en a refuse une"
+    );
+}
+
+/// Depuis combien de temps ce modele est-il ecarte, et pour combien encore.
+///
+/// Rend `None` s'il ne l'est pas. Sert a le DIRE: l'etat n'existait que dans une
+/// table privee, donc personne ne pouvait constater qu'un modele avait ete raye
+/// ni savoir quand il redeviendrait normal.
+pub fn ecarte_depuis(modele: &str) -> Option<(u64, u64)> {
+    let m = modele.to_lowercase();
+    let t = aveugles().lock().ok()?.get(&m).copied()?;
+    let ecoule = t.elapsed();
+    if ecoule >= REPIT {
+        return None;
+    }
+    Some((ecoule.as_secs(), (REPIT - ecoule).as_secs()))
+}
+
+/// Tous les modeles ecartes en ce moment: (modele, secondes restantes).
+pub fn ecartes() -> Vec<(String, u64)> {
+    let Ok(s) = aveugles().lock() else {
+        return Vec::new();
+    };
+    s.iter()
+        .filter_map(|(m, t)| {
+            let e = t.elapsed();
+            (e < REPIT).then(|| (m.clone(), (REPIT - e).as_secs()))
+        })
+        .collect()
+}
+
+/// Rend sa vue a un modele, tout de suite.
+///
+/// Sans cela, la seule issue etait d'attendre le repit ou de redemarrer le
+/// noeud avec `LARUCHE_VISION=1`, c'est-a-dire de connaitre une variable
+/// d'environnement dont rien ne parle nulle part.
+pub fn reessayer(modele: &str) -> bool {
+    let m = modele.to_lowercase();
+    let mut trouve = false;
+    if let Ok(mut s) = aveugles().lock() {
+        trouve = s.remove(&m).is_some();
+    }
+    if let Ok(mut s) = serres().lock() {
+        s.remove(&m);
+    }
+    if trouve {
+        tracing::info!(modele = %modele, "vision: le modele recoit de nouveau les images");
+    }
+    trouve
+}
+
+/// La duree du repit, pour que l'interface annonce la bonne.
+pub fn repit_secs() -> u64 {
+    REPIT.as_secs()
 }
 
 /// Le corps d'erreur dit-il que le fournisseur ne veut pas de notre image?

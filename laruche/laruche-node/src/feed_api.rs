@@ -362,6 +362,34 @@ pub(crate) async fn api_feed(
     Json(serde_json::json!({ "events": events }))
 }
 
+/// GET /api/vision - quels modeles sont ecartes, et pour combien de temps.
+pub(crate) async fn api_vision() -> Json<serde_json::Value> {
+    let ecartes: Vec<serde_json::Value> = laruche_essaim::vision::ecartes()
+        .into_iter()
+        .map(|(modele, restant)| serde_json::json!({ "model": modele, "restant_s": restant }))
+        .collect();
+    Json(serde_json::json!({
+        "ecartes": ecartes,
+        "repit_s": laruche_essaim::vision::repit_secs(),
+    }))
+}
+
+/// POST /api/vision/reset {model?} - rend sa vue a un modele, tout de suite.
+///
+/// Sans corps, c'est le modele actif. Attendre dix minutes ou redemarrer le
+/// noeud etaient les deux seules issues, et aucune des deux ne se devine.
+pub(crate) async fn api_vision_reset(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let modele = match body["model"].as_str().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(m) => m.to_string(),
+        None => state.essaim_config.read().await.model.clone(),
+    };
+    let rendu = laruche_essaim::vision::reessayer(&modele);
+    Json(serde_json::json!({ "status": "ok", "model": modele, "reactive": rendu }))
+}
+
 /// GET /api/system/prompt-defaults - default (hardcoded) texts of the editable sections,
 /// to pre-fill the editor: the user sees and edits the full prompt (empty in DB =
 /// this default is used). The `node_*` override REPLACES the corresponding section.

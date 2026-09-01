@@ -180,9 +180,10 @@ impl but::Fournisseur for FournisseurPont {
                     but::vision::Suite::Renoncer => {
                         let _ = self.tx.send(ChatEvent::Status {
                             message: format!(
-                                "{} refused the image again ({}). Retrying without it, and no                                  image will be sent to this model for the rest of the session.                                  Set LARUCHE_VISION=1 to override.",
+                                "{} refused the image again ({}). Retrying without it. No                                  image goes to this model for the next {} minutes, then it is                                  tried again on its own. Settings > General shows it and can                                  lift it right away.",
                                 self.model,
-                                extrait.trim()
+                                extrait.trim(),
+                                but::vision::repit_secs() / 60
                             ),
                         });
                     }

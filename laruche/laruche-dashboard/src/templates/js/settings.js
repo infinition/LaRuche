@@ -88,6 +88,11 @@ LaRuche.i18n.add({
   'settings.tlRuns':             {fr:' · Exécutions : ', en:' · Runs: '},
   'settings.tlChannel':          {fr:' · Canal : ',      en:' · Channel: '},
   'settings.tlRunNow':           {fr:'Lancer maintenant', en:'Run now'},
+  'settings.visionReessayer':    {fr:'Reessayer',         en:'Try again'},
+  'settings.visionRendue':       {fr:'Les images repartent vers ce modele',
+                                  en:'Images are sent to this model again'},
+  'settings.visionDejaOk':       {fr:'Ce modele recevait deja les images',
+                                  en:'This model was already getting images'},
   'settings.tlRunStarting':      {fr:'Lancement...', en:'Starting...'},
   'settings.tlEdit':             {fr:'Éditer',           en:'Edit'},
   'settings.tlPause':            {fr:'Mettre en pause',  en:'Pause'},
@@ -866,6 +871,24 @@ LaRuche.Settings = (function(){
         '<button class="form-btn" onclick="LaRuche.Accueil.ouvrir()">'+LaRuche.i18n.t('accueil.reopen')+'</button></div>';
   }
 
+  /* Rendre sa vue au modele actif, sans attendre le repit ni redemarrer. */
+  function visionReessayer(){
+    fetch(LaRuche.API.base+'/api/vision/reset', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
+    })
+      .then(function(r){ return r.json().catch(function(){ return {}; }); })
+      .then(function(d){
+        LaRuche.Toast.show(
+          (d && d.reactive) ? LaRuche.i18n.t('settings.visionRendue') : LaRuche.i18n.t('settings.visionDejaOk'),
+          'ok');
+        // Le panneau se relit: le verdict doit changer sous les yeux, sinon on
+        // ne sait pas si le clic a servi.
+        var el = document.getElementById('settingsContent');
+        if(el && LaRuche.Settings.loadGeneral) LaRuche.Settings.loadGeneral(el);
+      })
+      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'), 'err'); });
+  }
+
   function _securiteHtml(doc){
     return '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.protocol')+'</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div>'+
       ((doc.checks||[]).map(function(c){
@@ -877,7 +900,15 @@ LaRuche.Settings = (function(){
           '<span class="settings-label">'+LaRuche.Utils.esc(c.name)+
             (c.detail ? '<span style="display:block;font-size:10px;color:var(--text-muted);font-weight:400;margin-top:1px">'+LaRuche.Utils.esc(c.detail)+'</span>' : '')+
           '</span>'+
-          '<span style="color:'+couleur+';white-space:nowrap">'+LaRuche.Utils.esc(c.status)+'</span></div>';
+          // Un verdict qui se repare d'un clic porte le bouton qui le repare.
+          // Constater qu'un modele est ecarte sans pouvoir rien y faire ne vaut
+          // guere mieux que de ne pas le savoir.
+          (c.action==='vision_reset'
+            ? '<span style="display:flex;gap:8px;align-items:center;white-space:nowrap">'+
+              '<button class="tl-btn" onclick="LaRuche.Settings.visionReessayer()">'+LaRuche.i18n.t('settings.visionReessayer')+'</button>'+
+              '<span style="color:'+couleur+'">'+LaRuche.Utils.esc(c.status)+'</span></span>'
+            : '<span style="color:'+couleur+';white-space:nowrap">'+LaRuche.Utils.esc(c.status)+'</span>')+
+          '</div>';
       }).join('')||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>');
   }
 
@@ -4273,7 +4304,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, lancerCronTask:lancerCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadGeneral:loadGeneral, loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, lancerCronTask:lancerCronTask, visionReessayer:visionReessayer, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

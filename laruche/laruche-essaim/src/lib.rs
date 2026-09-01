@@ -20,6 +20,13 @@ pub mod blueprints;
 pub mod brain;
 pub mod budget;
 pub mod butinage_pont;
+/// L'etat de la vision, tel que le moteur le tient.
+///
+/// Re-exporte ici parce que le noeud a besoin de le LIRE et de le remettre a
+/// zero, et qu'il ne depend pas directement de `laruche-butinage`: passer par
+/// la porte d'entree habituelle vaut mieux qu'ajouter une seconde dependance
+/// pour trois fonctions.
+pub use laruche_butinage::vision;
 pub mod codex_auth;
 pub mod config;
 pub mod contexte;
