@@ -1,5 +1,74 @@
 # Changelog
 
+## [1.5.0] - 2026-09-01
+
+Une version qui rend visible ce qui se decidait en silence. Trois pannes de
+cette serie se ressemblaient: LaRuche prenait une decision correcte, ne le
+disait a personne, et le symptome pointait ailleurs. Un modele de vision qui
+jure ne pas voir, un fournisseur annonce en panne alors qu'il repond, un compte
+de verification jetable qui commande l'instance.
+
+### Ajoute
+
+- **Lancer maintenant** sur les taches planifiees, dans la chronologie comme
+  dans l'onglet Cron, pour les crons et pour les missions. Une tache ne se
+  verifiait qu'en attendant l'heure dite: une erreur de prompt se corrigeait le
+  lendemain matin. Les routes existaient, aucune vue ne les appelait.
+- **Releve de la colonne A faire**: a l'echeance reglee, les taches passent dans
+  Pret, les plus anciennes d'abord, et la releve de Pret les execute une par une
+  avec le fournisseur de chacune. Elle ne lance rien elle-meme: promouvoir
+  plutot qu'executer garde un seul chemin d'execution. Eteinte par defaut,
+  cadence en heures, jours ou semaines, et un bouton pour relever tout de suite.
+- **Vider le flux**, qui ne supprime rien: le flux est une vue des mutations de
+  la memoire et du journal, les effacer pour nettoyer un affichage reviendrait a
+  perdre l'historique. Le bouton pose une borne locale, et un bandeau dit ce qui
+  est masque avec de quoi tout revoir.
+- **Table ronde**: un debat se supprime, et son historique s'ouvre et se cherche
+  comme celui des conversations.
+- **Photo de profil**: la sienne se change en cliquant dessus, et le super-admin
+  peut changer celle des autres comptes. La liste les affichait sans permettre
+  d'en modifier une seule.
+- **Extension**: permissions minimales a l'installation, le reste demande au
+  moment de l'usage. Navigation privee refusee, politique de confidentialite,
+  curseur abeille en option. La release publie deux paquets: celui qui garde sa
+  `key` pour le chargement manuel, et celui qui en est debarrasse pour le
+  Chrome Web Store, qui la refuse.
+
+### Corrige
+
+- **Un modele de vision qui jure ne pas voir.** Quand un fournisseur refuse une
+  image, LaRuche cesse de lui en envoyer et lui explique qu'il n'a pas de
+  vision. Le modele relayait poliment cette note, et rien nulle part ne disait
+  que c'etait LaRuche qui avait retire l'image. Le marquage se journalise, le
+  controle de sante le montre avec le temps restant, et un bouton rend sa vue au
+  modele. Le message annoncait en plus "pour le reste de la session" quand le
+  repit est de dix minutes: on redemarrait le noeud quand il suffisait
+  d'attendre.
+- **Les images refusees par DeepSeek.** Un message `system` voyageait en queue,
+  apres le tour utilisateur portant l'image, et la requete entiere partait en
+  400 avec une erreur qui parlait de JSON. Ce message en queue etait autorise
+  par fournisseur, et la regle lisait le NOM: `provider: "openai"` decrit un
+  dialecte, pas une maison. C'est l'adresse qui tranche desormais.
+- **Un fournisseur distant annonce en panne alors qu'il repond.** La sonde de
+  sante interrogeait `/v1/models` sans la cle, recevait 401 et le lisait comme
+  une coupure, et elle sondait tout ce qui parle le dialecte OpenAI comme si
+  c'etait un serveur local. On ne sonde plus que ce qui tourne sur la machine ou
+  le reseau local.
+- **Le super-admin.** C'etait le compte le plus ancien, tous roles confondus: un
+  compte cree en passant pour une verification primait donc pour toujours sur le
+  proprietaire de la machine, et devenait le seul intouchable de l'instance.
+  L'anciennete se mesure maintenant parmi les admins.
+- **La version affichee.** Les paquets etaient restes en 0.2.0 pendant que les
+  releases partaient en v1.x: l'onglet Aide se croyait trois versions en retard
+  sur lui-meme.
+- **Les capacites MCP disparues.** Un serveur devenu injoignable laissait ses
+  outils dans l'arbre de la memoire pour toujours: le balayage ne passait que si
+  le registre contenait au moins un outil MCP, et zero serveur joignable veut
+  dire zero outil.
+- Une photo de profil doit etre une data URL d'image et non n'importe quelle
+  chaine assez courte: cette valeur finit dans le `src` d'une balise, ou une
+  adresse distante ferait fuiter l'adresse IP de qui affiche la liste.
+
 ## [1.4.1] - 2026-09-01
 
 Une version de surface: la page de presentation, le wiki et l'extension. Le moteur ne bouge
