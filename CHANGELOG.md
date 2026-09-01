@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.4.0] - 2026-09-01
+## [1.4.1] - 2026-09-01
 
 Une version de surface: la page de presentation, le wiki et l'extension. Le moteur ne bouge
 presque pas, mais trois pannes de l'interface se ressemblaient toutes: le code rapportait un
@@ -53,7 +53,7 @@ Le kanban, la verification de mise a jour et le glisser-deposer des cartes vienn
 - Le halo anime debordait de sa pastille dans les maquettes de la page de presentation.
 - **La version affichee**. Les paquets sont restes en 0.2.0 pendant que les releases
   partaient en v1.x: l'onglet Aide annoncait v0.2.0 et se croyait en retard de trois
-  versions sur lui-meme. L'espace de travail passe en 1.4.0, la coque de bureau aussi.
+  versions sur lui-meme. L'espace de travail passe en 1.4.1, la coque de bureau aussi.
 - **Table ronde**: un debat se supprime, et l'historique s'ouvre et se cherche comme
   celui des conversations. La route de suppression existait cote noeud depuis le debut,
   l'interface n'en offrait simplement pas le chemin.
