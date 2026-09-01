@@ -116,6 +116,10 @@ laruche/eval_scratch/
 
 # Feuille de route: document de travail, tenu en local et non publie.
 ROADMAP.md
+# Notes de conception du controle machine. L'etat des lieux et les limites de la
+# porte d'approbation sont passes dans wiki/Security.md; le reste est un journal
+# de conception, qui n'a pas a etre publie.
+CONTROLE-MACHINE.md
 
 # Docs et code de travail internes (archivés hors dépôt, jamais publiés)
 docs/_archive/

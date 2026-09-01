@@ -3,6 +3,10 @@
 LaRuche can act on the desktop, the user's Chrome session and visual inputs. These are
 separate capabilities with separate boundaries.
 
+These are also the tools that reach furthest outside the agent loop. Read the
+[limits of the approval gate](Security#limits) before enabling autonomous runs that can
+use them.
+
 ## Native computer control
 
 The `computer` tool is implemented in Rust. It can:
