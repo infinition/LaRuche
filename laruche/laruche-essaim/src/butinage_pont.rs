@@ -129,6 +129,32 @@ impl but::Fournisseur for FournisseurPont {
             if reduites > 0 {
                 tracing::debug!("{reduites} image(s) ramenee(s) au gabarit (serre: {serre})");
             }
+            // Puis le budget du CORPS ENTIER, schemas des outils compris. Le
+            // gabarit par image ne suffit pas: une capture qui passe seule fait
+            // quand meme deborder la requete, et l'endpoint la refuse avec une
+            // erreur de parsing JSON qui designe la fin du corps et n'a donc
+            // rien a voir avec l'image. C'est ce faux indice qui a envoye
+            // chercher du cote du format pendant des heures.
+            let taille_schemas: usize = schemas
+                .iter()
+                .map(|s| serde_json::to_string(s).map(|t| t.len()).unwrap_or(0))
+                .sum();
+            let avant: usize = msgs
+                .iter()
+                .map(|m| serde_json::to_string(m).map(|s| s.len()).unwrap_or(0))
+                .sum::<usize>()
+                + taille_schemas;
+            let apres = crate::images::au_budget_corps(
+                &mut msgs,
+                taille_schemas,
+                crate::images::CORPS_MAX,
+            );
+            if apres < avant {
+                tracing::info!(
+                    avant, apres, plafond = crate::images::CORPS_MAX,
+                    "corps ramene sous le plafond de l'endpoint"
+                );
+            }
         }
         let tools = if schemas.is_empty() {
             None

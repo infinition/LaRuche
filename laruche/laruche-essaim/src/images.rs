@@ -65,6 +65,105 @@ pub const B64_MAX: usize = 150_000;
 pub const COTE_SERRE: u32 = 768;
 pub const B64_SERRE: usize = 80_000;
 
+/// Taille maximale du CORPS de la requete, en octets.
+///
+/// Le plafond par image ne suffit pas, et c'est ce qui a coute le plus de
+/// temps sur ce sujet. Une capture de 56 ko passe le controle par image et fait
+/// pourtant echouer la requete, parce que ce qui compte pour l'endpoint c'est
+/// le corps entier: messages, transcript des outils, et les schemas des outils
+/// qui pesent a eux seuls 6 a 10 ko.
+///
+/// Deux corps mesures, refuses tous les deux:
+///
+/// ```text
+/// 82 732 octets  (image 56 419, soit 68 % du corps)
+/// 92 842 octets  (image 63 247, soit 68 % du corps)
+/// ```
+///
+/// Dans les deux cas l'erreur nomme la FIN du corps, et le message change selon
+/// ce qui s'y trouve: `tools[9]...` ou `messages[11].content`, puisque les cles
+/// sont serialisees dans l'ordre alphabetique et que `tools` ferme la marche.
+/// Ce n'est donc pas un probleme de contenu, et on a cherche longtemps du cote
+/// du format a cause de ca.
+///
+/// 60 ko: sous les deux mesures refusees, avec de la marge pour un transcript
+/// qui grossit en cours de mission. Une image ramenee a cette taille reste
+/// parfaitement lisible pour un modele de vision, qui la redecoupe de toute
+/// facon en tuiles de quelques centaines de pixels.
+pub const CORPS_MAX: usize = 60_000;
+
+/// Ramene une conversation deja convertie sous `CORPS_MAX`, schemas compris.
+///
+/// Rend la taille estimee finale. Reduit les images par paliers plutot que de
+/// viser juste du premier coup: la taille d'un PNG ne se predit pas depuis ses
+/// dimensions, seule la reencoder le dit.
+pub fn au_budget_corps(
+    msgs: &mut [serde_json::Value],
+    taille_schemas: usize,
+    plafond: usize,
+) -> usize {
+    let poids = |m: &[serde_json::Value]| -> usize {
+        m.iter()
+            .map(|v| serde_json::to_string(v).map(|s| s.len()).unwrap_or(0))
+            .sum::<usize>()
+            + taille_schemas
+    };
+
+    let mut taille = poids(msgs);
+    if taille <= plafond {
+        return taille;
+    }
+
+    // Du plus large au plus etroit. On s'arrete des que ca rentre: inutile
+    // d'abimer une capture plus que necessaire.
+    for (cote, b64) in [(1024u32, 90_000usize), (768, 55_000), (512, 30_000), (384, 16_000)] {
+        for m in msgs.iter_mut() {
+            reduire_message(m, cote, b64);
+        }
+        taille = poids(msgs);
+        if taille <= plafond {
+            return taille;
+        }
+    }
+    taille
+}
+
+/// Applique un gabarit a toutes les images d'un message, quel que soit le
+/// format sous lequel elles y sont rangees.
+fn reduire_message(m: &mut serde_json::Value, cote: u32, plafond: usize) {
+    if let Some(arr) = m.get_mut("images").and_then(|v| v.as_array_mut()) {
+        for img in arr.iter_mut() {
+            let Some(b64) = img.as_str() else { continue };
+            if let Some(r) = au_gabarit_borne("image/png", b64, cote, plafond) {
+                *img = serde_json::Value::String(r.b64);
+            }
+        }
+    }
+    if let Some(arr) = m.get_mut("attachments").and_then(|v| v.as_array_mut()) {
+        for p in arr.iter_mut() {
+            if p.get("kind").and_then(|v| v.as_str()) != Some("image") {
+                continue;
+            }
+            let mime = p
+                .get("mime_type")
+                .or_else(|| p.get("mime"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("image/png")
+                .to_string();
+            let Some(b64) = p.get("data").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            if let Some(r) = au_gabarit_borne(&mime, b64, cote, plafond) {
+                p["data"] = serde_json::Value::String(r.b64);
+                p["mime_type"] = serde_json::Value::String(r.mime.clone());
+                if p.get("mime").is_some() {
+                    p["mime"] = serde_json::Value::String(r.mime);
+                }
+            }
+        }
+    }
+}
+
 /// Une image prete a partir: son type MIME et sa charge base64.
 pub struct Image {
     pub mime: String,
@@ -221,6 +320,28 @@ mod tests {
     use super::*;
 
     /// PNG de bruit, assez gros pour ne pas se laisser compresser.
+    /// Une capture d'ecran plausible: des aplats, des bandes, quelques bords
+    /// nets. Ca ressemble a un bureau, et ca se compresse comme un bureau.
+    fn capture_ecran(l: u32, h: u32) -> String {
+        let mut img = image::RgbImage::new(l, h);
+        for (x, y, p) in img.enumerate_pixels_mut() {
+            let fenetre = x > l / 8 && x < l - l / 8 && y > h / 6 && y < h - h / 6;
+            let barre = y % 37 < 2;
+            *p = if barre && fenetre {
+                image::Rgb([200, 200, 205])
+            } else if fenetre {
+                image::Rgb([24, 24, 27])
+            } else {
+                image::Rgb([9, 9, 11])
+            };
+        }
+        let mut buf = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(img)
+            .write_to(&mut buf, image::ImageFormat::Png)
+            .unwrap();
+        base64::engine::general_purpose::STANDARD.encode(buf.into_inner())
+    }
+
     fn png_lourd(cote: u32) -> String {
         let mut img = image::RgbImage::new(cote, cote);
         let mut x = 0x12345678u32;
@@ -302,6 +423,53 @@ mod tests {
         assert!(att[0]["data"].as_str().unwrap().len() <= B64_MAX);
         // L'audio n'est pas une image et ne doit pas etre touche.
         assert_eq!(att[1]["data"], "AAAA");
+    }
+
+    #[test]
+    /// Le cas mesure sur DeepSeek: une capture qui passe le controle PAR IMAGE
+    /// et fait quand meme deborder la requete. C'est le corps entier qui compte.
+    #[test]
+    fn le_corps_entier_repasse_sous_le_plafond() {
+        // L'ecran mesure dans le cas reel: 2560x1440, avant toute reduction.
+        let gros = capture_ecran(2560, 1440);
+        let mut msgs = vec![serde_json::json!({
+            "role": "user",
+            "content": "regarde",
+            "attachments": [{"kind": "image", "mime_type": "image/png", "data": gros}],
+        })];
+
+        // Les schemas des outils pesent leur part: ils sont dans le corps aussi.
+        let schemas = 8_000usize;
+        let avant: usize = msgs
+            .iter()
+            .map(|m| serde_json::to_string(m).unwrap().len())
+            .sum::<usize>()
+            + schemas;
+        assert!(avant > CORPS_MAX, "le cas de test doit deborder: {avant}");
+
+        let apres = au_budget_corps(&mut msgs, schemas, CORPS_MAX);
+        assert!(
+            apres <= CORPS_MAX,
+            "le corps doit repasser sous {CORPS_MAX}, obtenu {apres}"
+        );
+
+        // Et il reste une image: reduire n'est pas supprimer.
+        let reste = msgs[0]["attachments"][0]["data"].as_str().unwrap_or("");
+        assert!(!reste.is_empty(), "l'image ne doit pas disparaitre");
+    }
+
+    /// Un corps qui tient deja n'est pas touche: on n'abime pas une capture
+    /// pour rien.
+    #[test]
+    fn un_corps_qui_tient_est_laisse_intact() {
+        let petit = capture_ecran(64, 64);
+        let mut msgs = vec![serde_json::json!({
+            "role": "user",
+            "content": "ok",
+            "attachments": [{"kind": "image", "mime_type": "image/png", "data": petit.clone()}],
+        })];
+        au_budget_corps(&mut msgs, 1_000, CORPS_MAX);
+        assert_eq!(msgs[0]["attachments"][0]["data"].as_str(), Some(petit.as_str()));
     }
 
     #[test]
