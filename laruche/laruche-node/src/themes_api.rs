@@ -237,8 +237,28 @@ pub(crate) async fn api_themes_save(
         Ok(v) => v,
         Err(e) => return Json(serde_json::json!({ "status": "error", "error": e })),
     };
+    // `parent` et `base` servent au retour a la valeur d'origine, jeton par jeton.
+    // La base est capturee a la creation de la copie: la recalculer plus tard
+    // obligerait a repeindre le theme parent pour le lire, donc a faire clignoter
+    // l'interface. Elles ne sont ecrites qu'a la creation, jamais ecrasees ensuite,
+    // sinon le premier enregistrement d'une modification effacerait la reference
+    // meme a laquelle on veut pouvoir revenir.
+    let ancien = std::fs::read_to_string(dossier().join(format!("{id}.json")))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+    let parent = ancien
+        .as_ref()
+        .map(|a| a["parent"].clone())
+        .filter(|v| !v.is_null())
+        .unwrap_or_else(|| body["parent"].clone());
+    let base = ancien
+        .as_ref()
+        .map(|a| a["base"].clone())
+        .filter(|v| v.is_object())
+        .unwrap_or_else(|| body["base"].clone());
     let theme = serde_json::json!({
-        "id": id, "nom": nom, "jetons": jetons, "marque": marque, "fond": fond
+        "id": id, "nom": nom, "jetons": jetons, "marque": marque, "fond": fond,
+        "parent": parent, "base": base
     });
     let chemin = dossier().join(format!("{id}.json"));
     match serde_json::to_string_pretty(&theme)

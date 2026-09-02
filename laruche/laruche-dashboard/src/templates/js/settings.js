@@ -413,22 +413,38 @@ LaRuche.i18n.add({
   'settings.toolDangerSafe':     {fr:'safe',             en:'safe'},
   'settings.toolEnabled':        {fr:' activée',         en:' enabled'},
   'settings.toolDisabled':       {fr:' désactivée',      en:' disabled'},
-  'settings.navAppearance':     {fr:'Apparence',            en:'Appearance'},
-  'settings.brandTitle':        {fr:'Marque',                 en:'Brand'},
-  'settings.brandHint':         {fr:"Le nom et le logo en haut a gauche. Ils suivent le theme: chaque theme porte les siens.", en:'The name and logo in the top left. They travel with the theme: each theme carries its own.'},
-  'settings.brandName':         {fr:'Nom affiche',            en:'Displayed name'},
-  'settings.brandLogo':         {fr:'Logo',                   en:'Logo'},
-  'settings.brandPick':         {fr:'Choisir un fichier',     en:'Pick a file'},
-  'settings.brandClear':        {fr:'Retirer',                en:'Remove'},
-  'settings.brandSvgHint':      {fr:"SVG de preference: il herite de la couleur d'accent, donc il suit le theme. Un PNG garde la sienne. Le SVG est lave par le serveur avant d'etre enregistre.", en:'Prefer SVG: it inherits the accent colour, so it follows the theme. A PNG keeps its own. SVG is sanitised by the server before being stored.'},
-  'settings.brandTooBig':       {fr:'Logo trop lourd (512 Ko maximum).', en:'Logo too heavy (512 KB max).'},
-  'settings.bgTitle':           {fr:"Image de fond",         en:'Background image'},
-  'settings.bgHint':            {fr:"Une seule image, derriere tout, et vous choisissez les zones qui la laissent voir.", en:'One image, behind everything, and you choose which zones let it show.'},
-  'settings.bgPick':            {fr:'Choisir une image',      en:'Pick an image'},
-  'settings.bgClear':           {fr:'Retirer',                en:'Remove'},
-  'settings.bgOpacity':         {fr:'Opacite',                en:'Opacity'},
-  'settings.bgFit':             {fr:'Cadrage',                en:'Fit'},
-  'settings.bgZones':           {fr:'Zones concernees',       en:'Zones affected'},
+  'settings.navAppearance':     {fr:'Apparence',            en:'Appearance'},
+  'settings.dockDetacher':      {fr:'Detacher',               en:'Detach'},
+  'settings.dockAide':          {fr:"Accrocher ce panneau sur le cote, pour s'en servir depuis n'importe quelle page", en:'Dock this panel to the side, to use it from any page'},
+  'settings.dockAilleurs':      {fr:"Ce panneau est ouvert dans le dock, sur le cote. Fermez-le pour le retrouver ici.", en:'This panel is open in the side dock. Close it to bring it back here.'},
+  'settings.dockVersPage':      {fr:'Rouvrir dans la page',    en:'Reopen in the page'},
+  'settings.themeSaveAs':       {fr:'Enregistrer comme nouveau theme', en:'Save as a new theme'},
+  'settings.themeRename':       {fr:'Renommer',               en:'Rename'},
+  'settings.themeDuplicate':    {fr:'Dupliquer',              en:'Duplicate'},
+  'settings.themeRevert':       {fr:"Revenir aux valeurs d'origine", en:'Back to original values'},
+  'settings.themeAutoSaved':    {fr:"Theme a vous: chaque changement est enregistre tout seul.", en:'Your own theme: every change is saved on its own.'},
+  'settings.themeUnsaved':      {fr:'non enregistre',         en:'unsaved'},
+  'settings.themeSaving':       {fr:'enregistrement...',      en:'saving...'},
+  'settings.themeSavedOk':      {fr:'enregistre',             en:'saved'},
+  'settings.themeSaveFail':     {fr:"echec de l'enregistrement", en:'save failed'},
+  'settings.themeAskName':      {fr:'Nom du nouveau theme',   en:'Name of the new theme'},
+  'settings.themeCopyOf':       {fr:'Copie de',               en:'Copy of'},
+  'settings.tokenReset':        {fr:"Revenir a la valeur d'origine", en:'Back to the original value'},
+  'settings.brandTitle':        {fr:'Marque',                 en:'Brand'},
+  'settings.brandHint':         {fr:"Le nom et le logo en haut a gauche. Ils suivent le theme: chaque theme porte les siens.", en:'The name and logo in the top left. They travel with the theme: each theme carries its own.'},
+  'settings.brandName':         {fr:'Nom affiche',            en:'Displayed name'},
+  'settings.brandLogo':         {fr:'Logo',                   en:'Logo'},
+  'settings.brandPick':         {fr:'Choisir un fichier',     en:'Pick a file'},
+  'settings.brandClear':        {fr:'Retirer',                en:'Remove'},
+  'settings.brandSvgHint':      {fr:"SVG de preference: il herite de la couleur d'accent, donc il suit le theme. Un PNG garde la sienne. Le SVG est lave par le serveur avant d'etre enregistre.", en:'Prefer SVG: it inherits the accent colour, so it follows the theme. A PNG keeps its own. SVG is sanitised by the server before being stored.'},
+  'settings.brandTooBig':       {fr:'Logo trop lourd (512 Ko maximum).', en:'Logo too heavy (512 KB max).'},
+  'settings.bgTitle':           {fr:"Image de fond",         en:'Background image'},
+  'settings.bgHint':            {fr:"Une seule image, derriere tout, et vous choisissez les zones qui la laissent voir.", en:'One image, behind everything, and you choose which zones let it show.'},
+  'settings.bgPick':            {fr:'Choisir une image',      en:'Pick an image'},
+  'settings.bgClear':           {fr:'Retirer',                en:'Remove'},
+  'settings.bgOpacity':         {fr:'Opacite',                en:'Opacity'},
+  'settings.bgFit':             {fr:'Cadrage',                en:'Fit'},
+  'settings.bgZones':           {fr:'Zones concernees',       en:'Zones affected'},
   'settings.bgTooBig':          {fr:'Image trop lourde (3 Mo maximum).', en:'Image too heavy (3 MB max).'},
   'settings.themeTitle':        {fr:'Thème de l’interface', en:'Interface theme'},
   'settings.themeHint':         {fr:'Le changement est immédiat. Survolez un thème pour le voir avant de choisir.', en:'Applied immediately. Hover a theme to see it before choosing.'},
@@ -758,6 +774,114 @@ LaRuche.Settings = (function(){
     loadTab(id);
   }
 
+  /* ------------------------------------------------------------------------
+     LE DOCK. Un onglet des reglages accroche sur le cote, pendant qu'on se sert
+     du reste de l'application.
+
+     Un seul a la fois, et c'est un choix, pas une limite technique: deux
+     panneaux flottants se recouvrent, et surtout chaque onglet s'adresse a ses
+     controles par identifiant. Deux exemplaires du meme onglet dans la page
+     rendraient le second inerte sans le dire. Ouvrir un autre onglet remplace
+     donc le contenu du dock, et la page des reglages affiche un renvoi quand
+     l'onglet qu'elle devrait montrer est justement celui qui est accroche.
+     ------------------------------------------------------------------------ */
+  var _dockTab = null;
+
+  function _dockTitre(tab){
+    var s = _visibleSections().filter(function(x){ return x.id === tab; })[0];
+    return s ? LaRuche.i18n.t(s.i18n || ('settings.nav' + tab)) : tab;
+  }
+
+  function dock(tab){
+    tab = _ALIASES[tab] || tab;
+    if(!_visibleSections().some(function(s){ return s.id === tab; })) return false;
+    var d = document.getElementById('lrDock');
+    if(!d){
+      d = document.createElement('aside');
+      d.id = 'lrDock';
+      d.className = 'lr-dock';
+      d.setAttribute('role', 'complementary');
+      d.innerHTML =
+        '<div class="lr-dock-poignee" id="lrDockPoignee"></div>'+
+        '<div class="lr-dock-head">'+
+          '<span class="lr-dock-titre" id="lrDockTitre"></span>'+
+          '<button class="lr-dock-btn" id="lrDockPage" title="'+LaRuche.i18n.t('settings.dockVersPage')+'">&#8599;</button>'+
+          '<button class="lr-dock-btn" id="lrDockClose" title="'+LaRuche.i18n.t('common.close')+'">&times;</button>'+
+        '</div>'+
+        '<div class="lr-dock-corps" id="lrDockCorps"></div>';
+      document.body.appendChild(d);
+      document.getElementById('lrDockClose').onclick = fermerDock;
+      document.getElementById('lrDockPage').onclick = function(){
+        var t = _dockTab; fermerDock(); ouvrirSection(t);
+      };
+      _brancherPoignee(d);
+      document.body.classList.add('lr-dock-ouvert');
+    }
+    _dockTab = tab;
+    document.getElementById('lrDockTitre').textContent = _dockTitre(tab);
+    var corps = document.getElementById('lrDockCorps');
+    corps.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'settings-tab-canvas';
+    corps.appendChild(el);
+    _monterOnglet(tab, el);
+    _majLargeurDock();
+    // La page des reglages, si elle affiche le meme onglet, doit lacher la main.
+    if(currentTab === tab && document.getElementById('settingsContent')) loadTab(tab);
+    try { localStorage.setItem('laruche_dock', tab); } catch(e){}
+    return true;
+  }
+
+  function fermerDock(){
+    var d = document.getElementById('lrDock');
+    if(d) d.parentNode.removeChild(d);
+    document.body.classList.remove('lr-dock-ouvert');
+    document.documentElement.style.removeProperty('--lr-dock-largeur');
+    document.documentElement.style.removeProperty('--lr-dock-hauteur');
+    var ancien = _dockTab;
+    _dockTab = null;
+    try { localStorage.removeItem('laruche_dock'); } catch(e){}
+    // Rendre son contenu a la page des reglages si elle attendait dessus.
+    if(ancien && currentTab === ancien && document.getElementById('settingsContent')) loadTab(ancien);
+  }
+
+  function _majLargeurDock(){
+    var d = document.getElementById('lrDock');
+    if(!d) return;
+    var r = d.getBoundingClientRect();
+    document.documentElement.style.setProperty('--lr-dock-largeur', Math.round(r.width) + 'px');
+    document.documentElement.style.setProperty('--lr-dock-hauteur', Math.round(r.height) + 'px');
+  }
+
+  /* Redimensionnement a la poignee. `pointer` plutot que `mouse`: le meme code
+     sert alors au doigt sur la feuille du bas, sans deuxieme jeu d'evenements. */
+  function _brancherPoignee(d){
+    var p = d.querySelector('.lr-dock-poignee');
+    if(!p) return;
+    p.addEventListener('pointerdown', function(e){
+      e.preventDefault();
+      p.setPointerCapture(e.pointerId);
+      var vertical = window.innerWidth <= 720;
+      function bouger(ev){
+        if(vertical){
+          var h = Math.min(window.innerHeight * 0.92, Math.max(160, window.innerHeight - ev.clientY));
+          d.style.height = h + 'px';
+        } else {
+          var w = Math.min(window.innerWidth * 0.8, Math.max(280, window.innerWidth - ev.clientX));
+          d.style.width = w + 'px';
+        }
+        _majLargeurDock();
+      }
+      function lacher(ev){
+        p.releasePointerCapture(e.pointerId);
+        document.removeEventListener('pointermove', bouger);
+        document.removeEventListener('pointerup', lacher);
+      }
+      document.addEventListener('pointermove', bouger);
+      document.addEventListener('pointerup', lacher);
+    });
+  }
+
   function loadTab(tab) {
     tab = _ALIASES[tab] || tab;
     currentTab = tab;
@@ -771,8 +895,36 @@ LaRuche.Settings = (function(){
     var el = document.createElement('div');
     el.className = 'settings-tab-canvas';
     host.innerHTML = '';
+    // Un seul bouton, au-dessus du contenu: il vaut pour l'onglet affiche, quel
+    // qu'il soit, plutot qu'un bouton par onglet a maintenir dans la barre.
+    var barre = document.createElement('div');
+    barre.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:6px';
+    var bd = document.createElement('button');
+    bd.className = 'cwd-btn';
+    bd.style.cssText = 'opacity:1;font-size:12px;padding:5px 10px';
+    bd.innerHTML = '&#11026; ' + LaRuche.i18n.t('settings.dockDetacher');
+    bd.title = LaRuche.i18n.t('settings.dockAide');
+    bd.onclick = function(){ dock(tab); };
+    barre.appendChild(bd);
+    host.appendChild(barre);
     host.appendChild(el);
     el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.loading')+'</div>';
+    // Le dock affiche deja cet onglet: on ne le monte pas deux fois. Les panneaux
+    // s'adressent a leurs controles par identifiant, et deux exemplaires du meme
+    // onglet dans la page rendraient le second inerte, sans le dire.
+    if(_dockTab === tab){
+      el.innerHTML = '<div class="settings-card" style="color:var(--text-dim);font-size:12.5px">'+
+        LaRuche.i18n.t('settings.dockAilleurs')+'</div>';
+      return;
+    }
+    _monterOnglet(tab, el);
+  }
+
+  /* Monter un onglet dans le conteneur qu'on lui donne. C'est le seul endroit qui
+     connait la correspondance onglet -> chargeur, et c'est ce qui rend le dock
+     possible: la page des reglages et le dock lui passent simplement un `el`
+     different. */
+  function _monterOnglet(tab, el) {
     switch(tab) {
       case 'appearance': loadApparence(el); break;
       case 'profile': loadProfile(el); break;
@@ -1711,6 +1863,7 @@ LaRuche.Settings = (function(){
 
   var _marqueBrouillon = {};
   var _fondBrouillon = {};
+  var _sauveMinuteur = null;
 
   /* Une ligne de reglage, choisie par le TYPE du jeton.
 
@@ -1722,7 +1875,10 @@ LaRuche.Settings = (function(){
   function _ligneJeton(j, valeur, esc){
     var T = LaRuche.Themes;
     var nom = esc(j[LaRuche.i18n.get()] || j.fr);
-    var etiquette = '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+nom+'</span>';
+    var etiquette = '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+nom+'</span>'+
+      '<button type="button" data-defaut="'+j.cle+'" title="'+esc(LaRuche.i18n.t('settings.tokenReset'))+'" '+
+        'style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;'+
+        'padding:0 2px;line-height:1;visibility:hidden">&#8634;</button>';
     var champ = '<input type="text" data-jeton-txt="'+j.cle+'" value="'+esc(valeur)+'" spellcheck="false" '+
       'style="width:190px;background:var(--bg-input);color:var(--text-dim);border:1px solid var(--border);'+
       'border-radius:5px;padding:3px 7px;font-family:var(--mono);font-size:11px">';
@@ -1855,14 +2011,22 @@ LaRuche.Settings = (function(){
       '</div>'+
 
       '<div class="settings-card"><div class="settings-card-title">'+t('settings.themeEditTitle')+'</div>'+
-        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+
-          t('settings.themeEditHint')+(perso?'':' '+t('settings.themeBuiltinHint'))+'</p>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.themeEditHint')+'</p>'+
+        '<div style="display:flex;gap:8px;align-items:flex-start;border:1px solid '+
+          (perso?'var(--green)':'var(--amber)')+';border-radius:8px;padding:8px 10px;margin-bottom:12px;'+
+          'background:'+(perso?'var(--green-dim)':'var(--amber-glow)')+';font-size:12px;color:var(--text-dim)">'+
+          '<span>'+(perso?'&#10003;':'&#9888;')+'</span><span>'+
+          (perso?t('settings.themeAutoSaved'):t('settings.themeBuiltinHint'))+'</span></div>'+
         champs+
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">'+
           '<input id="themeNom" class="form-input" placeholder="'+esc(t('settings.themeName'))+'" value="'+esc(nomActuel)+'" style="flex:1;min-width:170px">'+
-          '<button class="send-btn" id="themeSave"><span>'+t('settings.themeSave')+'</span></button>'+
+          (perso
+            ? '<button class="cwd-btn" id="themeRenommer" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeRename')+'</button>'
+            : '<button class="send-btn" id="themeSave"><span>'+t('settings.themeSaveAs')+'</span></button>')+
+          '<button class="cwd-btn" id="themeDup" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeDuplicate')+'</button>'+
           (perso?'<button class="cwd-btn" id="themeDel" style="opacity:1;font-size:12px;padding:7px 11px;color:var(--red)">'+t('settings.themeDelete')+'</button>':'')+
-          '<button class="cwd-btn" id="themeReset" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeReset')+'</button>'+
+          '<button class="cwd-btn" id="themeReset" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeRevert')+'</button>'+
+          '<span id="themeEtat" style="font-size:11.5px;color:var(--text-muted)"></span>'+
         '</div>'+
       '</div>';
 
@@ -1876,11 +2040,59 @@ LaRuche.Settings = (function(){
        la seule facon de choisir une couleur, en la voyant sur l'interface reelle
        et non sur un carre de 30 pixels. Le brouillon retient ce qui a change,
        l'enregistrement le fige dans un fichier. */
+    /* Le brouillon est DECLARE au moteur a chaque changement.
+
+       Sans cela il n'existait qu'en memoire de ce panneau, et la moindre
+       repeinture le detruisait: survoler une vignette appelle `apercuFin`, qui
+       repeint le theme actif, et le repeignait depuis le fichier enregistre. Une
+       image de fond posee disparaissait donc au premier mouvement de souris. */
+    function declarer(){
+      T.definirBrouillon({ id: actif, jetons: _themeBrouillon, marque: _marqueBrouillon, fond: _fondBrouillon });
+      majEtat();
+      if(perso) planifierSauvegarde();
+    }
+
+    function majEtat(txt){
+      var e = document.getElementById('themeEtat');
+      if(e) e.textContent = txt || (perso ? '' : t('settings.themeUnsaved'));
+      el.querySelectorAll('[data-defaut]').forEach(function(b){
+        b.style.visibility = _differe(b.dataset.defaut) ? 'visible' : 'hidden';
+      });
+    }
+
+    /* La valeur d'origine d'un jeton. Un theme livre la tient de sa feuille de
+       style: il suffit de retirer la valeur en ligne pour la retrouver. Une copie
+       la tient de la `base` capturee au moment ou elle a ete faite. */
+    var base = T.baseDe(actif);
+    function valeurOrigine(cle){ return base ? base[cle] : null; }
+    function _differe(cle){
+      var o = valeurOrigine(cle);
+      if(o === null || o === undefined){
+        // Integre: la difference se lit a la presence d'une valeur en ligne.
+        return !!document.documentElement.style.getPropertyValue(cle);
+      }
+      return (_themeBrouillon[cle] || '').trim() !== (o || '').trim();
+    }
+
+    /* Auto-enregistrement, temporise. Un curseur d'opacite emet des dizaines
+       d'evenements par seconde; ecrire un fichier a chacun serait absurde. */
+    function planifierSauvegarde(){
+      clearTimeout(_sauveMinuteur);
+      majEtat(t('settings.themeSaving'));
+      _sauveMinuteur = setTimeout(async function(){
+        var nom = (document.getElementById('themeNom')||{}).value || nomActuel;
+        var r = await T.enregistrer(nom.trim()||nomActuel, _themeBrouillon,
+                                    actif.slice('perso:'.length), _marqueBrouillon, _fondBrouillon);
+        majEtat(r && r.status === 'ok' ? t('settings.themeSavedOk') : t('settings.themeSaveFail'));
+      }, 700);
+    }
+
     function poser(cle, valeur){
       _themeBrouillon[cle] = valeur;
       document.documentElement.style.setProperty(cle, valeur);
       var txt = el.querySelector('[data-jeton-txt="'+cle+'"]');
       if(txt && txt.value !== valeur) txt.value = valeur;
+      declarer();
     }
     function couleurDe(cle){
       var pip = el.querySelector('[data-jeton="'+cle+'"]');
@@ -1905,6 +2117,7 @@ LaRuche.Settings = (function(){
         var cle = inp.dataset.jetonTxt;
         _themeBrouillon[cle] = inp.value;
         document.documentElement.style.setProperty(cle, inp.value);
+        declarer();
         var pip = el.querySelector('[data-jeton="'+cle+'"]');
         if(pip){
           var c = T.resoudreCouleur(inp.value);
@@ -1917,6 +2130,35 @@ LaRuche.Settings = (function(){
       };
     });
 
+    /* Retour a la valeur d'origine, jeton par jeton. Sur un theme livre, il
+       suffit de retirer la valeur en ligne pour retrouver celle de la feuille de
+       style; sur une copie, on repose la valeur capturee a sa creation. */
+    el.querySelectorAll('[data-defaut]').forEach(function(b){
+      b.onclick = function(){
+        var cle = b.dataset.defaut;
+        var o = valeurOrigine(cle);
+        if(o === null || o === undefined){
+          delete _themeBrouillon[cle];
+          document.documentElement.style.removeProperty(cle);
+        } else {
+          _themeBrouillon[cle] = o;
+          document.documentElement.style.setProperty(cle, o);
+        }
+        var v = getComputedStyle(document.documentElement).getPropertyValue(cle).trim();
+        var txt = el.querySelector('[data-jeton-txt="'+cle+'"]'); if(txt) txt.value = v;
+        var pip = el.querySelector('[data-jeton="'+cle+'"]');
+        if(pip){
+          var c = T.resoudreCouleur(v);
+          if(c){
+            pip.value = T.versHex(c);
+            var al = el.querySelector('[data-jeton-alpha="'+cle+'"]'); if(al) al.value = c.a;
+          }
+        }
+        var tl = el.querySelector('[data-jeton-taille="'+cle+'"]'); if(tl) tl.value = parseFloat(v);
+        declarer();
+      };
+    });
+
     /* ---- La marque ---- */
     function rendreMarque(){
       var ap = document.getElementById('marqueApercu');
@@ -1926,10 +2168,12 @@ LaRuche.Settings = (function(){
             : _marqueBrouillon.logo)
         : '';
       T.peindreMarque(_marqueBrouillon);
+      declarer();
     }
+    majEtat(perso ? t('settings.themeSavedOk') : t('settings.themeUnsaved'));
     rendreMarque();
     var mn = document.getElementById('marqueNom');
-    if(mn) mn.oninput = function(){ _marqueBrouillon.nom = mn.value; T.peindreMarque(_marqueBrouillon); };
+    if(mn) mn.oninput = function(){ _marqueBrouillon.nom = mn.value; rendreMarque(); };
     var mc = document.getElementById('marqueChoisir'), mf = document.getElementById('marqueFichier');
     if(mc && mf){
       mc.onclick = function(){ mf.click(); };
@@ -1955,6 +2199,7 @@ LaRuche.Settings = (function(){
       var v = document.getElementById('fondOpaciteVal');
       if(v) v.textContent = Math.round(_fondBrouillon.opacite*100)+'%';
       T.peindreFond(_fondBrouillon);
+      declarer();
     }
     rendreFond();
     var fc = document.getElementById('fondChoisir'), ff = document.getElementById('fondFichier');
@@ -1987,25 +2232,66 @@ LaRuche.Settings = (function(){
       cb.onchange = function(){ _fondBrouillon.zones[cb.dataset.zone] = cb.checked; rendreFond(); };
     });
 
+    function nomDemande(defaut){
+      var n = (document.getElementById('themeNom')||{}).value || '';
+      n = n.trim();
+      if(n && n !== nomActuel) return n;
+      return window.prompt(t('settings.themeAskName'), defaut) || '';
+    }
+
+    /* Enregistrer un theme LIVRE modifie: cela fabrique une copie, jamais une
+       reecriture. Un integre vit dans la feuille de style de l'application; le
+       reecrire demanderait de reinstaller pour revenir en arriere, alors que le
+       garder intact rend la remise a zero gratuite: il suffit de le reselectionner. */
     var save = document.getElementById('themeSave');
     if(save) save.onclick = async function(){
-      var nom = (document.getElementById('themeNom')||{}).value || '';
-      nom = nom.trim();
-      if(!nom){ LaRuche.Toast.show(t('settings.themeName'),'warn'); return; }
-      // Un integre modifie devient une COPIE: on ne reecrit jamais un theme livre,
-      // sinon revenir en arriere demanderait de reinstaller l'application.
-      var id = perso ? actif.slice('perso:'.length) : null;
-      var r = await T.enregistrer(nom, _themeBrouillon, id, _marqueBrouillon, _fondBrouillon);
+      var nom = nomDemande(nomActuel || (t('settings.themeCopyOf') + ' ' + (T.catalogue().filter(function(x){return x.id===actif;})[0]||{}).nom));
+      if(!nom.trim()){ return; }
+      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon);
       if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
       else LaRuche.Toast.show((r&&r.error)||'erreur','warn');
     };
+
+    var ren = document.getElementById('themeRenommer');
+    if(ren) ren.onclick = async function(){
+      var nom = (document.getElementById('themeNom')||{}).value || '';
+      if(!nom.trim()){ LaRuche.Toast.show(t('settings.themeName'),'warn'); return; }
+      var r = await T.enregistrer(nom.trim(), _themeBrouillon, actif.slice('perso:'.length),
+                                  _marqueBrouillon, _fondBrouillon);
+      if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
+    };
+
+    var dup = document.getElementById('themeDup');
+    if(dup) dup.onclick = async function(){
+      var courant = (T.catalogue().filter(function(x){return x.id===actif;})[0]||{}).nom || '';
+      var nom = window.prompt(t('settings.themeAskName'), t('settings.themeCopyOf') + ' ' + courant);
+      if(!nom || !nom.trim()) return;
+      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon);
+      if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
+      else LaRuche.Toast.show((r&&r.error)||'erreur','warn');
+    };
+
     var del = document.getElementById('themeDel');
     if(del) del.onclick = async function(){
+      T.definirBrouillon(null);
       await T.supprimer(actif);
       loadApparence(el);
     };
+
+    /* Revenir aux valeurs d'origine de CE theme, pas au theme par defaut. Le
+       bouton disait `themeReset` et sautait sur `defaut`, ce qui faisait perdre
+       le theme choisi en plus des retouches. */
     var reset = document.getElementById('themeReset');
-    if(reset) reset.onclick = function(){ T.appliquer('defaut'); loadApparence(el); };
+    if(reset) reset.onclick = async function(){
+      T.definirBrouillon(null);
+      if(perso && base){
+        _themeBrouillon = Object.assign({}, base);
+        await T.enregistrer(nomActuel, _themeBrouillon, actif.slice('perso:'.length),
+                            _marqueBrouillon, _fondBrouillon);
+      }
+      T.appliquer(actif);
+      loadApparence(el);
+    };
   }
 
   async function loadNetwork(el) {
@@ -4798,7 +5084,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab, dock:dock, fermerDock:fermerDock,
     loadGeneral:loadGeneral, loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, lancerCronTask:lancerCronTask, visionReessayer:visionReessayer, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 

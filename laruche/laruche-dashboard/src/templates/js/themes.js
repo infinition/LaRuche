@@ -151,7 +151,22 @@
     { id: 'papier', nom: { fr: 'Papier', en: 'Paper' }, fond: '#faf7f2', point: '#b45309' }
   ];
 
-  var etat = { actif: 'defaut', perso: [] };
+  /* Le BROUILLON: ce qui est en cours d'edition pour le theme actif.
+
+     Il manquait, et c'est ce qui faisait disparaitre une image de fond a peine
+     posee. `apercuFin()` repeint le theme actif quand la souris quitte une
+     vignette, et il le repeignait depuis le fichier ENREGISTRE: tout ce qui
+     n'avait pas encore ete sauve etait efface par un simple survol. Le meme
+     effacement se produisait a chaque repeinture, d'ou l'impression que le fond
+     tenait tant qu'on ne touchait a rien.
+
+     Desormais peindre le theme actif peint le brouillon quand il y en a un. Un
+     apercu de theme voisin reste un apercu: il peint l'autre theme, et le retour
+     rend le brouillon intact. */
+  var etat = { actif: 'defaut', perso: [], brouillon: null };
+
+  function definirBrouillon(b) { etat.brouillon = b; }
+  function brouillonCourant() { return etat.brouillon; }
 
   function lang() {
     return (window.LaRuche && LaRuche.i18n && LaRuche.i18n.get) ? LaRuche.i18n.get() : 'fr';
@@ -320,6 +335,20 @@
      laisse, sinon un theme perso survivrait au passage a un integre. */
   function peindre(id) {
     var r = document.documentElement;
+    var br = (etat.brouillon && etat.brouillon.id === id) ? etat.brouillon : null;
+    if (br) {
+      // Un brouillon vaut pour tout: ses jetons se posent en ligne, meme sur un
+      // integre, sinon editer une couleur d'un theme livre ne se verrait pas.
+      if (!estPerso(id) && id !== 'defaut') r.setAttribute('data-theme', id);
+      else r.removeAttribute('data-theme');
+      TOUS.forEach(function (c) {
+        if (br.jetons && br.jetons[c]) r.style.setProperty(c, br.jetons[c]);
+        else r.style.removeProperty(c);
+      });
+      peindreFond(br.fond || {});
+      peindreMarque(br.marque || {});
+      return;
+    }
     if (estPerso(id)) {
       var t = persoParId(id);
       var jetons = (t && t.jetons) || {};
@@ -415,6 +444,44 @@
     peindre(etat.actif);
   }
 
+  /* La BASE d'un theme: les valeurs dont il est parti.
+
+     C'est elle qui rend possible le petit bouton de retour a la valeur d'origine,
+     jeton par jeton. La capturer a la creation est exact et ne coute rien; la
+     recalculer plus tard obligerait a repeindre le theme parent pour le lire,
+     donc a faire clignoter l'interface a chaque fois. */
+  function baseCourante() {
+    var st = getComputedStyle(document.documentElement);
+    var out = {};
+    TOUS.forEach(function (c) { out[c] = (st.getPropertyValue(c) || '').trim(); });
+    return out;
+  }
+
+  /* Copier le theme actif sous un nouveau nom, et basculer dessus.
+
+     C'est le seul chemin d'edition d'un theme livre, et c'est voulu: un integre
+     vit dans la feuille de style de l'application, le reecrire demanderait de
+     reinstaller pour revenir en arriere. Le garder intact rend au contraire la
+     remise a zero gratuite, il suffit de le reselectionner. */
+  async function dupliquer(nom, jetons, marque, fond) {
+    var parent = etat.actif;
+    var base = jetons ? Object.assign({}, jetons) : baseCourante();
+    var r = await fetch('/api/themes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: null, nom: nom, jetons: jetons || baseCourante(),
+        marque: marque || {}, fond: fond || {},
+        parent: estPerso(parent) ? clePerso(parent) : parent, base: base
+      })
+    }).then(function (x) { return x.json(); });
+    if (r && r.status === 'ok') {
+      await charger();
+      etat.brouillon = null;
+      appliquer('perso:' + r.theme.id);
+    }
+    return r;
+  }
+
   async function enregistrer(nom, jetons, id, marque, fond) {
     var r = await fetch('/api/themes', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -486,7 +553,12 @@
     resoudreCouleur: resoudreCouleur, versHex: versHex,
     composerCouleur: composerCouleur, tripletRgb: tripletRgb,
     peindreFond: peindreFond, peindreMarque: peindreMarque,
-    habillageDe: habillageDe,
+    habillageDe: habillageDe, dupliquer: dupliquer, baseCourante: baseCourante,
+    definirBrouillon: definirBrouillon, brouillonCourant: brouillonCourant,
+    baseDe: function (id) {
+      var t = estPerso(id) ? persoParId(id) : null;
+      return (t && t.base) || null;
+    },
     charger: charger, appliquer: appliquer, peindre: peindre,
     apercuSur: apercuSur, apercuFin: apercuFin,
     jetonsCourants: jetonsCourants, catalogue: catalogue,
