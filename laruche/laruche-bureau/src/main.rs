@@ -302,6 +302,41 @@ fn palette_attente(foyer: &std::path::Path) -> (String, String, String, String) 
     (p.0.into(), p.1.into(), p.2.into(), p.3.into())
 }
 
+/// Le foyer de la ruche, vu depuis l'application de bureau.
+///
+/// Le noeud choisit son foyer puis s'y PLACE, une fois, au tout debut. L'ecran
+/// d'attente lisait donc ses deux fichiers, le theme actif et la langue, dans le
+/// repertoire courant, en supposant que c'etait le meme endroit. Ce n'est vrai
+/// que si l'on lance l'application depuis le foyer: une copie de `laruche.exe`
+/// posee sur le bureau cherchait `themes/actif.txt` et `langue.txt` sur le
+/// bureau, ne trouvait rien, et retombait sur le theme sombre et le francais.
+/// L'application se lance justement presque toujours d'ailleurs que du foyer.
+///
+/// Meme regle que le noeud, et dans le meme ordre, sans quoi les deux ne
+/// parleraient pas de la meme ruche.
+fn foyer() -> std::path::PathBuf {
+    if let Ok(d) = std::env::var("LARUCHE_DATA_DIR") {
+        if !d.is_empty() {
+            return std::path::PathBuf::from(d);
+        }
+    }
+    let ici = std::env::current_dir().unwrap_or_default();
+    for marqueur in [
+        "memoire.db",
+        "config.json",
+        "laruche.toml",
+        "secrets.enc",
+        "missions.json",
+        "cron-tasks.json",
+    ] {
+        if ici.join(marqueur).exists() {
+            return ici;
+        }
+    }
+    let nom = if cfg!(target_os = "linux") { "laruche" } else { "LaRuche" };
+    dirs::data_dir().map(|d| d.join(nom)).unwrap_or(ici)
+}
+
 /// Les phrases de l'ecran d'attente, dans la langue reglee dans l'interface.
 ///
 /// Cet ecran est une fenetre a part, servie depuis l'application et non depuis le
@@ -396,9 +431,9 @@ fn main() {
     // La palette est lue UNE fois, avant la fenetre: l'ecran d'attente s'ouvre
     // deja dans le theme de l'utilisateur, sans transition ni clignotement.
     let (att_fond, att_texte, att_accent, att_attenue) =
-        palette_attente(&std::env::current_dir().unwrap_or_else(|_| ".".into()));
+        palette_attente(&foyer());
     let (fond_r, fond_v, fond_b) = composantes(&att_fond);
-    let textes = textes_attente(&std::env::current_dir().unwrap_or_else(|_| ".".into()));
+    let textes = textes_attente(&foyer());
     let script_init = format!(
         "window.__LARUCHE_BUREAU__ = true; window.__LARUCHE_PALETTE__ = {}; window.__LARUCHE_TEXTES__ = {};",
         serde_json::json!({

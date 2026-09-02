@@ -18,6 +18,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+dirs = "5"
 tauri = { version = "2", features = [] }
 # Lire le theme actif dans le foyer avant d'ouvrir la fenetre, pour que l'ecran
 # d'attente s'affiche deja aux couleurs de l'utilisateur. Tauri l'embarque de

@@ -324,16 +324,42 @@
      donc refaire l'image, alors qu'avant il suffisait que la variable CSS change. */
   var _dernierFond = null;
 
+  function rafraichirFond() { if (_dernierFond) peindreFond(_dernierFond); }
+
+  /* La fenetre change de taille: l'image est retaillee, donc son flou aussi. On
+     la refait, une fois la souris relachee. Le palier absorbe le glissement
+     continu; ce delai absorbe le reste. */
+  var _minuteurTaille = null;
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', function () {
+      clearTimeout(_minuteurTaille);
+      _minuteurTaille = setTimeout(rafraichirFond, 250);
+    });
+  }
+
+  /* Le palier de largeur, pour ne pas refabriquer l'image a chaque pixel.
+
+     Le flou est cuit dans l'image, donc en pixels D'IMAGE. Etiree par `cover`
+     jusqu'a la fenetre, elle emporte son flou avec elle: la meme image dans une
+     fenetre deux fois plus large donne un flou deux fois plus large. On refait
+     donc l'image quand la fenetre change de taille, mais par paliers de 200 px:
+     l'oeil ne distingue pas un rayon a 3 % pres, et faire ce calcul a chaque
+     evenement de redimensionnement couterait plus cher que le probleme. */
+  function palier() {
+    var l = Math.max(window.innerWidth || 1280, 640);
+    return Math.min(2400, Math.ceil(l / 200) * 200);
+  }
+
   function fondFloute(src, rayon, quand) {
-    var cle = rayon + '|' + src;
+    var cible = palier();
+    var cle = rayon + '|' + cible + '|' + src;
     if (_fondCache[cle]) { quand(_fondCache[cle]); return; }
     var img = new Image();
     img.onload = function () {
       try {
-        // Plafonne: au-dela, on paye des millions de pixels pour un flou qui les
-        // efface justement.
-        var max = 1600;
-        var ech = Math.min(1, max / Math.max(img.width, img.height) || 1);
+        // On dessine a la taille ou l'image sera VUE, pour que le rayon cuit soit
+        // celui qu'on a demande une fois `cover` applique.
+        var ech = cible / Math.max(img.width, 1);
         var l = Math.max(1, Math.round(img.width * ech));
         var h = Math.max(1, Math.round(img.height * ech));
         // Le flou mange les bords: on dessine plus grand que le cadre et on
@@ -366,7 +392,13 @@
     _dernierFond = fond;
     if (!document.body) return;          // pre-peinture: la couche viendra apres
     var d = couche();
-    if (!fond.image) { d.style.display = 'none'; d.style.backgroundImage = ''; return; }
+    if (!fond.image) {
+      // Sans image, il n'y a rien a peindre en fond fixe: les panneaux
+      // reprennent le `backdrop-filter`, qui reste la seule facon de flouter ce
+      // qui est reellement dessous.
+      r.removeAttribute('data-fond-verre');
+      d.style.display = 'none'; d.style.backgroundImage = ''; return;
+    }
     d.style.display = '';
     d.style.opacity = String(fond.opacite === undefined ? 0.35 : fond.opacite);
     d.style.backgroundSize = fond.cadrage || 'cover';
@@ -374,6 +406,37 @@
     var poser = function (src) {
       d.style.backgroundImage = 'url("' + String(src).replace(/"/g, '%22') + '")';
     };
+    /* La MATIERE du verre, preparee ici plutot que demandee au navigateur.
+
+       Les panneaux floutaient par `backdrop-filter`, qui oblige le navigateur a
+       photographier ce qui se trouve derriere chaque surface, dans une passe de
+       composition a part. Cette photographie se refait a chaque fois que la
+       surface reapparait, et changer de page les fait toutes reapparaitre: on
+       voyait le verre se former, panneau par panneau.
+
+       L'image de fond est fixe et ne defile pas. Ce qui se trouve derriere un
+       panneau, c'est donc exactement l'image, au meme cadrage. On la floute une
+       fois au rayon des panneaux, et chaque surface la peint elle-meme en fond
+       fixe: le resultat est le meme pixel pour pixel, sans passe de composition
+       et sans rien a reconstruire.
+
+       Le voile reproduit l'opacite de la couche de fond. Une image posee a 35 %
+       sur la couleur de base donne le meme resultat qu'une couleur de base a
+       65 % posee SUR l'image: c'est la meme addition, ecrite dans l'autre sens,
+       et un fond CSS ne sait faire que celle-la. */
+    var opac = fond.opacite === undefined ? 0.35 : fond.opacite;
+    var rayonVerre = parseFloat(getComputedStyle(r).getPropertyValue('--verre-flou')) || 0;
+    if (rayonVerre > 0) {
+      r.style.setProperty('--fond-voile', String(1 - opac));
+      fondFloute(fond.image, rayonVerre, function (u) {
+        if (!u) { r.removeAttribute('data-fond-verre'); return; }
+        r.style.setProperty('--fond-floue', 'url("' + u + '")');
+        r.setAttribute('data-fond-verre', '1');
+      });
+    } else {
+      r.removeAttribute('data-fond-verre');
+    }
+
     var rayon = parseFloat(getComputedStyle(r).getPropertyValue('--fond-flou')) || 0;
     if (rayon <= 0) { d.style.filter = 'none'; poser(fond.image); return; }
     // On pose l'image nette tout de suite, la version floutee remplace des
@@ -986,7 +1049,7 @@
     ajouterIcones: ajouterIcones,
     peindreFond: peindreFond, peindreMarque: peindreMarque,
     // Repeindre le fond tel qu'il est, apres un changement de rayon de flou.
-    rafraichirFond: function () { if (_dernierFond) peindreFond(_dernierFond); },
+    rafraichirFond: rafraichirFond,
     habillageDe: habillageDe, dupliquer: dupliquer, baseCourante: baseCourante,
     exporter: exporter, importer: importer,
     definirBrouillon: definirBrouillon, brouillonCourant: brouillonCourant,
