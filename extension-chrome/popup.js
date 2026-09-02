@@ -112,6 +112,7 @@ function traduire() {
     ['libelleCompagnon', 'popup_compagnon'],
     ['libelleCurseurAgent', 'popup_agent_cursor'],
     ['libellePort', 'popup_port'],
+    ['titreConfidentialite', 'popup_privacy_summary'],
     ['noteConfidentialite', 'popup_note'],
     ['lienConfidentialite', 'popup_privacy_link'],
     ['titreCapture', 'capture_title'],

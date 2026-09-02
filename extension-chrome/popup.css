@@ -205,6 +205,16 @@ h2 {
   line-height: 1.25;
 }
 
+.divulgation summary {
+  color: var(--miel);
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+}
+
+.divulgation p { margin-top: 5px; }
+
 .divulgation a {
   margin-left: 3px;
   color: var(--miel);
@@ -420,6 +430,7 @@ main {
 #commentaire:focus-visible,
 .bascule:focus-within,
 .langue:focus-visible,
+.divulgation summary:focus-visible,
 .divulgation a:focus-visible {
   outline: 2px solid var(--miel);
   outline-offset: 1px;

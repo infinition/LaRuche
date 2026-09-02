@@ -35,6 +35,10 @@
     "message": "Le pilotage peut lire et modifier les pages pilotees, ainsi que les titres et adresses des onglets ouverts. L'enregistrement reste volontaire. Les donnees vont uniquement au noeud LaRuche local.",
     "description": "Note de bas de popup"
   },
+  "popup_privacy_summary": {
+    "message": "Confidentialite et autorisations",
+    "description": "Titre de la notice de confidentialite depliante"
+  },
   "toolbar_keep": {
     "message": "Garder",
     "description": "Action de conservation dans la barre d outils"

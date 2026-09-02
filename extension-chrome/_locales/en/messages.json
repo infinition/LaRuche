@@ -35,6 +35,10 @@
     "message": "Control can read and change driven pages and inspect open-tab titles and addresses. Recording remains optional. Data goes only to the local LaRuche node.",
     "description": "Footnote in the popup"
   },
+  "popup_privacy_summary": {
+    "message": "Privacy and permissions",
+    "description": "Expandable privacy disclosure heading"
+  },
   "toolbar_keep": {
     "message": "Keep",
     "description": "Keep-page toolbar action"
