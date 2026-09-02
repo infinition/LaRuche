@@ -772,11 +772,14 @@ async fn main() -> Result<()> {
     // de `sessions/` et de `skills/`. Le foyer garde ses dossiers structures, chacun
     // alimente par un outil dedie (`skill_create`, `plugin_create`, `mcp_add`);
     // `travail/` est la piece qui manquait, celle du brouillon.
-    let bureau = local_api::dossier_travail_defaut();
+    let bureau = local_api::dossier_brouillon();
     if let Err(e) = std::fs::create_dir_all(&bureau) {
         tracing::warn!(error = %e, chemin = %bureau.display(), "bureau de l'agent non cree");
     }
-    laruche_essaim::config::definir_dossier_travail(bureau);
+    // On NE pose PAS ce dossier comme repertoire des outils: le repli reste le
+    // foyer, sans quoi les skills ne trouveraient plus leurs scripts. Le brouillon
+    // sert de destination annoncee, pas de racine d execution.
+    laruche_essaim::config::definir_dossier_brouillon(bureau);
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }

@@ -375,6 +375,39 @@ pub fn dossier_travail() -> std::path::PathBuf {
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
 }
 
+/// Le brouillon: ou l'agent DOIT poser ses fichiers de passage.
+///
+/// Distinct du repertoire de travail, et la distinction est tout le sujet. Le
+/// repertoire de travail reste le FOYER, parce qu'un skill invoque ses scripts en
+/// relatif depuis la (python skills/arxiv/scripts/search_arxiv.py) et que le
+/// deplacer casse les six skills livres qui en embarquent, en silence. Le brouillon
+/// est un chemin que l'agent lit dans son prompt et vers lequel il ecrit ses essais.
+static DOSSIER_BROUILLON: std::sync::OnceLock<std::sync::RwLock<std::path::PathBuf>> =
+    std::sync::OnceLock::new();
+
+fn case_brouillon() -> &'static std::sync::RwLock<std::path::PathBuf> {
+    DOSSIER_BROUILLON.get_or_init(|| {
+        std::sync::RwLock::new(
+            std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .join("travail"),
+        )
+    })
+}
+
+pub fn dossier_brouillon() -> std::path::PathBuf {
+    case_brouillon()
+        .read()
+        .map(|p| p.clone())
+        .unwrap_or_else(|_| std::path::PathBuf::from("travail"))
+}
+
+pub fn definir_dossier_brouillon(p: std::path::PathBuf) {
+    if let Ok(mut c) = case_brouillon().write() {
+        *c = p;
+    }
+}
+
 pub fn definir_dossier_travail(p: std::path::PathBuf) {
     if let Ok(mut c) = case_travail().write() {
         *c = p;

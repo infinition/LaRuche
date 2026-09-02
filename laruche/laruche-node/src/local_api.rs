@@ -20,9 +20,31 @@ use std::sync::Arc;
 /// Le foyer reste le repertoire du processus, immuable. Ceci est le bureau, et il
 /// est le seul a bouger.
 pub(crate) fn dossier_travail_defaut() -> std::path::PathBuf {
-    // Sous le foyer plutot que dans Documents: c'est le dossier que l'agent liste
-    // quand on lui demande de quoi il dispose, et le sortir de la ruche obligerait
-    // l'utilisateur a savoir ou il est. `travail` se comprend sans explication.
+    // LE FOYER, et non `travail/`.
+    //
+    // Le pointer sur `travail/` cassait tous les scripts de skills, et en silence.
+    // Un skill embarque ses scripts dans son propre dossier, et son SKILL.md les
+    // invoque en relatif depuis le foyer:
+    //
+    //     python skills/arxiv/scripts/search_arxiv.py "..."
+    //
+    // Or `shell_exec` et `execute_code` prennent ce dossier comme repertoire du
+    // processus. Depuis `travail/`, cette ligne cherche `travail/skills/arxiv/...`,
+    // qui n'existe pas, et l'agent ne recoit qu'un fichier introuvable sans savoir
+    // pourquoi. Six skills livres embarquent des scripts.
+    //
+    // Le rangement se gagne autrement: `travail/` existe, il est cree au demarrage
+    // et annonce a l'agent comme son brouillon. Et ce qui comptait vraiment est
+    // acquis: changer ce dossier ne deplace plus la resolution des donnees de la
+    // ruche, puisqu'il ne touche plus au repertoire du PROCESSUS.
+    std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+}
+
+/// Le brouillon de l'agent: ou poser un script d'essai, un fichier de passage.
+///
+/// Cree au demarrage et nomme dans le prompt, pour que ces fichiers cessent
+/// d'atterrir a cote de `memoire.db`, de `sessions/` et de `skills/`.
+pub(crate) fn dossier_brouillon() -> std::path::PathBuf {
     std::env::current_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
         .join("travail")
@@ -60,6 +82,10 @@ pub(crate) async fn api_set_cwd(
     }
     let absolu = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
     *state.dossier_travail.write().await = absolu.clone();
+    // Et les OUTILS suivent. Sans cette ligne le reglage etait purement decoratif:
+    // il changeait l affichage de la barre du chat et rien d autre, les outils
+    // continuant de tourner dans le foyer.
+    laruche_essaim::config::definir_dossier_travail(absolu.clone());
     info!(cwd = %absolu.display(), "working directory changed");
     Json(serde_json::json!({ "cwd": absolu.display().to_string() }))
 }
