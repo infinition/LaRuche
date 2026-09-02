@@ -100,17 +100,15 @@ function traduire() {
   // ligne dans la page des erreurs de Chrome. Un libelle manquant doit couter
   // un libelle, pas la traduction entiere.
   const TABLE = [
-    ['ongletGarder', 'onglet_garder'],
-    ['ongletPilotage', 'onglet_pilotage'],
     ['libelleDestination', 'garder_destination'],
     ['destArticles', 'garder_dest_articles'],
     ['destVideos', 'garder_dest_videos'],
     ['destNotes', 'garder_dest_notes'],
     ['libelleCommentaire', 'garder_commentaire'],
-    ['garderLien', 'garder_lien'],
-    ['garderNote', 'garder_note'],
+    ['libelleGarderLien', 'toolbar_keep'],
+    ['libelleGarderNote', 'toolbar_note'],
     ['aideGarder', 'garder_aide'],
-    ['libelleActif', 'popup_enable'],
+    ['libelleActif', 'toolbar_control'],
     ['libelleCompagnon', 'popup_compagnon'],
     ['libelleCurseurAgent', 'popup_agent_cursor'],
     ['libellePort', 'popup_port'],
@@ -129,8 +127,8 @@ function traduire() {
     ['libelleCaptureAudio', 'capture_audio'],
     ['libelleCaptureDossier', 'capture_folder'],
     ['libelleCaptureDemanderEmplacement', 'capture_save_as'],
-    ['demarrerCapture', 'capture_start'],
-    ['arreterCapture', 'capture_stop'],
+    ['libelleDemarrerCapture', 'toolbar_record'],
+    ['libelleArreterCapture', 'toolbar_stop'],
     ['aideCapture', 'capture_help'],
   ];
   const manquants = [];
@@ -192,21 +190,19 @@ function peindre(etat) {
   peindreCapture(etat);
 
   const enregistrement = etat.enregistrement || { etat: 'inactif' };
-  // 'arme' n'est PAS occupe: la source est prise mais rien ne tourne, et le
-  // bouton d'arret doit rester accessible pour la relacher.
   const occupe = ['demarrage', 'enregistrement', 'finalisation', 'sauvegarde', 'arme'].includes(enregistrement.etat);
+  const captureEnCours = ['demarrage', 'enregistrement', 'finalisation', 'sauvegarde'].includes(enregistrement.etat);
   const options = $('captureOptions');
   options.classList.toggle('desactive', !etat.captureActivee);
   for (const champ of options.querySelectorAll('input, select')) {
     champ.disabled = !etat.captureActivee || occupe;
   }
-  // 'arme' n'occupe pas le bouton: la source est prise, rien ne tourne, et
-  // l'utilisateur doit pouvoir enregistrer sans attendre l'agent.
-  $('demarrerCapture').hidden = occupe && enregistrement.etat !== 'arme';
+  // Un seul bouton occupe la case Enregistrer de la barre d'outils. L'etat
+  // arme garde le bouton de demarrage visible, car aucune capture ne tourne.
+  $('demarrerCapture').hidden = captureEnCours;
   $('demarrerCapture').disabled = !etat.captureActivee || actionCaptureEnCours;
-  $('arreterCapture').hidden = !occupe;
-  $('arreterCapture').disabled =
-    actionCaptureEnCours || !['enregistrement', 'arme'].includes(enregistrement.etat);
+  $('arreterCapture').hidden = !captureEnCours;
+  $('arreterCapture').disabled = actionCaptureEnCours || enregistrement.etat !== 'enregistrement';
 
   const statut = $('etatCapture');
   statut.classList.toggle('en-cours', occupe);
@@ -411,23 +407,6 @@ async function armerSiNecessaire(patch) {
   }
 }
 
-/* ------------------------------------------------------------------ garder */
-
-/// Les onglets. Deux vues, une seule visible.
-function montrer(vue) {
-  const garder = vue === 'garder';
-  $('vueGarder').hidden = !garder;
-  $('vuePilotage').hidden = garder;
-  $('ongletGarder').classList.toggle('actif', garder);
-  $('ongletPilotage').classList.toggle('actif', !garder);
-  $('ongletGarder').setAttribute('aria-selected', String(garder));
-  $('ongletPilotage').setAttribute('aria-selected', String(!garder));
-  chrome.storage.local.set({ vueActive: vue }).catch(() => {});
-}
-
-sur('ongletGarder', 'click', () => montrer('garder'));
-sur('ongletPilotage', 'click', () => montrer('pilotage'));
-
 /// Les sites ou une page EST une video. Pre-selectionner la bonne destination
 /// evite le geste le plus penible: corriger un menu avant chaque sauvegarde.
 const SITES_VIDEO = /(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|twitch\.tv|peertube)/i;
@@ -440,6 +419,8 @@ async function lirePageCourante() {
   pageCourante = { titre: onglet.title || '', url: onglet.url || '' };
   $('pageTitre').textContent = pageCourante.titre || pageCourante.url;
   $('pageUrl').textContent = pageCourante.url;
+  $('pageTitre').title = $('pageTitre').textContent;
+  $('pageUrl').title = pageCourante.url;
   // On ne devine QUE la video, qui est sans ambiguite. Pour le reste, articles
   // est le choix le plus courant et deviner mal ferait perdre plus de temps
   // qu'un menu deja bien place.
@@ -574,8 +555,6 @@ async function initialiser() {
   await chargerMessagesSecours();
   interfacePrete = true;
   traduire();
-  const { vueActive = 'garder' } = await chrome.storage.local.get({ vueActive: 'garder' });
-  montrer(vueActive === 'pilotage' ? 'pilotage' : 'garder');
   await lirePageCourante().catch(() => {});
   await majFileGarder().catch(() => {});
   await rafraichir();

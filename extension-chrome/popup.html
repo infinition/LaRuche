@@ -8,131 +8,140 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <span class="pastille" id="pastille" aria-hidden="true"></span>
-      <h1>LaRuche</h1>
-      <button type="button" id="langue" class="langue"></button>
-    </header>
+    <div class="coque">
+      <header>
+        <span class="pastille" id="pastille" aria-hidden="true"></span>
+        <div class="identite">
+          <h1>LaRuche</h1>
+          <p class="etat" id="etat" role="status" aria-live="polite"></p>
+        </div>
+        <button type="button" id="langue" class="langue"></button>
+      </header>
 
-    <div class="onglets" role="tablist">
-      <button type="button" class="onglet actif" id="ongletGarder" role="tab" aria-selected="true" aria-controls="vueGarder"></button>
-      <button type="button" class="onglet" id="ongletPilotage" role="tab" aria-selected="false" aria-controls="vuePilotage"></button>
+      <nav class="barre-outils" aria-label="Actions">
+        <button type="button" id="garderLien" class="outil">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4-6 4z" /></svg>
+          <span id="libelleGarderLien"></span>
+        </button>
+        <button type="button" id="garderNote" class="outil">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" /></svg>
+          <span id="libelleGarderNote"></span>
+        </button>
+        <label class="outil outil-bascule">
+          <input type="checkbox" id="actif" />
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 12 8-5 1.5L15 19l-3 1-3-6-4 3z" /></svg>
+          <span id="libelleActif"></span>
+        </label>
+        <div class="outil-capture">
+          <button type="button" id="demarrerCapture" class="outil">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" /></svg>
+            <span id="libelleDemarrerCapture"></span>
+          </button>
+          <button type="button" id="arreterCapture" class="outil danger" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" /></svg>
+            <span id="libelleArreterCapture"></span>
+          </button>
+        </div>
+      </nav>
+
+      <p class="divulgation">
+        <span id="noteConfidentialite"></span>
+        <a
+          id="lienConfidentialite"
+          href="https://github.com/infinition/LaRuche/blob/main/extension-chrome/PRIVACY.md"
+          target="_blank"
+          rel="noreferrer"
+        ></a>
+      </p>
+
+      <main>
+        <section class="bloc garder">
+          <div class="page-courante" title="">
+            <span class="page" id="pageTitre"></span>
+            <span class="page url" id="pageUrl"></span>
+          </div>
+          <div class="ligne-garder">
+            <label class="champ vertical destination">
+              <span id="libelleDestination"></span>
+              <select id="destination">
+                <option value="veille.articles" id="destArticles"></option>
+                <option value="veille.videos" id="destVideos"></option>
+                <option value="veille.notes" id="destNotes"></option>
+              </select>
+            </label>
+            <label class="champ vertical commentaire">
+              <span id="libelleCommentaire"></span>
+              <textarea id="commentaire" rows="2" autocomplete="off"></textarea>
+            </label>
+          </div>
+          <p class="message" id="etatGarder" role="status" aria-live="polite"></p>
+          <p class="aide aide-garder" id="aideGarder"></p>
+        </section>
+
+        <section class="bloc controles">
+          <label class="bascule compacte">
+            <input type="checkbox" id="compagnon" />
+            <span id="libelleCompagnon"></span>
+          </label>
+          <label class="bascule compacte">
+            <input type="checkbox" id="curseurAgent" />
+            <span id="libelleCurseurAgent"></span>
+          </label>
+          <label class="champ port">
+            <span id="libellePort"></span>
+            <input type="number" id="port" min="1" max="65535" inputmode="numeric" />
+          </label>
+          <p class="pilote" id="pilote" hidden></p>
+        </section>
+
+        <section class="bloc capture">
+          <div class="titre-ligne">
+            <h2 id="titreCapture"></h2>
+            <label class="bascule compacte activation-capture">
+              <input type="checkbox" id="captureActivee" />
+              <span id="libelleCaptureActivee"></span>
+            </label>
+          </div>
+
+          <div class="capture-options" id="captureOptions">
+            <div class="grille-capture">
+              <label class="champ vertical">
+                <span id="libelleCaptureSource"></span>
+                <select id="captureSource">
+                  <option value="tab" id="sourceOnglet"></option>
+                  <option value="window" id="sourceFenetre"></option>
+                  <option value="screen" id="sourceEcran"></option>
+                </select>
+              </label>
+              <label class="champ vertical">
+                <span id="libelleCaptureQualite"></span>
+                <select id="captureQualite">
+                  <option value="basse" id="qualiteBasse"></option>
+                  <option value="standard" id="qualiteStandard"></option>
+                  <option value="haute" id="qualiteHaute"></option>
+                </select>
+              </label>
+              <label class="champ vertical dossier">
+                <span id="libelleCaptureDossier"></span>
+                <input type="text" id="captureDossier" autocomplete="off" />
+              </label>
+            </div>
+            <div class="options-capture">
+              <label class="bascule compacte">
+                <input type="checkbox" id="captureAudio" />
+                <span id="libelleCaptureAudio"></span>
+              </label>
+              <label class="bascule compacte">
+                <input type="checkbox" id="captureDemanderEmplacement" />
+                <span id="libelleCaptureDemanderEmplacement"></span>
+              </label>
+            </div>
+            <p class="message" id="etatCapture" role="status" aria-live="polite"></p>
+            <p class="aide" id="aideCapture"></p>
+          </div>
+        </section>
+      </main>
     </div>
-
-    <section id="vueGarder" role="tabpanel">
-      <p class="page" id="pageTitre"></p>
-      <p class="page url" id="pageUrl"></p>
-
-      <label class="champ vertical">
-        <span id="libelleDestination"></span>
-        <select id="destination">
-          <option value="veille.articles" id="destArticles"></option>
-          <option value="veille.videos" id="destVideos"></option>
-          <option value="veille.notes" id="destNotes"></option>
-        </select>
-      </label>
-
-      <label class="champ vertical">
-        <span id="libelleCommentaire"></span>
-        <textarea id="commentaire" rows="3" autocomplete="off"></textarea>
-      </label>
-
-      <div class="capture-actions">
-        <button type="button" id="garderLien"></button>
-        <button type="button" id="garderNote" class="second"></button>
-      </div>
-      <p class="capture-etat" id="etatGarder" role="status" aria-live="polite"></p>
-      <p class="aide" id="aideGarder"></p>
-    </section>
-
-    <section id="vuePilotage" hidden role="tabpanel">
-      <p class="etat" id="etat" role="status" aria-live="polite"></p>
-
-      <p class="note divulgation" id="noteConfidentialite"></p>
-      <a
-        class="lien-confidentialite"
-        id="lienConfidentialite"
-        href="https://github.com/infinition/LaRuche/blob/main/extension-chrome/PRIVACY.md"
-        target="_blank"
-        rel="noreferrer"
-      ></a>
-
-      <label class="bascule">
-        <input type="checkbox" id="actif" />
-        <span id="libelleActif"></span>
-      </label>
-
-      <label class="bascule">
-        <input type="checkbox" id="compagnon" />
-        <span id="libelleCompagnon"></span>
-      </label>
-
-      <label class="bascule">
-        <input type="checkbox" id="curseurAgent" />
-        <span id="libelleCurseurAgent"></span>
-      </label>
-
-      <label class="champ">
-        <span id="libellePort"></span>
-        <input type="number" id="port" min="1" max="65535" inputmode="numeric" />
-      </label>
-
-      <p class="piloté" id="pilote" hidden></p>
-
-    <section class="capture">
-      <h2 id="titreCapture"></h2>
-
-      <label class="bascule">
-        <input type="checkbox" id="captureActivee" />
-        <span id="libelleCaptureActivee"></span>
-      </label>
-
-      <div class="capture-options" id="captureOptions">
-        <div class="duo">
-          <label class="champ vertical">
-            <span id="libelleCaptureSource"></span>
-            <select id="captureSource">
-              <option value="tab" id="sourceOnglet"></option>
-              <option value="window" id="sourceFenetre"></option>
-              <option value="screen" id="sourceEcran"></option>
-            </select>
-          </label>
-
-          <label class="champ vertical">
-            <span id="libelleCaptureQualite"></span>
-            <select id="captureQualite">
-              <option value="basse" id="qualiteBasse"></option>
-              <option value="standard" id="qualiteStandard"></option>
-              <option value="haute" id="qualiteHaute"></option>
-            </select>
-          </label>
-        </div>
-
-        <label class="bascule compacte">
-          <input type="checkbox" id="captureAudio" />
-          <span id="libelleCaptureAudio"></span>
-        </label>
-
-        <label class="champ vertical">
-          <span id="libelleCaptureDossier"></span>
-          <input type="text" id="captureDossier" autocomplete="off" />
-        </label>
-
-        <label class="bascule compacte">
-          <input type="checkbox" id="captureDemanderEmplacement" />
-          <span id="libelleCaptureDemanderEmplacement"></span>
-        </label>
-
-        <div class="capture-actions">
-          <button type="button" id="demarrerCapture"></button>
-          <button type="button" id="arreterCapture" class="danger" hidden></button>
-        </div>
-        <p class="capture-etat" id="etatCapture" role="status" aria-live="polite"></p>
-        <p class="aide" id="aideCapture"></p>
-      </div>
-    </section>
-
-    </section>
 
     <script src="popup.js"></script>
   </body>

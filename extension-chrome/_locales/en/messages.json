@@ -32,8 +32,28 @@
     "description": "Port field label"
   },
   "popup_note": {
-    "message": "While control is enabled, LaRuche can read and change the driven pages and inspect open-tab titles and addresses. Recording only starts when you enable it. The extension connects only to the LaRuche node on this computer.",
+    "message": "Control can read and change driven pages and inspect open-tab titles and addresses. Recording remains optional. Data goes only to the local LaRuche node.",
     "description": "Footnote in the popup"
+  },
+  "toolbar_keep": {
+    "message": "Keep",
+    "description": "Keep-page toolbar action"
+  },
+  "toolbar_note": {
+    "message": "Note",
+    "description": "Note-only toolbar action"
+  },
+  "toolbar_control": {
+    "message": "Control",
+    "description": "Browser-control toolbar toggle"
+  },
+  "toolbar_record": {
+    "message": "Record",
+    "description": "Recording toolbar action"
+  },
+  "toolbar_stop": {
+    "message": "Stop",
+    "description": "Stop-recording toolbar action"
   },
   "popup_privacy_link": {
     "message": "Privacy policy",

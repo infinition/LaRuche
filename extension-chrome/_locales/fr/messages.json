@@ -32,8 +32,28 @@
     "description": "Libellé du champ de port"
   },
   "popup_note": {
-    "message": "Quand le pilotage est actif, LaRuche peut lire et modifier les pages pilotees, ainsi que consulter les titres et adresses des onglets ouverts. L'enregistrement ne demarre que si vous l'activez. L'extension se connecte uniquement au noeud LaRuche de cet ordinateur.",
+    "message": "Le pilotage peut lire et modifier les pages pilotees, ainsi que les titres et adresses des onglets ouverts. L'enregistrement reste volontaire. Les donnees vont uniquement au noeud LaRuche local.",
     "description": "Note de bas de popup"
+  },
+  "toolbar_keep": {
+    "message": "Garder",
+    "description": "Action de conservation dans la barre d outils"
+  },
+  "toolbar_note": {
+    "message": "Note",
+    "description": "Action note seule dans la barre d outils"
+  },
+  "toolbar_control": {
+    "message": "Pilotage",
+    "description": "Interrupteur de pilotage dans la barre d outils"
+  },
+  "toolbar_record": {
+    "message": "Enregistrer",
+    "description": "Action d enregistrement dans la barre d outils"
+  },
+  "toolbar_stop": {
+    "message": "Arreter",
+    "description": "Action d arret dans la barre d outils"
   },
   "popup_privacy_link": {
     "message": "Politique de confidentialite",
