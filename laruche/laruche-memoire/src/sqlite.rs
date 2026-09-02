@@ -152,6 +152,38 @@ fn node_parent_id(node_id: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// The LIKE pattern for the cross-node supersede sweep, or an empty pattern to keep the
+/// sweep on the node itself.
+///
+/// Facts sweep their whole root domain; `capacities.*` does not, for the reasons spelled
+/// out at the call site. Pulled out as a function because the sweep only runs when an
+/// embedder is wired, so the rule is otherwise unreachable from a test.
+fn portee_supersede(node_id: &str) -> String {
+    let racine = node_id.split('.').next().unwrap_or(node_id);
+    if racine == "capacities" {
+        return String::new();
+    }
+    format!("{racine}.%")
+}
+
+#[cfg(test)]
+mod tests_portee_supersede {
+    use super::portee_supersede;
+
+    #[test]
+    fn les_faits_balaient_leur_domaine_racine() {
+        assert_eq!(portee_supersede("hardware.gpu"), "hardware.%");
+        assert_eq!(portee_supersede("projects.laruche.ui"), "projects.%");
+    }
+
+    #[test]
+    fn les_capacites_restent_sur_leur_propre_noeud() {
+        // Two skills read alike to an embedder and would otherwise retire each other.
+        assert_eq!(portee_supersede("capacities.skills.arxiv"), "");
+        assert_eq!(portee_supersede("capacities.tools.read_mcp_resource"), "");
+        assert_eq!(portee_supersede("capacities.mcp.unreal"), "");
+    }
+}
 /// LIKE pattern matching a node's subtree (`prefix.%`), with the prefix escaped so the
 /// snake_case `_` (and `%`/`\`) in node ids are matched literally instead of as wildcards.
 /// Must be used with `ESCAPE '\\'` in the query, otherwise deleting/renaming `a_b` would
@@ -611,11 +643,29 @@ impl MemoireCognitive for SqliteBackend {
                 // (observed: 4070 Ti in hardware.local_model_setup, its replacement
                 // 5080 in hardware.gpu - both stayed active). Same-node matches keep
                 // the 0.88 threshold; cross-node needs a slightly stronger 0.90.
-                let domaine = format!(
-                    "{}.%",
-                    item.node_id.split('.').next().unwrap_or(&item.node_id)
-                );
-                let mut remplaces: Vec<i64> = Vec::new();
+                //
+                // EXCEPT under `capacities.`, which holds DOCUMENTS, not facts: one
+                // SKILL.md per skill node, one descriptor per tool node, all projected
+                // from the disk and the registry. Two different skills are never "the
+                // same fact, newer", yet they read alike to an embedder: same OKF
+                // frontmatter, same headings, same house style. Every one of them
+                // therefore scored above the 0.85 cross-node bar and retired a
+                // neighbour. Measured on the 16:00 boot: 39 skills written from disk,
+                // 9 left standing. `cognitive-memory` retired `sketch`, `github-auth`
+                // retired `youtube_transcribe`, and `cron_manager` reached outside the
+                // family entirely to retire the `read_mcp_resource` tool. A node whose
+                // only item is superseded reads as empty, so the tree dropped it, which
+                // is the catalogue filling up during the sync then collapsing at once.
+                //
+                // An empty pattern matches nothing, so the scope falls back to the exact
+                // node, where converging repeated copies of the SAME skill is still what
+                // we want.
+                let domaine = portee_supersede(&item.node_id);
+                // The VICTIM's node travels with the id: the mutation used to be logged
+                // against the writer, so the journal read `supersede obsidian` for a row
+                // that in fact belonged to `unreal-mcp`. Cross-node damage was invisible
+                // in the one place built to show it.
+                let mut remplaces: Vec<(i64, String)> = Vec::new();
                 {
                     let mut stmt = conn.prepare(
                         "SELECT id, node_id, content, embedding FROM items \
@@ -639,7 +689,7 @@ impl MemoireCognitive for SqliteBackend {
                         let sim = cosine(qv, &blob_to_vec(&blob));
                         let seuil = if node == item.node_id { 0.83 } else { 0.85 };
                         if sim > seuil {
-                            remplaces.push(id);
+                            remplaces.push((id, node));
                         } else if sim >= 0.62 {
                             // AMBIGUITY BAND: moderately similar, might be an update or
                             // just shared vocabulary. Defer to the LLM arbiter (below).
@@ -647,7 +697,7 @@ impl MemoireCognitive for SqliteBackend {
                         }
                     }
                 }
-                for id in remplaces {
+                for (id, node_victime) in remplaces {
                     conn.execute(
                         "UPDATE items SET status='superseded', updated_at=?1 WHERE id=?2",
                         rusqlite::params![now(), id],
@@ -659,8 +709,8 @@ impl MemoireCognitive for SqliteBackend {
                     conn.execute(
                         "INSERT INTO mutations(op,node_id,content,ts,src) VALUES('supersede',?1,?2,?3,?4)",
                         rusqlite::params![
-                            item.node_id,
-                            format!("itm_{id} superseded by a newer fact"),
+                            node_victime,
+                            format!("itm_{id} superseded by a newer fact in {}", item.node_id),
                             now(),
                             item.source
                         ],
