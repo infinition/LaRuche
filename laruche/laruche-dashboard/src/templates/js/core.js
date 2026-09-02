@@ -1,7 +1,12 @@
 /* ================================================================ */
 /*  LaRuche SPA - Global Namespace                                  */
 /* ================================================================ */
-window.LaRuche = {};
+/* Une FUSION, jamais une affectation. Un module charge avant celui-ci, et il y en
+   a un (themes.js, qui doit peindre le theme avant le premier rendu pour eviter
+   le clignotement), verrait sinon tout son travail efface par cette ligne: son
+   objet etait bien pose, puis remplace par un objet vide une milliseconde plus
+   tard. Symptome observe: la section Apparence vide et aucun bouton de theme. */
+window.LaRuche = window.LaRuche || {};
 
 /* Central polling gate. Drop-in for setInterval: ticks are skipped while the tab
  * is hidden, and one catch-up tick fires as soon as it becomes visible again.

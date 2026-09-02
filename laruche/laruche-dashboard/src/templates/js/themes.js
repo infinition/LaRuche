@@ -230,11 +230,9 @@
     } catch (e) {}
   })();
 
-  /* Le libelle du bouton d'en-tete, ajoute au dictionnaire global. */
+  /* Le libelle vit dans boot.js, pas ici: ce module tourne AVANT core.js, pour
+     peindre le theme sans clignotement, et LaRuche.i18n n'existe pas encore. */
   window.LaRuche = window.LaRuche || {};
-  if (LaRuche.i18n && LaRuche.i18n.add) {
-    LaRuche.i18n.add({ 'theme.titre': { fr: 'Thème', en: 'Theme' } });
-  }
   LaRuche.Themes = {
     GROUPES: GROUPES, TOUS: TOUS,
     charger: charger, appliquer: appliquer, peindre: peindre,

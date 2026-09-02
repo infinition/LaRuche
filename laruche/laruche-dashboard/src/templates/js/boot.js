@@ -23,6 +23,7 @@
   (function(){
     var hr = document.querySelector('.header-right');
     if(!hr || !window.LaRuche || !LaRuche.Themes || document.getElementById('themeToggle')) return;
+    LaRuche.i18n.add({ 'theme.titre': { fr: 'Thème', en: 'Theme' } });
     var btn = document.createElement('button');
     btn.id = 'themeToggle';
     btn.title = LaRuche.i18n.t('theme.titre');
