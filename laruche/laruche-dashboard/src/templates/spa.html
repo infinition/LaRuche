@@ -148,34 +148,6 @@
 
 
         <!-- New compact global controls for chat -->
-        <div class="sidebar-controls">
-          <div style="display:flex; gap:6px; align-items:center;">
-             <button class="ctrl-icon-btn toggleable" id="autoTtsToggle" onclick="LaRuche.Voice.toggleAutoTts()" data-i18n-title="shell.tipAutoTts" title="Automatic playback (Auto-TTS)">
-               <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg></span>
-             </button>
-             <div class="ctrl-icon-btn" data-i18n-title="shell.tipTtsModel" title="TTS model (Click to choose)">
-               <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></span>
-               <select id="ttsSelect" onchange="LaRuche.Voice.selectTTS(this.value)">
-                 <option value="" data-i18n="shell.autoFirstDetected">Auto (first detected)</option>
-               </select>
-             </div>
-             <label class="ctrl-icon-btn toggleable reverse-toggle" id="noThinkWrap" data-i18n-title="shell.tipNoThink" title="No-think (Force the model not to reason)">
-               <input type="checkbox" class="ctrl-toggle" id="noThinkToggle" onchange="LaRuche.Chat.toggleNoThink(this.checked)">
-               <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-.08A2.5 2.5 0 0 0 17 19.5v-15A2.5 2.5 0 0 0 14.5 2 2.5 2.5 0 0 0 12 3a2.5 2.5 0 0 0-2.5-1z"></path></svg></span>
-             </label>
-
-             <div class="ctrl-icon-btn" id="loopMonitor" data-i18n-title="shell.tipNoLoop" title="No loop detected" style="font-size:11px;font-weight:600;">
-               <span class="icon" style="position:relative;"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
-             </div>
-
-             <div class="ctrl-icon-btn" data-i18n-title="shell.tipPermissions" title="Tool permissions (Click to choose)">
-               <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
-               <select id="permModeSelect" onchange="LaRuche.Header.changePermissionMode(this.value)">
-                 <option value="" data-i18n="shell.permissions">Permissions…</option>
-               </select>
-             </div>
-          </div>
-        </div>
         <!-- CLAUDE CODE MODE: reasoning / tools / plan / skills are rendered INLINE in the
              conversation (no more agentic panel on the left). These elements stay as HIDDEN stubs
              to satisfy the JS status references (feed-live, usage, iteration…) without showing
@@ -217,6 +189,49 @@
             </div>
             <div id="toursSidebarList"></div>
           </div>
+        <!-- Les outils de la conversation, en BAS et replies.
+
+             Ils occupaient le haut du volet, juste sous le titre, alors qu'on
+             s'en sert rarement: cinq boutons entre le nom de la ruche et la liste
+             des conversations, c'est-a-dire entre ce qu'on cherche et ce qu'on
+             regarde. Ils descendent donc au pied du volet et se devoilent au
+             survol, ou au clic sur les appareils tactiles, ou le survol n'existe
+             pas. -->
+        <div class="sidebar-outils" id="sidebarOutils">
+          <button type="button" class="sidebar-outils-poignee" id="sidebarOutilsPoignee"
+                  aria-expanded="false" aria-controls="sidebarControls"
+                  data-i18n-title="shell.tipOutils" title="Outils de la conversation">
+            <span class="sidebar-outils-points">&#8943;</span>
+          </button>
+          <div class="sidebar-controls" id="sidebarControls">
+            <div style="display:flex; gap:6px; align-items:center;">
+               <button class="ctrl-icon-btn toggleable" id="autoTtsToggle" onclick="LaRuche.Voice.toggleAutoTts()" data-i18n-title="shell.tipAutoTts" title="Automatic playback (Auto-TTS)">
+                 <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg></span>
+               </button>
+               <div class="ctrl-icon-btn" data-i18n-title="shell.tipTtsModel" title="TTS model (Click to choose)">
+                 <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></span>
+                 <select id="ttsSelect" onchange="LaRuche.Voice.selectTTS(this.value)">
+                   <option value="" data-i18n="shell.autoFirstDetected">Auto (first detected)</option>
+                 </select>
+               </div>
+               <label class="ctrl-icon-btn toggleable reverse-toggle" id="noThinkWrap" data-i18n-title="shell.tipNoThink" title="No-think (Force the model not to reason)">
+                 <input type="checkbox" class="ctrl-toggle" id="noThinkToggle" onchange="LaRuche.Chat.toggleNoThink(this.checked)">
+                 <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-.08A2.5 2.5 0 0 0 17 19.5v-15A2.5 2.5 0 0 0 14.5 2 2.5 2.5 0 0 0 12 3a2.5 2.5 0 0 0-2.5-1z"></path></svg></span>
+               </label>
+
+               <div class="ctrl-icon-btn" id="loopMonitor" data-i18n-title="shell.tipNoLoop" title="No loop detected" style="font-size:11px;font-weight:600;">
+                 <span class="icon" style="position:relative;"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
+               </div>
+
+               <div class="ctrl-icon-btn" data-i18n-title="shell.tipPermissions" title="Tool permissions (Click to choose)">
+                 <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
+                 <select id="permModeSelect" onchange="LaRuche.Header.changePermissionMode(this.value)">
+                   <option value="" data-i18n="shell.permissions">Permissions…</option>
+                 </select>
+               </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="chat-main">
         <!-- Deux onglets discrets: la conversation habituelle, et la table ronde.

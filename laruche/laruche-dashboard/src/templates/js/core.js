@@ -52,6 +52,7 @@ LaRuche.i18n = (function(){
     'common.cancel':  { fr:'Annuler',     en:'Cancel' },
     'common.delete':  { fr:'Supprimer',   en:'Delete' },
     'common.close':   { fr:'Fermer',      en:'Close' },
+    'shell.tipOutils':      { fr:'Outils de la conversation', en:'Conversation tools' },
     'shell.splitOuvrir':    { fr:'Mettre cette page a cote du chat', en:'Put this page beside the chat' },
     'shell.splitFermer':    { fr:'Fermer le partage, revenir au chat seul', en:'Close the split, back to the chat alone' },
     'shell.splitImpossible':{ fr:"Le chat est deja la page maitresse: allez sur une autre page pour la mettre a cote", en:'The chat is already the master page: go to another page to put it beside' },

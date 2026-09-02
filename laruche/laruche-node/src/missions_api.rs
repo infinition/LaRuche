@@ -25,6 +25,10 @@ pub(crate) async fn api_list_cron(State(state): State<Arc<AppState>>) -> Json<se
                 "channel": t.channel.clone(),
                 "provider": t.provider.clone(),
                 "model": t.model.clone(),
+                // `profile_id` manquait, exactement comme les quatre champs des
+                // vigies: le formulaire d'edition affichait « par defaut », et
+                // enregistrer ecrivait ce vide par-dessus le profil choisi.
+                "profile_id": t.profile_id.clone(),
                 "skills": t.skills.clone(),
             })
         })

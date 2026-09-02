@@ -519,7 +519,29 @@ impl MemoireCognitive for SqliteBackend {
                 let lex = if qtoks.iter().any(|t| hay.contains(t)) { 0.3 } else { 0.0 };
                 // RELEVANCE gates; the value/usage bonus only RE-RANKS relevant
                 // hits (a fresh but off-topic item must never surface).
-                let pertinence = 0.7 * sem + lex + 0.25 * activation_of(&node);
+                //
+                // La similarite est RECENTREE avant d'etre pesee. Prise brute, elle
+                // faisait passer la porte a tout: un modele d'embedding ne rend pas
+                // zero pour deux textes sans rapport, il rend environ 0.48, chiffre
+                // mesure et note plus bas dans ce fichier meme, la ou `write` calibre
+                // ses seuils de doublon. Zero virgule sept fois 0.48 vaut 0.34, tres
+                // au-dessus du seuil de 0.05: chaque item de la base etait donc juge
+                // pertinent, et le classement retombait sur le bonus de fraicheur.
+                // Chercher « dungeon » ou un mot qui n'existe nulle part rendait la
+                // meme liste, dans le meme ordre.
+                //
+                // Recentree, une similarite de plancher vaut zero et ne franchit la
+                // porte que par un mot present dans le texte ou par l'activation du
+                // noeud. Une paraphrase, mesuree a 0.86, garde 0.75.
+                // 0.62, et non 0.45. La premiere valeur venait du chiffre « sans
+                // rapport » mesure entre deux FAITS; une requete d'un mot, a plus
+                // forte raison inventee, se compare plus haut que cela. Mesure sur
+                // la base reelle: « proute » rendait encore vingt items a 0.45,
+                // aucun a 0.62. Le repere reste la meme calibration: mise a jour
+                // d'un fait 0.71, paraphrase 0.86; on se place juste en dessous.
+                const PLANCHER_SEM: f32 = 0.62;
+                let sem_utile = ((sem - PLANCHER_SEM) / (1.0 - PLANCHER_SEM)).clamp(0.0, 1.0);
+                let pertinence = 0.7 * sem_utile + lex + 0.25 * activation_of(&node);
                 if pertinence > 0.05 {
                     fusion.insert(id, (pertinence + bonus(imp, acces, maj), node, content));
                 }
@@ -1647,5 +1669,43 @@ mod tests_okf_markdown {
         assert_eq!(id, "tables.orders", "sans `id:`, le chemin fait foi");
         assert_eq!(items.len(), 1);
         assert!(items[0].contains("[customers](/tables/customers.md)"), "le lien OKF survit");
+    }
+}
+
+#[cfg(test)]
+mod tests_pertinence {
+    /// La meme formule que la branche semantique de `search`.
+    fn sem_utile(sem: f32) -> f32 {
+        const PLANCHER: f32 = 0.62;
+        ((sem - PLANCHER) / (1.0 - PLANCHER)).clamp(0.0, 1.0)
+    }
+
+    #[test]
+    fn deux_textes_sans_rapport_ne_franchissent_pas_la_porte() {
+        // 0.48 est la valeur mesuree pour des faits sans rapport, celle qui sert
+        // aussi a calibrer la detection de doublons de `write`.
+        let p = 0.7 * sem_utile(0.48);
+        assert!(p < 0.05, "pertinence {p} devrait rester sous le seuil");
+        // Et le cas franc: une similarite nulle ne vaut rien.
+        assert_eq!(sem_utile(0.0), 0.0);
+    }
+
+    #[test]
+    fn une_paraphrase_reste_tres_pertinente() {
+        // 0.86: une paraphrase du MEME fait, mesuree elle aussi.
+        let p = 0.7 * sem_utile(0.86);
+        // Huit fois la porte: ce qui compte n'est pas la valeur absolue, qui suit
+        // le plancher choisi, mais l'ecart entre ce qui a un rapport et ce qui
+        // n'en a pas.
+        assert!(p > 0.4, "pertinence {p} trop basse pour une paraphrase");
+        assert!(p > 8.0 * 0.05);
+        assert_eq!(sem_utile(1.0), 1.0);
+    }
+
+    #[test]
+    fn un_mot_present_dans_le_texte_suffit_toujours() {
+        // Meme sans aucune similarite, la branche lexicale apporte 0.3.
+        let p = 0.7 * sem_utile(0.2) + 0.3;
+        assert!(p > 0.05);
     }
 }

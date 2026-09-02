@@ -294,7 +294,13 @@ pub(crate) async fn api_feed(
                 e.tag.as_str(),
                 "agent" | "telegram" | "discord" | "slack" | "whatsapp" | "voice"
             );
-            let genre = if e.tag == "agent" { "agent" } else { e.tag.as_str() };
+            // Un echange du CHAT WEB porte son propre genre. Il partageait « agent »
+            // avec l'activite interne de l'agent, si bien que le flux ne disait pas
+            // d'ou venait un message: une phrase tapee dans le chat et une trace de
+            // travail de fond arboraient la meme etiquette. Telegram, Discord et les
+            // autres portaient deja la leur; le chat etait le seul a ne pas etre
+            // nomme, parce qu'il etait le defaut.
+            let genre = if e.tag == "agent" { "chat" } else { e.tag.as_str() };
             // a) User message (only for conversational exchanges).
             if est_echange {
                 if let Some(prompt) = e.full_prompt.as_deref().map(str::trim).filter(|s| !s.is_empty()) {

@@ -383,6 +383,10 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   transform-origin:center; pointer-events:none;
 }
 .feed-kind-badge { font-size:8.5px; letter-spacing:.3px; text-transform:uppercase; padding:0 5px; border-radius:var(--radius-btn); border:1px solid currentColor; opacity:.85; line-height:1.5; }
+/* Une couleur par PROVENANCE, pour lire le flux d'un coup d'oeil sans dechiffrer
+   les etiquettes: le chat et les canaux se distinguent enfin de l'agent. */
+.kb-chat{color:var(--cyan)} .kb-telegram{color:var(--blue)} .kb-discord{color:var(--purple)}
+.kb-slack{color:var(--green)} .kb-whatsapp{color:var(--green)} .kb-voice{color:var(--cyan)}
 .kb-memory{color:var(--purple)} .kb-agent{color:var(--amber)} .kb-cron{color:var(--amber)} .kb-mission{color:var(--green)} .kb-watcher{color:var(--blue)} .kb-dm{color:var(--purple)}
 .feed-av-peer { background:var(--purple); color:#fff; border-radius:50%; font-size:14px; font-weight:700; }
 .feed-expandable { cursor:pointer; }
@@ -637,7 +641,7 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 .ctrl-icon-btn select {
   position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;
 }
-.ctrl-icon-btn select option { color: #000; }
+.ctrl-icon-btn select option { color: var(--text); background: var(--bg-panel); }
 .ctrl-toggle { display: none; }
 .ctrl-icon-btn .icon { position: relative; }
 .ctrl-icon-btn.toggleable .icon::after {
@@ -3062,7 +3066,11 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 /* Gestion de l'equipe */
 .tr-pool { width:min(680px,100%); }
 .tr-pool-liste { display:flex; flex-direction:column; gap:5px; margin-top:8px; }
-.tr-pool-ligne { display:flex; gap:6px; align-items:center; }
+/* `flex-wrap` manquait, et c'est tout le probleme de l'editeur de strategie: la
+   zone de texte porte `flex-basis:100%` pour occuper sa propre ligne, mais sans
+   permission de passer a la ligne elle etait comprimee DANS la rangee, en une
+   colonne de six caracteres de large ou l'on ne pouvait ni lire ni ecrire. */
+.tr-pool-ligne { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .tr-pool-ligne input[type=text] {
   background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-btn);
   color:var(--text); font-size:12px; padding:5px 7px; font-family:inherit;
@@ -3097,8 +3105,12 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 }
 
 /* Gestion de l'equipe: une ligne par specialiste, sa strategie repliee dessous. */
+/* CARRE, et de la meme taille pour tout le monde. Le bouton faisait 34 sur 30
+   et l'image 48: un specialiste a l'emoji tenait dans son cadre, un specialiste
+   au portrait en debordait, et la liste alternait le minuscule et l'enorme. */
 .tr-av-btn {
-  width:34px; height:30px; padding:0; border-radius:var(--radius-btn); cursor:pointer;
+  width:36px; height:36px; flex-shrink:0;
+  padding:0; border-radius:var(--radius-btn); cursor:pointer; overflow:hidden;
   background:var(--bg-input); border:1px solid var(--border); color:var(--text);
   font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;
 }
@@ -3107,21 +3119,31 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
    couleur: on ne reconnaissait pas le specialiste, donc l'avatar ne servait a
    rien et la table se lisait uniquement au nom, ecrit en 10 px juste dessous. */
 .tr-av-img { width:48px; height:48px; border-radius:50%; object-fit:cover; }
+/* Dans la LISTE, l'image epouse son bouton. Les 48 pixels ci-dessus sont ceux de
+   la table, ou le portrait doit se reconnaitre; ici il doit tenir en rang. */
+.tr-pool-ligne .tr-av-img { width:100%; height:100%; border-radius:var(--radius-btn); }
 .tr-place .tr-av-img { width:52px; height:52px; }
 .tr-role {
   background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-btn);
   color:var(--text-dim); font-size:11px; padding:5px 4px; font-family:inherit;
 }
 .tr-strat-btn, .tr-sup-btn {
-  width:28px; height:30px; padding:0; border-radius:var(--radius-btn); cursor:pointer;
+  width:32px; height:32px; flex-shrink:0;
+  padding:0; border-radius:var(--radius-btn); cursor:pointer;
   background:none; border:1px solid var(--border); color:var(--text-muted); font-size:12px;
 }
 .tr-strat-btn:hover { border-color:var(--amber); color:var(--amber); }
 .tr-sup-btn:hover { border-color:var(--red); color:var(--red); }
+/* Une strategie est un PROMPT: quelques paragraphes qu'on relit et qu'on
+   retouche. Onze pixels et demi dans une colonne etroite en faisaient un
+   exercice de patience; elle prend maintenant toute la largeur, respire, et
+   s'ecrit dans la police du contenu. */
 .tr-strat {
-  flex-basis:100%; margin-top:6px; padding:8px 10px; border-radius:var(--radius-btn);
-  background:#121216; border:1px solid var(--border); color:var(--text);
-  font-size:11.5px; line-height:1.5; font-family:inherit; resize:vertical;
+  flex-basis:100%; width:100%; box-sizing:border-box;
+  margin-top:8px; padding:10px 12px; border-radius:var(--radius-btn);
+  background:var(--bg); border:1px solid var(--border); color:var(--text);
+  font-size:13px; line-height:1.6; font-family:var(--font-contenu, var(--font));
+  resize:vertical; min-height:180px;
 }
 .tr-strat:focus { outline:none; border-color:var(--amber); }
 .tr-pool-liste { max-height:52vh; overflow-y:auto; }
@@ -3604,3 +3626,115 @@ code, pre, .mono, [style*="var(--mono)"] { font-family: var(--mono); }
    porte. Une seule propriete, et elle marche pour la grande majorite d'entre eux
    sans avoir a les reecrire un par un. */
 [data-lr-ic] > svg, [data-lr-ic] > img { width: 1.2em; height: 1.2em; }
+
+/* ==========================================================================
+   LES OUTILS DE LA CONVERSATION: en bas du volet, et replies.
+
+   Ils occupaient le haut, entre le nom de la ruche et la liste des
+   conversations, c'est-a-dire entre ce qu'on cherche et ce qu'on regarde,
+   alors qu'on s'en sert rarement. Ils descendent au pied et se devoilent au
+   survol.
+
+   `hover: none` est la condition qui compte: sur un ecran tactile le survol
+   n'existe pas, et un panneau qui ne s'ouvre qu'au survol y serait simplement
+   inaccessible. Le clic ouvre donc partout, et le survol n'est qu'un raccourci
+   la ou il a un sens.
+   ========================================================================== */
+.sidebar-outils {
+  margin-top: auto; flex-shrink: 0;
+  border-top: 1px solid var(--border); background: var(--bg-panel);
+}
+.sidebar-outils-poignee {
+  width: 100%; background: none; border: none; cursor: pointer;
+  color: var(--text-muted); padding: 2px 0 4px; line-height: 1;
+  font-size: 16px; letter-spacing: 3px; font-family: var(--font);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.sidebar-outils-poignee:hover { color: var(--amber); background: var(--bg-hover); }
+.sidebar-outils.ouvert .sidebar-outils-poignee { color: var(--amber); }
+
+.sidebar-outils .sidebar-controls {
+  max-height: 0; opacity: 0; overflow: hidden;
+  border-bottom: none; padding-top: 0; padding-bottom: 0;
+  transition: max-height var(--transition-med, .25s) ease,
+              opacity var(--transition-fast, .15s) ease,
+              padding var(--transition-fast, .15s) ease;
+}
+.sidebar-outils:hover .sidebar-controls,
+.sidebar-outils.ouvert .sidebar-controls {
+  max-height: 220px; opacity: 1; padding-top: 6px; padding-bottom: 6px;
+}
+@media (hover: none) {
+  .sidebar-outils:hover .sidebar-controls {
+    max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0;
+  }
+  .sidebar-outils.ouvert .sidebar-controls {
+    max-height: 220px; opacity: 1; padding-top: 6px; padding-bottom: 6px;
+  }
+}
+
+/* ==========================================================================
+   LES MENUS DEROULANTS, partout.
+
+   Il n'existait aucune regle globale pour `select`: seulement quelques cas
+   nommes, la barre du bas, le choix de modele, les boutons d'outils. Partout
+   ailleurs, la table ronde, le panneau d'equipe, les formulaires, ils prenaient
+   le style NATIF du systeme, c'est-a-dire fond blanc et texte noir au milieu
+   d'une interface sombre.
+
+   La regle porte sur l'element, donc la specificite la plus faible: toutes les
+   regles existantes, qui passent par une classe, restent prioritaires et gardent
+   leur apparence. Elle ne rattrape que ce qui n'avait rien.
+   ========================================================================== */
+select {
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  padding: 4px 8px;
+  font-family: var(--font);
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast, .15s);
+}
+select:hover { border-color: var(--border-light); }
+select:focus { border-color: var(--amber); }
+select:disabled { opacity: .5; cursor: not-allowed; }
+
+/* La LISTE deroulee est peinte par le systeme sur la plupart des plateformes.
+   Chromium accepte de la teinter, et c'est ce qui evite le rectangle blanc qui
+   surgit sous un menu sombre. */
+select option, select optgroup {
+  background: var(--bg-panel);
+  color: var(--text);
+}
+
+/* Meme raison pour les champs qui n'ont pas de classe: un `input` nu tombe sinon
+   sur le blanc du systeme. */
+input:not([type]), input[type="text"], input[type="number"], input[type="search"],
+input[type="password"], input[type="url"], input[type="email"], textarea {
+  font-family: var(--font);
+}
+input[type="range"] { accent-color: var(--amber); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--amber); }
+
+/* ==========================================================================
+   LA TABLE RONDE SUR TELEPHONE: les places tiennent en une bande.
+
+   A 96 pixels de large et 44 de haut pour le seul avatar, huit specialistes
+   occupaient la moitie de l'ecran avant qu'un mot de conversation n'apparaisse.
+   La table est un rappel de QUI parle, pas le sujet de la page: elle se serre,
+   et l'espace revient au debat.
+   ========================================================================== */
+@media (max-width: 720px) {
+  .tr-table { gap: 6px; margin-bottom: 10px; }
+  .tr-rang { gap: 6px; }
+  .tr-place { width: 62px; padding: 5px 3px; border-radius: var(--radius-btn); }
+  .tr-avatar { font-size: 26px; line-height: 1; }
+  .tr-place .tr-av-img { width: 30px; height: 30px; }
+  .tr-nom { font-size: 9px; margin-top: 1px; }
+  /* Le rang en cercle n'a plus de cercle a dessiner sur une largeur de telephone:
+     il redevient une simple bande qui se replie. */
+  .tr-rang--cercle { max-width: 100%; }
+}

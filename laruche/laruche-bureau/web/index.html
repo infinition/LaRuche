@@ -53,13 +53,33 @@
     overscroll-behavior: none;
     -webkit-user-select: none; user-select: none;
   }
-  .ruche { width: 76px; height: 76px; animation: souffle 2.4s ease-in-out infinite; }
-  .ruche path { fill: var(--att-accent); }
+  /* Transpose de `.honeycomb-loader.hc-lg` de l'application: meme geometrie,
+     meme cadence, meme decalage d'un cinquieme de seconde entre les alveoles.
+     La coque ne partage pas la feuille de style du noeud, cette page etant servie
+     avant lui: la douzaine de lignes est le prix d'une marque identique des la
+     premiere seconde. */
+  .ruche { position: relative; width: 80px; height: 80px; }
+  .alv {
+    position: absolute; width: 20px; height: 23px;
+    background: var(--att-accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    animation: pulse-alv 1.5s infinite ease-in-out;
+  }
+  .a1 { top: 8px;  left: 30px; animation-delay: 0s;   }
+  .a2 { top: 21px; left: 10px; animation-delay: .2s;  }
+  .a3 { top: 21px; left: 50px; animation-delay: .4s;  }
+  .a4 { top: 34px; left: 30px; animation-delay: .6s;  }
+  .a5 { top: 47px; left: 10px; animation-delay: .8s;  }
+  .a6 { top: 47px; left: 50px; animation-delay: 1s;   }
+  .a7 { top: 60px; left: 30px; animation-delay: 1.2s; }
+  @keyframes pulse-alv {
+    0%, 100% { opacity: .2; transform: scale(.8); }
+    50%      { opacity: 1;  transform: scale(1.1); }
+  }
   h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: .2px; }
   p  { margin: 0; font-size: 13px; color: var(--att-attenue); max-width: 34ch; }
   .barre { width: 190px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
   .barre i { display: block; width: 40%; height: 100%; border-radius: 2px; background: #f5a623; animation: va 1.5s ease-in-out infinite; }
-  @keyframes souffle { 0%, 100% { transform: scale(1); opacity: .92 } 50% { transform: scale(1.06); opacity: 1 } }
   @keyframes va { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } }
   /* Une animation qui pulse n'est pas negociable pour tout le monde. */
   @media (prefers-reduced-motion: reduce) {
@@ -68,10 +88,14 @@
   }
 </style>
 <body>
-  <svg class="ruche" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 7 3.9v7.6l-7 3.9-7-3.9V8.2l7-3.9Z"/>
-    <path d="M12 7.2 7.5 9.7v4.6L12 16.8l4.5-2.5V9.7L12 7.2Z"/>
-  </svg>
+  <!-- La MEME ruche que celle de la barre du haut, sept alveoles qui pulsent a
+       tour de role. Un hexagone fige disait « ca charge » sans rien montrer, et
+       surtout ce n'etait pas la marque: on la decouvrait une seconde plus tard,
+       differente, une fois l'application ouverte. -->
+  <div class="ruche" aria-hidden="true">
+    <i class="alv a1"></i><i class="alv a2"></i><i class="alv a3"></i><i class="alv a4"></i>
+    <i class="alv a5"></i><i class="alv a6"></i><i class="alv a7"></i>
+  </div>
   <h1 id="titre">Démarrage de LaRuche…</h1>
   <p id="detail">La ruche ouvre sa mémoire et sonde le réseau. Quelques secondes.</p>
   <div class="barre"><i></i></div>

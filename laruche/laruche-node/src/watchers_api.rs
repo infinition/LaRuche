@@ -24,6 +24,15 @@ pub(crate) async fn api_list_watchers(State(state): State<Arc<AppState>>) -> Jso
                 "run_count": w.run_count,
                 "profile_id": w.profile_id,
                 "model": w.model,
+                // Ces quatre-la manquaient, et leur absence ne se voyait pas: le
+                // formulaire d'edition les affichait vides, donc « valeur par
+                // defaut », et l'enregistrement renvoyait zero. Or zero veut dire
+                // « efface, reviens au defaut » cote serveur. Modifier le nom d'une
+                // vigie efface son intervalle et son delai de garde, en silence.
+                "interval_secs": w.interval_secs,
+                "cooldown_secs": w.cooldown_secs,
+                "sustained": w.sustained,
+                "channel": w.channel,
                 // The rule tree carries the correlation edges, so the UI can draw which
                 // watcher feeds which without a second endpoint. Without it the graph
                 // would have nodes and no links.

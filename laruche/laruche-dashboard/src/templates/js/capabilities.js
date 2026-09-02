@@ -45,6 +45,7 @@ LaRuche.i18n.add({
   'capabilities.kindCron':      { fr:'Cron',              en:'Cron' },
   'capabilities.kindMission':   { fr:'Mission',           en:'Mission' },
   'capabilities.kindWatcher':   { fr:'Watcher',           en:'Watcher' },
+  'capabilities.kindChat':        {fr:'Chat',     en:'Chat'},
   'capabilities.kindDm':        { fr:'DM',                en:'DM' },
   'capabilities.feedVide':       {fr:'Flux vide. Ce qui arrive ensuite s\'affichera.',
                                   en:'Feed cleared. What comes next will show.'},
@@ -805,11 +806,15 @@ LaRuche.Feed = (function(){
 
   // ── Event list ─────────────────────────────────────
   // mapping kind -> badge label
-  var KIND_LABEL = { memory:'kindMemory', agent:'kindAgent', cron:'kindCron', mission:'kindMission', watcher:'kindWatcher', dm:'kindDm' };
+  /* Les genres NOMMES. Ceux qui n'y sont pas s'affichent tels quels, en clair:
+     `telegram` se lit deja tout seul, `chat` aussi. Ce tableau ne sert qu'a ceux
+     dont le mot technique ne dit rien a qui le lit. */
+  var KIND_LABEL = { memory:'kindMemory', agent:'kindAgent', cron:'kindCron', mission:'kindMission',
+                     watcher:'kindWatcher', dm:'kindDm', chat:'kindChat' };
   function kindLabel(k){ var key = KIND_LABEL[k]; return key ? LaRuche.i18n.t('capabilities.'+key) : (k||''); }
   // Whitelist: anything unlisted falls back to "memory", so a new kind added server-side
   // silently landed in the memory bucket and answered to the wrong filter chip.
-  var KINDS_CONNUS = {agent:1, cron:1, mission:1, watcher:1, dm:1, kanban:1, reine:1, mcp:1,
+  var KINDS_CONNUS = {chat:1, agent:1, cron:1, mission:1, watcher:1, dm:1, kanban:1, reine:1, mcp:1,
                       telegram:1, discord:1, slack:1, whatsapp:1, voice:1};
   function kindOf(ev){
     var k = ev && ev.kind;

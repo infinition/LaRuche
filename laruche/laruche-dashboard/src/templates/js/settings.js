@@ -3607,8 +3607,17 @@ LaRuche.Settings = (function(){
       '<span class="wcard-chev">▶</span></div>';
     if(!open) return '<div class="wcard">'+head+'</div>';
     var id=w.id;
-    function opt(v,label,cur){ return '<option value="'+v+'"'+(cur===v?' selected':'')+'>'+label+'</option>'; }
-    var typeSel=opt('file',t('settings.watcherTypeFile'),w.watcher_type)+opt('url',t('settings.watcherTypeUrl'),w.watcher_type)+opt('log',t('settings.watcherTypeLog'),w.watcher_type)+opt('command',t('settings.watcherTypeCommand'),w.watcher_type);
+    /* Le serveur serialise le type `commande`, en francais, alors que l'option
+       portait `command`. Aucune ne correspondait, le navigateur retenait donc la
+       premiere, « Fichier », et enregistrer changeait le type de la vigie sans
+       que rien ne le dise. On compare sur une forme normalisee, et on emet la
+       valeur que le serveur attend. */
+    function memeType(a,b){
+      var n=function(x){ return String(x||'').toLowerCase()==='command' ? 'commande' : String(x||'').toLowerCase(); };
+      return n(a)===n(b);
+    }
+    function opt(v,label,cur){ return '<option value="'+v+'"'+(memeType(cur,v)?' selected':'')+'>'+label+'</option>'; }
+    var typeSel=opt('file',t('settings.watcherTypeFile'),w.watcher_type)+opt('url',t('settings.watcherTypeUrl'),w.watcher_type)+opt('log',t('settings.watcherTypeLog'),w.watcher_type)+opt('commande',t('settings.watcherTypeCommand'),w.watcher_type);
     var profOpts='<option value="">'+t('settings.parDefault')+'</option>';
     Object.keys(profiles).forEach(function(k){ profOpts+='<option value="'+esc(k)+'"'+((w.profile_id===k)?' selected':'')+'>'+esc(profiles[k].name||k)+'</option>'; });
     var modOpts='<option value="">'+t('settings.parDefault')+'</option>';

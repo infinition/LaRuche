@@ -371,10 +371,14 @@ LaRuche.TableRonde = (function(){
   }
 
   async function ouvrirPool(){
-    // Les profils AVANT de construire les listes: sinon la premiere ouverture
-    // n'offre que « profil actif », et il faut refermer et rouvrir pour voir
-    // les autres, ce que personne ne devine.
-    await chargerProfils();
+    /* La fenetre s'ouvre D'ABORD, les profils arrivent ensuite.
+       
+       Elle attendait `chargerProfils()` avant meme d'exister: le bouton
+       paraissait mort le temps de l'appel reseau, et sur une connexion lente on
+       cliquait deux ou trois fois en croyant l'avoir manque. Le motif d'origine
+       reste valable, une liste construite trop tot n'offre que « profil actif »,
+       mais la reponse n'est pas de bloquer: c'est de reconstruire les listes
+       quand les profils arrivent. */
     var ov = document.createElement('div');
     ov.className = 'lr-modal-ov'; ov.id = 'trPoolModal';
     ov.innerHTML = '<div class="lr-modal tr-pool" role="dialog" aria-modal="true">'+
@@ -390,6 +394,17 @@ LaRuche.TableRonde = (function(){
     document.body.appendChild(ov);
     ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
     ov.querySelectorAll('.tr-pool-ligne').forEach(brancherLigne);
+
+    // Les profils, une fois arrives, refont les lignes. On ne touche a rien si
+    // la fenetre a ete refermee entre-temps, ni si l'utilisateur a deja ajoute
+    // un specialiste: son travail passe avant une liste de fournisseurs.
+    chargerProfils().then(function(){
+      var liste = document.getElementById('trPoolListe');
+      if(!liste || !document.body.contains(ov)) return;
+      if(liste.querySelectorAll('.tr-pool-ligne').length !== pool.length) return;
+      liste.innerHTML = pool.map(ligneHtml).join('');
+      liste.querySelectorAll('.tr-pool-ligne').forEach(brancherLigne);
+    });
 
     document.getElementById('trAjouter').onclick = function(){
       var id = 'perso-' + Date.now().toString(36);

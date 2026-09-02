@@ -74,6 +74,20 @@
     btn.onclick = function(e){ e.stopPropagation(); if(ouvert) fermer(); else ouvrir(); };
     hr.insertBefore(btn, hr.firstChild);
     LaRuche.Themes.charger();
+
+    /* Les outils du volet: le clic ouvre et referme, partout. Le survol le fait
+       aussi sur un ecran qui en a un, mais il ne peut pas etre le SEUL moyen:
+       sur tactile il n'existe pas, et le panneau serait alors hors d'atteinte. */
+    var poignee = document.getElementById('sidebarOutilsPoignee');
+    if (poignee) {
+      poignee.onclick = function (e) {
+        e.stopPropagation();
+        var boite = document.getElementById('sidebarOutils');
+        if (!boite) return;
+        var ouvert = boite.classList.toggle('ouvert');
+        poignee.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+      };
+    }
     // Translate the navigation labels.
     document.querySelectorAll('.header-nav a[data-page], .mobile-tabs a[data-page]').forEach(function(a){
       var key = 'nav.' + a.dataset.page;
