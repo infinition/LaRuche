@@ -3147,6 +3147,33 @@ LaRuche.Voice = (function(){
     }
   }
 
+  /* Le silence, et le verrou qui le tient.
+
+     `stopAllTts` ne fait que vider ce qui est en cours. Ca ne suffit pas quand la
+     reponse est encore en train d'ARRIVER: `feedStream` rempile une phrase juste
+     apres, et la voix repart. C'est ce qui faisait qu'en quittant l'appel elle
+     continuait de parler. `_ttsMuet` ferme le robinet en amont, et les deux
+     ensemble donnent un silence qui tient. */
+  var _ttsMuet = false;
+  function ttsEstMuet(){ return _ttsMuet; }
+  function ttsFaireTaire(){ _ttsMuet = true; stopAllTts(); }
+  function ttsRendreLaVoix(){ _ttsMuet = false; }
+
+  /* Le bouton Muet de la barre du bas: coupe tout de suite ET empeche la suite,
+     ce qu'aucun des autres ne faisait, la lecture automatique ne decidant que des
+     reponses a venir. */
+  function toggleMute(){
+    if(_ttsMuet) ttsRendreLaVoix(); else ttsFaireTaire();
+    var b = document.getElementById('sbMuteLabel');
+    if(b){
+      b.innerHTML = _ttsMuet ? '&#128263;' : '&#128266;';
+      b.style.opacity = _ttsMuet ? '1' : '.55';
+      b.style.color = _ttsMuet ? 'var(--red)' : '';
+      b.title = LaRuche.i18n.t(_ttsMuet ? 'chat.muetOn' : 'chat.muetOff');
+    }
+    if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t(_ttsMuet?'chat.muetOn':'chat.muetOff'), 'ok');
+  }
+
   function stopAllTts() {
     _ttsSeq++; // cancel any in-flight phrase-by-phrase streaming
     _stts.seq++; _stts.q=[]; _stts.busy=false; // cancel reverse-stream queue too
