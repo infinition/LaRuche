@@ -151,6 +151,57 @@ async fn reconcilier_skills_orphelines(
     }
 }
 
+/// Le nom declare par un document OKF de skill, qui designe son noeud d'accueil.
+///
+/// Le frontmatter est la seule source fiable ici: l'identifiant du noeud ou la
+/// proposition a ete trouvee ne dit que d'ou elle vient.
+fn nom_okf_skill(contenu: &str) -> Option<String> {
+    if !contenu.contains("type: skill") {
+        return None;
+    }
+    contenu
+        .lines()
+        .map(str::trim)
+        .find_map(|l| l.strip_prefix("name:"))
+        .map(|n| n.trim().trim_matches('"').trim_matches('\u{27}').to_string())
+        .filter(|n| !n.is_empty())
+}
+
+#[cfg(test)]
+mod tests_nom_okf_skill {
+    use super::nom_okf_skill;
+
+    #[test]
+    fn lit_le_nom_du_frontmatter() {
+        let doc = "---
+type: skill
+name: fetch-weather-wttr.in
+description: x
+---
+# Titre";
+        assert_eq!(nom_okf_skill(doc).as_deref(), Some("fetch-weather-wttr.in"));
+    }
+
+    #[test]
+    fn tolere_les_guillemets() {
+        let doc = "---
+type: skill
+name: \"create-desktop-files-gui\"
+---
+";
+        assert_eq!(nom_okf_skill(doc).as_deref(), Some("create-desktop-files-gui"));
+    }
+
+    #[test]
+    fn ignore_ce_qui_n_est_pas_un_skill() {
+        assert_eq!(nom_okf_skill("The user's name is Fabien."), None);
+        assert_eq!(nom_okf_skill("---
+type: note
+name: x
+---"), None);
+    }
+}
+
 /// Rattrape les propositions memoire restees en rade, une fois pour toutes.
 ///
 /// `propose_write` posait un item en `status='proposed'` et s'arretait la: aucune
@@ -185,20 +236,48 @@ async fn rattraper_propositions_orphelines(memoire: &Arc<dyn laruche_memoire::Me
             continue;
         };
         let source = it.get("source").and_then(|x| x.as_str()).unwrap_or("rattrapage");
+        // OU cette proposition doit ALLER, et non ou elle a ete trouvee.
+        //
+        // Son `node_id` courant est l'endroit ou le balayage l'avait reparquee,
+        // `orphans.<slug>_<ts>`. La reproposer sous cet identifiant la renvoyait a la
+        // corbeille dont on essayait de la sortir. Un document de skill porte son nom
+        // dans son propre frontmatter, et ce nom est son noeud.
+        let (cible, est_skill) = match nom_okf_skill(contenu) {
+            Some(nom) => (laruche_skills::skill_node_id(&nom), true),
+            None => (node.to_string(), node.starts_with("capacities.skills.")),
+        };
         // Un skill garde son chemin d'application a lui: approuver un `SkillNouveau`
         // ecrit le noeud ET le fichier SKILL.md, ce qu'un simple ajout memoire ne
         // ferait pas, et le skill resterait invisible sur le disque.
-        if node.starts_with("capacities.skills.") {
-            laruche_essaim::reine_queue::proposer_skill(node, contenu, source);
+        // `proposer_skill` enfile inconditionnellement, il ne rend rien.
+        let en_file = if est_skill {
+            laruche_essaim::reine_queue::proposer_skill(&cible, contenu, source);
+            true
         } else {
+            // `humaine`, et surtout pas `hybride`: en hybride la politique auto-approuve
+            // ce qu'elle juge sur, donc `proposer_memoire` ecrivait au lieu d'enfiler.
+            // Ce rattrapage validait ainsi neuf propositions a la place de
+            // l'utilisateur, en silence, alors qu'il existe pour les lui presenter.
             laruche_essaim::reine_queue::proposer_memoire(
                 memoire,
-                laruche_memoire::MemoryItem::new(node, contenu).with_source(source),
+                laruche_memoire::MemoryItem::new(cible.clone(), contenu).with_source(source),
                 true,
-                "hybride",
+                "humaine",
                 source,
             )
-            .await;
+            .await
+        };
+        // L'originale ne part qu'une fois la copie EN FILE. Supprimer d'abord et
+        // esperer ensuite est ce qui a coute les neuf propositions du 2 septembre:
+        // elles n'etaient plus nulle part, et seul le journal des mutations en gardait
+        // le texte.
+        if !en_file {
+            tracing::warn!(
+                node = %node,
+                cible = %cible,
+                "proposition non mise en file, l'originale est conservee"
+            );
+            continue;
         }
         let _ = memoire.delete_item(id, Some("rattrapage-file-unique")).await;
         verses += 1;
