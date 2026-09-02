@@ -508,7 +508,13 @@ LaRuche.Router.register('login', LaRuche.Auth);
       this.alpha = 0.55 + Math.random() * 0.45;
       this.phase = Math.random() * Math.PI * 2;
       this.speed = 0.006 + Math.random() * 0.008;
-      this.color = Math.random() > 0.25 ? "255, 205, 40" : "255, 235, 125";
+      // L'essaim prend ses teintes au THEME. Elles etaient ecrites en dur, donc
+      // la page de connexion restait doree sur un theme ardoise ou papier, seule
+      // surface de l'application a ne pas suivre le reglage de l'utilisateur.
+      var T = (window.LaRuche && LaRuche.Themes) || null;
+      var vif = T ? T.tripletRgb(getComputedStyle(document.documentElement).getPropertyValue('--amber'), '255, 205, 40') : '255, 205, 40';
+      var pale = T ? T.tripletRgb(getComputedStyle(document.documentElement).getPropertyValue('--amber-light'), '255, 235, 125') : '255, 235, 125';
+      this.color = Math.random() > 0.25 ? vif : pale;
     }
     update(t) {
       const orbit = 48 + Math.sin(t * 0.018 + this.phase) * 18;
@@ -554,9 +560,11 @@ LaRuche.Router.register('login', LaRuche.Auth);
         const ctx = canvas.ctx;
         ctx.clearRect(0, 0, SIZE, SIZE);
         const gradient = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, 95);
-        gradient.addColorStop(0, "rgba(255, 210, 50, 0.08)");
-        gradient.addColorStop(0.55, "rgba(255, 180, 0, 0.025)");
-        gradient.addColorStop(1, "rgba(255, 180, 0, 0)");
+        var TH = (window.LaRuche && LaRuche.Themes) || null;
+        var halo = TH ? TH.tripletRgb(getComputedStyle(document.documentElement).getPropertyValue('--amber'), '255, 200, 30') : '255, 200, 30';
+        gradient.addColorStop(0, "rgba(" + halo + ", 0.08)");
+        gradient.addColorStop(0.55, "rgba(" + halo + ", 0.025)");
+        gradient.addColorStop(1, "rgba(" + halo + ", 0)");
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, SIZE, SIZE);
         particles.forEach(p => p.draw(ctx, t));

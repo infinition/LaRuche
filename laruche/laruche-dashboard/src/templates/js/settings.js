@@ -413,7 +413,23 @@ LaRuche.i18n.add({
   'settings.toolDangerSafe':     {fr:'safe',             en:'safe'},
   'settings.toolEnabled':        {fr:' activée',         en:' enabled'},
   'settings.toolDisabled':       {fr:' désactivée',      en:' disabled'},
-  'settings.navAppearance':     {fr:'Apparence',            en:'Appearance'},
+  'settings.navAppearance':     {fr:'Apparence',            en:'Appearance'},
+  'settings.brandTitle':        {fr:'Marque',                 en:'Brand'},
+  'settings.brandHint':         {fr:"Le nom et le logo en haut a gauche. Ils suivent le theme: chaque theme porte les siens.", en:'The name and logo in the top left. They travel with the theme: each theme carries its own.'},
+  'settings.brandName':         {fr:'Nom affiche',            en:'Displayed name'},
+  'settings.brandLogo':         {fr:'Logo',                   en:'Logo'},
+  'settings.brandPick':         {fr:'Choisir un fichier',     en:'Pick a file'},
+  'settings.brandClear':        {fr:'Retirer',                en:'Remove'},
+  'settings.brandSvgHint':      {fr:"SVG de preference: il herite de la couleur d'accent, donc il suit le theme. Un PNG garde la sienne. Le SVG est lave par le serveur avant d'etre enregistre.", en:'Prefer SVG: it inherits the accent colour, so it follows the theme. A PNG keeps its own. SVG is sanitised by the server before being stored.'},
+  'settings.brandTooBig':       {fr:'Logo trop lourd (512 Ko maximum).', en:'Logo too heavy (512 KB max).'},
+  'settings.bgTitle':           {fr:"Image de fond",         en:'Background image'},
+  'settings.bgHint':            {fr:"Une seule image, derriere tout, et vous choisissez les zones qui la laissent voir.", en:'One image, behind everything, and you choose which zones let it show.'},
+  'settings.bgPick':            {fr:'Choisir une image',      en:'Pick an image'},
+  'settings.bgClear':           {fr:'Retirer',                en:'Remove'},
+  'settings.bgOpacity':         {fr:'Opacite',                en:'Opacity'},
+  'settings.bgFit':             {fr:'Cadrage',                en:'Fit'},
+  'settings.bgZones':           {fr:'Zones concernees',       en:'Zones affected'},
+  'settings.bgTooBig':          {fr:'Image trop lourde (3 Mo maximum).', en:'Image too heavy (3 MB max).'},
   'settings.themeTitle':        {fr:'Thème de l’interface', en:'Interface theme'},
   'settings.themeHint':         {fr:'Le changement est immédiat. Survolez un thème pour le voir avant de choisir.', en:'Applied immediately. Hover a theme to see it before choosing.'},
   'settings.themeNew':          {fr:'Nouveau thème',        en:'New theme'},
@@ -1693,47 +1709,102 @@ LaRuche.Settings = (function(){
       '</div></div>';
   }
 
+  var _marqueBrouillon = {};
+  var _fondBrouillon = {};
+
+  /* Une ligne de reglage, choisie par le TYPE du jeton.
+
+     Une pipette pour tout, c'etait le defaut d'avant: les jetons qui ne sont pas
+     des couleurs restaient hors d'atteinte, et ceux qui portent une transparence
+     voyaient leur pipette desactivee faute de savoir lire un `rgba`. Chaque type
+     recoit donc le controle qui lui convient, et la couleur en recoit DEUX, la
+     teinte et l'opacite, parce que l'une sans l'autre ne decrit pas un fond. */
+  function _ligneJeton(j, valeur, esc){
+    var T = LaRuche.Themes;
+    var nom = esc(j[LaRuche.i18n.get()] || j.fr);
+    var etiquette = '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+nom+'</span>';
+    var champ = '<input type="text" data-jeton-txt="'+j.cle+'" value="'+esc(valeur)+'" spellcheck="false" '+
+      'style="width:190px;background:var(--bg-input);color:var(--text-dim);border:1px solid var(--border);'+
+      'border-radius:5px;padding:3px 7px;font-family:var(--mono);font-size:11px">';
+
+    if(j.type === 'taille'){
+      var n = parseFloat(valeur);
+      if(isNaN(n)) n = j.min;
+      return '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+        etiquette+
+        '<input type="range" data-jeton-taille="'+j.cle+'" min="'+j.min+'" max="'+j.max+'" step="'+j.pas+'" '+
+          'value="'+n+'" data-unite="'+j.unite+'" style="width:130px;accent-color:var(--amber)">'+
+        champ+'</div>';
+    }
+    if(j.type === 'police'){
+      var piles = j.mono ? T.PILES_MONO : T.PILES;
+      var opts = '<option value="">—</option>'+piles.map(function(p){
+        return '<option value="'+esc(p.v)+'"'+(p.v===valeur.trim()?' selected':'')+'>'+esc(p.nom)+'</option>';
+      }).join('');
+      return '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+        etiquette+
+        '<select data-jeton-pile="'+j.cle+'" style="width:130px;background:var(--bg-input);color:var(--text);'+
+          'border:1px solid var(--border);border-radius:5px;padding:3px 5px;font-size:11.5px">'+opts+'</select>'+
+        champ+'</div>';
+    }
+    // Couleur: pipette + opacite. `resoudreCouleur` lit toutes les syntaxes, donc
+    // la pipette n'est plus desactivee sur les valeurs transparentes.
+    var c = T.resoudreCouleur(valeur);
+    var hex = c ? T.versHex(c) : '#000000';
+    var a = c ? c.a : 1;
+    return '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+      '<input type="color" data-jeton="'+j.cle+'" value="'+hex+'" '+
+        'style="width:30px;height:24px;padding:0;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer">'+
+      etiquette+
+      '<input type="range" data-jeton-alpha="'+j.cle+'" min="0" max="1" step="0.01" value="'+a+'" '+
+        'title="opacité" style="width:82px;accent-color:var(--amber)">'+
+      champ+'</div>';
+  }
+
   function loadApparence(el){
     if(!window.LaRuche || !LaRuche.Themes){ el.innerHTML=''; return; }
-    var t = LaRuche.i18n.t, esc = LaRuche.Utils.esc;
-    var actif = LaRuche.Themes.actif();
-    var perso = LaRuche.Themes.estPerso(actif);
+    var t = LaRuche.i18n.t, esc = LaRuche.Utils.esc, T = LaRuche.Themes;
+    var actif = T.actif();
+    var perso = T.estPerso(actif);
+    var lg = LaRuche.i18n.get();
 
-    var vignettes = LaRuche.Themes.catalogue().map(function(x){
+    var vignettes = T.catalogue().map(function(x){
+      var apercuFond = x.image
+        ? 'background-image:url('+JSON.stringify(x.image)+');background-size:cover;background-position:center'
+        : 'background:'+x.fond;
       return '<button class="theme-vignette" data-id="'+esc(x.id)+'" style="'+
         'display:flex;flex-direction:column;gap:6px;align-items:center;background:none;cursor:pointer;'+
         'border:1px solid '+(x.id===actif?'var(--amber)':'var(--border)')+';border-radius:10px;padding:9px 7px;min-width:96px">'+
-        '<span style="width:100%;height:36px;border-radius:6px;background:'+x.fond+';border:1px solid var(--border);'+
+        '<span style="width:100%;height:36px;border-radius:6px;'+apercuFond+';border:1px solid var(--border);'+
           'display:flex;align-items:center;justify-content:center">'+
           '<span style="width:11px;height:11px;border-radius:50%;background:'+x.point+'"></span></span>'+
         '<span style="font-size:11.5px;color:var(--text-dim);max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.nom)+'</span>'+
       '</button>';
     }).join('');
 
-    var jetons = LaRuche.Themes.jetonsCourants();
+    var jetons = T.jetonsCourants();
     _themeBrouillon = Object.assign({}, jetons);
-    var champs = LaRuche.Themes.GROUPES.map(function(g){
-      var lignes = g.jetons.map(function(j){
-        var val = jetons[j.cle] || '';
-        var hex = _hexDe(val);
-        return '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
-          '<input type="color" data-jeton="'+j.cle+'" value="'+(hex||'#000000')+'" '+
-            (hex?'':'disabled title="valeur non convertible en couleur simple" ')+
-            'style="width:30px;height:24px;padding:0;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer">'+
-          '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+esc(j[LaRuche.i18n.get()]||j.fr)+'</span>'+
-          '<input type="text" data-jeton-txt="'+j.cle+'" value="'+esc(val)+'" spellcheck="false" '+
-            'style="width:150px;background:var(--bg-input);color:var(--text-dim);border:1px solid var(--border);'+
-            'border-radius:5px;padding:3px 7px;font-family:var(--mono);font-size:11px">'+
-        '</div>';
-      }).join('');
+    var h = T.habillageDe(actif);
+    _marqueBrouillon = Object.assign({}, h.marque);
+    _fondBrouillon = Object.assign({ opacite: 0.35, cadrage: 'cover', zones: {} }, h.fond);
+    _fondBrouillon.zones = Object.assign({}, _fondBrouillon.zones);
+
+    var champs = T.GROUPES.map(function(g){
+      var lignes = g.jetons.map(function(j){ return _ligneJeton(j, jetons[j.cle] || '', esc); }).join('');
       return '<div style="margin-bottom:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;'+
-        'color:var(--text-muted);margin-bottom:5px">'+esc(g.titre[LaRuche.i18n.get()]||g.titre.fr)+'</div>'+lignes+'</div>';
+        'color:var(--text-muted);margin-bottom:5px">'+esc(g.titre[lg]||g.titre.fr)+'</div>'+lignes+'</div>';
     }).join('');
 
+    var basculesZone = T.ZONES.map(function(z){
+      var on = !!_fondBrouillon.zones[z.cle];
+      return '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);'+
+        'border:1px solid var(--border);border-radius:999px;padding:4px 11px;cursor:pointer">'+
+        '<input type="checkbox" data-zone="'+z.cle+'"'+(on?' checked':'')+' style="accent-color:var(--amber)">'+
+        esc(z[lg]||z.fr)+'</label>';
+    }).join(' ');
+
     var nomActuel = '';
-    if(perso){
-      LaRuche.Themes.catalogue().forEach(function(x){ if(x.id===actif) nomActuel = x.nom; });
-    }
+    if(perso){ T.catalogue().forEach(function(x){ if(x.id===actif) nomActuel = x.nom; }); }
 
     el.innerHTML =
       '<div class="settings-card"><div class="settings-card-title">'+t('settings.themeTitle')+'</div>'+
@@ -1741,6 +1812,48 @@ LaRuche.Settings = (function(){
         '<div id="themeVignettes" style="display:flex;gap:9px;flex-wrap:wrap">'+vignettes+'</div>'+
       '</div>'+
       _apercuMarkdown()+
+
+      '<div class="settings-card"><div class="settings-card-title">'+t('settings.brandTitle')+'</div>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.brandHint')+'</p>'+
+        '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+          '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandName')+'</span>'+
+          '<input type="text" id="marqueNom" value="'+esc(_marqueBrouillon.nom||'')+'" placeholder="LaRuche" '+
+            'style="width:250px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);'+
+            'border-radius:5px;padding:4px 8px;font-size:12px"></div>'+
+        '<div style="display:flex;align-items:center;gap:9px;padding:6px 0;flex-wrap:wrap">'+
+          '<span style="flex:1;min-width:140px;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandLogo')+'</span>'+
+          '<span id="marqueApercu" class="lr-logo" style="width:34px;height:34px;border:1px solid var(--border);border-radius:6px"></span>'+
+          '<button class="cwd-btn" id="marqueChoisir" style="opacity:1;font-size:12px;padding:6px 10px">'+t('settings.brandPick')+'</button>'+
+          '<button class="cwd-btn" id="marqueVider" style="opacity:1;font-size:12px;padding:6px 10px">'+t('settings.brandClear')+'</button>'+
+          '<input type="file" id="marqueFichier" accept=".svg,image/svg+xml,image/png,image/webp" style="display:none"></div>'+
+        '<p style="color:var(--text-muted);font-size:11px;margin:6px 0 0">'+t('settings.brandSvgHint')+'</p>'+
+      '</div>'+
+
+      '<div class="settings-card"><div class="settings-card-title">'+t('settings.bgTitle')+'</div>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.bgHint')+'</p>'+
+        '<div style="display:flex;align-items:center;gap:9px;padding:3px 0;flex-wrap:wrap">'+
+          '<span id="fondApercu" style="width:72px;height:44px;border-radius:6px;border:1px solid var(--border);'+
+            'background-size:cover;background-position:center;flex-shrink:0"></span>'+
+          '<button class="cwd-btn" id="fondChoisir" style="opacity:1;font-size:12px;padding:6px 10px">'+t('settings.bgPick')+'</button>'+
+          '<button class="cwd-btn" id="fondVider" style="opacity:1;font-size:12px;padding:6px 10px">'+t('settings.bgClear')+'</button>'+
+          '<input type="file" id="fondFichier" accept="image/*" style="display:none"></div>'+
+        '<div style="display:flex;align-items:center;gap:9px;padding:8px 0">'+
+          '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.bgOpacity')+'</span>'+
+          '<input type="range" id="fondOpacite" min="0" max="1" step="0.01" value="'+_fondBrouillon.opacite+'" '+
+            'style="width:180px;accent-color:var(--amber)">'+
+          '<span id="fondOpaciteVal" style="width:38px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)"></span></div>'+
+        '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+          '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.bgFit')+'</span>'+
+          '<select id="fondCadrage" style="width:130px;background:var(--bg-input);color:var(--text);'+
+            'border:1px solid var(--border);border-radius:5px;padding:3px 5px;font-size:11.5px">'+
+            ['cover','contain','auto','100% 100%'].map(function(v){
+              return '<option value="'+v+'"'+(v===_fondBrouillon.cadrage?' selected':'')+'>'+v+'</option>';
+            }).join('')+'</select></div>'+
+        '<div style="margin-top:8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">'+
+          t('settings.bgZones')+'</div>'+
+        '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:6px">'+basculesZone+'</div>'+
+      '</div>'+
+
       '<div class="settings-card"><div class="settings-card-title">'+t('settings.themeEditTitle')+'</div>'+
         '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+
           t('settings.themeEditHint')+(perso?'':' '+t('settings.themeBuiltinHint'))+'</p>'+
@@ -1754,9 +1867,9 @@ LaRuche.Settings = (function(){
       '</div>';
 
     el.querySelectorAll('.theme-vignette').forEach(function(b){
-      b.onmouseenter = function(){ LaRuche.Themes.apercuSur(b.dataset.id); };
-      b.onmouseleave = function(){ LaRuche.Themes.apercuFin(); };
-      b.onclick = function(){ LaRuche.Themes.appliquer(b.dataset.id); loadApparence(el); };
+      b.onmouseenter = function(){ T.apercuSur(b.dataset.id); };
+      b.onmouseleave = function(){ T.apercuFin(); };
+      b.onclick = function(){ T.appliquer(b.dataset.id); loadApparence(el); };
     });
 
     /* Chaque champ peint IMMEDIATEMENT, sans passer par un enregistrement: c'est
@@ -1766,21 +1879,112 @@ LaRuche.Settings = (function(){
     function poser(cle, valeur){
       _themeBrouillon[cle] = valeur;
       document.documentElement.style.setProperty(cle, valeur);
+      var txt = el.querySelector('[data-jeton-txt="'+cle+'"]');
+      if(txt && txt.value !== valeur) txt.value = valeur;
+    }
+    function couleurDe(cle){
+      var pip = el.querySelector('[data-jeton="'+cle+'"]');
+      var alp = el.querySelector('[data-jeton-alpha="'+cle+'"]');
+      if(!pip) return;
+      poser(cle, T.composerCouleur(pip.value, alp ? parseFloat(alp.value) : 1));
     }
     el.querySelectorAll('[data-jeton]').forEach(function(inp){
-      inp.oninput = function(){
-        poser(inp.dataset.jeton, inp.value);
-        var txt = el.querySelector('[data-jeton-txt="'+inp.dataset.jeton+'"]');
-        if(txt) txt.value = inp.value;
-      };
+      inp.oninput = function(){ couleurDe(inp.dataset.jeton); };
+    });
+    el.querySelectorAll('[data-jeton-alpha]').forEach(function(inp){
+      inp.oninput = function(){ couleurDe(inp.dataset.jetonAlpha); };
+    });
+    el.querySelectorAll('[data-jeton-taille]').forEach(function(inp){
+      inp.oninput = function(){ poser(inp.dataset.jetonTaille, inp.value + inp.dataset.unite); };
+    });
+    el.querySelectorAll('[data-jeton-pile]').forEach(function(sel){
+      sel.onchange = function(){ if(sel.value) poser(sel.dataset.jetonPile, sel.value); };
     });
     el.querySelectorAll('[data-jeton-txt]').forEach(function(inp){
       inp.oninput = function(){
-        poser(inp.dataset.jetonTxt, inp.value);
-        var col = el.querySelector('[data-jeton="'+inp.dataset.jetonTxt+'"]');
-        var hex = _hexDe(inp.value);
-        if(col && hex){ col.value = hex; col.disabled = false; }
+        var cle = inp.dataset.jetonTxt;
+        _themeBrouillon[cle] = inp.value;
+        document.documentElement.style.setProperty(cle, inp.value);
+        var pip = el.querySelector('[data-jeton="'+cle+'"]');
+        if(pip){
+          var c = T.resoudreCouleur(inp.value);
+          if(c){
+            pip.value = T.versHex(c);
+            var alp = el.querySelector('[data-jeton-alpha="'+cle+'"]');
+            if(alp) alp.value = c.a;
+          }
+        }
       };
+    });
+
+    /* ---- La marque ---- */
+    function rendreMarque(){
+      var ap = document.getElementById('marqueApercu');
+      if(ap) ap.innerHTML = _marqueBrouillon.logo
+        ? (String(_marqueBrouillon.logo).slice(0,4) === 'data'
+            ? '<img src="'+esc(_marqueBrouillon.logo)+'" alt="">'
+            : _marqueBrouillon.logo)
+        : '';
+      T.peindreMarque(_marqueBrouillon);
+    }
+    rendreMarque();
+    var mn = document.getElementById('marqueNom');
+    if(mn) mn.oninput = function(){ _marqueBrouillon.nom = mn.value; T.peindreMarque(_marqueBrouillon); };
+    var mc = document.getElementById('marqueChoisir'), mf = document.getElementById('marqueFichier');
+    if(mc && mf){
+      mc.onclick = function(){ mf.click(); };
+      mf.onchange = function(){
+        var f = mf.files && mf.files[0]; if(!f) return;
+        if(f.size > 512*1024){ LaRuche.Toast.show(t('settings.brandTooBig'),'warn'); return; }
+        var fr = new FileReader();
+        // Un SVG voyage en TEXTE, pas en data URI: le serveur doit pouvoir le
+        // laver, et on ne lave pas ce qu'on ne peut pas lire. Le reste est une
+        // image matricielle, opaque par nature, donc encodee telle quelle.
+        fr.onload = function(){ _marqueBrouillon.logo = String(fr.result); rendreMarque(); };
+        if(/svg/i.test(f.type) || /\.svg$/i.test(f.name)) fr.readAsText(f);
+        else fr.readAsDataURL(f);
+      };
+    }
+    var mv = document.getElementById('marqueVider');
+    if(mv) mv.onclick = function(){ _marqueBrouillon.logo = ''; rendreMarque(); };
+
+    /* ---- Le fond ---- */
+    function rendreFond(){
+      var ap = document.getElementById('fondApercu');
+      if(ap) ap.style.backgroundImage = _fondBrouillon.image ? 'url('+JSON.stringify(_fondBrouillon.image)+')' : '';
+      var v = document.getElementById('fondOpaciteVal');
+      if(v) v.textContent = Math.round(_fondBrouillon.opacite*100)+'%';
+      T.peindreFond(_fondBrouillon);
+    }
+    rendreFond();
+    var fc = document.getElementById('fondChoisir'), ff = document.getElementById('fondFichier');
+    if(fc && ff){
+      fc.onclick = function(){ ff.click(); };
+      ff.onchange = function(){
+        var f = ff.files && ff.files[0]; if(!f) return;
+        if(f.size > 3*1024*1024){ LaRuche.Toast.show(t('settings.bgTooBig'),'warn'); return; }
+        var fr = new FileReader();
+        fr.onload = function(){
+          _fondBrouillon.image = String(fr.result);
+          // Poser une image sans allumer une zone ne montrerait rien: la zone
+          // centrale s'allume d'office, les autres restent au choix.
+          if(!Object.keys(_fondBrouillon.zones).some(function(k){ return _fondBrouillon.zones[k]; })){
+            _fondBrouillon.zones.app = true;
+            var b = el.querySelector('[data-zone="app"]'); if(b) b.checked = true;
+          }
+          rendreFond();
+        };
+        fr.readAsDataURL(f);
+      };
+    }
+    var fv = document.getElementById('fondVider');
+    if(fv) fv.onclick = function(){ _fondBrouillon.image = ''; rendreFond(); };
+    var fo = document.getElementById('fondOpacite');
+    if(fo) fo.oninput = function(){ _fondBrouillon.opacite = parseFloat(fo.value); rendreFond(); };
+    var fcad = document.getElementById('fondCadrage');
+    if(fcad) fcad.onchange = function(){ _fondBrouillon.cadrage = fcad.value; rendreFond(); };
+    el.querySelectorAll('[data-zone]').forEach(function(cb){
+      cb.onchange = function(){ _fondBrouillon.zones[cb.dataset.zone] = cb.checked; rendreFond(); };
     });
 
     var save = document.getElementById('themeSave');
@@ -1791,17 +1995,17 @@ LaRuche.Settings = (function(){
       // Un integre modifie devient une COPIE: on ne reecrit jamais un theme livre,
       // sinon revenir en arriere demanderait de reinstaller l'application.
       var id = perso ? actif.slice('perso:'.length) : null;
-      var r = await LaRuche.Themes.enregistrer(nom, _themeBrouillon, id);
+      var r = await T.enregistrer(nom, _themeBrouillon, id, _marqueBrouillon, _fondBrouillon);
       if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
       else LaRuche.Toast.show((r&&r.error)||'erreur','warn');
     };
     var del = document.getElementById('themeDel');
     if(del) del.onclick = async function(){
-      await LaRuche.Themes.supprimer(actif);
+      await T.supprimer(actif);
       loadApparence(el);
     };
     var reset = document.getElementById('themeReset');
-    if(reset) reset.onclick = function(){ LaRuche.Themes.appliquer('defaut'); loadApparence(el); };
+    if(reset) reset.onclick = function(){ T.appliquer('defaut'); loadApparence(el); };
   }
 
   async function loadNetwork(el) {

@@ -40,6 +40,149 @@ fn identifiant_sur(brut: &str) -> Option<String> {
     (!id.is_empty() && id.len() <= 64).then_some(id)
 }
 
+/// Taille maximale d'un logo, et d'une image de fond.
+///
+/// Un theme se partage en un fichier; il doit rester transportable. Ces deux
+/// bornes sont aussi ce qui empeche un fichier de theme de faire grossir le
+/// foyer sans limite.
+const LOGO_MAX: usize = 512 * 1024;
+const FOND_MAX: usize = 4 * 1024 * 1024;
+
+/// Un SVG accepte, ou la raison du refus.
+///
+/// On REFUSE, on ne reecrit pas. Un SVG expurge a la main se casse en silence,
+/// et l'utilisateur ne comprend pas pourquoi son logo s'affiche de travers; un
+/// refus nomme le motif et lui laisse corriger son fichier.
+///
+/// Ce qui est refuse, et pourquoi. Un SVG est du code, et un fichier de theme se
+/// partage: celui qui l'ouvre execute ce qu'il contient, dans la page, avec la
+/// meme origine et les memes cookies que le reste de l'application.
+/// - `on...=`: un gestionnaire d'evenement s'execute immediatement. `<svg
+///   onload=...>` est le vecteur classique, et `<animate onbegin=...>` le meme
+///   en moins connu.
+/// - `<script>`: inerte quand il arrive par `innerHTML`, mais pas partout, et
+///   surtout: aucun logo n'en a besoin.
+/// - `<foreignObject>`: rouvre tout le HTML a l'interieur du SVG.
+/// - `javascript:` et `data:text/html`: la meme execution par une URL.
+/// - une reference EXTERNE (`href` qui ne commence pas par `#`) fait une requete
+///   sortante a l'affichage, ce qui trahit la promesse hors ligne et signale le
+///   lecteur a un tiers.
+fn laver_svg(brut: &str) -> Result<String, &'static str> {
+    let t = brut.trim();
+    if t.len() > LOGO_MAX {
+        return Err("logo trop lourd");
+    }
+    if !t.to_lowercase().contains("<svg") {
+        return Err("ce n'est pas un SVG");
+    }
+    let bas = t.to_lowercase();
+    for motif in ["<script", "</script", "<foreignobject", "javascript:", "data:text/html"] {
+        if bas.contains(motif) {
+            return Err("le SVG contient du code executable");
+        }
+    }
+    // Un gestionnaire d'evenement: `on` colle a un blanc ou a un chevron, suivi de
+    // lettres puis d'un `=`. Chercher le seul mot "on" attraperait `font-size`.
+    let o: Vec<char> = bas.chars().collect();
+    for i in 0..o.len().saturating_sub(3) {
+        if o[i] != 'o' || o[i + 1] != 'n' {
+            continue;
+        }
+        if i > 0 && !o[i - 1].is_whitespace() && o[i - 1] != '<' && o[i - 1] != '"' && o[i - 1] != '\'' {
+            continue;
+        }
+        let mut j = i + 2;
+        while j < o.len() && o[j].is_ascii_alphabetic() {
+            j += 1;
+        }
+        if j == i + 2 {
+            continue; // "on" tout seul, pas un attribut
+        }
+        let mut k = j;
+        while k < o.len() && o[k].is_whitespace() {
+            k += 1;
+        }
+        if k < o.len() && o[k] == '=' {
+            return Err("le SVG contient un gestionnaire d'evenement");
+        }
+    }
+    // Reference sortante: tout `href` dont la valeur ne commence pas par `#`.
+    let mut reste = bas.as_str();
+    while let Some(p) = reste.find("href") {
+        let apres = &reste[p + 4..];
+        let apres = apres.trim_start_matches([' ', '\t', '\n', '\r']);
+        if let Some(v) = apres.strip_prefix('=') {
+            let v = v.trim_start().trim_start_matches(['"', '\'']);
+            if !v.starts_with('#') {
+                return Err("le SVG pointe vers une ressource externe");
+            }
+        }
+        reste = &reste[p + 4..];
+    }
+    Ok(t.to_string())
+}
+
+/// Le logo tel qu'il sera stocke: un SVG lave, ou une image matricielle encodee.
+fn logo_sur(brut: &str) -> Result<String, &'static str> {
+    let t = brut.trim();
+    if t.is_empty() {
+        return Ok(String::new());
+    }
+    if t.starts_with('<') {
+        return laver_svg(t);
+    }
+    if t.starts_with("data:image/") {
+        if t.len() > LOGO_MAX {
+            return Err("logo trop lourd");
+        }
+        // `data:image/svg+xml` rentrerait par cette porte sans passer par le
+        // laveur, encode et donc illisible pour lui. On l'exclut explicitement.
+        if t.to_lowercase().starts_with("data:image/svg") {
+            return Err("un SVG doit etre fourni en texte, pas encode");
+        }
+        return Ok(t.to_string());
+    }
+    Err("format de logo non reconnu")
+}
+
+/// L'habillage: la marque et le fond, valides avant d'etre ecrits sur le disque.
+///
+/// La validation est ici et non dans le navigateur, parce que c'est ici qu'est la
+/// frontiere: un fichier de theme peut arriver d'ailleurs, ou etre modifie a la
+/// main dans le foyer.
+fn habillage_sur(body: &serde_json::Value) -> Result<(serde_json::Value, serde_json::Value), String> {
+    let m = &body["marque"];
+    let nom: String = m["nom"].as_str().unwrap_or("").trim().chars().take(60).collect();
+    let logo = logo_sur(m["logo"].as_str().unwrap_or("")).map_err(|e| e.to_string())?;
+    let marque = serde_json::json!({ "nom": nom, "logo": logo });
+
+    let f = &body["fond"];
+    let image = f["image"].as_str().unwrap_or("").trim().to_string();
+    if !image.is_empty() {
+        if !image.starts_with("data:image/") {
+            return Err("l'image de fond doit etre encodee".into());
+        }
+        if image.len() > FOND_MAX {
+            return Err("image de fond trop lourde".into());
+        }
+    }
+    let opacite = f["opacite"].as_f64().unwrap_or(0.35).clamp(0.0, 1.0);
+    let cadrage = match f["cadrage"].as_str().unwrap_or("cover") {
+        c @ ("cover" | "contain" | "auto" | "100% 100%") => c,
+        _ => "cover",
+    };
+    let mut zones = serde_json::Map::new();
+    for z in ["app", "gauche", "droite", "haut", "bas"] {
+        if f["zones"][z].as_bool().unwrap_or(false) {
+            zones.insert(z.to_string(), serde_json::Value::Bool(true));
+        }
+    }
+    let fond = serde_json::json!({
+        "image": image, "opacite": opacite, "cadrage": cadrage, "zones": zones
+    });
+    Ok((marque, fond))
+}
+
 /// GET /api/themes - les themes personnalises, tries par nom.
 pub(crate) async fn api_themes_list() -> Json<serde_json::Value> {
     let mut themes: Vec<serde_json::Value> = Vec::new();
@@ -90,7 +233,13 @@ pub(crate) async fn api_themes_save(
     if !jetons.is_object() {
         return Json(serde_json::json!({ "status": "error", "error": "jetons doit etre un objet" }));
     }
-    let theme = serde_json::json!({ "id": id, "nom": nom, "jetons": jetons });
+    let (marque, fond) = match habillage_sur(&body) {
+        Ok(v) => v,
+        Err(e) => return Json(serde_json::json!({ "status": "error", "error": e })),
+    };
+    let theme = serde_json::json!({
+        "id": id, "nom": nom, "jetons": jetons, "marque": marque, "fond": fond
+    });
     let chemin = dossier().join(format!("{id}.json"));
     match serde_json::to_string_pretty(&theme)
         .map_err(|e| e.to_string())
@@ -166,5 +315,58 @@ mod tests {
         assert!(identifiant_sur("").is_none());
         assert!(identifiant_sur("...").is_none());
         assert!(identifiant_sur(&"x".repeat(200)).is_none());
+    }
+}
+
+#[cfg(test)]
+mod tests_laveur_svg {
+    use super::{laver_svg, logo_sur};
+
+    const PROPRE: &str = "<svg viewBox=\"0 0 24 24\"><path d=\"M2 2h20v20H2z\" fill=\"currentColor\"/></svg>";
+
+    #[test]
+    fn un_logo_honnete_passe() {
+        assert!(laver_svg(PROPRE).is_ok());
+        // Une reference INTERNE est legitime: un degrade se reference ainsi.
+        assert!(laver_svg("<svg><use href=\"#a\"/><rect fill=\"url(#a)\"/></svg>").is_ok());
+    }
+
+    #[test]
+    fn les_gestionnaires_d_evenement_sont_refuses() {
+        assert!(laver_svg("<svg onload=\"alert(1)\"><path/></svg>").is_err());
+        // Le meme, en moins connu, et avec des blancs autour du signe.
+        assert!(laver_svg("<svg><animate onbegin = 'x()'/></svg>").is_err());
+        assert!(laver_svg("<svg><a onclick=\"x()\"/></svg>").is_err());
+    }
+
+    #[test]
+    fn font_size_n_est_pas_un_gestionnaire() {
+        // Le piege du filtre naif: `on` apparait dans beaucoup de mots.
+        assert!(laver_svg("<svg font-size=\"12\"><text>bonjour</text></svg>").is_ok());
+        assert!(laver_svg("<svg><path id=\"lion\" d=\"M0 0\"/></svg>").is_ok());
+    }
+
+    #[test]
+    fn le_code_et_les_ressources_externes_sont_refuses() {
+        assert!(laver_svg("<svg><script>alert(1)</script></svg>").is_err());
+        assert!(laver_svg("<svg><foreignObject><body/></foreignObject></svg>").is_err());
+        assert!(laver_svg("<svg><a href=\"javascript:alert(1)\"/></svg>").is_err());
+        assert!(laver_svg("<svg><image href=\"https://ailleurs/x.png\"/></svg>").is_err());
+    }
+
+    #[test]
+    fn ce_qui_n_est_pas_un_svg_est_refuse() {
+        assert!(laver_svg("bonjour").is_err());
+        assert!(laver_svg("<html><body/></html>").is_err());
+    }
+
+    #[test]
+    fn le_logo_accepte_le_texte_svg_et_les_images_encodees() {
+        assert!(logo_sur("").unwrap().is_empty());
+        assert!(logo_sur(PROPRE).is_ok());
+        assert!(logo_sur("data:image/png;base64,AAAA").is_ok());
+        // Un SVG encode contournerait le laveur: il doit venir en texte.
+        assert!(logo_sur("data:image/svg+xml;base64,AAAA").is_err());
+        assert!(logo_sur("https://ailleurs/logo.svg").is_err());
     }
 }
