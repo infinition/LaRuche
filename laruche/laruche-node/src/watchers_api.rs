@@ -33,6 +33,10 @@ pub(crate) async fn api_list_watchers(State(state): State<Arc<AppState>>) -> Jso
                 // sait tous les combien la vigie regarde, jamais quand elle
                 // regardera la prochaine fois.
                 "last_run": w.last_run,
+                // Le prochain REGARD, qui n'est pas le prochain tir. L'interface
+                // deduisait l'un de l'autre et affichait une echeance depuis
+                // longtemps passee, donc « maintenant », sans jamais bouger.
+                "prochain_sondage": registry.prochain_sondage(&w.id),
                 "interval_secs": w.interval_secs,
                 "cooldown_secs": w.cooldown_secs,
                 "sustained": w.sustained,

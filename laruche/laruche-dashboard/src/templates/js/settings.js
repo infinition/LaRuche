@@ -3682,8 +3682,14 @@ LaRuche.Settings = (function(){
       // Le prochain passage, en clair. `last_run` plus l'intervalle: tant qu'elle
       // n'a jamais tourne, on annonce le premier passage comme imminent plutot
       // que de laisser un blanc.
+      // Le serveur donne la date du prochain REGARD. On la deduisait de `last_run`,
+      // qui est la date du dernier TIR: une vigie qui sonde toutes les minutes mais
+      // n'a rien eu a dire depuis trois heures affichait une echeance vieille de
+      // trois heures, donc « maintenant », sans jamais bouger.
       '<span class="wcard-chrono" data-echeance="'+
-        (w.active === false ? 0 : (w.last_run ? (new Date(w.last_run).getTime() + (w.interval_secs||ivDef)*1000) : Date.now()))+
+        (w.active === false ? 0
+          : (w.prochain_sondage ? new Date(w.prochain_sondage).getTime() : Date.now()))+
+        '" data-periode="'+((w.interval_secs||ivDef)*1000)+
         '" data-vide="'+esc(t('settings.chronoSuspendu'))+'"></span>'+
       '<span class="wcard-synth">'+esc(w.target||'')+' · '+(w.interval_secs||ivDef)+'s · '+(w.run_count||0)+t('automations.runsSuffix')+'</span>'+
       '<span class="wcard-chev">▶</span></div>';
@@ -3778,8 +3784,21 @@ LaRuche.Settings = (function(){
     cibles.forEach(function(el){
       var t = parseInt(el.getAttribute('data-echeance'), 10);
       if(!t){ el.textContent = el.getAttribute('data-vide') || ''; return; }
+      /* L'echeance avance toute seule.
+
+         Elle venait du serveur et ne bougeait plus: le compte a rebours tombait a
+         zero, affichait « maintenant », et y restait jusqu'a ce qu'on recharge la
+         page. Une vigie qui sonde toutes les minutes doit repartir a une minute
+         quand la minute est ecoulee, sans redemander au serveur une date qu'on
+         sait deja calculer. */
+      var periode = parseInt(el.getAttribute('data-periode'), 10) || 0;
+      if(periode > 0 && t <= maintenant){
+        t += Math.ceil((maintenant - t + 1) / periode) * periode;
+        el.setAttribute('data-echeance', String(t));
+      }
       el.textContent = _restant(t - maintenant);
-      // Passe l'echeance, l'element se teint: une vigie en retard se voit.
+      // Passe l'echeance sans periode connue, l'element se teint: une vigie en
+      // retard se voit.
       el.classList.toggle('chrono-du', t - maintenant <= 0);
     });
   }

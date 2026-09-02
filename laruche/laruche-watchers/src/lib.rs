@@ -119,11 +119,22 @@ impl Watcher {
     /// Effective fire cooldown. URLs default to 15 min (a flapping page must not
     /// spam runs and notifications); file/log transitions fire freely by default.
     pub fn cooldown_effectif(&self) -> u64 {
-        self.cooldown_secs.unwrap_or(match self.watcher_type {
-            // A state that stays true (a lamp left on) must not notify every minute.
+        if let Some(c) = self.cooldown_secs {
+            return c;
+        }
+        // Un delai de garde repond a UN probleme: un etat qui reste vrai, une lampe
+        // restee allumee, ne doit pas notifier toutes les minutes. Applique a un
+        // arbre qui ne peut etre vrai qu'au moment d'une transition, il ne protege
+        // de rien et fait taire des evenements DISTINCTS: une vigie « un fichier
+        // est arrive » se taisait un quart d'heure apres la premiere arrivee, et
+        // les suivantes passaient inapercues.
+        if self.regles.as_ref().is_some_and(Regle::evenementielle) {
+            return 0;
+        }
+        match self.watcher_type {
             WatcherType::Url | WatcherType::Commande => 900,
             _ => 0,
-        })
+        }
     }
 }
 
@@ -301,6 +312,36 @@ pub enum Regle {
 }
 
 impl Regle {
+    /// Cet arbre ne peut-il etre vrai qu'au MOMENT d'une transition?
+    ///
+    /// La question decide si un delai de garde a un sens. Une regle d'etat reste
+    /// vraie tant que la situation dure, donc elle renotifierait a chaque sondage
+    /// sans le delai. Une regle d'evenement n'est vraie qu'au sondage ou la chose
+    /// s'est produite: elle est deja limitee par la rarete de ce qu'elle observe,
+    /// et la faire taire ne l'empeche pas de se repeter, cela supprime des
+    /// evenements distincts.
+    ///
+    /// La recursion suit ce que veulent dire les connecteurs. Un ET est
+    /// evenementiel des qu'UN de ses membres l'est: il ne peut alors etre vrai
+    /// qu'au moment de cette transition, peu importe ce que disent les autres.
+    /// Un OU ne l'est que si TOUS le sont, sinon un membre d'etat peut le tenir
+    /// vrai indefiniment. Un NON ne l'est jamais: la negation d'une transition
+    /// est vraie tout le reste du temps, c'est-a-dire un etat.
+    pub fn evenementielle(&self) -> bool {
+        match self {
+            Regle::Et { regles } => regles.iter().any(Regle::evenementielle),
+            Regle::Ou { regles } => !regles.is_empty() && regles.iter().all(Regle::evenementielle),
+            Regle::Non { .. } => false,
+            Regle::Apparu
+            | Regle::Supprime
+            | Regle::Modifie
+            | Regle::ContenuChange
+            | Regle::RetourEnLigne
+            | Regle::NouvelleLigne { .. } => true,
+            _ => false,
+        }
+    }
+
     /// Evaluate with no knowledge of other watchers. Correlation leaves read false.
     pub fn evaluer(&self, obs: &Observation, maintenant: &chrono::DateTime<chrono::Local>) -> Verdict {
         self.evaluer_avec(obs, maintenant, &std::collections::HashMap::new())
@@ -900,6 +941,27 @@ impl WatchersRegistry {
         self.watchers.values().collect()
     }
 
+    /// Quand cette vigie regardera la prochaine fois.
+    ///
+    /// L'interface calculait cette date depuis `last_run`, qui est la date du
+    /// dernier TIR et non du dernier regard. Une vigie qui sonde toutes les
+    /// minutes mais n'a rien eu a dire depuis trois heures affichait donc une
+    /// echeance vieille de trois heures, c'est-a-dire « maintenant », en
+    /// permanence. Ce sont deux dates differentes et il fallait la seconde.
+    ///
+    /// Sans sondage connu, la vigie n'a pas encore ete vue par la boucle: elle le
+    /// sera au prochain passage, donc maintenant.
+    pub fn prochain_sondage(&self, id: &Uuid) -> Option<DateTime<Utc>> {
+        let w = self.watchers.get(id)?;
+        if !w.active {
+            return None;
+        }
+        Some(match self.derniers_polls.get(id) {
+            Some(t) => *t + chrono::Duration::seconds(w.interval_effectif() as i64),
+            None => Utc::now(),
+        })
+    }
+
     pub fn set_active(&mut self, id: &Uuid, active: bool) -> bool {
         if let Some(w) = self.watchers.get_mut(id) {
             w.active = active;
@@ -1117,8 +1179,22 @@ impl WatchersRegistry {
                             question_llm,
                         });
                     }
-                    if !obs.lignes_courantes.is_empty()
-                        || watcher.lignes_vues.is_some()
+                    /* Ce que le delai de garde a fait taire n'est pas OUBLIE.
+
+                       L'observation etait enregistree a chaque sondage, y compris
+                       quand le delai venait d'empecher la notification. Les lignes
+                       nouvelles devenaient donc des lignes connues sans que
+                       personne ne les ait vues: l'evenement n'etait pas differe,
+                       il etait perdu. Une vigie « un fichier est arrive » manquait
+                       ainsi toutes les arrivees du quart d'heure suivant la
+                       premiere, definitivement.
+
+                       Quand la regle dit vrai mais que le delai s'y oppose, on ne
+                       consomme rien: la prochaine fois que la garde sera levee,
+                       ces lignes seront toujours nouvelles et seront annoncees. */
+                    let etouffe = !pret && baseline && verdict_publie;
+                    if !etouffe
+                        && (!obs.lignes_courantes.is_empty() || watcher.lignes_vues.is_some())
                     {
                         lignes.push((watcher.id, obs.lignes_courantes.clone()));
                     }
@@ -1126,7 +1202,10 @@ impl WatchersRegistry {
                         echecs.push((watcher.id, 0));
                     }
                     verdicts.push((watcher.id, verdict_publie));
-                    if new_state != watcher.last_state {
+                    // Meme raison pour l'etat de reference du chemin historique: le
+                    // deplacer alors que la transition n'a pas ete annoncee revient
+                    // a effacer la transition.
+                    if new_state != watcher.last_state && !etouffe {
                         updates.push((watcher.id, new_state));
                     }
                 }
@@ -2687,5 +2766,117 @@ b", &None);
         let (neuves, _) = lignes_neuves("a
   b", &Some(avant));
         assert!(neuves.is_empty(), "seule la mise en forme a change");
+    }
+}
+
+#[cfg(test)]
+mod tests_nature_regle {
+    use super::{Action, Regle, Watcher, WatcherType};
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    fn arbre_ou(r: Vec<Regle>) -> Regle {
+        Regle::Ou { regles: r }
+    }
+
+    #[test]
+    fn une_transition_est_un_evenement() {
+        assert!(Regle::NouvelleLigne { motif: None }.evenementielle());
+        assert!(Regle::Apparu.evenementielle());
+        assert!(Regle::Supprime.evenementielle());
+    }
+
+    #[test]
+    fn un_etat_n_en_est_pas_un() {
+        assert!(!Regle::Existe.evenementielle());
+        assert!(!Regle::EstDown.evenementielle());
+        assert!(!Regle::Contient { motif: "erreur".into() }.evenementielle());
+    }
+
+    #[test]
+    fn un_et_suffit_d_une_transition() {
+        // « un fichier est arrive ET il est plus de 22 h » ne peut etre vrai qu'au
+        // moment de l'arrivee: la fenetre horaire ne le tient pas vrai toute seule.
+        let r = Regle::Et {
+            regles: vec![
+                Regle::Apparu,
+                Regle::HeureEntre { de: "22:00".into(), a: "06:00".into() },
+            ],
+        };
+        assert!(r.evenementielle());
+    }
+
+    #[test]
+    fn un_ou_les_veut_toutes() {
+        // Un seul membre d'etat suffit a tenir le OU vrai indefiniment: le delai de
+        // garde redevient utile.
+        assert!(!arbre_ou(vec![Regle::Apparu, Regle::Existe]).evenementielle());
+        assert!(arbre_ou(vec![Regle::Apparu, Regle::Supprime]).evenementielle());
+    }
+
+    #[test]
+    fn la_negation_d_une_transition_est_un_etat() {
+        // « le fichier n'est PAS apparu » est vrai tout le reste du temps.
+        let r = Regle::Non { regle: Box::new(Regle::Apparu) };
+        assert!(!r.evenementielle());
+    }
+
+    fn vigie(regles: Option<Regle>, t: WatcherType) -> Watcher {
+        Watcher {
+            echecs_consecutifs: 0,
+            dernier_verdict: None,
+            verdict_depuis: None,
+            action: Action::default(),
+            lignes_vues: None,
+            id: Uuid::new_v4(),
+            name: "t".into(),
+            watcher_type: t,
+            target: String::new(),
+            condition: String::new(),
+            prompt: String::new(),
+            channel: None,
+            active: true,
+            created_at: Utc::now(),
+            last_run: None,
+            run_count: 0,
+            last_state: None,
+            model: None,
+            profile_id: None,
+            interval_secs: None,
+            cooldown_secs: None,
+            sustained: false,
+            regles,
+        }
+    }
+
+    #[test]
+    fn une_vigie_d_evenement_n_a_pas_de_delai_de_garde() {
+        // Le cas exact du bug: une commande qui liste un dossier, avec une regle
+        // « nouvelle ligne ». Elle se taisait 900 s apres la premiere arrivee, et
+        // les arrivees suivantes etaient perdues.
+        let w = vigie(
+            Some(Regle::NouvelleLigne { motif: None }),
+            WatcherType::Commande,
+        );
+        assert_eq!(w.cooldown_effectif(), 0);
+    }
+
+    #[test]
+    fn une_vigie_d_etat_garde_le_sien() {
+        let w = vigie(Some(Regle::EstDown), WatcherType::Url);
+        assert_eq!(w.cooldown_effectif(), 900);
+        // Et sans regle du tout, l'ancien comportement ne bouge pas.
+        let w = vigie(None, WatcherType::Commande);
+        assert_eq!(w.cooldown_effectif(), 900);
+    }
+
+    #[test]
+    fn un_delai_ecrit_a_la_main_prime_sur_tout() {
+        let mut w = vigie(
+            Some(Regle::NouvelleLigne { motif: None }),
+            WatcherType::Commande,
+        );
+        w.cooldown_secs = Some(60);
+        assert_eq!(w.cooldown_effectif(), 60);
     }
 }
