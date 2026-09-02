@@ -169,6 +169,18 @@ struct TuiState {
     cmd_mode: bool,
     cmd_input: String,
     show_help: bool,
+    /// QR code du LAN, replie par defaut.
+    ///
+    /// Il est imprime au demarrage par `accueil_demarrage`, et le TUI prend l'ecran
+    /// alterne juste apres: on le voyait une fraction de seconde avant qu'il ne soit
+    /// efface. Ici il survit. Replie par defaut parce qu'il fait quinze lignes de haut
+    /// contre huit pour le bandeau: depliee en permanence, la banniere mangerait la
+    /// moitie d'un terminal ordinaire, pour une chose qu'on ne scanne qu'une fois.
+    ///
+    /// Une TOUCHE et non un clic: capter la souris confisquerait la selection de texte
+    /// dans la plupart des terminaux, et le contenu principal de ce TUI est un journal
+    /// qu'on copie.
+    show_qr: bool,
     /// Set to true by the `/quit` command so the main loop exits cleanly.
     quit: bool,
 }
@@ -184,6 +196,7 @@ impl TuiState {
             cmd_mode: false,
             cmd_input: String::new(),
             show_help: false,
+            show_qr: false,
             quit: false,
         }
     }
@@ -322,6 +335,7 @@ pub async fn run_tui(
                         tui.cmd_input = "/".to_string();
                     }
                     KeyCode::Char('?') => tui.show_help = !tui.show_help,
+                    KeyCode::Char('p') | KeyCode::Char('P') => tui.show_qr = !tui.show_qr,
                     KeyCode::Esc => tui.show_help = false,
                     KeyCode::Tab => tui.cycle_view(true),
                     KeyCode::BackTab => tui.cycle_view(false),
@@ -526,14 +540,20 @@ fn draw_ui(f: &mut Frame, tui: &TuiState, stats: &LiveStats) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(11), // header (logo + info)
+            // Le bandeau grandit pour loger le QR quand il est deplie, et seulement
+            // si le terminal a la hauteur de le rendre sans etouffer le corps.
+            Constraint::Length(if tui.show_qr && size.height >= HAUTEUR_MIN_QR {
+                HAUTEUR_BANDEAU_QR
+            } else {
+                11
+            }), // header (logo + info)
             Constraint::Length(1),  // tab bar
             Constraint::Min(8),     // body (active view)
             Constraint::Length(1),  // footer / command line
         ])
         .split(size);
 
-    draw_header(f, main_chunks[0], stats);
+    draw_header(f, main_chunks[0], stats, tui.show_qr && size.height >= HAUTEUR_MIN_QR);
     draw_tabs(f, main_chunks[1], tui);
 
     match tui.view {
@@ -585,13 +605,25 @@ fn draw_tabs(f: &mut Frame, area: Rect, tui: &TuiState) {
         spans.push(Span::raw(" "));
     }
     spans.push(Span::styled(
-        "  /  command palette   ? help",
+        "  /  command palette   p phone   ? help",
         Style::default().fg(Color::Rgb(70, 70, 70)),
     ));
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn draw_header(f: &mut Frame, area: Rect, stats: &LiveStats) {
+/// Hauteur du bandeau quand le QR est deplie: la ligne d'etat, le logo, et les
+/// quinze lignes du code lui-meme (Dense1x2 empile deux rangees de modules par
+/// ligne de texte, ce qui est le plus dense qu'un terminal permette).
+const HAUTEUR_BANDEAU_QR: u16 = 17;
+
+/// En dessous, deplier le QR ne laisserait plus de place au corps: la touche reste
+/// sans effet plutot que d'ecraser ce que l'utilisateur regardait.
+const HAUTEUR_MIN_QR: u16 = 30;
+
+/// Largeur reservee au QR a droite du logo. Le logo en fait 60.
+const LARGEUR_QR: u16 = 34;
+
+fn draw_header(f: &mut Frame, area: Rect, stats: &LiveStats, avec_qr: bool) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(8), Constraint::Length(3)])
@@ -614,6 +646,33 @@ fn draw_header(f: &mut Frame, area: Rect, stats: &LiveStats) {
 
     let logo_para = Paragraph::new(logo).style(Style::default().fg(Color::Rgb(200, 200, 200)));
     f.render_widget(logo_para, chunks[0]);
+
+    // Le QR a DROITE du gros titre, dans la place qui y est deja vide. Il descend
+    // plus bas que le logo, d'ou une zone prise sur tout le bandeau et non sur
+    // `chunks[0]`. Best-effort de bout en bout: pas d'adresse LAN, terminal trop
+    // etroit ou encodage impossible, on n'affiche rien et le bandeau reste entier.
+    if avec_qr && area.width >= 60 + LARGEUR_QR {
+        let url = format!("http://{}:{}", stats.host, stats.port);
+        if let Some(qr) = crate::auth_user::qr_terminal(&url) {
+            let zone = Rect {
+                x: area.x + 62,
+                y: area.y + 1,
+                width: LARGEUR_QR.min(area.width.saturating_sub(62)),
+                height: area.height.saturating_sub(1),
+            };
+            let mut lignes: Vec<Line> = vec![Line::from(Span::styled(
+                format!("  Scanner : {url}"),
+                Style::default().fg(Color::Rgb(255, 191, 0)),
+            ))];
+            lignes.extend(qr.lines().map(|l| {
+                Line::from(Span::styled(
+                    l.to_string(),
+                    Style::default().fg(Color::White).bg(Color::Black),
+                ))
+            }));
+            f.render_widget(Paragraph::new(lignes), zone);
+        }
+    }
 
     let provider_label = if stats.provider == "ollama" || stats.provider.is_empty() {
         stats.model.clone()
@@ -1063,6 +1122,7 @@ fn draw_help(f: &mut Frame, size: Rect) {
         row("Tab / 1-5", "Switch view"),
         row("Up/Dn PgUp", "Scroll the active view"),
         row("Home/End", "Jump to top / bottom"),
+        row("p", "Show the QR code to open LaRuche on a phone"),
         row("? ", "Toggle this help"),
         row("q / Ctrl-C", "Quit the node"),
         Line::from(""),
