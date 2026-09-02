@@ -5,6 +5,20 @@ use axum::extract::State;
 use axum::response::Json;
 use std::sync::Arc;
 
+/// Une seconde devient une milliseconde: l'unite commune du flux.
+///
+/// Le tri du flux compare les `ts` bruts, et ils n'etaient pas dans la meme unite.
+/// Une seule source sur six, le journal d'activite (chat, Feed, canaux), donnait
+/// des millisecondes; la memoire, les crons, les vigies, les missions, le kanban
+/// et les messages directs donnaient des secondes. Une valeur en millisecondes
+/// vaut mille fois celle en secondes pour le MEME instant: tout evenement de chat
+/// passait donc systematiquement au-dessus de tout le reste, quelle que soit
+/// l'heure reelle, et comme la troncature vient apres le tri, le reste pouvait
+/// disparaitre entierement du flux.
+fn ms(secondes: i64) -> i64 {
+    secondes.saturating_mul(1000)
+}
+
 /// Actor of a memory mutation based on its `src` (source/reason). UI -> User, otherwise LaRuche.
 pub(crate) fn feed_actor(src: &str) -> &'static str {
     let s = src.trim().to_lowercase();
@@ -231,7 +245,7 @@ pub(crate) async fn api_feed(
                     _ => "modified",
                 };
                 events.push(serde_json::json!({
-                    "ts": ts, "actor": feed_actor(src), "kind": "memory",
+                    "ts": ms(ts), "actor": feed_actor(src), "kind": "memory",
                     "action": action, "object": node, "ref": node
                 }));
             }
@@ -292,7 +306,7 @@ pub(crate) async fn api_feed(
         for t in cron.list() {
             if let Some(lr) = t.last_run {
                 events.push(serde_json::json!({
-                    "ts": lr.timestamp(), "actor": "LaRuche", "kind": "cron",
+                    "ts": ms(lr.timestamp()), "actor": "LaRuche", "kind": "cron",
                     "action": "ran the cron", "object": t.name, "ref": serde_json::Value::Null
                 }));
             }
@@ -307,7 +321,7 @@ pub(crate) async fn api_feed(
                     .map(|d| d.timestamp())
                     .unwrap_or(0);
                 events.push(serde_json::json!({
-                    "ts": ts, "actor": "LaRuche", "kind": "mission",
+                    "ts": ms(ts), "actor": "LaRuche", "kind": "mission",
                     "action": "advanced the mission", "object": m.slug, "ref": serde_json::Value::Null
                 }));
             }
@@ -319,7 +333,7 @@ pub(crate) async fn api_feed(
         for w in watchers.list() {
             if let Some(lr) = w.last_run {
                 events.push(serde_json::json!({
-                    "ts": lr.timestamp(), "actor": "LaRuche", "kind": "watcher",
+                    "ts": ms(lr.timestamp()), "actor": "LaRuche", "kind": "watcher",
                     "action": "triggered the watcher", "object": w.name, "ref": serde_json::Value::Null
                 }));
             }
@@ -334,7 +348,7 @@ pub(crate) async fn api_feed(
             if let Some(fin) = t.completed_at {
                 let ts = fin.timestamp();
                 events.push(serde_json::json!({
-                    "ts": ts, "actor": "LaRuche", "kind": "kanban",
+                    "ts": ms(ts), "actor": "LaRuche", "kind": "kanban",
                     "action": "finished the kanban task", "object": t.title,
                     "ref": serde_json::Value::Null
                 }));
@@ -351,7 +365,7 @@ pub(crate) async fn api_feed(
             (m.peer_name.clone(), "wrote to you".to_string(), "peer")
         };
         events.push(serde_json::json!({
-            "ts": m.ts, "actor": actor, "kind": "dm", "action": action,
+            "ts": ms(m.ts), "actor": actor, "kind": "dm", "action": action,
             "object": preview_text(&m.text, 160), "full": m.text,
             "ref": serde_json::Value::Null, "actor_kind": akind
         }));
@@ -385,6 +399,11 @@ pub(crate) async fn api_feed(
             }
         }
     }
+    // `sort_by` est STABLE: a horodatage egal, l'ordre de poussee est conserve.
+    // C'est ce qui tient les ex aequo, et il y en a: la memoire, les crons et les
+    // vigies n'ont qu'une precision a la seconde, donc cinq ecritures dans la meme
+    // seconde portent le meme `ts`. Chaque source pousse ses evenements du plus
+    // recent au plus ancien, l'ordre interne est donc juste sans autre effort.
     events.sort_by(|a, b| {
         b["ts"].as_i64().unwrap_or(0).cmp(&a["ts"].as_i64().unwrap_or(0))
     });
@@ -478,5 +497,51 @@ mod tests_nettoyage_feed {
     fn une_balise_non_fermee_coupe_la_suite() {
         let out = nettoyer_reponse_feed("Reponse utile.\n<tool_call>{\"name\":");
         assert_eq!(out, "Reponse utile.");
+    }
+}
+
+#[cfg(test)]
+mod tests_ordre_feed {
+    use super::ms;
+
+    /// La regression: une source en millisecondes contre cinq en secondes.
+    ///
+    /// Un evenement de chat d'il y a trois jours passait devant un cron d'il y a une
+    /// seconde, parce que 1_788_000_000_000 est mille fois plus grand que
+    /// 1_788_259_200, et le tri comparait les deux nombres bruts.
+    #[test]
+    fn une_seconde_et_une_milliseconde_se_comparent_enfin() {
+        let cron_maintenant = 1_788_345_600i64; // secondes
+        let chat_il_y_a_trois_jours = 1_788_086_400_000i64; // millisecondes
+        // Avant: le chat gagnait, et il avait trois jours de retard.
+        assert!(chat_il_y_a_trois_jours > cron_maintenant);
+        // Apres: c'est bien le cron le plus recent.
+        assert!(ms(cron_maintenant) > chat_il_y_a_trois_jours);
+    }
+
+    /// A horodatage egal, le tri stable conserve l'ordre de poussee, et chaque
+    /// source pousse du plus recent au plus ancien. Cinq ecritures dans la meme
+    /// seconde restent donc dans le bon ordre.
+    #[test]
+    fn les_ex_aequo_gardent_leur_ordre() {
+        let meme_seconde = ms(1_788_345_600);
+        let mut evts: Vec<(i64, &str)> = vec![
+            (meme_seconde, "plus recent"),
+            (meme_seconde, "milieu"),
+            (meme_seconde, "plus ancien"),
+            (ms(1_788_345_000), "d'avant"),
+        ];
+        evts.sort_by(|a, b| b.0.cmp(&a.0));
+        assert_eq!(
+            evts.iter().map(|e| e.1).collect::<Vec<_>>(),
+            vec!["plus recent", "milieu", "plus ancien", "d'avant"]
+        );
+    }
+
+    /// Une date absurde ne doit pas faire deborder la multiplication.
+    #[test]
+    fn une_date_absurde_ne_deborde_pas() {
+        assert_eq!(ms(i64::MAX), i64::MAX);
+        assert_eq!(ms(0), 0);
     }
 }
