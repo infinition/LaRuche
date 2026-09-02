@@ -148,7 +148,9 @@ impl Default for ContextExecution {
             allowed_dirs: vec![],
             shell_allowlist: vec![],
             disabled_tools: vec![],
-            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            // Le bureau de l'agent, et non le foyer de la ruche: sans cela un outil
+            // sans repertoire explicite ecrivait a cote de memoire.db et de sessions/.
+            working_dir: crate::config::dossier_travail(),
             live_output: None,
             channel: None,
         }

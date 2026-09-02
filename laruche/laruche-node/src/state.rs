@@ -377,6 +377,12 @@ pub(crate) struct AppState {
     /// qu'on ne pouvait plus arreter. Le handle est donc partage ici, pose au
     /// demarrage du run et retire a sa fin.
     pub(crate) runs_actifs: Arc<RwLock<HashMap<Uuid, tokio::task::AbortHandle>>>,
+    /// Le bureau de l'agent: la ou il ecrit ses scripts, ses tests, ses brouillons.
+    ///
+    /// Distinct du foyer, qui reste le repertoire du processus. Les deux etaient
+    /// confondus: l'agent semait dans le meme dossier que memoire.db et sessions/,
+    /// et le changer depuis le chat deplacait la resolution des donnees elles-memes.
+    pub(crate) dossier_travail: Arc<RwLock<std::path::PathBuf>>,
     pub(crate) essaim_cron: Arc<RwLock<CronScheduler>>,
     pub(crate) watchers: Arc<RwLock<laruche_watchers::WatchersRegistry>>,
     pub(crate) kanban_board: Arc<RwLock<laruche_kanban::KanbanBoard>>,

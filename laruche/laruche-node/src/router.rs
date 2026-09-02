@@ -195,6 +195,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/files/suggest", get(local_api::api_files_suggest))
         .route("/api/onboarding", get(local_api::api_onboarding))
         .route("/api/cwd", get(local_api::api_get_cwd).post(local_api::api_set_cwd))
+        .route("/api/fs/dirs", get(local_api::api_fs_dirs))
         .route("/api/media/local", get(local_api::api_media_local))
         .route(
             "/api/config/channels",

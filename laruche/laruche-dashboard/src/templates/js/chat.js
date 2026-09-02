@@ -58,6 +58,11 @@ LaRuche.i18n.add({
   'chat.nouvellesActivites':    {fr:'nouvelles activités',      en:'new activities'},
   'chat.raisonnement':          {fr:'Raisonnement',             en:'Reasoning'},
   'chat.entrezChemin':          {fr:'Entrez un chemin',         en:'Enter a path'},
+  'chat.pickerTitle':           {fr:'Choisir un dossier de travail', en:'Choose a working directory'},
+  'chat.pickerHere':            {fr:'Choisir ce dossier',   en:'Choose this folder'},
+  'chat.pickerUp':              {fr:'Dossier parent',       en:'Parent folder'},
+  'chat.pickerEmpty':           {fr:'Aucun sous-dossier',   en:'No subfolder'},
+  'chat.pickerCancel':          {fr:'Annuler',              en:'Cancel'},
   'chat.dossier':               {fr:'Dossier: ',               en:'Folder: '},
   'chat.erreur':                {fr:'Erreur: ',                 en:'Error: '},
   'chat.conversationExportee':  {fr:'Conversation exportée',    en:'Conversation exported'},
@@ -2854,6 +2859,64 @@ LaRuche.Chat = (function(){
     }).catch(function(){});
   }
 
+  /* Le selecteur de dossier, servi par le SERVEUR.
+     `<input webkitdirectory>` ne rend jamais de chemin absolu, par principe de
+     securite du navigateur, et c'est un chemin absolu qu'il faut ici. Le serveur
+     tourne sur la machine visee, il sait lire son disque, et de la meme facon sur
+     Windows, macOS et Linux. Le bouton n'ouvrait rien jusqu'ici: il se contentait
+     d'appliquer ce qui etait tape. */
+  var _pickerEl = null;
+  async function ouvrirSelecteurDossier(depart){
+    var t = LaRuche.i18n.t;
+    if(!_pickerEl){
+      _pickerEl = document.createElement('div');
+      _pickerEl.className = 'modal-overlay';
+      _pickerEl.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999';
+      _pickerEl.onclick = function(e){ if(e.target === _pickerEl) fermerSelecteur(); };
+      document.body.appendChild(_pickerEl);
+    }
+    _pickerEl.style.display = 'flex';
+    var input = document.getElementById('cwdInput');
+    var depuis = depart || (input && input.value) || '';
+    var d = null;
+    try{
+      d = await fetch(LaRuche.API.base+'/api/fs/dirs?path='+encodeURIComponent(depuis))
+        .then(function(r){ return r.json(); });
+    }catch(e){}
+    if(!d){ fermerSelecteur(); return; }
+    var esc = LaRuche.Utils.esc;
+    var liste = (d.dossiers||[]).map(function(x){
+      return '<button class="picker-dir" data-p="'+esc(x.chemin)+'" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px">📁 '+esc(x.nom)+'</button>';
+    }).join('') || '<div style="color:var(--text-muted);padding:10px;font-size:12px">'+t('chat.pickerEmpty')+'</div>';
+    _pickerEl.innerHTML =
+      '<div style="background:var(--bg-card,#17181b);border:1px solid var(--border);border-radius:12px;width:min(560px,92vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden">'+
+        '<div style="padding:14px 16px;border-bottom:1px solid var(--border)">'+
+          '<div style="font-weight:600;font-size:14px">'+t('chat.pickerTitle')+'</div>'+
+          '<div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-top:4px;word-break:break-all">'+esc(d.chemin)+'</div>'+
+        '</div>'+
+        '<div style="overflow:auto;padding:6px">'+
+          (d.parent ? '<button class="picker-dir" data-p="'+esc(d.parent)+'" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--text-muted);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px">↰ '+t('chat.pickerUp')+'</button>' : '')+
+          liste+
+        '</div>'+
+        '<div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button id="pickerAnnuler" class="cwd-btn" style="font-size:13px;padding:8px 12px;opacity:1">'+t('chat.pickerCancel')+'</button>'+
+          '<button id="pickerOk" class="send-btn" data-p="'+esc(d.chemin)+'"><span>'+t('chat.pickerHere')+'</span></button>'+
+        '</div>'+
+      '</div>';
+    _pickerEl.querySelectorAll('.picker-dir').forEach(function(b){
+      b.onmouseenter = function(){ b.style.background = 'rgba(255,255,255,.06)'; };
+      b.onmouseleave = function(){ b.style.background = 'none'; };
+      b.onclick = function(){ ouvrirSelecteurDossier(b.dataset.p); };
+    });
+    _pickerEl.querySelector('#pickerAnnuler').onclick = fermerSelecteur;
+    _pickerEl.querySelector('#pickerOk').onclick = function(){
+      if(input) input.value = d.chemin;
+      fermerSelecteur();
+      browseCwd();
+    };
+  }
+  function fermerSelecteur(){ if(_pickerEl) _pickerEl.style.display = 'none'; }
+
   function browseCwd() {
     var input = document.getElementById('cwdInput');
     var path = input.value.trim();
@@ -2880,7 +2943,7 @@ LaRuche.Chat = (function(){
     removePendingFile:removePendingFile, loadSessions:loadSessions,
     getSessionId:getSessionId, switchSession:switchSession, signalerRunActif:signalerRunActif,
     openProfile:openProfile, closeProfile:closeProfile, saveProfile:saveProfile,
-    browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink, stopRun:stopRun,
+    browseCwd:browseCwd, loadCwd:loadCwd, ouvrirSelecteurDossier:ouvrirSelecteurDossier, toggleNoThink:toggleNoThink, stopRun:stopRun,
     openHistory:openHistory, closeHistory:closeHistory, searchHistory:searchHistory,
     refreshHistoryOverlay:refreshHistoryOverlay, exportSessionMd:exportSessionMd
   };

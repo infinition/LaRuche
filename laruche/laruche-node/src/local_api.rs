@@ -6,32 +6,111 @@ use axum::response::{IntoResponse, Json};
 use axum::http::StatusCode;
 use std::sync::Arc;
 
-/// GET /api/cwd: get current working directory.
-pub(crate) async fn api_get_cwd() -> Json<serde_json::Value> {
-    let cwd = std::env::current_dir()
+/// Le bureau de l'agent, distinct du foyer de la ruche.
+///
+/// Les deux etaient le meme dossier, et cela posait probleme a deux titres. Le
+/// desordre d'abord: chaque script, chaque fichier de test, chaque dossier de
+/// travail d'une eclaireuse atterrissait a cote de `memoire.db`, de `sessions/` et
+/// de `skills/`. Plus grave ensuite: changer de dossier depuis le chat appelait
+/// `set_current_dir` sur le PROCESSUS, alors que `sessions/`, `skills/` et
+/// `memoire.db` se resolvent en relatif depuis la. Choisir un autre dossier
+/// deplacait donc la resolution des donnees: la ruche ecrivait ses sessions
+/// ailleurs et ne les retrouvait plus au redemarrage.
+///
+/// Le foyer reste le repertoire du processus, immuable. Ceci est le bureau, et il
+/// est le seul a bouger.
+pub(crate) fn dossier_travail_defaut() -> std::path::PathBuf {
+    // Sous le foyer plutot que dans Documents: c'est le dossier que l'agent liste
+    // quand on lui demande de quoi il dispose, et le sortir de la ruche obligerait
+    // l'utilisateur a savoir ou il est. `travail` se comprend sans explication.
+    std::env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("travail")
+}
+
+/// GET /api/cwd: le bureau courant de l'agent.
+pub(crate) async fn api_get_cwd(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let cwd = state.dossier_travail.read().await.display().to_string();
+    let foyer = std::env::current_dir()
         .unwrap_or_default()
         .display()
         .to_string();
-    Json(serde_json::json!({"cwd": cwd}))
+    Json(serde_json::json!({ "cwd": cwd, "foyer": foyer }))
 }
 
-/// POST /api/cwd: set current working directory.
-pub(crate) async fn api_set_cwd(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
-    let path = body["cwd"].as_str().unwrap_or("");
+/// POST /api/cwd: choisir le bureau. Ne touche PAS au repertoire du processus.
+pub(crate) async fn api_set_cwd(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let path = body["cwd"].as_str().unwrap_or("").trim();
     if path.is_empty() {
         return Json(serde_json::json!({"error": "cwd is required"}));
     }
     let p = std::path::Path::new(path);
-    if !p.exists() || !p.is_dir() {
-        return Json(serde_json::json!({"error": format!("Directory not found: {}", path)}));
-    }
-    match std::env::set_current_dir(p) {
-        Ok(()) => {
-            info!(cwd = path, "Working directory changed");
-            Json(serde_json::json!({"cwd": path, "status": "ok"}))
+    // On CREE le dossier s'il manque: refuser un chemin qui n'existe pas encore
+    // obligeait a sortir de l'application pour le fabriquer a la main.
+    if !p.exists() {
+        if let Err(e) = std::fs::create_dir_all(p) {
+            return Json(serde_json::json!({"error": format!("Cannot create {path}: {e}")}));
         }
-        Err(e) => Json(serde_json::json!({"error": e.to_string()})),
     }
+    if !p.is_dir() {
+        return Json(serde_json::json!({"error": format!("Not a directory: {path}")}));
+    }
+    let absolu = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    *state.dossier_travail.write().await = absolu.clone();
+    info!(cwd = %absolu.display(), "working directory changed");
+    Json(serde_json::json!({ "cwd": absolu.display().to_string() }))
+}
+
+/// GET /api/fs/dirs?path=... : les sous-dossiers d'un chemin, pour le selecteur.
+///
+/// Le selecteur vit cote SERVEUR et non dans le navigateur: `<input
+/// webkitdirectory>` ne rend jamais de chemin absolu, par principe de securite du
+/// navigateur, et c'est justement un chemin absolu qu'il faut ici. Le serveur
+/// tourne sur la machine visee, il sait lire son disque, et il le fait de la meme
+/// facon sur Windows, macOS et Linux.
+pub(crate) async fn api_fs_dirs(
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    let demande = q.get("path").map(String::as_str).unwrap_or("").trim();
+    let base = if demande.is_empty() {
+        dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."))
+    } else {
+        std::path::PathBuf::from(demande)
+    };
+    let base = std::fs::canonicalize(&base).unwrap_or(base);
+    let mut dossiers: Vec<serde_json::Value> = Vec::new();
+    if let Ok(entrees) = std::fs::read_dir(&base) {
+        for e in entrees.flatten() {
+            let Ok(t) = e.file_type() else { continue };
+            if !t.is_dir() {
+                continue;
+            }
+            let nom = e.file_name().to_string_lossy().to_string();
+            // Les dossiers caches encombrent sans servir.
+            if nom.starts_with('.') {
+                continue;
+            }
+            dossiers.push(serde_json::json!({
+                "nom": nom,
+                "chemin": e.path().display().to_string()
+            }));
+        }
+    }
+    dossiers.sort_by(|a, b| {
+        a["nom"]
+            .as_str()
+            .unwrap_or("")
+            .to_lowercase()
+            .cmp(&b["nom"].as_str().unwrap_or("").to_lowercase())
+    });
+    Json(serde_json::json!({
+        "chemin": base.display().to_string(),
+        "parent": base.parent().map(|p| p.display().to_string()),
+        "dossiers": dossiers
+    }))
 }
 
 /// GET /api/media/local?path=...: serves an explicitly selected local media file.

@@ -350,6 +350,37 @@ pub fn definir_halo(actif: bool) {
 static BUDGET_LECTURE: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(24_000);
 
+/// Le bureau de l'agent: la ou ses outils travaillent par defaut.
+///
+/// Meme mecanisme que le budget ci-dessus, et pour la meme raison: un outil ne
+/// recoit ni la configuration ni les reglages du moteur, et son repli etait donc
+/// `current_dir()`, c'est-a-dire le FOYER de la ruche. L'agent semait ses scripts,
+/// ses tests et ses dossiers d'eclaireuse a cote de `memoire.db`, de `sessions/`
+/// et de `skills/`. Le noeud pose ici un dossier a lui au demarrage.
+static DOSSIER_TRAVAIL: std::sync::OnceLock<std::sync::RwLock<std::path::PathBuf>> =
+    std::sync::OnceLock::new();
+
+fn case_travail() -> &'static std::sync::RwLock<std::path::PathBuf> {
+    DOSSIER_TRAVAIL.get_or_init(|| {
+        std::sync::RwLock::new(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        )
+    })
+}
+
+pub fn dossier_travail() -> std::path::PathBuf {
+    case_travail()
+        .read()
+        .map(|p| p.clone())
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+}
+
+pub fn definir_dossier_travail(p: std::path::PathBuf) {
+    if let Ok(mut c) = case_travail().write() {
+        *c = p;
+    }
+}
+
 pub fn budget_lecture() -> usize {
     BUDGET_LECTURE.load(std::sync::atomic::Ordering::Relaxed)
 }

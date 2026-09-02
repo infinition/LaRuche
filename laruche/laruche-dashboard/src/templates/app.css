@@ -1033,12 +1033,17 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 }
 .cwd-bar:hover, .cwd-bar:focus-within { opacity: 1; }
 .cwd-icon { font-size:12px; cursor:default; opacity: 0.5; }
+/* Pas de bordure basse: l'input est en `flex:1`, donc un `border-bottom` court
+   sur toute la largeur du volet et se lit comme un filet parasite sous la barre,
+   pas comme un champ editable. Un fond discret dit la meme chose sans tirer de
+   trait, et il epouse la boite au lieu de la traverser. */
 .cwd-input {
-  flex:1; background:none; border:none; border-bottom:1px dashed transparent;
+  flex:1; background:transparent; border:none; border-radius:4px;
   color:var(--text-dim); font-family:var(--mono); font-size:10px;
-  padding:0; outline:none; transition: all 0.2s;
+  padding:1px 5px; outline:none; transition: background .2s, color .2s;
 }
-.cwd-input:hover, .cwd-input:focus { border-bottom-color:var(--text-dim); color:var(--text-muted); }
+.cwd-input:hover { background:rgba(255,255,255,.05); color:var(--text-muted); }
+.cwd-input:focus { background:rgba(255,255,255,.07); color:var(--text); }
 .cwd-btn {
   background:none; border:none; border-radius:4px; opacity: 0.5;
   color:var(--text-muted); font-size:10px; padding:2px 4px; cursor:pointer; transition: opacity 0.2s;

@@ -764,6 +764,18 @@ async fn main() -> Result<()> {
     laruche_essaim::config::definir_budget_lecture(laruche_essaim::config::plafond_observation(
         (essaim_config.context_max_tokens as usize).max(8_000),
     ));
+    // Le bureau de l'agent, cree et annonce avant le premier outil.
+    //
+    // Sans lui, le repli d'un outil est `current_dir()`, c'est-a-dire le FOYER:
+    // scripts, tests et dossiers d'eclaireuse atterrissaient a cote de `memoire.db`,
+    // de `sessions/` et de `skills/`. Le foyer garde ses dossiers structures, chacun
+    // alimente par un outil dedie (`skill_create`, `plugin_create`, `mcp_add`);
+    // `travail/` est la piece qui manquait, celle du brouillon.
+    let bureau = local_api::dossier_travail_defaut();
+    if let Err(e) = std::fs::create_dir_all(&bureau) {
+        tracing::warn!(error = %e, chemin = %bureau.display(), "bureau de l'agent non cree");
+    }
+    laruche_essaim::config::definir_dossier_travail(bureau);
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }
@@ -1255,6 +1267,7 @@ async fn main() -> Result<()> {
         essaim_sessions: sessions_arc.clone(),
         active_context_stats: Arc::new(RwLock::new(HashMap::new())),
         runs_actifs: Arc::new(RwLock::new(HashMap::new())),
+        dossier_travail: Arc::new(RwLock::new(local_api::dossier_travail_defaut())),
         essaim_cron: cron_arc.clone(),
         watchers: watchers_arc.clone(),
         kanban_board: kanban_arc.clone(),
