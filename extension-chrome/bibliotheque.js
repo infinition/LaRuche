@@ -684,7 +684,8 @@ function commencerRecadrage(evenement) {
   evenement.preventDefault();
   evenement.stopPropagation();
   const mode = poignee || 'move';
-  etat.recadrageActif = true;
+  // Un glissement de poignee n'entre pas en mode recadrage: les controles
+  // natifs reviennent des le relachement.
   etat.recadrageEnCours = true;
   if (typeof evenement.target.setPointerCapture === 'function') {
     try { evenement.target.setPointerCapture(evenement.pointerId); } catch {}
