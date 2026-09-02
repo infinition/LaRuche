@@ -80,12 +80,20 @@
     {
       id: 'typo', titre: { fr: 'Typographie', en: 'Typography' }, jetons: [
         { cle: '--font', fr: 'Police de l’interface', en: 'Interface typeface', type: 'police' },
-        { cle: '--mono', fr: 'Police à chasse fixe', en: 'Monospace typeface', type: 'police', mono: true }
+        { cle: '--font-msg', fr: 'Police des messages', en: 'Message typeface', type: 'police' },
+        { cle: '--font-contenu', fr: 'Police du contenu (mémoire, flux)', en: 'Content typeface (memory, feed)', type: 'police' },
+        { cle: '--mono', fr: 'Police à chasse fixe', en: 'Monospace typeface', type: 'police', mono: true },
+        { cle: '--taille-ui', fr: 'Taille du texte, interface', en: 'Interface text size', type: 'taille', min: 10, max: 20, pas: 0.5, unite: 'px' },
+        { cle: '--taille-msg', fr: 'Taille du texte, messages', en: 'Message text size', type: 'taille', min: 11, max: 24, pas: 0.5, unite: 'px' },
+        { cle: '--taille-contenu', fr: 'Taille du texte, contenu', en: 'Content text size', type: 'taille', min: 10, max: 22, pas: 0.5, unite: 'px' }
       ]
     },
     {
       id: 'formes', titre: { fr: 'Formes et mouvement', en: 'Shapes and motion' }, jetons: [
+        { cle: '--radius-xs', fr: 'Arrondi des badges et pastilles', en: 'Badge rounding', type: 'taille', min: 0, max: 14, pas: 1, unite: 'px' },
+        { cle: '--radius-btn', fr: 'Arrondi des boutons et champs', en: 'Button and field rounding', type: 'taille', min: 0, max: 20, pas: 1, unite: 'px' },
         { cle: '--radius', fr: 'Arrondi général', en: 'General rounding', type: 'taille', min: 0, max: 24, pas: 1, unite: 'px' },
+        { cle: '--radius-card', fr: 'Arrondi des cartes et fenêtres', en: 'Card and window rounding', type: 'taille', min: 0, max: 32, pas: 1, unite: 'px' },
         { cle: '--radius-msg', fr: 'Arrondi des messages', en: 'Message rounding', type: 'taille', min: 0, max: 28, pas: 1, unite: 'px' },
         { cle: '--sidebar-width', fr: 'Largeur du volet', en: 'Sidebar width', type: 'taille', min: 180, max: 460, pas: 5, unite: 'px' },
         { cle: '--hex-size', fr: 'Taille de la jauge', en: 'Gauge size', type: 'taille', min: 28, max: 120, pas: 2, unite: 'px' },
@@ -126,7 +134,8 @@
     { cle: 'gauche', fr: 'Volet gauche', en: 'Left panel' },
     { cle: 'droite', fr: 'Volet droit', en: 'Right panel' },
     { cle: 'haut', fr: 'Barre du haut', en: 'Top bar' },
-    { cle: 'bas', fr: 'Barre du bas', en: 'Bottom bar' }
+    { cle: 'bas', fr: 'Barre du bas', en: 'Bottom bar' },
+    { cle: 'partage', fr: 'Volet du partage d’écran', en: 'Split-screen pane' }
   ];
 
   var TOUS = GROUPES.reduce(function (acc, g) {
@@ -297,12 +306,39 @@
     { cle: 'nav-capacites', fr: 'Onglet Capacités', en: 'Capabilities tab', sel: '.header-nav a[data-page="capabilities"] .tab-icon' },
     { cle: 'nav-tableau', fr: 'Onglet Tableau de bord', en: 'Dashboard tab', sel: '.header-nav a[data-page="dashboard"] .tab-icon' },
     { cle: 'nav-reglages', fr: 'Onglet Paramètres', en: 'Settings tab', sel: '.header-nav a[data-page="settings"] .tab-icon' },
-    { cle: 'ruche', fr: 'La ruche animée (en haut à gauche)', en: 'The animated hive (top left)', sel: '#statusHoneycomb' },
-    { cle: 'essaim', fr: "L'essaim animé (accueil et connexion)", en: 'The animated swarm (welcome and login)', sel: '.swarm-wrap' },
+
+    // `echelle`: ces deux-la sont dessines a leur taille reelle, cent pixels ou
+    // plus, et debordaient de l'apercu de trente pixels en recouvrant la ligne
+    // voisine. L'apercu les reduit, sans toucher a leur taille dans l'interface.
+    { cle: 'ruche', fr: 'La ruche animée (en haut à gauche)', en: 'The animated hive (top left)', sel: '#statusHoneycomb', echelle: 0.7 },
+    { cle: 'essaim', fr: "L'essaim animé (accueil, connexion)", en: 'The animated swarm (welcome, login)', sel: '.swarm-wrap', echelle: 0.11 },
     { cle: 'reine', fr: 'LaReine (barre du bas)', en: 'LaReine (bottom bar)', sel: '#sbReineLabel' },
     { cle: 'muet', fr: 'Le muet (barre du bas)', en: 'Mute (bottom bar)', sel: '#sbMuteLabel' },
-    { cle: 'partage', fr: 'Le partage (barre du bas)', en: 'Split (bottom bar)', sel: '#sbSplitLabel' },
-    { cle: 'feed', fr: "Le flux d'activité", en: 'Activity feed', sel: '#feedToggleBtn' }
+    { cle: 'partage', fr: "Le partage d'écran (barre du bas)", en: 'Split screen (bottom bar)', sel: '#sbSplitLabel' },
+
+    { cle: 'messages', fr: 'Messages entre ruches', en: 'Messages between hives', sel: '#meshBtn' },
+    { cle: 'feed', fr: "Le flux d'activité", en: 'Activity feed', sel: '#feedToggleBtn' },
+    { cle: 'feed-epingle', fr: 'Épingler le flux', en: 'Pin the feed', sel: '#feedAnchorBtn' },
+    { cle: 'feed-vider', fr: 'Vider le flux', en: 'Clear the feed', sel: '#feedClearBtn' },
+    { cle: 'feed-filtres', fr: 'Filtres du flux', en: 'Feed filters', sel: '#feedFiltersHead' },
+    { cle: 'feed-envoyer', fr: 'Envoyer au flux', en: 'Send to the feed', sel: '#feedAskSend' },
+
+    { cle: 'chat-descendre', fr: 'Revenir en bas du chat', en: 'Jump to the latest message', sel: '#chatJumpBtn' },
+    { cle: 'chat-micro', fr: 'Le microphone', en: 'Microphone', sel: '#micBtn' },
+    { cle: 'chat-appel', fr: "Le mode d'appel vocal", en: 'Voice call mode', sel: '#voiceModeBtn' },
+    { cle: 'chat-eveil', fr: "Le mot d'éveil", en: 'Wake word', sel: '#wakeWordBtn' },
+    { cle: 'chat-pieces', fr: 'Les pièces jointes', en: 'Attachments', sel: '#trayToggleBtn' },
+    { cle: 'chat-dossier', fr: 'Le dossier de travail', en: 'Working folder', sel: '#cwdToggleBtn' },
+
+    // Les personnages: ils sont dessines en CSS, pas en SVG, mais leur conteneur
+    // se remplace comme les autres.
+    { cle: 'abeille', fr: "L'abeille (personnage)", en: 'The bee (character)', sel: '.bee:not(.bee-reine)', echelle: 0.4 },
+    { cle: 'reine-perso', fr: 'LaReine (personnage)', en: 'LaReine (character)', sel: '.bee.bee-reine', echelle: 0.4 }
+    //
+    // `#stats-reset-zoom` et `#mem2GraphWrap` ont ete retires: le premier est un
+    // bouton de TEXTE, le second un conteneur de graphe vide tant qu'on n'a pas
+    // ouvert la memoire. Ni l'un ni l'autre n'est une icone, et les offrir
+    // donnait un apercu illisible pour le premier, vide pour le second.
   ];
 
   /* Ce que contenait chaque emplacement avant qu'on y touche.
@@ -311,6 +347,37 @@
      poser, on ne saurait pas revenir. La capture se fait au premier remplacement,
      donc sur le contenu d'origine, et jamais sur celui d'un theme precedent. */
   var _iconesOrigine = {};
+
+  /* D'autres modules declarent leurs propres emplacements.
+
+     Les onglets des reglages sont dessines par `settings.js`, qui tient deja leur
+     liste et leurs libelles traduits. Les recopier ici en aurait fait une seconde
+     source a garder en phase, et le jour ou un onglet s'ajoute il aurait manque
+     sans que rien ne le signale. */
+  function ajouterIcones(liste) {
+    (liste || []).forEach(function (it) {
+      if (!it || !it.cle || !it.sel) return;
+      for (var i = 0; i < ICONES.length; i++) if (ICONES[i].cle === it.cle) return;
+      ICONES.push(it);
+    });
+  }
+
+  /* Le contenu d'ORIGINE d'un emplacement, capture a la demande.
+
+     Le panneau montrait un tiret tant qu'aucune icone personnelle n'etait posee,
+     donc on choisissait a l'aveugle: rien ne disait ce qu'on allait remplacer.
+     La capture est paresseuse et ne se fait qu'une fois, sur le contenu livre,
+     jamais sur celui d'un theme precedent. */
+  function iconeOrigine(cle) {
+    if (cle in _iconesOrigine) return _iconesOrigine[cle];
+    var it = null;
+    for (var i = 0; i < ICONES.length; i++) if (ICONES[i].cle === cle) { it = ICONES[i]; break; }
+    if (!it) return '';
+    var cible = document.querySelector(it.sel);
+    if (!cible) return '';
+    _iconesOrigine[cle] = cible.innerHTML;
+    return _iconesOrigine[cle];
+  }
 
   function peindreIcones(icones) {
     icones = icones || {};
@@ -338,11 +405,20 @@
      ---------------------------------------------------------------------- */
   function peindreMarque(marque) {
     marque = marque || {};
+    /* La taille du logo appartient a la MARQUE, pas a la palette: un logo carre
+       et un logo long n'occupent pas la meme place, et c'est une propriete de
+       l'image qu'on pose, pas du theme qui l'entoure. */
+    var r0 = document.documentElement;
+    if (marque.taille) r0.style.setProperty('--lr-logo-taille', marque.taille + 'px');
+    else r0.style.removeProperty('--lr-logo-taille');
     var nom = document.querySelector('.header-brand');
     if (nom) {
       if (!nom.dataset.origine) nom.dataset.origine = nom.textContent;
       nom.textContent = marque.nom || nom.dataset.origine;
       nom.title = marque.nom || nom.dataset.origine;
+      // Un logo se suffit souvent a lui-meme: pouvoir retirer le mot laisse la
+      // barre respirer, et c'est le choix de celui qui pose sa marque.
+      nom.style.display = marque.masquerNom ? 'none' : '';
     }
     var ruche = document.getElementById('statusHoneycomb');
     if (!ruche) return;
@@ -434,6 +510,9 @@
     opts = opts || {};
     apercu.attente = null; apercu.actif = null;
     clearTimeout(apercu.minuteur);
+    // Le brouillon appartenait au theme qu'on quitte. Le garder ferait peindre
+    // ses valeurs par-dessus le nouveau, et pire, le ferait enregistrer dedans.
+    if (etat.brouillon && etat.brouillon.id !== id) etat.brouillon = null;
     etat.actif = id;
     peindre(id);
     /* Le theme a change: que tout ce qui l'affiche se remette a jour.
@@ -559,13 +638,19 @@
   }
 
   async function enregistrer(nom, jetons, id, marque, fond, icones) {
+    // `undefined` disparait a la serialisation: c'est exactement ce qu'on veut,
+    // le serveur garde alors ce qui est deja sur le disque.
     var r = await envoyer({
       id: id || null, nom: nom, jetons: jetons,
-      marque: marque || {}, fond: fond || {}, icones: icones || {}
+      marque: marque || {}, fond: fond || {}, icones: icones
     });
     if (r && r.status === 'ok') {
       await charger();
-      appliquer('perso:' + r.theme.id);
+      // Basculer dessus n'a de sens qu'a la CREATION. Le faire aussi quand on
+      // met a jour un theme deja actif ramenait dessus une seconde apres qu'on
+      // en ait choisi un autre: le temps de l'enregistrement automatique, et le
+      // choix etait defait sans que rien ne le dise.
+      if (!id) appliquer('perso:' + r.theme.id);
     }
     return r;
   }
@@ -577,14 +662,37 @@
     await charger();
   }
 
+  /* Les couleurs qu'une vignette doit montrer. Pour un integre elles vivent dans
+     la feuille de style, donc on les LIT en peignant l'attribut sur un element
+     detache: plus fiable qu'une seconde table a tenir en phase a la main. */
+  function apercuIntegre(id) {
+    var d = document.createElement('div');
+    d.setAttribute('data-theme', id);
+    d.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';
+    document.body.appendChild(d);
+    var st = getComputedStyle(d);
+    var lu = {
+      panneau: st.getPropertyValue('--bg-panel').trim(),
+      texte: st.getPropertyValue('--text').trim(),
+      bordure: st.getPropertyValue('--border').trim()
+    };
+    d.parentNode.removeChild(d);
+    return lu;
+  }
+
   function catalogue() {
     return INTEGRES.map(function (t) {
-      return { id: t.id, nom: nomDe(t), fond: t.fond, point: t.point, integre: true };
+      var a = document.body ? apercuIntegre(t.id) : {};
+      return {
+        id: t.id, nom: nomDe(t), fond: t.fond, point: t.point, integre: true,
+        panneau: a.panneau, texte: a.texte, bordure: a.bordure
+      };
     }).concat(etat.perso.map(function (t) {
       var j = t.jetons || {};
       return {
         id: 'perso:' + t.id, nom: t.nom, integre: false,
         fond: j['--bg'] || '#09090b', point: j['--amber'] || '#f59e0b',
+        panneau: j['--bg-panel'] || '', texte: j['--text'] || '', bordure: j['--border'] || '',
         image: (t.fond && t.fond.image) || '', marque: t.marque || {}
       };
     }));
@@ -625,7 +733,8 @@
     PILES: PILES, PILES_MONO: PILES_MONO, descripteur: descripteur,
     resoudreCouleur: resoudreCouleur, versHex: versHex,
     composerCouleur: composerCouleur, tripletRgb: tripletRgb,
-    ICONES: ICONES, peindreIcones: peindreIcones,
+    ICONES: ICONES, peindreIcones: peindreIcones, iconeOrigine: iconeOrigine,
+    ajouterIcones: ajouterIcones,
     peindreFond: peindreFond, peindreMarque: peindreMarque,
     habillageDe: habillageDe, dupliquer: dupliquer, baseCourante: baseCourante,
     definirBrouillon: definirBrouillon, brouillonCourant: brouillonCourant,

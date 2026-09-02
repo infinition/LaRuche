@@ -175,16 +175,46 @@ fn icones_sur(v: &serde_json::Value) -> Result<serde_json::Value, String> {
     Ok(serde_json::Value::Object(out))
 }
 
+/// Valide l'habillage, en gardant de l'ANCIEN ce que le nouveau ne mentionne pas.
+///
+/// Un theme porte son image de fond encodee dans son JSON, souvent plusieurs
+/// centaines de kilooctets. L'enregistrement automatique la renvoyait en entier a
+/// chaque frappe, ce qui rendait chaque sauvegarde longue pour ne changer, la
+/// plupart du temps, qu'un chiffre de couleur.
+///
+/// La regle distingue donc trois cas, et c'est la distinction qui compte:
+/// - champ ABSENT: on garde ce qui est sur le disque, rien n'a change;
+/// - champ VIDE: on efface, l'utilisateur a retire l'image;
+/// - champ RENSEIGNE: on valide et on remplace.
 fn habillage_sur(
     body: &serde_json::Value,
+    ancien: Option<&serde_json::Value>,
 ) -> Result<(serde_json::Value, serde_json::Value, serde_json::Value), String> {
     let m = &body["marque"];
     let nom: String = m["nom"].as_str().unwrap_or("").trim().chars().take(60).collect();
-    let logo = logo_sur(m["logo"].as_str().unwrap_or("")).map_err(|e| e.to_string())?;
-    let marque = serde_json::json!({ "nom": nom, "logo": logo });
+    let logo = match m.get("logo") {
+        Some(v) => logo_sur(v.as_str().unwrap_or("")).map_err(|e| e.to_string())?,
+        None => ancien
+            .and_then(|a| a["marque"]["logo"].as_str())
+            .unwrap_or("")
+            .to_string(),
+    };
+    // Zero vaut « pas de taille choisie »: le logo reprend alors celle de la
+    // ruche qu'il remplace, et la barre ne bouge pas.
+    let taille = m["taille"].as_i64().unwrap_or(0);
+    let taille = if taille == 0 { 0 } else { taille.clamp(18, 96) };
+    let masquer = m["masquerNom"].as_bool().unwrap_or(false);
+    let marque =
+        serde_json::json!({ "nom": nom, "logo": logo, "taille": taille, "masquerNom": masquer });
 
     let f = &body["fond"];
-    let image = f["image"].as_str().unwrap_or("").trim().to_string();
+    let image = match f.get("image") {
+        Some(v) => v.as_str().unwrap_or("").trim().to_string(),
+        None => ancien
+            .and_then(|a| a["fond"]["image"].as_str())
+            .unwrap_or("")
+            .to_string(),
+    };
     if !image.is_empty() {
         if !image.starts_with("data:image/") {
             return Err("l'image de fond doit etre encodee".into());
@@ -207,7 +237,12 @@ fn habillage_sur(
     let fond = serde_json::json!({
         "image": image, "opacite": opacite, "cadrage": cadrage, "zones": zones
     });
-    let icones = icones_sur(&body["icones"])?;
+    let icones = match body.get("icones") {
+        Some(v) => icones_sur(v)?,
+        None => ancien
+            .and_then(|a| a.get("icones").cloned())
+            .unwrap_or_else(|| serde_json::Value::Object(Default::default())),
+    };
     Ok((marque, fond, icones))
 }
 
@@ -261,7 +296,10 @@ pub(crate) async fn api_themes_save(
     if !jetons.is_object() {
         return Json(serde_json::json!({ "status": "error", "error": "jetons doit etre un objet" }));
     }
-    let (marque, fond, icones) = match habillage_sur(&body) {
+    let ancien = std::fs::read_to_string(dossier().join(format!("{id}.json")))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+    let (marque, fond, icones) = match habillage_sur(&body, ancien.as_ref()) {
         Ok(v) => v,
         Err(e) => return Json(serde_json::json!({ "status": "error", "error": e })),
     };
@@ -271,9 +309,6 @@ pub(crate) async fn api_themes_save(
     // l'interface. Elles ne sont ecrites qu'a la creation, jamais ecrasees ensuite,
     // sinon le premier enregistrement d'une modification effacerait la reference
     // meme a laquelle on veut pouvoir revenir.
-    let ancien = std::fs::read_to_string(dossier().join(format!("{id}.json")))
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
     let parent = ancien
         .as_ref()
         .map(|a| a["parent"].clone())

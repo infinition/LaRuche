@@ -434,12 +434,14 @@ LaRuche.i18n.add({
   'settings.brandHint':         {fr:"Le nom et le logo en haut a gauche. Ils suivent le theme: chaque theme porte les siens.", en:'The name and logo in the top left. They travel with the theme: each theme carries its own.'},
   'settings.brandName':         {fr:'Nom affiche',            en:'Displayed name'},
   'settings.brandLogo':         {fr:'Logo',                   en:'Logo'},
+  'settings.brandSize':         {fr:'Taille du logo',         en:'Logo size'},
+  'settings.brandShowName':     {fr:'Afficher le nom a cote du logo', en:'Show the name next to the logo'},
   'settings.brandPick':         {fr:'Choisir un fichier',     en:'Pick a file'},
   'settings.brandClear':        {fr:'Retirer',                en:'Remove'},
   'settings.brandSvgHint':      {fr:"SVG de preference: il herite de la couleur d'accent, donc il suit le theme. Un PNG garde la sienne. Le SVG est lave par le serveur avant d'etre enregistre.", en:'Prefer SVG: it inherits the accent colour, so it follows the theme. A PNG keeps its own. SVG is sanitised by the server before being stored.'},
   'settings.brandTooBig':       {fr:'Logo trop lourd (512 Ko maximum).', en:'Logo too heavy (512 KB max).'},
   'settings.iconTitle':         {fr:'Icones',                 en:'Icons'},
-  'settings.iconHint':          {fr:"Remplacez une icone par un SVG a vous. Elle herite de la couleur d'accent, donc elle suit le theme. Douze emplacements, ceux que l'oeil reconnait.", en:'Replace an icon with your own SVG. It inherits the accent colour, so it follows the theme. Twelve slots, the ones the eye recognises.'},
+  'settings.iconHint':          {fr:"Remplacez une icone par un SVG a vous. Elle herite de la couleur d'accent, donc elle suit le theme. L'apercu montre celle qui est en place.", en:'Replace an icon with your own SVG. It inherits the accent colour, so it follows the theme. The preview shows the one currently in place.'},
   'settings.bgTitle':           {fr:"Image de fond",         en:'Background image'},
   'settings.bgHint':            {fr:"Une seule image, derriere tout, et vous choisissez les zones qui la laissent voir.", en:'One image, behind everything, and you choose which zones let it show.'},
   'settings.bgPick':            {fr:'Choisir une image',      en:'Pick an image'},
@@ -638,7 +640,10 @@ LaRuche.Settings = (function(){
   // ── New Settings sections (left vertical nav on desktop, scrollable bar on mobile) ──
   // Each entry: { id, i18n (label key), icon (inline SVG) }. The wiring (data-tab ->
   // loader) is preserved: switching a section still calls the matching load*().
-  function _ic(path){ return '<svg class="settings-nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>'; }
+  /* L'icone est ENVELOPPEE: on ne remplace pas un `<svg>` par son contenu, on
+     remplace le contenu de ce qui le porte. Sans cette enveloppe, les icones des
+     onglets etaient les seules a ne pas pouvoir etre changees. */
+  function _ic(path){ return '<span class="settings-nav-icw"><svg class="settings-nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg></span>'; }
   var SECTIONS = [
     { id:'profile',      i18n:'settings.navProfile',      icon:_ic('<circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/>') },
     { id:'appearance',   i18n:'settings.navAppearance',   icon:_ic('<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>') },
@@ -655,6 +660,21 @@ LaRuche.Settings = (function(){
     { id:'admin', i18n:'settings.navAdmin', adminOnly:true, icon:_ic('<path d="M12 2l8 4v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.5 16a3.5 3.5 0 0 1 7 0"/>') },
     { id:'help', i18n:'settings.navHelp', icon:_ic('<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/><line x1="12" y1="17" x2="12" y2="17.01"/>') }
   ];
+  /* Chaque onglet des reglages est un emplacement d'icone. La liste vient de
+     `SECTIONS`, donc un onglet ajoute demain sera personnalisable sans qu'on y
+     touche, avec son libelle deja traduit. */
+  function _declarerIconesReglages(){
+    if(!window.LaRuche || !LaRuche.Themes || !LaRuche.Themes.ajouterIcones) return;
+    LaRuche.Themes.ajouterIcones(SECTIONS.map(function(sec){
+      var lib = LaRuche.i18n.t(sec.i18n);
+      return {
+        cle: 'reglages-' + sec.id,
+        fr: 'Réglages : ' + lib, en: 'Settings: ' + lib,
+        sel: '.settings-tab-btn[data-tab="' + sec.id + '"] .settings-nav-icw'
+      };
+    }));
+  }
+
   function _visibleSections(){
     var admin = !!(LaRuche.Auth && LaRuche.Auth.isAdmin && LaRuche.Auth.isAdmin());
     return SECTIONS.filter(function(s){ return !s.adminOnly || admin; });
@@ -1868,6 +1888,24 @@ LaRuche.Settings = (function(){
   var _iconesBrouillon = {};
   var _sauveMinuteur = null;
   var _apparenceHote = null;
+  /* Dessiner le panneau n'est pas le MODIFIER.
+
+     Le rendu initial appelle le rendu de la marque, du fond et des icones, qui
+     declarent tous le brouillon. Sans ce drapeau, ouvrir l'onglet programmait
+     donc un enregistrement, avec des valeurs relues sur l'ecran. Si l'ecran
+     montrait alors un autre theme - un apercu au survol, ou le theme livre qu'on
+     venait de choisir - ce sont SES couleurs qui partaient s'ecrire dans le
+     theme personnel. Cliquer un theme livre depuis un theme a soi le remplacait
+     ainsi par celui qu'on venait de regarder. */
+  var _initEnCours = false;
+  /* Ce qui a REELLEMENT change depuis l'ouverture du panneau.
+
+     L'image de fond et les icones pesent plusieurs centaines de kilooctets, et
+     l'enregistrement automatique les renvoyait a chaque frappe: la sauvegarde
+     trainait pour ne changer, le plus souvent, qu'un chiffre de couleur. On
+     n'envoie donc le lourd que s'il a bouge, et le serveur garde ce qu'on ne lui
+     mentionne pas. */
+  var _sale = { fond: false, icones: false, logo: false };
 
   /* Reduire l'image de fond avant de la ranger dans le theme.
 
@@ -1961,21 +1999,38 @@ LaRuche.Settings = (function(){
   function loadApparence(el){
     if(!window.LaRuche || !LaRuche.Themes){ el.innerHTML=''; return; }
     _apparenceHote = el;
+    _declarerIconesReglages();
     var t = LaRuche.i18n.t, esc = LaRuche.Utils.esc, T = LaRuche.Themes;
     var actif = T.actif();
     var perso = T.estPerso(actif);
     var lg = LaRuche.i18n.get();
 
+    /* La vignette montre le theme, pas une couleur.
+
+       Un carre uni ne distinguait pas deux themes sombres, et ne disait rien du
+       fond d'ecran qu'on venait d'y poser. Elle porte donc, comme une capture en
+       miniature: l'image de fond si le theme en a une, un rectangle a gauche pour
+       le volet de l'interface, et un point pour l'accent. Trois signes qui
+       suffisent a reconnaitre son theme dans une rangee. */
     var vignettes = T.catalogue().map(function(x){
-      var apercuFond = x.image
+      var scene = x.image
         ? 'background-image:url('+JSON.stringify(x.image)+');background-size:cover;background-position:center'
         : 'background:'+x.fond;
-      return '<button class="theme-vignette" data-id="'+esc(x.id)+'" style="'+
+      return '<button class="theme-vignette" data-id="'+esc(x.id)+'" title="'+esc(x.nom)+'" style="'+
         'display:flex;flex-direction:column;gap:6px;align-items:center;background:none;cursor:pointer;'+
-        'border:1px solid '+(x.id===actif?'var(--amber)':'var(--border)')+';border-radius:10px;padding:9px 7px;min-width:96px">'+
-        '<span style="width:100%;height:36px;border-radius:6px;'+apercuFond+';border:1px solid var(--border);'+
-          'display:flex;align-items:center;justify-content:center">'+
-          '<span style="width:11px;height:11px;border-radius:50%;background:'+x.point+'"></span></span>'+
+        'border:1px solid '+(x.id===actif?'var(--amber)':'var(--border)')+';'+
+        'border-radius:var(--radius);padding:9px 7px;min-width:96px">'+
+        '<span style="position:relative;width:100%;height:42px;border-radius:var(--radius-btn);overflow:hidden;'+
+          'border:1px solid var(--border);'+scene+';display:block">'+
+          // Le volet: la couleur des panneaux, la ou elle se voit vraiment.
+          '<span style="position:absolute;left:0;top:0;bottom:0;width:34%;background:'+(x.panneau||x.fond)+';'+
+            'border-right:1px solid '+(x.bordure||'rgba(128,128,128,.35)')+'"></span>'+
+          // Deux lignes de texte, pour juger la lisibilite du theme d'un coup d'oeil.
+          '<span style="position:absolute;left:42%;top:12px;width:44%;height:3px;border-radius:2px;background:'+(x.texte||'#888')+';opacity:.85"></span>'+
+          '<span style="position:absolute;left:42%;top:20px;width:30%;height:3px;border-radius:2px;background:'+(x.texte||'#888')+';opacity:.45"></span>'+
+          // L'accent.
+          '<span style="position:absolute;right:7px;bottom:7px;width:11px;height:11px;border-radius:50%;background:'+x.point+'"></span>'+
+        '</span>'+
         '<span style="font-size:11.5px;color:var(--text-dim);max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.nom)+'</span>'+
       '</button>';
     }).join('');
@@ -1987,6 +2042,7 @@ LaRuche.Settings = (function(){
     _fondBrouillon = Object.assign({ opacite: 0.35, cadrage: 'cover', zones: {} }, h.fond);
     _fondBrouillon.zones = Object.assign({}, _fondBrouillon.zones);
     _iconesBrouillon = Object.assign({}, h.icones);
+    _sale = { fond: false, icones: false, logo: false };
 
     var champs = T.GROUPES.map(function(g){
       var lignes = g.jetons.map(function(j){ return _ligneJeton(j, jetons[j.cle] || '', esc); }).join('');
@@ -2018,18 +2074,29 @@ LaRuche.Settings = (function(){
           '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandName')+'</span>'+
           '<input type="text" id="marqueNom" value="'+esc(_marqueBrouillon.nom||'')+'" placeholder="LaRuche" '+
             'style="width:250px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);'+
-            'border-radius:5px;padding:4px 8px;font-size:12px"></div>'+
+            'border-radius:var(--radius-btn);padding:4px 8px;font-size:12px"></div>'+
+        '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+          '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandShowName')+'</span>'+
+          '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">'+
+            '<input type="checkbox" id="marqueAfficherNom"'+(_marqueBrouillon.masquerNom?'':' checked')+' style="accent-color:var(--amber)">'+
+          '</label></div>'+
         '<div style="display:flex;align-items:center;gap:9px;padding:6px 0;flex-wrap:wrap">'+
           '<span style="flex:1;min-width:140px;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandLogo')+'</span>'+
           '<span id="marqueApercu" class="lr-logo" style="width:34px;height:34px;border:1px solid var(--border);border-radius:6px"></span>'+
           '<button class="cwd-btn" id="marqueChoisir" style="opacity:1;font-size:12px;padding:6px 10px">'+t('settings.brandPick')+'</button>'+
           '<button class="cwd-btn" id="marqueVider" style="opacity:1;font-size:12px;padding:6px 10px">'+t('settings.brandClear')+'</button>'+
           '<input type="file" id="marqueFichier" accept=".svg,image/svg+xml,image/png,image/webp" style="display:none"></div>'+
+        '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+          '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandSize')+'</span>'+
+          '<input type="range" id="marqueTaille" min="18" max="96" step="1" value="'+(_marqueBrouillon.taille||34)+'" '+
+            'style="width:180px;accent-color:var(--amber)">'+
+          '<span id="marqueTailleVal" style="width:44px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)"></span></div>'+
         '<p style="color:var(--text-muted);font-size:11px;margin:6px 0 0">'+t('settings.brandSvgHint')+'</p>'+
       '</div>'+
 
       '<div class="settings-card"><div class="settings-card-title">'+t('settings.iconTitle')+'</div>'+
         '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.iconHint')+'</p>'+
+        '<div class="lr-icones-liste">'+
         T.ICONES.map(function(ic){
           return '<div style="display:flex;align-items:center;gap:9px;padding:4px 0">'+
             '<span class="lr-icone-apercu" data-icone-apercu="'+ic.cle+'"></span>'+
@@ -2037,7 +2104,7 @@ LaRuche.Settings = (function(){
             '<button class="cwd-btn" data-icone-choisir="'+ic.cle+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+t('settings.brandPick')+'</button>'+
             '<button class="cwd-btn" data-icone-vider="'+ic.cle+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+t('settings.brandClear')+'</button>'+
           '</div>';
-        }).join('')+
+        }).join('')+'</div>'+
         '<input type="file" id="iconeFichier" accept=".svg,image/svg+xml,image/png,image/webp" style="display:none">'+
       '</div>'+
       '<div class="settings-card"><div class="settings-card-title">'+t('settings.bgTitle')+'</div>'+
@@ -2085,10 +2152,22 @@ LaRuche.Settings = (function(){
         '</div>'+
       '</div>';
 
+    /* Pas d'apercu au survol ICI.
+
+       Dans le menu de la barre du haut il a du sens: on survole, on voit, on
+       choisit. Dans cet onglet il repeignait l'editeur sous les doigts, et
+       traverser la rangee de vignettes pour atteindre un champ suffisait a faire
+       relire au panneau des valeurs qui n'etaient pas celles du theme edite.
+       Le clic suffit, et il est sans ambiguite. */
     el.querySelectorAll('.theme-vignette').forEach(function(b){
-      b.onmouseenter = function(){ T.apercuSur(b.dataset.id); };
-      b.onmouseleave = function(){ T.apercuFin(); };
-      b.onclick = function(){ T.appliquer(b.dataset.id); loadApparence(el); };
+      b.onclick = function(){
+        // Une sauvegarde en attente appartient au theme qu'on quitte: elle
+        // ecrirait dans lui des valeurs relues apres le changement.
+        clearTimeout(_sauveMinuteur);
+        T.definirBrouillon(null);
+        T.appliquer(b.dataset.id);
+        loadApparence(el);
+      };
     });
 
     /* Chaque champ peint IMMEDIATEMENT, sans passer par un enregistrement: c'est
@@ -2102,6 +2181,7 @@ LaRuche.Settings = (function(){
        repeint le theme actif, et le repeignait depuis le fichier enregistre. Une
        image de fond posee disparaissait donc au premier mouvement de souris. */
     function declarer(){
+      if(_initEnCours) return;
       T.definirBrouillon({ id: actif, jetons: _themeBrouillon, marque: _marqueBrouillon,
                            fond: _fondBrouillon, icones: _iconesBrouillon });
       majEtat();
@@ -2137,8 +2217,19 @@ LaRuche.Settings = (function(){
       majEtat(t('settings.themeSaving'));
       _sauveMinuteur = setTimeout(async function(){
         var nom = (document.getElementById('themeNom')||{}).value || nomActuel;
+        // Le fond SANS son image quand elle n'a pas bouge, et pas d'icones du
+        // tout: le serveur garde ce qu'on ne lui mentionne pas.
+        var fond = {};
+        Object.keys(_fondBrouillon).forEach(function(k){
+          if(k !== 'image' || _sale.fond) fond[k] = _fondBrouillon[k];
+        });
+        var marque = { nom: _marqueBrouillon.nom || '', taille: _marqueBrouillon.taille || 0,
+                       masquerNom: !!_marqueBrouillon.masquerNom };
+        if(_sale.logo) marque.logo = _marqueBrouillon.logo || '';
         var r = await T.enregistrer(nom.trim()||nomActuel, _themeBrouillon,
-                                    actif.slice('perso:'.length), _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
+                                    actif.slice('perso:'.length), marque, fond,
+                                    _sale.icones ? _iconesBrouillon : undefined);
+        if(r && r.status === 'ok'){ _sale = { fond:false, icones:false, logo:false }; }
         majEtat(r && r.status === 'ok' ? t('settings.themeSavedOk') : t('settings.themeSaveFail'));
       }, 700);
     }
@@ -2226,6 +2317,7 @@ LaRuche.Settings = (function(){
       T.peindreMarque(_marqueBrouillon);
       declarer();
     }
+    _initEnCours = true;
     majEtat(perso ? t('settings.themeSavedOk') : t('settings.themeUnsaved'));
     rendreMarque();
     var mn = document.getElementById('marqueNom');
@@ -2240,13 +2332,28 @@ LaRuche.Settings = (function(){
         // Un SVG voyage en TEXTE, pas en data URI: le serveur doit pouvoir le
         // laver, et on ne lave pas ce qu'on ne peut pas lire. Le reste est une
         // image matricielle, opaque par nature, donc encodee telle quelle.
-        fr.onload = function(){ _marqueBrouillon.logo = String(fr.result); rendreMarque(); };
+        fr.onload = function(){ _marqueBrouillon.logo = String(fr.result); _sale.logo = true; rendreMarque(); };
         if(/svg/i.test(f.type) || /\.svg$/i.test(f.name)) fr.readAsText(f);
         else fr.readAsDataURL(f);
       };
     }
+    var man = document.getElementById('marqueAfficherNom');
+    if(man) man.onchange = function(){ _marqueBrouillon.masquerNom = !man.checked; rendreMarque(); };
+
+    var mt = document.getElementById('marqueTaille');
+    if(mt) mt.oninput = function(){
+      _marqueBrouillon.taille = parseInt(mt.value, 10);
+      var v = document.getElementById('marqueTailleVal');
+      if(v) v.textContent = mt.value + 'px';
+      rendreMarque();
+    };
+    (function(){
+      var v = document.getElementById('marqueTailleVal');
+      if(v) v.textContent = (_marqueBrouillon.taille || 34) + 'px';
+    })();
+
     var mv = document.getElementById('marqueVider');
-    if(mv) mv.onclick = function(){ _marqueBrouillon.logo = ''; rendreMarque(); };
+    if(mv) mv.onclick = function(){ _marqueBrouillon.logo = ''; _sale.logo = true; rendreMarque(); };
 
     /* ---- Les icones ---- */
     function rendreIcones(){
@@ -2254,9 +2361,18 @@ LaRuche.Settings = (function(){
         var ap = el.querySelector('[data-icone-apercu="'+ic.cle+'"]');
         if(!ap) return;
         var v = _iconesBrouillon[ic.cle];
-        ap.innerHTML = v
+        // Sans icone a soi, on montre CELLE QUI EST LA. Un tiret ne disait pas
+        // ce qu'on s'appretait a remplacer.
+        var contenu = v
           ? (String(v).slice(0,4) === 'data' ? '<img src="'+esc(v)+'" alt="">' : v)
-          : '<span style="color:var(--text-muted);font-size:15px">&#8722;</span>';
+          : T.iconeOrigine(ic.cle);
+        ap.innerHTML = contenu || '<span style="color:var(--text-muted);font-size:15px">&#8722;</span>';
+        ap.classList.toggle('lr-icone-pose', !!v);
+        // Une marque animee est dessinee a sa taille reelle: on la reduit ICI, et
+        // seulement ici, pour qu'elle tienne dans son cadre sans recouvrir la
+        // ligne suivante.
+        var e = (!v && ic.echelle) ? ic.echelle : 1;
+        ap.firstElementChild && (ap.firstElementChild.style.transform = e === 1 ? '' : 'scale(' + e + ')');
       });
       T.peindreIcones(_iconesBrouillon);
       declarer();
@@ -2267,7 +2383,7 @@ LaRuche.Settings = (function(){
       b.onclick = function(){ _icAttente = b.dataset.iconeChoisir; if(icf){ icf.value=''; icf.click(); } };
     });
     el.querySelectorAll('[data-icone-vider]').forEach(function(b){
-      b.onclick = function(){ delete _iconesBrouillon[b.dataset.iconeVider]; rendreIcones(); };
+      b.onclick = function(){ delete _iconesBrouillon[b.dataset.iconeVider]; _sale.icones = true; rendreIcones(); };
     });
     if(icf) icf.onchange = function(){
       var f = icf.files && icf.files[0];
@@ -2276,7 +2392,7 @@ LaRuche.Settings = (function(){
       var fr = new FileReader();
       // Un SVG voyage en TEXTE: le serveur doit pouvoir le laver, et on ne lave
       // pas ce qu'on ne peut pas lire.
-      fr.onload = function(){ _iconesBrouillon[_icAttente] = String(fr.result); _icAttente = null; rendreIcones(); };
+      fr.onload = function(){ _iconesBrouillon[_icAttente] = String(fr.result); _icAttente = null; _sale.icones = true; rendreIcones(); };
       if(/svg/i.test(f.type) || /\.svg$/i.test(f.name)) fr.readAsText(f);
       else fr.readAsDataURL(f);
     };
@@ -2302,6 +2418,7 @@ LaRuche.Settings = (function(){
         fr.onload = function(){
           _reduireImage(String(fr.result), function(reduite){
             _fondBrouillon.image = reduite;
+            _sale.fond = true;
             // Poser une image sans allumer une zone ne montrerait rien: la zone
             // centrale s'allume d'office, les autres restent au choix.
             if(!Object.keys(_fondBrouillon.zones).some(function(k){ return _fondBrouillon.zones[k]; })){
@@ -2315,7 +2432,7 @@ LaRuche.Settings = (function(){
       };
     }
     var fv = document.getElementById('fondVider');
-    if(fv) fv.onclick = function(){ _fondBrouillon.image = ''; rendreFond(); };
+    if(fv) fv.onclick = function(){ _fondBrouillon.image = ''; _sale.fond = true; rendreFond(); };
     var fo = document.getElementById('fondOpacite');
     if(fo) fo.oninput = function(){ _fondBrouillon.opacite = parseFloat(fo.value); rendreFond(); };
     var fcad = document.getElementById('fondCadrage');
@@ -2373,6 +2490,10 @@ LaRuche.Settings = (function(){
     /* Revenir aux valeurs d'origine de CE theme, pas au theme par defaut. Le
        bouton disait `themeReset` et sautait sur `defaut`, ce qui faisait perdre
        le theme choisi en plus des retouches. */
+    // Le panneau est dessine: a partir d'ici, un changement est un vrai
+    // changement, et vaut enregistrement.
+    _initEnCours = false;
+
     var reset = document.getElementById('themeReset');
     if(reset) reset.onclick = async function(){
       T.definirBrouillon(null);

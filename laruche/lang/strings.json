@@ -1100,20 +1100,20 @@
     "fr": "STT indisponible"
   },
   "chat.suggestion1": {
-    "en": "Explain the project architecture",
-    "fr": "Explique-moi l'architecture du projet"
+    "en": "Introduce yourself: what can you actually do?",
+    "fr": "Presente-toi : que sais-tu faire, concretement ?"
   },
   "chat.suggestion2": {
-    "en": "Which files were recently modified?",
-    "fr": "Quels fichiers ont été modifiés récemment ?"
+    "en": "Search the web for this week's AI news, with your sources",
+    "fr": "Cherche sur le web les nouveautes IA de la semaine, avec tes sources"
   },
   "chat.suggestion3": {
-    "en": "Analyze the errors in the logs",
-    "fr": "Analyse les erreurs dans les logs"
+    "en": "Warn me if a file lands on my desktop",
+    "fr": "Previens-moi si un fichier arrive sur mon bureau"
   },
   "chat.suggestion4": {
-    "en": "Create an action plan to optimize performance",
-    "fr": "Crée un plan d'action pour optimiser les performances"
+    "en": "What have you remembered about me so far?",
+    "fr": "Qu'as-tu retenu de moi jusqu'ici ?"
   },
   "chat.supprimerBtn": {
     "en": "Delete",
