@@ -88,14 +88,40 @@ fn parse_okf(content: &str, fallback_id: &str) -> (String, Vec<String>) {
                 }
             }
         } else if seen_front >= 2 {
-            if let Some(rest) = line.trim_start().strip_prefix("- ") {
-                let c = rest.split("  _(source:").next().unwrap_or(rest).trim();
-                if !c.is_empty() {
-                    items.push(c.to_string());
+            // Seul un `- ` en COLONNE 0 ouvre un item; tout ce qui est indente en
+            // dessous lui appartient. Sans cette distinction, une liste imbriquee
+            // dans un item se serait relue comme autant d'items separes, et un item
+            // sur plusieurs lignes n'aurait jamais pu revenir entier.
+            if let Some(rest) = line.strip_prefix("- ") {
+                let c = rest.split("  _(source:").next().unwrap_or(rest).trim_end();
+                items.push(c.to_string());
+            } else if !items.is_empty() {
+                let indente = line.starts_with("  ") || line.starts_with('\t');
+                if indente {
+                    let suite = line.strip_prefix("  ").unwrap_or_else(|| line.trim_start());
+                    // La ligne de source est une decoration de l'export, pas du contenu.
+                    if !suite.trim_start().starts_with("_(source:") {
+                        let dernier = items.last_mut().expect("items non vide");
+                        dernier.push('\n');
+                        dernier.push_str(suite.trim_end());
+                    }
+                } else if line.trim().is_empty() {
+                    // Une ligne vide au milieu d'un item en fait partie; une ligne vide
+                    // suivie de texte non indente le termine, et c'est le `- ` suivant
+                    // ou la fin du fichier qui tranche. On la garde en attente.
+                    let dernier = items.last_mut().expect("items non vide");
+                    dernier.push('\n');
                 }
             }
         }
     }
+    // Les lignes vides gardees en attente ne doivent pas trainer en fin d'item.
+    for it in items.iter_mut() {
+        while it.ends_with('\n') {
+            it.pop();
+        }
+    }
+    items.retain(|c| !c.trim().is_empty());
     (node_id, items)
 }
 
@@ -1179,11 +1205,32 @@ impl MemoireCognitive for SqliteBackend {
             md.push_str("---\n\n");
             md.push_str(&format!("# {label}\n\n"));
             for (content, source) in &items {
-                md.push_str(&format!("- {}", content.replace('\n', " ")));
-                if let Some(s) = source.as_ref().filter(|s| !s.is_empty()) {
-                    md.push_str(&format!("  _(source: {s})_"));
+                // Un item sur plusieurs lignes garde ses lignes.
+                //
+                // Elles etaient ecrasees par un `replace('\n', " ")`, et l'aller-retour
+                // ne fonctionnait QUE grace a cet aplatissement, puisque l'import lisait
+                // un item par ligne `- `. Autrement dit, chaque cycle export/import
+                // detruisait definitivement la mise en forme: perte de donnees, et pas
+                // seulement d'affichage, dans un format dont c'est precisement la raison
+                // d'etre de faire voyager du markdown.
+                //
+                // La continuation est indentee de deux espaces: c'est la continuation de
+                // liste standard, elle se rend correctement partout (GitHub compris), et
+                // elle se relit sans ambiguite puisque seul un `- ` en colonne 0 ouvre un
+                // item.
+                let mut lignes = content.lines();
+                let premiere = lignes.next().unwrap_or("");
+                md.push_str(&format!("- {premiere}\n"));
+                for l in lignes {
+                    if l.trim().is_empty() {
+                        md.push('\n');
+                    } else {
+                        md.push_str(&format!("  {l}\n"));
+                    }
                 }
-                md.push('\n');
+                if let Some(s) = source.as_ref().filter(|s| !s.is_empty()) {
+                    md.push_str(&format!("  _(source: {s})_\n"));
+                }
             }
             std::fs::write(node_dir.join("index.md"), md)?;
             files += 1;
@@ -1491,5 +1538,64 @@ impl MemoireCognitive for SqliteBackend {
         Ok(conn
             .query_row("SELECT 1", [], |r| r.get::<_, i64>(0))
             .is_ok())
+    }
+}
+
+#[cfg(test)]
+mod tests_okf_markdown {
+    use super::parse_okf;
+
+    /// Un item d'une seule ligne, la forme la plus courante: rien ne change.
+    #[test]
+    fn un_item_dune_ligne_se_relit_tel_quel() {
+        let doc = "---\ntype: memory-node\nid: projects.x\n---\n\n\
+                   # Projet X\n\n\
+                   - Le build passe en release.  _(source: butinage)_\n\
+                   - Le port par defaut est 8419.\n";
+        let (id, items) = parse_okf(doc, "fallback");
+        assert_eq!(id, "projects.x");
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0], "Le build passe en release.");
+        assert_eq!(items[1], "Le port par defaut est 8419.");
+    }
+
+    /// La regression qui comptait: un item en markdown revenait mutile.
+    ///
+    /// L'export l'aplatissait, l'import lisait une ligne par item, et l'aller-retour
+    /// ne "marchait" que grace a cette destruction. Un titre, une liste imbriquee et
+    /// une ligne vide doivent survivre au cycle.
+    #[test]
+    fn un_item_markdown_survit_a_l_aller_retour() {
+        let doc = "---\ntype: memory-node\nid: episodes.2026_09_02\n---\n\n\
+                   # Episodes\n\n\
+                   - Veille du 02/09 : rien de neuf.\n\
+                   \x20 \n\
+                   \x20 ### Verifications\n\
+                   \x20 - GitHub API : 0 resultat\n\
+                   \x20 - archive.org : rien\n\
+                   \x20 _(source: butinage)_\n\
+                   - Un autre fait, sur une ligne.\n";
+        let (_, items) = parse_okf(doc, "f");
+        assert_eq!(items.len(), 2, "la liste imbriquee ne doit pas devenir des items");
+        assert!(items[0].contains("### Verifications"), "le titre survit");
+        assert!(items[0].contains("- GitHub API : 0 resultat"), "la puce imbriquee survit");
+        assert!(items[0].contains("- archive.org : rien"));
+        assert!(!items[0].contains("source:"), "la decoration d'export n'est pas du contenu");
+        assert_eq!(items[1], "Un autre fait, sur une ligne.");
+    }
+
+    /// Un bundle ECRIT AILLEURS (la raison d'etre d'OKF) reste lisible: seules les
+    /// lignes de liste de premier niveau sont des items, le reste est ignore.
+    #[test]
+    fn un_bundle_etranger_reste_lisible() {
+        let doc = "---\ntype: BigQuery Table\ntitle: Orders\n---\n\n\
+                   # Schema\n\n\
+                   | Column | Type |\n|---|---|\n| id | STRING |\n\n\
+                   # Joins\n\n\
+                   - Joint avec [customers](/tables/customers.md) sur `customer_id`.\n";
+        let (id, items) = parse_okf(doc, "tables.orders");
+        assert_eq!(id, "tables.orders", "sans `id:`, le chemin fait foi");
+        assert_eq!(items.len(), 1);
+        assert!(items[0].contains("[customers](/tables/customers.md)"), "le lien OKF survit");
     }
 }

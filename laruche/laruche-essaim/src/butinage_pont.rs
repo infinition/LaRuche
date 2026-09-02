@@ -1998,11 +1998,22 @@ fn memoire_reference(ctx: &str) -> String {
                 && !u.contains("IGNORE THE PREVIOUS")
         })
         .filter_map(nettoyer_ligne_rappel)
-        .scan(std::collections::HashSet::new(), |vus, ligne| {
-            // Keep the FIRST occurrence: recall returns its best match first.
-            let deja_vu = cle_episode(&ligne).is_some_and(|cle| !vus.insert(cle));
-            Some((!deja_vu).then_some(ligne))
-        })
+        // La deduplication porte sur le BLOC entier, pas sur sa premiere ligne.
+        //
+        // Un episode tient desormais sur plusieurs lignes: sa continuation est
+        // indentee. Ne jeter que la ligne de titre d'un doublon aurait laisse
+        // derriere elle un corps orphelin, rattache visuellement a l'episode
+        // precedent. On retient donc la decision jusqu'au prochain item.
+        .scan(
+            (std::collections::HashSet::new(), false),
+            |(vus, on_jette), ligne| {
+                let suite = ligne.starts_with("  ") || ligne.trim().is_empty();
+                if !suite {
+                    *on_jette = cle_episode(&ligne).is_some_and(|cle| !vus.insert(cle));
+                }
+                Some((!*on_jette).then_some(ligne))
+            },
+        )
         .flatten()
         .collect::<Vec<_>>()
         .join("\n");
@@ -2812,19 +2823,29 @@ pub async fn executer_avec_bilan(
                 .take(4)
                 .collect::<Vec<_>>()
                 .join("_");
-            let extrait = couper_proprement(
-                &bilan.texte.split_whitespace().collect::<Vec<_>>().join(" "),
-                400,
-            );
+            // Le markdown de la reponse SURVIT.
+             //
+             // Il etait ecrase par un `split_whitespace().join(" ")`, et l'episode
+             // arrivait dans la memoire en un pave illisible. Le meme geste se
+             // retrouvait a l'ecriture du flux et a l'export OKF: partout ou une
+             // reponse d'agent etait conservee, sa structure etait detruite en
+             // chemin. C'est d'autant plus dommage qu'OKF, le format d'echange que
+             // la memoire sait exporter, EST du markdown: on aplatissait a
+             // l'ecriture ce qu'on pretendait faire voyager.
+             let extrait = couper_proprement(bilan.texte.trim(), 400);
             // Only what a FUTURE turn can act on. The pass count, the web-call count
             // and the session uuid were carried on every recalled episode and none of
             // them is actionable: the model cannot look a session up by id, and the
             // counters describe how the answer was produced, not what it said.
-            let contenu = format!(
-                "Mission: {} | outcome: {} | result: {extrait}",
-                couper_proprement(prompt_utilisateur, 200),
-                fin_str(&bilan.fin),
-            );
+            // La PREMIERE ligne garde sa forme en pipes, et ce n'est pas de la
+             // nostalgie: elle sert de cle de deduplication au rappel
+             // (`cle_episode` lit ce qui suit `Mission: ` jusqu'au premier ` | `).
+             // Le resultat, lui, passe en dessous, ou il peut enfin etre du markdown.
+             let contenu = format!(
+                 "Mission: {} | outcome: {}\n\n{extrait}",
+                 couper_proprement(prompt_utilisateur, 200),
+                 fin_str(&bilan.fin),
+             );
             let item = laruche_memoire::MemoryItem::new(
                 format!(
                     "episodes.{date}.{}",
@@ -3277,6 +3298,30 @@ mod tests_rappel {
         assert!(out.contains("T'as un skill sur la mémoire ?"));
         assert!(out.contains("outcome: accomplie"));
         assert!(out.contains("providers.rs a 01:18"));
+    }
+
+    /// Un doublon multi-ligne part ENTIER, corps compris.
+    ///
+    /// L'episode s'ecrit desormais en markdown: titre en pipes sur la premiere
+    /// ligne, resultat indente en dessous. Ne jeter que la ligne de titre du
+    /// doublon aurait laisse son corps orphelin, recolle visuellement a l'episode
+    /// precedent, et le contexte aurait paye deux fois le meme resultat.
+    #[test]
+    fn un_doublon_multiligne_part_avec_son_corps() {
+        let ctx = "- Mission: Chasse au firmware | outcome: accomplie
+  ### Resultat
+  - GitHub: rien
+- Mission: Chasse au firmware | outcome: accomplie
+  ### Resultat DOUBLON
+  - archive.org: rien
+- Mission: Autre chose | outcome: accomplie
+  Un corps a garder";
+
+        let out = memoire_reference(ctx);
+        assert_eq!(out.matches("Chasse au firmware").count(), 1, "titre");
+        assert!(!out.contains("DOUBLON"), "le corps du doublon part aussi");
+        assert!(out.contains("- GitHub: rien"), "le corps du premier survi");
+        assert!(out.contains("Un corps a garder"), "l'episode suivant est intact");
     }
 
     #[test]

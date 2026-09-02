@@ -151,7 +151,21 @@ impl ContextPack {
                     .or_else(|| it.get("text"))
                     .and_then(Value::as_str)
                 {
-                    out.push_str(&format!("- {content}\n"));
+                    // Un item sur plusieurs lignes est UN bloc, et doit se voir
+                    // comme tel: la continuation est indentee. Sans cela, ses lignes
+                    // arrivaient au meme rang que les items voisins, et tout ce qui
+                    // raisonne ligne par ligne en aval (nettoyage, deduplication) les
+                    // prenait pour des items a part entiere.
+                    let mut lignes = content.lines();
+                    let premiere = lignes.next().unwrap_or("");
+                    out.push_str(&format!("- {premiere}\n"));
+                    for l in lignes {
+                        if l.trim().is_empty() {
+                            out.push('\n');
+                        } else {
+                            out.push_str(&format!("  {l}\n"));
+                        }
+                    }
                 }
             }
         }
