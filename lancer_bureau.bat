@@ -83,7 +83,12 @@ for /d %%S in ("skills\*") do (
     )
 )
 
-cargo build --release -p laruche-node -p laruche-bureau
+REM  Le workspace entier, et non une liste de paquets. Une liste se perime en
+REM  silence: c'est exactement ce qui est arrive au niveau du Cargo.toml, ou
+REM  `laruche-bureau` manquait aux default-members et ou un `cargo build --release`
+REM  laissait laruche.exe a la version d'avant sans rien dire. Les default-members
+REM  portent desormais tout ce qu'il faut, donc une seule commande suffit ici.
+cargo build --release
 if errorlevel 1 (
     echo.
     echo !! Echec du build. Voir les erreurs ci-dessus.

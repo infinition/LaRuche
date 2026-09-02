@@ -20,6 +20,13 @@ members = [
 # `cargo build` a la racine ne construit pas les outils ponctuels: le generateur
 # d'icones ne sert qu'a la demande, et ses dependances de rendu n'ont rien a faire
 # dans la construction courante ni dans le workflow de release.
+#
+# `laruche-bureau` y est, lui, parce qu'il EST l'application: sans lui, un
+# `cargo build --release` laissait `laruche.exe` a la version precedente sans rien
+# dire, et on lancait un binaire perime en croyant tester ses corrections. Il ne
+# coute rien de plus a personne: la CI le compile deja par `cargo test --all` et
+# `cargo clippy --all`, et installe pour lui les paquets GTK sur Linux; le workflow
+# de release le nomme explicitement.
 default-members = [
     "miel-protocol",
     "laruche-node",
@@ -34,6 +41,7 @@ default-members = [
     "laruche-compaction",
     "laruche-butinage",
     "laruche-evals",
+    "laruche-bureau",
 ]
 
 [workspace.package]

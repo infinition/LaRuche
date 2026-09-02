@@ -42,9 +42,20 @@ impl Role {
     /// Directive (English) appended to the child's system prompt.
     pub fn directive(self) -> &'static str {
         match self {
+            // `web_discover` is NAMED here on purpose. Access is not enough: the scout
+            // inherits it from the parent's toolset, and still never reached for it -
+            // observed on a firmware hunt where four scouts ran dozens of
+            // web_deep_search and web_fetch and not one enumeration, on a question
+            // ("does this site HOLD the file") that only enumeration answers. The
+            // specialist role in `subagent.rs` learned the same lesson and states it:
+            // allowing a tool is not enough, the role prompt has to point at it.
             Role::Eclaireuse => "You are a SCOUT bee on a focused research sub-mission. Search broadly across \
                 several angles, gather concrete facts with sources, and report concisely. Never ask the user \
-                questions: you are autonomous. Call task_complete with a tight factual summary when done.",
+                questions: you are autonomous. \
+                When your angle is a SITE rather than a question - does it hold this file, what does it \
+                actually contain - call web_discover on it: never guess paths one web_fetch at a time, and \
+                never report a site as empty until web_discover has said so. \
+                Call task_complete with a tight factual summary when done.",
             Role::Ouvriere => "You are a WORKER bee executing one focused sub-task (computation, file work, \
                 code). Do the work with tools, verify it, and report the concrete result via task_complete.",
             Role::Gardienne => "You are a GUARDIAN bee. Critically verify the given claim or result. Try to \
@@ -335,5 +346,27 @@ mod tests {
         assert_eq!(rapport.role, Role::Eclaireuse);
         assert_eq!(rapport.synthese, "3 sources trouvées");
         assert!(rapport.en_observation().contains("trouver des sources"));
+    }
+}
+
+#[cfg(test)]
+mod tests_directive {
+    use super::Role;
+
+    /// Autoriser un outil ne suffit pas: le prompt du role doit le nommer.
+    ///
+    /// L'eclaireuse herite de l'outillage du parent, donc `web_discover` lui etait
+    /// deja accessible, et elle ne l'appelait jamais. Sa directive ne parlait que de
+    /// "search broadly", ce qui la renvoyait vers la recherche web. Sur une question
+    /// d'enumeration (ce site contient-il ce fichier), c'est l'outil qui repond, et
+    /// aucun autre.
+    #[test]
+    fn la_directive_de_leclaireuse_nomme_loutil_qui_enumere() {
+        let d = Role::Eclaireuse.directive();
+        assert!(d.contains("web_discover"), "l'outil doit etre nomme, pas seulement autorise");
+        assert!(d.contains("task_complete"), "et la facon de rendre son rapport aussi");
+        // Les autres roles ne cherchent pas: la directive ne doit pas leur etre collee.
+        assert!(!Role::Architecte.directive().contains("web_discover"));
+        assert!(!Role::Ouvriere.directive().contains("web_discover"));
     }
 }

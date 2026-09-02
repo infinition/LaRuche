@@ -1,9 +1,15 @@
 @echo off
 setlocal
 REM ============================================================
-REM  LaRuche v2 - lancement avec le NOUVEAU moteur ReAct "butinage"
-REM  (identique a lancer.bat + RUCHE_MOTEUR=butinage)
-REM  Pour revenir a l'ancien moteur : utilise lancer.bat
+REM  LaRuche v2 - le noeud seul, dans un terminal
+REM
+REM  Pas de coque de bureau: le noeud sert la SPA, et ce script
+REM  ouvre le navigateur des qu'il repond. Utilise lancer_bureau.bat
+REM  pour la meme interface dans sa propre fenetre.
+REM
+REM  RUCHE_MOTEUR=butinage plus bas est desormais REDONDANT: butinage
+REM  est le moteur par defaut, et l'ancien (brain) est deprecie. La
+REM  ligne reste explicite, elle ne coute rien et elle documente.
 REM ============================================================
 cd /d "%~dp0laruche"
 
@@ -80,7 +86,10 @@ for /d %%S in ("skills\*") do (
 )
 
 echo === Build de laruche-node ===
-cargo build -p laruche-node
+REM  --release, comme tous les autres lanceurs. En debug, l'agent tourne des fois
+REM  plus lentement pour rien, et le seul target\debug de ce depot pesait 38 Go.
+REM  Pour deboguer avec les symboles, retire --release ici ET plus bas.
+cargo build --release -p laruche-node
 if errorlevel 1 (
     echo.
     echo !! Echec du build. Voir les erreurs ci-dessus.
@@ -96,6 +105,6 @@ REM perime) avec des appels API qui echouent. Sonde en fenetre reduite, 5 min ma
 start "" /min powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 600;$i++){ try{ $null=Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 'http://127.0.0.1:8419/'; $ok=$true; break } catch { Start-Sleep -Milliseconds 500 } }; if($ok){ Start-Process 'http://localhost:8419' }"
 
 echo === Demarrage du serveur ^(moteur butinage, Ctrl+C pour arreter^) ===
-cargo run -p laruche-node
+target\release\laruche-node.exe
 
 endlocal

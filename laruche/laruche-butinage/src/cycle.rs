@@ -583,16 +583,24 @@ fn assembler(carnet: &Carnet, reglages: &Reglages, nouveautes: Option<&str>) -> 
 
     if reglages.systeme_en_queue_permis {
         v.push(Message::systeme(bloc));
-    } else if let Some(dernier) = v.iter_mut().rev().find(|m| m.role != Role::Systeme) {
-        // The LAST non-system message, whatever its role. Targeting the last USER
-        // turn instead looked natural and was wrong: an agentic context ends on
-        // observations, so the block landed mid-conversation and lost exactly the
-        // recency it exists for. Appending here introduces no new role for a strict
-        // template to reject, and keeps the tail position.
-        dernier.contenu = format!("{}\n\n{bloc}", dernier.contenu);
-    } else if let Some(premier) = v.first_mut() {
-        // Nothing but system messages: better inside the prompt than lost.
-        premier.contenu = format!("{}\n\n{bloc}", premier.contenu);
+    } else {
+        // A message of ITS OWN, never concatenated onto the previous one.
+        //
+        // Appending to the last non-system message kept the tail position and cost
+        // the block its identity: an agentic context ends on an OBSERVATION, so the
+        // ledger landed glued to the end of a tool result, inside the `role: "tool"`
+        // content on the wire. The model has no way to tell where the tool stopped
+        // talking and the harness started. Observed, in its own words: "la lecture est
+        // parasitee en plein milieu", "mes episodes memoire polluent les resultats,
+        // je les ignore", followed by re-reading files in narrow ranges to work around
+        // a corruption that was ours. It distrusted its own tools, and it was right to.
+        //
+        // A trailing USER message fixes it with no downside. It is what the recall
+        // nudge already does at mission start on every backend, so the transport is
+        // proven; a trailing SYSTEM message is the one strict templates refuse, and
+        // that refusal is what `systeme_en_queue_permis` is about. Recency is
+        // identical, and the block is now unambiguously the harness speaking.
+        v.push(Message::nudge(bloc));
     }
     v
 }
@@ -1364,6 +1372,36 @@ It is Sunday.".into()),
                 "the ledger must close the context (systeme_en_queue_permis={permis})"
             );
         }
+    }
+
+    /// Le bloc de queue ne doit JAMAIS etre colle a la fin d'une observation.
+    ///
+    /// Colle, il voyage a l'interieur du `role: "tool"` et devient indiscernable de
+    /// ce que l'outil a reellement renvoye. Le modele l'a signale lui-meme: "la
+    /// lecture est parasitee en plein milieu", puis s'est mis a relire ses fichiers
+    /// par plages etroites pour contourner une corruption qui venait de nous.
+    #[test]
+    fn la_queue_ne_se_colle_pas_a_une_observation() {
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        carnet.ajouter_decouverte("Le jeu est sorti en 2002", Some("https://ex.org"));
+        // La forme exacte qui piegeait: le contexte se termine sur une observation.
+        let mut obs = Message::observation("web_search", "resultat de la recherche");
+        obs.appel_id = Some("c1".into());
+        carnet.historique.push(obs);
+        assert_eq!(carnet.historique.last().map(|m| m.role), Some(Role::Observation));
+
+        let sortant = assembler(&carnet, &Reglages::default(), None);
+        let dernier = sortant.last().unwrap();
+        assert!(dernier.contenu.contains("Findings ledger"));
+        assert_ne!(dernier.role, Role::Observation, "le bloc doit avoir son propre message");
+        // Et aucune observation ne doit porter une miette du bloc.
+        assert!(
+            !sortant
+                .iter()
+                .filter(|m| m.role == Role::Observation)
+                .any(|m| m.contenu.contains("Findings ledger")),
+            "aucune observation ne doit etre parasitee"
+        );
     }
 
     #[test]
