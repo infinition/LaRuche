@@ -860,7 +860,23 @@ LaRuche.Chat = (function(){
         }
         var executing=/^executing:/i.test(statusMessage);
         if(executing)setFeedLive('tool');
-        addActivity('status',executing?LaRuche.i18n.t('chat.preparationExecution'):LaRuche.i18n.t('chat.miseAJourAgent'),statusMessage,false);
+        // Le message EST l'information: il va sur la LIGNE, pas dans un repli.
+        //
+        // Le libelle etait le generique "Mise a jour de l'agent" et le message reel
+        // partait dans le corps, replie par defaut. Il fallait donc deplier pour lire
+        // une ligne, et une recherche a quatre eclaireuses empilait vingt lignes
+        // identiques et vides, chacune cachant un "Parallel recolte of 4 tools" qu'on
+        // aurait pu lire d'un coup d'oeil. Au-dela d'une ligne, on garde le repli:
+        // c'est la qu'il sert.
+        var statutCourt = statusMessage.length <= 120 && statusMessage.indexOf('\n') === -1;
+        addActivity(
+          'status',
+          statutCourt
+            ? statusMessage
+            : (executing ? LaRuche.i18n.t('chat.preparationExecution') : LaRuche.i18n.t('chat.miseAJourAgent')),
+          statutCourt ? undefined : statusMessage,
+          false
+        );
         if(isStreaming) document.getElementById('iterationBadge').textContent=statusMessage;
         if(statusMessage.indexOf('🔄')===0){
           var lm=document.getElementById('loopMonitor');
@@ -1979,11 +1995,21 @@ LaRuche.Chat = (function(){
     var target=_feedPrevCard.querySelector('.feed-step-title');
     if(target)target.textContent=title;
   }
+  // La coupure VISUELLE appartient a la CSS, pas a nous.
+  //
+  // `.cc-act .act-txt` porte deja `overflow:hidden; text-overflow:ellipsis;
+  // white-space:nowrap` sur une boite en `flex:1`: le navigateur coupe donc a la
+  // largeur reellement disponible, et recalcule seul au redimensionnement. Couper a
+  // 42 caracteres ici passait devant, et rendait la meme ligne tronquee au meme
+  // endroit sur un ecran de 3440 pixels que sur un telephone, avec les trois quarts
+  // de la place inutilises. Il ne reste qu'un garde-fou de volume, pour qu'un
+  // argument de 300 Ko n'atterrisse pas entier dans le DOM.
+  var DETAIL_MAX = 400;
   function toolActivityLabel(name,args){
     var base=humanToolName(name);
     var detail=(toolContext(args)||'').replace(/\s+/g,' ').trim();
     if(!detail)return base;
-    return base+' · '+(detail.length>42?detail.slice(0,42)+'…':detail);
+    return base+' · '+(detail.length>DETAIL_MAX?detail.slice(0,DETAIL_MAX)+'…':detail);
   }
   function pruneFeedHistory(af){
     var cards=[];
