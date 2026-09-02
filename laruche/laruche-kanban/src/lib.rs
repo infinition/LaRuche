@@ -334,6 +334,23 @@ impl KanbanBoard {
         }
     }
 
+    /// Le profil et le modele d'une tache.
+    ///
+    /// Ils manquaient, et le formulaire d'edition les envoyait pourtant: la
+    /// requete etait acceptee, le champ ignore, et l'utilisateur voyait son choix
+    /// revenir a l'ancien sans qu'aucune erreur ne le dise. Vide vaut « hériter du
+    /// defaut », comme pour le canal juste au-dessus.
+    pub fn set_moteur(&mut self, id: Uuid, profile_id: Option<String>, model: Option<String>) -> bool {
+        if let Some(t) = self.tasks.get_mut(&id) {
+            t.profile_id = profile_id.filter(|v| !v.trim().is_empty());
+            t.model = model.filter(|v| !v.trim().is_empty());
+            self.save();
+            true
+        } else {
+            false
+        }
+    }
+
     /// Effective channel of a task: its own channel, otherwise the board default.
     pub fn effective_channel(&self, id: Uuid) -> Option<String> {
         self.tasks

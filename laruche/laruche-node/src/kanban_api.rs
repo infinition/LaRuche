@@ -236,6 +236,16 @@ pub(crate) async fn api_kanban_update(
         if body.get("channel").is_some() {
             board.set_channel(uuid, body["channel"].as_str().map(|s| s.to_string()));
         }
+        // Le profil et le modele: le formulaire les envoyait deja, le handler ne les
+        // lisait pas. Troisieme cas de la meme famille apres les vigies et les crons,
+        // et le plus discret: la requete repondait OK et ne changeait rien.
+        if body.get("profile_id").is_some() || body.get("model").is_some() {
+            board.set_moteur(
+                uuid,
+                body["profile_id"].as_str().map(|s| s.to_string()),
+                body["model"].as_str().map(|s| s.to_string()),
+            );
+        }
         if board.update(uuid, title, description).is_some() {
             return StatusCode::OK;
         }
