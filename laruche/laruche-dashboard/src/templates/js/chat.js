@@ -219,10 +219,17 @@ LaRuche.i18n.add({
   'chat.leRunEstTermine':       {fr:'Le run est terminé.', en:'The run is finished.'},
   'chat.executes':              {fr:'exécuté',             en:'executed'},
   'chat.welcomeSubtitle':       {fr:'Agent IA propulse par LaRuche.<br>Posez votre question ou donnez une instruction.', en:'AI Agent powered by LaRuche.<br>Ask a question or give an instruction.'},
-  'chat.suggestion1':           {fr:"Explique-moi l'architecture du projet", en:'Explain the project architecture'},
-  'chat.suggestion2':           {fr:'Quels fichiers ont ete modifies recemment ?', en:'Which files were recently modified?'},
-  'chat.suggestion3':           {fr:'Analyse les erreurs dans les logs', en:'Analyze the errors in the logs'},
-  'chat.suggestion4':           {fr:"Cree un plan d'action pour optimiser les performances", en:'Create an action plan to optimize performance'},
+  /* Autoportantes, et c'est tout le sujet. Les quatre precedentes etaient des
+     restes de gabarit d'assistant de code et n'avaient aucun referent: "du
+     projet" lequel, "les logs" lesquels, "les performances" de quoi. Cliquer la
+     premiere ne pouvait produire qu'une demande de precision, apres une dizaine
+     d'appels passes a chercher de quel projet on parlait. Une suggestion qui
+     oblige a poser une question ne suggere rien.
+     Une par pilier: les skills, le web, la surveillance, la memoire. */
+  'chat.suggestion1':           {fr:'Que sais-tu faire ? Montre-moi tes skills', en:'What can you do? Show me your skills'},
+  'chat.suggestion2':           {fr:'Cherche sur le web et fais-moi une synthese sourcee', en:'Search the web and write me a sourced summary'},
+  'chat.suggestion3':           {fr:'Previens-moi quand un fichier arrive sur mon bureau', en:'Warn me when a file lands on my desktop'},
+  'chat.suggestion4':           {fr:"Qu'est-ce que tu as retenu de moi ?", en:'What have you remembered about me?'},
   'chat.mediaAjoutes':          {fr:' média(s) ajouté(s) à la réponse.', en:' media added to the response.'},
   'chat.skillsLabel':           {fr:'🧩 Skills',                en:'🧩 Skills'},
   'chat.monProfil':             {fr:'Mon profil',              en:'My profile'},

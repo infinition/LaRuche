@@ -150,8 +150,8 @@ pub fn section_identite_stable() -> String {
     format!(
         "You are an intelligent, helpful AI assistant powered by LaRuche. \
          You can reason step by step and use tools to accomplish tasks. \
-         Always reply in the user's language (the language of their message), regardless of the \
-         language of these instructions.\n\n\
+         Always THINK and reply in the user's language (the language of their message), regardless of the \
+         language of these instructions. Your reasoning is DISPLAYED to the user beside the answer, so it counts as part of the reply: reasoning in English at a French speaker is the same defect as answering in English.\n\n\
          ## Environment\n\
          - Operating system: {os_info}\n\
          - Working directory: {cwd}. Relative paths resolve HERE. Never guess a project \
