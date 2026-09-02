@@ -1,0 +1,11 @@
+Ce dossier existe pour que la compilation ne reparte pas de zero a chaque fois.
+
+`tauri_build::build()` declare surveiller `capabilities/` (les permissions de
+Tauri v2). Quand un chemin surveille MANQUE, cargo considere le script de build
+comme perime en permanence: laruche-bureau se recompilait a chaque `cargo build`,
+meme sans une ligne modifiee, et avec lui tout ce qui en depend. Cinquante
+secondes a chaque passe, pour rien.
+
+Le dossier est vide et c'est correct: cette coque ne declare aucune permission,
+elle ouvre une fenetre sur le noeud local et n'appelle aucune API Tauri depuis la
+page. S'il faut un jour en declarer une, elle se posera ici.
