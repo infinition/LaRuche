@@ -1,6 +1,8 @@
 /* Le popup reprend la palette ambre de LaRuche, en une seule surface compacte. */
 
 :root {
+  color-scheme: dark;
+  --fond-hote: #202124;
   --fond: #17150f;
   --fond-champ: #221e15;
   --fond-outil: #1d1a13;
@@ -14,6 +16,8 @@
 
 @media (prefers-color-scheme: light) {
   :root {
+    color-scheme: light;
+    --fond-hote: #f1f3f4;
     --fond: #fdfaf3;
     --fond-champ: #fff;
     --fond-outil: #f8f1df;
@@ -26,7 +30,12 @@
 
 * { box-sizing: border-box; }
 
-html { background: transparent; }
+/*
+ * Chrome peint la fenetre native du popup en rectangle opaque. La couleur
+ * du canevas reprend donc sa surface claire ou sombre afin que les zones
+ * exterieures au rayon se fondent visuellement dans le navigateur.
+ */
+html { background: var(--fond-hote); }
 
 body {
   width: 440px;

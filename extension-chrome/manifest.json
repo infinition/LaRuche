@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_ext_name__",
   "description": "Lets your hive drive this browser: it opens its own tabs in a visible group and marks the page it controls.",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "default_locale": "en",
   "homepage_url": "https://github.com/infinition/LaRuche",
   "incognito": "not_allowed",
