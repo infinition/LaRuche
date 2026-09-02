@@ -413,6 +413,19 @@ LaRuche.i18n.add({
   'settings.toolDangerSafe':     {fr:'safe',             en:'safe'},
   'settings.toolEnabled':        {fr:' activée',         en:' enabled'},
   'settings.toolDisabled':       {fr:' désactivée',      en:' disabled'},
+  'settings.navAppearance':     {fr:'Apparence',            en:'Appearance'},
+  'settings.themeTitle':        {fr:'Thème de l’interface', en:'Interface theme'},
+  'settings.themeHint':         {fr:'Le changement est immédiat. Survolez un thème pour le voir avant de choisir.', en:'Applied immediately. Hover a theme to see it before choosing.'},
+  'settings.themeNew':          {fr:'Nouveau thème',        en:'New theme'},
+  'settings.themeEditTitle':    {fr:'Couleurs du thème',    en:'Theme colours'},
+  'settings.themeEditHint':     {fr:'Chaque couleur s’applique en direct. Enregistrez pour la garder.', en:'Every colour applies live. Save to keep it.'},
+  'settings.themeName':         {fr:'Nom du thème',         en:'Theme name'},
+  'settings.themeSave':         {fr:'Enregistrer le thème', en:'Save theme'},
+  'settings.themeDelete':       {fr:'Supprimer',            en:'Delete'},
+  'settings.themeReset':        {fr:'Revenir au thème LaRuche', en:'Back to the LaRuche theme'},
+  'settings.themeSaved':        {fr:'Thème enregistré',     en:'Theme saved'},
+  'settings.themeBuiltinHint':  {fr:'Ce thème est intégré. Modifiez une couleur et enregistrez : une copie sera créée, l’original reste intact.', en:'This theme is built in. Change a colour and save: a copy is created, the original stays untouched.'},
+  'settings.themePreview':      {fr:'Aperçu',               en:'Preview'},
   'settings.qrTitle':           {fr:'Ouvrir sur un téléphone', en:'Open on a phone'},
   'settings.qrHint':            {fr:"Scanne le code, ou tape l'adresse. Le téléphone doit être sur le même réseau que cette machine.", en:'Scan the code, or type the address. The phone must be on the same network as this machine.'},
   'settings.qrNoLan':           {fr:'Aucune adresse réseau utilisable sur cette machine.', en:'No usable network address on this machine.'},
@@ -588,6 +601,7 @@ LaRuche.Settings = (function(){
   function _ic(path){ return '<svg class="settings-nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>'; }
   var SECTIONS = [
     { id:'profile',      i18n:'settings.navProfile',      icon:_ic('<circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/>') },
+    { id:'appearance',   i18n:'settings.navAppearance',   icon:_ic('<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>') },
     { id:'general',      i18n:'settings.navGeneral',      icon:_ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>') },
     { id:'chat',         i18n:'settings.navChat',         icon:_ic('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
     { id:'generation',   i18n:'settings.navGeneration',   icon:_ic('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/>') },
@@ -738,6 +752,7 @@ LaRuche.Settings = (function(){
     host.appendChild(el);
     el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.loading')+'</div>';
     switch(tab) {
+      case 'appearance': loadApparence(el); break;
       case 'profile': loadProfile(el); break;
       case 'general': loadGeneral(el); break;
       case 'chat': loadChat(el); break;
@@ -1583,6 +1598,166 @@ LaRuche.Settings = (function(){
         '<p style="color:var(--text-dim);font-size:12px;margin:6px 0 0">'+t('settings.qrNoLanHint')+'</p>';
     }
     return '<div class="settings-card"><div class="settings-card-title">'+t('settings.qrTitle')+'</div>'+corps+'</div>';
+  }
+
+  /* Apparence: le catalogue, l'editeur genere depuis LaRuche.Themes.GROUPES, et
+     un apercu qui montre du VRAI contenu.
+
+     L'editeur n'est pas ecrit a la main. Il se construit a partir des groupes
+     declares dans themes.js, donc un jeton ajoute la-bas apparait ici sans qu'on
+     y touche, et il ne peut pas exister de champ qui ne corresponde a rien. Les
+     valeurs affichees sont lues sur le theme COURANT, telles que le navigateur
+     les calcule, plutot que recopiees dans une liste qui aurait divergé. */
+  var _themeBrouillon = null;
+
+  function _hexDe(v){
+    var t = String(v||'').trim();
+    var m = t.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+    if(m){
+      var h = m[1];
+      if(h.length === 3) h = h.split('').map(function(c){ return c+c; }).join('');
+      return '#'+h.slice(0,6);
+    }
+    m = t.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+    if(m){
+      return '#'+[m[1],m[2],m[3]].map(function(n){
+        return Math.max(0,Math.min(255,Math.round(Number(n)))).toString(16).padStart(2,'0');
+      }).join('');
+    }
+    return null;
+  }
+
+  function _apercuMarkdown(){
+    var t = LaRuche.i18n.t;
+    return '<div class="settings-card"><div class="settings-card-title">'+t('settings.themePreview')+'</div>'+
+      '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px">'+
+        '<h3 style="margin:0 0 4px;font-size:19px;color:var(--text)">Titre de document</h3>'+
+        '<p style="margin:0 0 12px;font-size:12px;color:var(--text-dim)">Sous-titre, en texte atténué</p>'+
+        '<p style="margin:0 0 8px;color:var(--text);font-size:13.5px">Du texte courant avec du <b>gras</b>, de l’<i>italique</i>, '+
+          '<code style="background:var(--bg-input);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:12px">du code</code> '+
+          'et un <a href="#" onclick="return false" style="color:var(--amber)">lien</a>.</p>'+
+        '<blockquote style="margin:0 0 10px;padding:4px 0 4px 11px;border-left:2px solid var(--amber);color:var(--text-dim);font-style:italic;font-size:13px">Une citation, pour voir la bordure d’accent.</blockquote>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+
+          '<span style="background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:10px;font-size:11px">succès</span>'+
+          '<span style="background:var(--red-dim);color:var(--red);padding:2px 8px;border-radius:10px;font-size:11px">erreur</span>'+
+          '<span style="background:var(--blue-dim);color:var(--blue);padding:2px 8px;border-radius:10px;font-size:11px">info</span>'+
+          '<span style="background:var(--cyan-dim);color:var(--cyan);padding:2px 8px;border-radius:10px;font-size:11px">cyan</span>'+
+        '</div>'+
+        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:9px 11px">'+
+          '<div style="font-size:12px;color:var(--text-dim)">Une carte, sur le fond des panneaux</div>'+
+        '</div>'+
+      '</div></div>';
+  }
+
+  function loadApparence(el){
+    if(!window.LaRuche || !LaRuche.Themes){ el.innerHTML=''; return; }
+    var t = LaRuche.i18n.t, esc = LaRuche.Utils.esc;
+    var actif = LaRuche.Themes.actif();
+    var perso = LaRuche.Themes.estPerso(actif);
+
+    var vignettes = LaRuche.Themes.catalogue().map(function(x){
+      return '<button class="theme-vignette" data-id="'+esc(x.id)+'" style="'+
+        'display:flex;flex-direction:column;gap:6px;align-items:center;background:none;cursor:pointer;'+
+        'border:1px solid '+(x.id===actif?'var(--amber)':'var(--border)')+';border-radius:10px;padding:9px 7px;min-width:96px">'+
+        '<span style="width:100%;height:36px;border-radius:6px;background:'+x.fond+';border:1px solid var(--border);'+
+          'display:flex;align-items:center;justify-content:center">'+
+          '<span style="width:11px;height:11px;border-radius:50%;background:'+x.point+'"></span></span>'+
+        '<span style="font-size:11.5px;color:var(--text-dim);max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.nom)+'</span>'+
+      '</button>';
+    }).join('');
+
+    var jetons = LaRuche.Themes.jetonsCourants();
+    _themeBrouillon = Object.assign({}, jetons);
+    var champs = LaRuche.Themes.GROUPES.map(function(g){
+      var lignes = g.jetons.map(function(j){
+        var val = jetons[j.cle] || '';
+        var hex = _hexDe(val);
+        return '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+          '<input type="color" data-jeton="'+j.cle+'" value="'+(hex||'#000000')+'" '+
+            (hex?'':'disabled title="valeur non convertible en couleur simple" ')+
+            'style="width:30px;height:24px;padding:0;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer">'+
+          '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+esc(j[LaRuche.i18n.get()]||j.fr)+'</span>'+
+          '<input type="text" data-jeton-txt="'+j.cle+'" value="'+esc(val)+'" spellcheck="false" '+
+            'style="width:150px;background:var(--bg-input);color:var(--text-dim);border:1px solid var(--border);'+
+            'border-radius:5px;padding:3px 7px;font-family:var(--mono);font-size:11px">'+
+        '</div>';
+      }).join('');
+      return '<div style="margin-bottom:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;'+
+        'color:var(--text-muted);margin-bottom:5px">'+esc(g.titre[LaRuche.i18n.get()]||g.titre.fr)+'</div>'+lignes+'</div>';
+    }).join('');
+
+    var nomActuel = '';
+    if(perso){
+      LaRuche.Themes.catalogue().forEach(function(x){ if(x.id===actif) nomActuel = x.nom; });
+    }
+
+    el.innerHTML =
+      '<div class="settings-card"><div class="settings-card-title">'+t('settings.themeTitle')+'</div>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.themeHint')+'</p>'+
+        '<div id="themeVignettes" style="display:flex;gap:9px;flex-wrap:wrap">'+vignettes+'</div>'+
+      '</div>'+
+      _apercuMarkdown()+
+      '<div class="settings-card"><div class="settings-card-title">'+t('settings.themeEditTitle')+'</div>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+
+          t('settings.themeEditHint')+(perso?'':' '+t('settings.themeBuiltinHint'))+'</p>'+
+        champs+
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">'+
+          '<input id="themeNom" class="form-input" placeholder="'+esc(t('settings.themeName'))+'" value="'+esc(nomActuel)+'" style="flex:1;min-width:170px">'+
+          '<button class="send-btn" id="themeSave"><span>'+t('settings.themeSave')+'</span></button>'+
+          (perso?'<button class="cwd-btn" id="themeDel" style="opacity:1;font-size:12px;padding:7px 11px;color:var(--red)">'+t('settings.themeDelete')+'</button>':'')+
+          '<button class="cwd-btn" id="themeReset" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeReset')+'</button>'+
+        '</div>'+
+      '</div>';
+
+    el.querySelectorAll('.theme-vignette').forEach(function(b){
+      b.onmouseenter = function(){ LaRuche.Themes.apercuSur(b.dataset.id); };
+      b.onmouseleave = function(){ LaRuche.Themes.apercuFin(); };
+      b.onclick = function(){ LaRuche.Themes.appliquer(b.dataset.id); loadApparence(el); };
+    });
+
+    /* Chaque champ peint IMMEDIATEMENT, sans passer par un enregistrement: c'est
+       la seule facon de choisir une couleur, en la voyant sur l'interface reelle
+       et non sur un carre de 30 pixels. Le brouillon retient ce qui a change,
+       l'enregistrement le fige dans un fichier. */
+    function poser(cle, valeur){
+      _themeBrouillon[cle] = valeur;
+      document.documentElement.style.setProperty(cle, valeur);
+    }
+    el.querySelectorAll('[data-jeton]').forEach(function(inp){
+      inp.oninput = function(){
+        poser(inp.dataset.jeton, inp.value);
+        var txt = el.querySelector('[data-jeton-txt="'+inp.dataset.jeton+'"]');
+        if(txt) txt.value = inp.value;
+      };
+    });
+    el.querySelectorAll('[data-jeton-txt]').forEach(function(inp){
+      inp.oninput = function(){
+        poser(inp.dataset.jetonTxt, inp.value);
+        var col = el.querySelector('[data-jeton="'+inp.dataset.jetonTxt+'"]');
+        var hex = _hexDe(inp.value);
+        if(col && hex){ col.value = hex; col.disabled = false; }
+      };
+    });
+
+    var save = document.getElementById('themeSave');
+    if(save) save.onclick = async function(){
+      var nom = (document.getElementById('themeNom')||{}).value || '';
+      nom = nom.trim();
+      if(!nom){ LaRuche.Toast.show(t('settings.themeName'),'warn'); return; }
+      // Un integre modifie devient une COPIE: on ne reecrit jamais un theme livre,
+      // sinon revenir en arriere demanderait de reinstaller l'application.
+      var id = perso ? actif.slice('perso:'.length) : null;
+      var r = await LaRuche.Themes.enregistrer(nom, _themeBrouillon, id);
+      if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
+      else LaRuche.Toast.show((r&&r.error)||'erreur','warn');
+    };
+    var del = document.getElementById('themeDel');
+    if(del) del.onclick = async function(){
+      await LaRuche.Themes.supprimer(actif);
+      loadApparence(el);
+    };
+    var reset = document.getElementById('themeReset');
+    if(reset) reset.onclick = function(){ LaRuche.Themes.appliquer('defaut'); loadApparence(el); };
   }
 
   async function loadNetwork(el) {

@@ -28,6 +28,12 @@ const SW_JS: &str = include_str!("../../laruche-dashboard/src/templates/sw.js");
 // app.js is split into modules under `templates/js/` (one i18n agent per module). The node
 // CONCATENATES them at compile time in dependency ORDER: one `/app.js` served, one binary.
 const APP_JS: &str = concat!(
+    // EN PREMIER, avant core.js: il peint le theme avant le premier rendu, depuis
+    // le cache local. Plus bas dans la liste, l'interface clignoterait dans
+    // l'ancien theme le temps que le module se charge.
+    include_str!("../../laruche-dashboard/src/templates/js/themes.js"),
+    "
+",
     include_str!("../../laruche-dashboard/src/templates/js/core.js"),
     "\n",
     include_str!("../../laruche-dashboard/src/templates/js/chat.js"),

@@ -383,6 +383,10 @@ pub(crate) struct AppState {
     /// confondus: l'agent semait dans le meme dossier que memoire.db et sessions/,
     /// et le changer depuis le chat deplacait la resolution des donnees elles-memes.
     pub(crate) dossier_travail: Arc<RwLock<std::path::PathBuf>>,
+    /// Le theme d'interface choisi. Le navigateur en garde une copie locale pour
+    /// peindre avant le premier rendu; celle-ci sert a un appareil qui decouvre
+    /// cette ruche et n'a rien en cache.
+    pub(crate) theme_actif: Arc<RwLock<String>>,
     pub(crate) essaim_cron: Arc<RwLock<CronScheduler>>,
     pub(crate) watchers: Arc<RwLock<laruche_watchers::WatchersRegistry>>,
     pub(crate) kanban_board: Arc<RwLock<laruche_kanban::KanbanBoard>>,

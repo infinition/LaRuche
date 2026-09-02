@@ -19,6 +19,7 @@ pub(crate) const CANAL_MEMOIRE: &str = "memory";
 mod abeilles_local;
 mod arbitre_memoire;
 mod auth_user;
+mod themes_api;
 mod local_inference;
 mod mcp;
 mod missions;
@@ -1268,6 +1269,7 @@ async fn main() -> Result<()> {
         active_context_stats: Arc::new(RwLock::new(HashMap::new())),
         runs_actifs: Arc::new(RwLock::new(HashMap::new())),
         dossier_travail: Arc::new(RwLock::new(local_api::dossier_travail_defaut())),
+        theme_actif: Arc::new(RwLock::new(themes_api::theme_actif_au_demarrage())),
         essaim_cron: cron_arc.clone(),
         watchers: watchers_arc.clone(),
         kanban_board: kanban_arc.clone(),

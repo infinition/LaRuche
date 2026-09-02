@@ -42,6 +42,110 @@
 }
 @property --gauge { syntax:'<number>'; inherits:false; initial-value:0; }
 
+/* ============================== */
+/* THEMES INTEGRES                */
+/* ============================== */
+/* Un theme n'est qu'un jeu de valeurs pour les jetons ci-dessus: aucune regle de
+   mise en page ici, rien que des couleurs. C'est ce qui permet a l'editeur des
+   reglages de tout piloter sans connaitre une seule des feuilles de style, et a
+   un theme fabrique par l'utilisateur de tenir dans un fichier JSON de trente
+   lignes.
+
+   `defaut` n'a pas de bloc: c'est `:root` lui-meme, donc le retour au theme
+   d'origine consiste a n'appliquer aucun bloc et a retirer les valeurs en ligne.
+   Un theme integre en ajouterait sinon un quatrieme a maintenir en double. */
+
+/* Ardoise: le meme gris que le defaut, sans l'ambre. Pour qui trouve le jaune
+   envahissant sans vouloir changer de luminosite. */
+html[data-theme="ardoise"] {
+  --amber: #7dd3fc;
+  --amber-light: #bae6fd;
+  --amber-dim: #0369a1;
+  --amber-glow: rgba(125,211,252,0.14);
+  --bg: #0b0d10;
+  --bg-card: rgba(24,28,34,.85);
+  --bg-panel: #10141a;
+  --bg-input: rgba(38,44,54,.6);
+  --bg-hover: rgba(125,211,252,0.08);
+  --border: #232932;
+  --border-light: #313945;
+  --text: #f1f5f9;
+  --text-dim: #94a3b8;
+  --text-mid: #94a3b8;
+  --text-muted: #4b5563;
+}
+
+/* Papier: fond clair. Le seul theme ou le texte est sombre, donc le seul qui
+   demande de revoir aussi les teintes attenuees: une transparence calculee pour
+   un fond noir devient invisible sur du blanc. */
+html[data-theme="papier"] {
+  --amber: #b45309;
+  --amber-light: #d97706;
+  --amber-dim: #92400e;
+  --amber-glow: rgba(180,83,9,0.12);
+  --bg: #faf7f2;
+  --bg-card: rgba(255,255,255,.9);
+  --bg-panel: #f2ede4;
+  --bg-input: rgba(0,0,0,.05);
+  --bg-hover: rgba(180,83,9,0.07);
+  --border: #ddd5c8;
+  --border-light: #c9bfae;
+  --text: #1c1917;
+  --text-dim: #57534e;
+  --text-mid: #57534e;
+  --text-muted: #a8a29e;
+  --green: #15803d;
+  --green-dim: rgba(21,128,61,0.12);
+  --red: #b91c1c;
+  --red-dim: rgba(185,28,28,0.12);
+  --blue: #1d4ed8;
+  --blue-dim: rgba(29,78,216,0.12);
+  --purple: #7e22ce;
+  --purple-dim: rgba(126,34,206,0.12);
+  --cyan: #0e7490;
+  --cyan-dim: rgba(14,116,144,0.12);
+}
+
+/* Foret: sombre et vert, contraste plus doux que le defaut. */
+html[data-theme="foret"] {
+  --amber: #6ee7b7;
+  --amber-light: #a7f3d0;
+  --amber-dim: #047857;
+  --amber-glow: rgba(110,231,183,0.13);
+  --bg: #0a0f0d;
+  --bg-card: rgba(20,31,27,.85);
+  --bg-panel: #0f1714;
+  --bg-input: rgba(31,46,40,.6);
+  --bg-hover: rgba(110,231,183,0.07);
+  --border: #1e2b26;
+  --border-light: #2b3d35;
+  --text: #ecfdf5;
+  --text-dim: #86a99b;
+  --text-mid: #86a99b;
+  --text-muted: #4a6158;
+}
+
+/* Nuit: contraste eleve, noir franc. Pensé pour un ecran lu de loin ou dans le
+   noir complet. */
+html[data-theme="nuit"] {
+  --amber: #fbbf24;
+  --amber-light: #fde68a;
+  --amber-dim: #d97706;
+  --amber-glow: rgba(251,191,36,0.18);
+  --bg: #000000;
+  --bg-card: rgba(15,15,15,.92);
+  --bg-panel: #070707;
+  --bg-input: rgba(28,28,28,.7);
+  --bg-hover: rgba(251,191,36,0.10);
+  --border: #262626;
+  --border-light: #3d3d3d;
+  --text: #ffffff;
+  --text-dim: #b3b3b3;
+  --text-mid: #b3b3b3;
+  --text-muted: #6b6b6b;
+}
+
+
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
 body {
