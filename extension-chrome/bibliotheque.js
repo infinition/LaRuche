@@ -25,6 +25,8 @@ const etat = {
   fin: 0,
   recadrage: { x: 0, y: 0, w: 1, h: 1 },
   recadrageActif: false,
+  recadrageEnCours: false,
+  glissementLecture: null,
   generationTimeline: 0,
   export: null,
 };
@@ -429,6 +431,8 @@ async function selectionnerVideo(video) {
   etat.urlSelection = URL.createObjectURL(video.fichier);
   etat.recadrage = { x: 0, y: 0, w: 1, h: 1 };
   etat.recadrageActif = false;
+  etat.recadrageEnCours = false;
+  etat.glissementLecture = null;
   etat.generationTimeline += 1;
 
   const lecteur = $('video');
@@ -511,13 +515,17 @@ function actualiserEdition() {
   $('tempsFin').value = etat.fin.toFixed(2);
   $('dureeSelection').textContent = t('timeline_selection', [formaterTemps(etat.fin - etat.debut, true)]);
 
-  const lecture = Number.isFinite($('video').currentTime) ? $('video').currentTime : 0;
+  const lecture = etat.glissementLecture !== null
+    ? etat.glissementLecture
+    : (Number.isFinite($('video').currentTime) ? $('video').currentTime : 0);
   $('teteLecture').style.left = `${Math.max(0, Math.min(100, (lecture / duree) * 100))}%`;
 
   etat.recadrage = bornerRecadrage();
   const crop = etat.recadrage;
   const dimensions = dimensionsSource();
   $('calqueRecadrage').classList.toggle('actif', etat.recadrageActif);
+  $('sceneVideo').classList.toggle('recadrage-en-cours', etat.recadrageEnCours);
+  basculerControlesVideo(!etat.recadrageActif && !etat.recadrageEnCours);
   $('basculerRecadrage').textContent = t(etat.recadrageActif ? 'crop_done' : 'crop_edit');
   const cadre = $('cadreRecadrage');
   cadre.style.left = `${crop.x * 100}%`;
@@ -588,6 +596,48 @@ function ratioTimeline(clientX) {
   return Math.max(0, Math.min(1, (clientX - rectangle.left) / Math.max(1, rectangle.width)));
 }
 
+function positionnerLecture(temps) {
+  const lecteur = $('video');
+  const cible = Math.max(0, Math.min(etat.duree || 0, temps));
+  etat.glissementLecture = cible;
+  if (!lecteur.seeking) lecteur.currentTime = cible;
+  actualiserEdition();
+}
+
+function commencerGlissementLecture(evenement) {
+  if (!etat.selection || !etat.duree) return;
+  evenement.preventDefault();
+  const lecteur = $('video');
+  const reprendre = !lecteur.paused;
+  lecteur.pause();
+
+  const mouvement = (event) => positionnerLecture(ratioTimeline(event.clientX) * etat.duree);
+  // Une seule recherche a la fois: la position visee est rejouee des que la
+  // frame precedente est decodee, ce qui garde l'apercu fluide.
+  const suivre = () => {
+    if (etat.glissementLecture === null) return;
+    if (Math.abs(lecteur.currentTime - etat.glissementLecture) > 0.001) {
+      lecteur.currentTime = etat.glissementLecture;
+    }
+  };
+  const fin = () => {
+    window.removeEventListener('pointermove', mouvement);
+    window.removeEventListener('pointerup', fin);
+    window.removeEventListener('pointercancel', fin);
+    lecteur.removeEventListener('seeked', suivre);
+    const cible = etat.glissementLecture;
+    etat.glissementLecture = null;
+    if (cible !== null) lecteur.currentTime = cible;
+    if (reprendre) lecteur.play().catch(() => {});
+    actualiserEdition();
+  };
+  lecteur.addEventListener('seeked', suivre);
+  window.addEventListener('pointermove', mouvement);
+  window.addEventListener('pointerup', fin, { once: true });
+  window.addEventListener('pointercancel', fin, { once: true });
+  mouvement(evenement);
+}
+
 function commencerGlissementTimeline(type, evenement) {
   evenement.preventDefault();
   evenement.stopPropagation();
@@ -618,12 +668,27 @@ function commencerGlissementTimeline(type, evenement) {
 
 /* -------------------------------------------------------------- recadrage */
 
+function basculerControlesVideo(visibles) {
+  const lecteur = $('video');
+  if (visibles) lecteur.setAttribute('controls', '');
+  else lecteur.removeAttribute('controls');
+}
+
 function commencerRecadrage(evenement) {
-  if (!etat.selection || etat.export || !etat.recadrageActif) return;
+  if (!etat.selection || etat.export) return;
+  const poignee = evenement.target.dataset.poignee || '';
+  // Les poignees restent saisissables hors mode recadrage, le glissement du
+  // cadre entier reste reserve au mode actif pour laisser passer les
+  // controles natifs de la video.
+  if (!poignee && !etat.recadrageActif) return;
   evenement.preventDefault();
   evenement.stopPropagation();
-  const poignee = evenement.target.dataset.poignee || '';
   const mode = poignee || 'move';
+  etat.recadrageActif = true;
+  etat.recadrageEnCours = true;
+  if (typeof evenement.target.setPointerCapture === 'function') {
+    try { evenement.target.setPointerCapture(evenement.pointerId); } catch {}
+  }
   const origine = { ...etat.recadrage };
   const departX = evenement.clientX;
   const departY = evenement.clientY;
@@ -658,16 +723,15 @@ function commencerRecadrage(evenement) {
   };
   const fin = () => {
     window.removeEventListener('pointermove', mouvement);
-    window.removeEventListener('mousemove', mouvement);
     window.removeEventListener('pointerup', fin);
-    window.removeEventListener('mouseup', fin);
     window.removeEventListener('pointercancel', fin);
+    etat.recadrageEnCours = false;
+    actualiserEdition();
   };
   window.addEventListener('pointermove', mouvement);
-  window.addEventListener('mousemove', mouvement);
   window.addEventListener('pointerup', fin, { once: true });
-  window.addEventListener('mouseup', fin, { once: true });
   window.addEventListener('pointercancel', fin, { once: true });
+  actualiserEdition();
 }
 
 function appliquerChampRecadrage(type) {
@@ -980,8 +1044,7 @@ $('video').addEventListener('play', () => {
 
 $('timeline').addEventListener('pointerdown', (evenement) => {
   if (evenement.target.closest('.poignee-timeline')) return;
-  $('video').currentTime = ratioTimeline(evenement.clientX) * etat.duree;
-  actualiserEdition();
+  commencerGlissementLecture(evenement);
 });
 $('poigneeDebut').addEventListener('pointerdown', (evenement) => commencerGlissementTimeline('debut', evenement));
 $('poigneeFin').addEventListener('pointerdown', (evenement) => commencerGlissementTimeline('fin', evenement));

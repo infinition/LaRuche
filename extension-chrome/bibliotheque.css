@@ -469,8 +469,9 @@ button { color: inherit; }
   border: 1px solid var(--bord);
   border-radius: 9px;
   background: #090806;
-  cursor: pointer;
+  cursor: ew-resize;
   touch-action: none;
+  user-select: none;
 }
 
 .vignettes-timeline {
@@ -543,6 +544,21 @@ button { color: inherit; }
   box-shadow: 0 0 5px #000;
   pointer-events: none;
 }
+
+.tete-lecture::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 0 5px #000;
+  transform: translateX(-50%);
+}
+
+.scene-video.recadrage-en-cours { cursor: grabbing; }
 
 .reglages-temps {
   margin-top: 9px;
