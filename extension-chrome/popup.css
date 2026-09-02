@@ -127,7 +127,7 @@ h2 {
 /* Les quatre gestes frequents restent toujours au meme endroit. */
 .barre-outils {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -203,6 +203,12 @@ h2 {
   color: var(--texte-doux);
   font-size: 9.5px;
   line-height: 1.25;
+}
+
+.emoji-abeille {
+  height: 18px;
+  font-size: 17px;
+  line-height: 18px;
 }
 
 .divulgation summary {
@@ -315,7 +321,7 @@ main {
 
 .controles {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 112px;
+  grid-template-columns: minmax(0, 1fr) 112px;
   gap: 6px;
   align-items: stretch;
 }

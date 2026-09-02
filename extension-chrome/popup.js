@@ -109,7 +109,7 @@ function traduire() {
     ['libelleGarderNote', 'toolbar_note'],
     ['aideGarder', 'garder_aide'],
     ['libelleActif', 'toolbar_control'],
-    ['libelleCompagnon', 'popup_compagnon'],
+    ['libelleCompagnon', 'toolbar_companion'],
     ['libelleCurseurAgent', 'popup_agent_cursor'],
     ['libellePort', 'popup_port'],
     ['titreConfidentialite', 'popup_privacy_summary'],

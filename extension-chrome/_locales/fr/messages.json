@@ -51,6 +51,10 @@
     "message": "Pilotage",
     "description": "Interrupteur de pilotage dans la barre d outils"
   },
+  "toolbar_companion": {
+    "message": "Abeille",
+    "description": "Interrupteur du compagnon dans la barre d outils"
+  },
   "toolbar_record": {
     "message": "Enregistrer",
     "description": "Action d enregistrement dans la barre d outils"

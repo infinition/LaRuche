@@ -51,6 +51,10 @@
     "message": "Control",
     "description": "Browser-control toolbar toggle"
   },
+  "toolbar_companion": {
+    "message": "Bee",
+    "description": "Bee companion toolbar toggle"
+  },
   "toolbar_record": {
     "message": "Record",
     "description": "Recording toolbar action"
