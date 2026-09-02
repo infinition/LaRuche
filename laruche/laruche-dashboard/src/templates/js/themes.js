@@ -546,7 +546,7 @@
   var COMPOSANTES = [
     ['--amber', '--amber-rgb'], ['--red', '--red-rgb'], ['--green', '--green-rgb'],
     ['--blue', '--blue-rgb'], ['--purple', '--purple-rgb'], ['--cyan', '--cyan-rgb'],
-    ['--border', '--border-rgb']
+    ['--border', '--border-rgb'], ['--bg', '--bg-rgb']
   ];
 
   function deriverComposantes() {

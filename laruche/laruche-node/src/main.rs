@@ -20,6 +20,7 @@ mod abeilles_local;
 mod arbitre_memoire;
 mod auth_user;
 mod themes_api;
+mod livres_api;
 mod local_inference;
 mod mcp;
 mod missions;
@@ -229,11 +230,11 @@ async fn serve_with_optional_tls(app: axum::Router, addr: String, tls: Option<(S
 ///
 /// ~580 Ko de markdown dans un binaire de 33 Mo: le prix est negligeable, et il n'y
 /// a plus aucun fichier a livrer a cote de l'executable.
-static SKILLS_LIVRES: include_dir::Dir<'_> =
+pub(crate) static SKILLS_LIVRES: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/../skills");
-static PLUGINS_LIVRES: include_dir::Dir<'_> =
+pub(crate) static PLUGINS_LIVRES: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/../plugins");
-static MCP_LIVRES: include_dir::Dir<'_> =
+pub(crate) static MCP_LIVRES: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/../mcp");
 
 /// Empreinte deterministe d'un contenu. FNV-1a, ecrite ici plutot que tiree d'une
@@ -241,7 +242,7 @@ static MCP_LIVRES: include_dir::Dir<'_> =
 /// valeur d'une version de LaRuche a l'autre, ce que `DefaultHasher` ne garantit
 /// pas. Il ne s'agit pas de securite, seulement de reconnaitre un fichier
 /// inchange.
-fn empreinte(contenu: &[u8]) -> String {
+pub(crate) fn empreinte(contenu: &[u8]) -> String {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for b in contenu {
         h ^= *b as u64;
@@ -265,14 +266,14 @@ fn empreinte(contenu: &[u8]) -> String {
 /// Sur un foyer existant sans registre, tout ce qui est deja la compte comme
 /// modifie: on ne devine pas, on ne remplace rien. Seules les nouveautes
 /// arrivent, ce qui est exactement le manque qu'on repare.
-fn registre_livre(cible: &std::path::Path) -> std::collections::HashMap<String, String> {
+pub(crate) fn registre_livre(cible: &std::path::Path) -> std::collections::HashMap<String, String> {
     std::fs::read_to_string(cible.join(".livres.json"))
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_default()
 }
 
-fn ecrire_registre(cible: &std::path::Path, reg: &std::collections::HashMap<String, String>) {
+pub(crate) fn ecrire_registre(cible: &std::path::Path, reg: &std::collections::HashMap<String, String>) {
     if let Ok(t) = serde_json::to_string_pretty(reg) {
         let _ = std::fs::write(cible.join(".livres.json"), t);
     }
@@ -323,7 +324,7 @@ fn tenir_a_jour(livre: &include_dir::Dir<'_>, cible: &str) {
 /// Extraite pour etre testable: c'est la seule regle de tout ce module qui peut
 /// ECRASER le travail de quelqu'un, et une erreur y serait silencieuse.
 #[derive(Debug, PartialEq, Eq)]
-enum Depot {
+pub(crate) enum Depot {
     /// Absent et jamais depose: c'est une nouveaute.
     Poser,
     /// Present, identique a ce qu'on avait depose, et le livre a change.
@@ -332,7 +333,7 @@ enum Depot {
     NePasToucher,
 }
 
-fn decider(connu: Option<&str>, actuel: Option<&str>, livre: &str) -> Depot {
+pub(crate) fn decider(connu: Option<&str>, actuel: Option<&str>, livre: &str) -> Depot {
     match actuel {
         None => {
             if connu.is_some() {

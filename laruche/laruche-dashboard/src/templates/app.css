@@ -23,6 +23,7 @@
   --purple-rgb: 168,85,247;
   --cyan-rgb: 6,182,212;
   --border-rgb: 42,42,46;
+  --bg-rgb: 9,9,11;
   --border-light: #3a3a3e;
   --text: #fafafa;
   --text-dim: #a1a1aa;
@@ -3747,3 +3748,15 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--amber); }
 .tr-pool-ligne .tr-role { flex:0 1 130px; min-width:96px; }
 .tr-pool-ligne .tr-prof { flex:0 1 170px; min-width:110px; }
 .tr-av-vide { opacity:.45; font-size:14px; }
+
+/* La barre de la table ronde est COLLANTE: elle peint un fond opaque pour que
+   les places restent lisibles pendant que le debat defile dessous. C'est juste
+   sans fond d'ecran, et c'est une dalle noire avec. Sous une image, elle devient
+   un voile: on lit encore les cartes, et le fond continue derriere. */
+html[data-fond-app="1"] .tr-table,
+html[data-fond-partage="1"] body.lr-split .page.active:not(#page-chat) .tr-table {
+  background: rgba(var(--bg-rgb), .55);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+html[data-fond-app="1"] .table-ronde { background: transparent; }
