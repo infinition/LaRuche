@@ -128,6 +128,9 @@ LaRuche.i18n.add({
   'memory.segMemory':             {fr:'Memoire', en:'Memory'},
   'memory.segTrash':              {fr:'Corbeille', en:'Trash'},
   'memory.trashGroupLabel':       {fr:'CORBEILLE', en:'TRASH'},
+  'memory.restoreTitle':          {fr:'Restaurer hors de la corbeille', en:'Restore out of the bin'},
+  'memory.restorePrompt':         {fr:'Restaurer sous quel nœud ? (vide = à la racine)', en:'Restore under which node? (empty = at the root)'},
+  'memory.restoreDone':           {fr:'Restauré dans ', en:'Restored into '},
   'memory.trashEmpty':            {fr:'Vider', en:'Empty'},
   'memory.trashEmptyConfirm':     {fr:'Vider la corbeille ? Les noeuds supprimes qui s\'y trouvent seront effaces definitivement.', en:'Empty the trash? The deleted nodes it holds will be erased for good.'},
   'memory.trashEmptied':          {fr:'Corbeille videe', en:'Trash emptied'},
@@ -450,6 +453,27 @@ LaRuche.Memory = (function(){
   // bottom, out of the @memory node, since it is not memory but what was thrown away.
   var CORBEILLE = 'orphans';
 
+  /* Sort un noeud de la corbeille. Le parent d'origine n'est stocke nulle part,
+     c'est donc a l'utilisateur de dire ou; vide, le noeud remonte a la racine.
+     L'horodatage que `delete_node` a colle au nom saute cote serveur. */
+  async function restoreNode(id){
+    var ou = prompt(LaRuche.i18n.t('memory.restorePrompt'), '');
+    if(ou === null) return; // annule
+    try{
+      var r = await fetch('/api/memory/node/restore', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ node_id:id, parent:(ou||'').trim() })
+      }).then(function(x){ return x.json(); });
+      if(r && r.status === 'ok'){
+        LaRuche.Toast.show(LaRuche.i18n.t('memory.restoreDone')+r.result.restored_to, 'ok');
+        loadTree();
+      } else {
+        LaRuche.Toast.show((r && r.error) || 'erreur', 'warn');
+      }
+    }catch(e){ LaRuche.Toast.show(String(e), 'warn'); }
+  }
+
   // Icon of a tree node based on its id and whether it has children.
   function nodeIcon(id, hasKids){
     if(id === VNODE) return SVG.memoire;
@@ -537,6 +561,11 @@ LaRuche.Memory = (function(){
         // affordance, and it lives in the section header.
         (!locked && c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.renameTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>' : '')+
         (!locked && c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.deleteTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.deleteNode(\''+esc(c.id)+'\')">❌</button>' : '')+
+        // Le chemin du retour. La corbeille n'est pas une suppression, elle relogE le
+        // sous-arbre pour ne rien perdre; il ne manquait que de quoi le reprendre. Sur
+        // les enfants de la corbeille uniquement, jamais sur la corbeille elle-meme.
+        (c.id.indexOf(CORBEILLE+'.') === 0
+          ? '<button title="'+LaRuche.i18n.t('memory.restoreTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.restoreNode(\''+esc(c.id)+'\')">↩️</button>' : '')+
       '</span>'+
     '</div>';
     if(kids && open) html += treeHtml(c, depth+1);
@@ -2042,7 +2071,7 @@ LaRuche.Memory = (function(){
     init:init, enter:enter, leave:leave, current:function(){return current;},
     loadNode:loadNode, setView:setView,
     exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
-    toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
+    toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode, restoreNode:restoreNode,
     emptyTrash:emptyTrash, resyncSkills:resyncSkills,
     createSubnode:createSubnode, moveItem:moveItem,
     toggleEditMode:toggleEditMode, createRoot:createRoot,

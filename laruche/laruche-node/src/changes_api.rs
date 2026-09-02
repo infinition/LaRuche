@@ -110,9 +110,18 @@ async fn reconcilier_skills_orphelines(
             continue;
         }
         // delete_node reparents to `orphans.*`, so remove that residue too.
-        if memoire.delete_node(&id).await.is_ok() {
-            let suffixe = id.rsplit('.').next().unwrap_or_default();
-            let _ = memoire.delete_node(&format!("orphans.{suffixe}")).await;
+        //
+        // L'adresse du residu se LIT dans la reponse, elle ne se devine pas. Elle
+        // etait reconstruite en `orphans.<nom>`, alors que `delete_node` y ajoute un
+        // horodatage pour eviter les collisions: la cible n'existait donc jamais, le
+        // residu n'etait jamais nettoye, et chaque demarrage en deposait une fournee
+        // de plus. Trente-sept par demarrage, indefiniment: 328 noeuds dans la
+        // corbeille en une matinee, tous des copies horodatees des memes skills.
+        if let Ok(res) = memoire.delete_node(&id).await {
+            if let Some(dest) = res.get("relocated_to").and_then(|v| v.as_str()) {
+                // `orphans.*` prend la branche de suppression definitive.
+                let _ = memoire.delete_node(dest).await;
+            }
             supprimes += 1;
         }
     }

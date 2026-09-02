@@ -359,6 +359,79 @@ pub(crate) async fn api_memory_node_update(
 /// POST /api/memory/node/move - reparents a node (drag&drop in the tree). body
 /// `{node_id, new_parent}`; empty `new_parent` => root node. Moves the whole subtree
 /// (id rename). Rejects system nodes and cycles (moving into its own subtree).
+/// POST /api/memory/node/restore {node_id, parent?} - sort un noeud de la corbeille.
+///
+/// La corbeille n'est pas une suppression: `delete_node` deplace le sous-arbre sous
+/// `orphans.<nom>_<horodatage>`, pour ne rien perdre et eviter les collisions. Il
+/// manquait le chemin du retour: on pouvait tout jeter, tout vider, jamais rien
+/// reprendre.
+///
+/// L'horodatage saute, sinon on restaurerait un `arxiv_1788332033` qui ne
+/// ressemble a rien. Le parent d'origine, lui, n'est stocke nulle part: c'est donc
+/// l'appelant qui le donne, et la racine par defaut.
+pub(crate) async fn api_memory_node_restore(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let source = body["node_id"]
+        .as_str()
+        .map(|s| s.trim().trim_matches('.'))
+        .filter(|s| !s.is_empty())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    if source != "orphans" && !source.starts_with("orphans.") {
+        return Ok(Json(serde_json::json!({
+            "status": "error",
+            "error": "only a node in the bin can be restored"
+        })));
+    }
+    if source == "orphans" {
+        return Ok(Json(serde_json::json!({
+            "status": "error",
+            "error": "the bin itself cannot be restored"
+        })));
+    }
+
+    // `arxiv_1788332033` redevient `arxiv`. Le suffixe n'est retire que s'il EST un
+    // horodatage: un skill qui s'appellerait vraiment `plan_b` garde son nom.
+    let dernier = source.rsplit('.').next().unwrap_or(source);
+    let nom = match dernier.rsplit_once('_') {
+        Some((base, fin))
+            if !base.is_empty() && fin.len() >= 9 && fin.chars().all(|c| c.is_ascii_digit()) =>
+        {
+            base
+        }
+        _ => dernier,
+    };
+
+    let parent = body["parent"].as_str().unwrap_or("").trim().trim_matches('.');
+    let cible = if parent.is_empty() {
+        nom.to_string()
+    } else {
+        format!("{parent}.{nom}")
+    };
+    // Meme garde que le deplacement ordinaire: les noeuds systeme sont reconstruits
+    // au demarrage, y restaurer quelque chose ne tiendrait pas jusqu'au suivant.
+    if cible == "system"
+        || cible == "capacities"
+        || cible.starts_with("system.")
+        || cible.starts_with("capacities.")
+    {
+        return Ok(Json(serde_json::json!({
+            "status": "error",
+            "error": "system nodes are rebuilt at startup: restoring into them would not survive"
+        })));
+    }
+
+    match state.memoire.renommer_sous_arbre(source, &cible).await {
+        Ok(n) => Ok(Json(serde_json::json!({
+            "status": "ok", "result": { "restored_to": cible, "nodes": n }
+        }))),
+        Err(e) => Ok(Json(
+            serde_json::json!({ "status": "error", "error": e.to_string() }),
+        )),
+    }
+}
+
 pub(crate) async fn api_memory_node_move(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,

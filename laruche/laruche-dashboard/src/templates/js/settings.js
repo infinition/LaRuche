@@ -417,6 +417,7 @@ LaRuche.i18n.add({
   'settings.qrHint':            {fr:"Scanne le code, ou tape l'adresse. Le téléphone doit être sur le même réseau que cette machine.", en:'Scan the code, or type the address. The phone must be on the same network as this machine.'},
   'settings.qrNoLan':           {fr:'Aucune adresse réseau utilisable sur cette machine.', en:'No usable network address on this machine.'},
   'settings.qrNoLanHint':       {fr:"L'adresse locale ne veut rien dire pour un téléphone : il ouvrirait son propre navigateur sur lui-même.", en:'The local address means nothing to a phone: it would open its own browser on itself.'},
+  'settings.qrBindTitle':       {fr:"Le code ne marchera pas encore", en:'The code will not work yet'},
   'settings.qrBindWarn':        {fr:'La ruche n\'écoute que sur cette machine. Démarre-la avec LARUCHE_BIND_LAN=1, sinon elle s\'annonce sur le réseau sans y répondre.', en:'The hive only listens on this machine. Start it with LARUCHE_BIND_LAN=1, otherwise it announces itself on the network without answering.'},
   'settings.qrCopy':            {fr:"Copier l'adresse", en:'Copy the address'},
   'settings.qrCopied':          {fr:'Adresse copiée', en:'Address copied'},
@@ -1570,7 +1571,11 @@ LaRuche.Settings = (function(){
           '</div>'+
           // Le code peut etre parfait et la ruche muette: le dire ici evite de
           // chercher du cote du telephone un probleme qui est cote serveur.
-          (d.bind_lan ? '' : '<p style="color:var(--amber);font-size:11px;margin:10px 0 0">'+t('settings.qrBindWarn')+'</p>')+
+          // En TETE et non en note de bas de page: sans LARUCHE_BIND_LAN=1 le
+          // code est juste faux, il pointe une adresse ou personne ne repond. Le
+          // laisser passer pour un detail, c'est envoyer chercher du cote du
+          // telephone un probleme qui est cote serveur.
+          (d.bind_lan ? '' : '<p style="color:var(--amber);font-size:11px;margin:10px 0 0"><b>'+t('settings.qrBindTitle')+'.</b> '+t('settings.qrBindWarn')+'</p>')+
         '</div>'+
       '</div>';
     } else {

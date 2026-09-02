@@ -28,6 +28,14 @@ REM   Decommente pour travailler SUR LaRuche: l'agent voit alors le code source
 REM   dans son repertoire de travail, ce qui n'est pas le cas depuis AppData.
 REM set "LARUCHE_DATA_DIR=%~dp0laruche"
 
+REM --- Rendre CETTE ruche joignable depuis le reseau (telephone, autre PC) ---
+REM   Par defaut le noeud n'ecoute que sur 127.0.0.1: rien de ce qui n'est pas
+REM   cette machine ne peut l'atteindre. C'est un choix, toutes les routes ne sont
+REM   pas bonnes a exposer. Le QR code des Parametres > Reseau affiche pourtant
+REM   l'adresse LAN, la seule qui veuille dire quelque chose pour un telephone:
+REM   sans la ligne ci-dessous il pointe une adresse ou personne ne repond.
+REM set "LARUCHE_BIND_LAN=1"
+
 REM --- Viser une ruche du reseau au lieu de la machine locale ---
 REM   Avec cette variable, la coque n'en demarre aucune et se connecte a celle-la.
 REM   La ruche visee doit avoir ete lancee avec LARUCHE_BIND_LAN=1, sinon elle

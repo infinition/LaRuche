@@ -23,6 +23,12 @@ REM   on garde la sonde, qui attend que le serveur reponde vraiment. C'est ce qu
 REM   fait deja la coque bureau quand elle demarre le noeud.
 set "LARUCHE_NO_BROWSER=1"
 
+REM --- Rendre CETTE ruche joignable depuis le reseau (telephone, autre PC) ---
+REM   Par defaut le noeud n'ecoute que sur 127.0.0.1. Sans cette ligne, le QR code
+REM   de l'onglet Phone pointe une adresse ou personne ne repond, et les autres
+REM   ruches vous voient en mDNS sans obtenir de reponse.
+REM set "LARUCHE_BIND_LAN=1"
+
 REM --- Backend memoire : native | sqlite | sidecar ---
 set "LARUCHE_MEMOIRE_BACKEND=sqlite"
 

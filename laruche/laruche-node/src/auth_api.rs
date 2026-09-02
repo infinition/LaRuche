@@ -849,13 +849,13 @@ pub(crate) async fn api_reseau_qr(State(state): State<Arc<AppState>>) -> Json<se
                 // Le code peut etre parfait et la ruche muette: elle n'ecoute que sur
                 // la boucle locale tant qu'on ne le lui demande pas. Le dire ici evite
                 // de chercher du cote du telephone un probleme qui est cote serveur.
-                "bind_lan": std::env::var("LARUCHE_BIND_LAN").is_ok(),
+                "bind_lan": std::env::var("LARUCHE_BIND_LAN").as_deref() == Ok("1"),
             }))
         }
         None => Json(serde_json::json!({
             "disponible": false,
             "raison": "no_lan_address",
-            "bind_lan": std::env::var("LARUCHE_BIND_LAN").is_ok(),
+            "bind_lan": std::env::var("LARUCHE_BIND_LAN").as_deref() == Ok("1"),
         })),
     }
 }

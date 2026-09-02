@@ -131,6 +131,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/memory/node/create", post(memory_crud_api::api_memory_node_create))
         .route("/api/memory/node/update", post(memory_crud_api::api_memory_node_update))
         .route("/api/memory/node/move", post(memory_crud_api::api_memory_node_move))
+        .route("/api/memory/node/restore", post(memory_crud_api::api_memory_node_restore))
         .route("/api/memory/node/delete", post(memory_crud_api::api_memory_node_delete))
         .route("/api/memory/episodes", get(episodes_api::api_etat_episodes))
         .route("/api/memory/episodes/purge", post(episodes_api::api_purger_episodes))
