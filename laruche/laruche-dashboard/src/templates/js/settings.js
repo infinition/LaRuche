@@ -413,6 +413,13 @@ LaRuche.i18n.add({
   'settings.toolDangerSafe':     {fr:'safe',             en:'safe'},
   'settings.toolEnabled':        {fr:' activée',         en:' enabled'},
   'settings.toolDisabled':       {fr:' désactivée',      en:' disabled'},
+  'settings.qrTitle':           {fr:'Ouvrir sur un téléphone', en:'Open on a phone'},
+  'settings.qrHint':            {fr:"Scanne le code, ou tape l'adresse. Le téléphone doit être sur le même réseau que cette machine.", en:'Scan the code, or type the address. The phone must be on the same network as this machine.'},
+  'settings.qrNoLan':           {fr:'Aucune adresse réseau utilisable sur cette machine.', en:'No usable network address on this machine.'},
+  'settings.qrNoLanHint':       {fr:"L'adresse locale ne veut rien dire pour un téléphone : il ouvrirait son propre navigateur sur lui-même.", en:'The local address means nothing to a phone: it would open its own browser on itself.'},
+  'settings.qrBindWarn':        {fr:'La ruche n\'écoute que sur cette machine. Démarre-la avec LARUCHE_BIND_LAN=1, sinon elle s\'annonce sur le réseau sans y répondre.', en:'The hive only listens on this machine. Start it with LARUCHE_BIND_LAN=1, otherwise it announces itself on the network without answering.'},
+  'settings.qrCopy':            {fr:"Copier l'adresse", en:'Copy the address'},
+  'settings.qrCopied':          {fr:'Adresse copiée', en:'Address copied'},
   'settings.meshCodeTitle':      {fr:'Code du mesh',     en:'Mesh code'},
   'settings.hostLabel':          {fr:'Hôte',             en:'Host'},
   'settings.cronCount':          {fr:'cron(s)',          en:'cron(s)'},
@@ -1538,7 +1545,43 @@ LaRuche.Settings = (function(){
       .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.toolsErr')+e,'err');});
   }
 
+  /* Le QR d'acces telephone.
+     Il existait dans le noeud depuis toujours (imprime au demarrage, puis efface
+     par le TUI) et n'avait jamais eu de route ni de place dans l'interface: qui
+     lance l'application de bureau n'avait aucun moyen d'atteindre sa ruche depuis
+     son telephone. En tete de la section reseau, parce que c'est la question
+     reseau qu'on se pose le plus souvent. */
+  async function carteQr() {
+    var d = null;
+    try { d = await fetch('/api/reseau/qr').then(function(r){ return r.json(); }); } catch(e) {}
+    if (!d) return '';
+    var t = LaRuche.i18n.t;
+    var corps;
+    if (d.disponible) {
+      // L'adresse est ecrite EN CLAIR et en entier: c'est elle qu'on recopie a la
+      // main quand la camera du telephone ne veut pas cooperer.
+      corps = '<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">'+
+        '<div style="background:#1a1a2e;border-radius:10px;padding:8px;line-height:0;flex:0 0 auto">'+d.qr_svg+'</div>'+
+        '<div style="flex:1;min-width:190px">'+
+          '<p style="color:var(--text-dim);font-size:12px;margin:0 0 10px">'+t('settings.qrHint')+'</p>'+
+          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+            '<a href="'+LaRuche.Utils.esc(d.url)+'" target="_blank" rel="noopener" style="font-family:var(--mono);color:var(--cyan);font-size:14px;word-break:break-all">'+LaRuche.Utils.esc(d.url)+'</a>'+
+            '<button class="send-btn" id="qrCopier" data-url="'+LaRuche.Utils.esc(d.url)+'"><span>'+t('settings.qrCopy')+'</span></button>'+
+          '</div>'+
+          // Le code peut etre parfait et la ruche muette: le dire ici evite de
+          // chercher du cote du telephone un probleme qui est cote serveur.
+          (d.bind_lan ? '' : '<p style="color:var(--amber);font-size:11px;margin:10px 0 0">'+t('settings.qrBindWarn')+'</p>')+
+        '</div>'+
+      '</div>';
+    } else {
+      corps = '<p style="color:var(--text-muted);font-size:13px;margin:0">'+t('settings.qrNoLan')+'</p>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:6px 0 0">'+t('settings.qrNoLanHint')+'</p>';
+    }
+    return '<div class="settings-card"><div class="settings-card-title">'+t('settings.qrTitle')+'</div>'+corps+'</div>';
+  }
+
   async function loadNetwork(el) {
+    var qrCard = await carteQr();
     var codeSet=false; try{ codeSet=(await fetch('/api/mesh/code').then(function(r){return r.json();})).set; }catch(e){}
     var codeCard='<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.meshCodeTitle')+' '+
       (codeSet?'<span style="color:var(--green);font-size:11px">'+LaRuche.i18n.t('settings.meshCodeConfigured')+'</span>':'<span style="color:var(--text-muted);font-size:11px">'+LaRuche.i18n.t('settings.meshCodeUnconfigured')+'</span>')+'</div>'+
@@ -1549,7 +1592,25 @@ LaRuche.Settings = (function(){
       var caps=(n.capabilities||[]).map(function(c){return '<span style="background:rgba(6,182,212,.15);color:var(--cyan);padding:1px 6px;border-radius:8px;font-size:10px">'+LaRuche.Utils.esc(c)+'</span>';}).join(' ');
       return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(n.name||'?')+'</div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.hostLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(n.host||'')+':'+LaRuche.Utils.esc(n.port||'?')+'</span></div><div style="margin-top:4px">'+caps+'</div></div>';
     }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.noNodes')+'</div>';
-    el.innerHTML=codeCard+nodesHtml;
+    el.innerHTML=qrCard+codeCard+nodesHtml;
+    var copier=document.getElementById('qrCopier');
+    if(copier) copier.onclick=function(){
+      var u=copier.dataset.url||'';
+      // `writeText` echoue hors contexte securise (http sur une IP de LAN, ce qui
+      // est exactement notre cas): on retombe sur la selection, plutot que de ne
+      // rien faire du tout.
+      var fini=function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.qrCopied'),'ok'); };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(u).then(fini).catch(function(){ secours(u); });
+      } else { secours(u); }
+      function secours(txt){
+        var z=document.createElement('textarea');
+        z.value=txt; z.style.position='fixed'; z.style.opacity='0';
+        document.body.appendChild(z); z.select();
+        try{ document.execCommand('copy'); fini(); }catch(e){}
+        document.body.removeChild(z);
+      }
+    };
     var btn=document.getElementById('meshCodeSave');
     if(btn) btn.onclick=async function(){
       var v=(document.getElementById('meshCodeInput').value||'');
