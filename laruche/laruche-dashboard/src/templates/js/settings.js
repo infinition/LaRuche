@@ -2795,8 +2795,8 @@ LaRuche.Settings = (function(){
       '.tl-seg{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}'+
       '.tl-seg button{background:none;border:none;color:var(--text-dim);padding:4px 12px;cursor:pointer;font-size:11px}'+
       '.tl-seg button.on{background:var(--amber);color:#000;font-weight:600}'+
-      '.tl-wrap{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:rgba(20,20,24,.5)}'+
-      '.tl-gutter{flex:0 0 130px;border-right:1px solid var(--border);background:rgba(30,30,34,.7);position:sticky;left:0;z-index:2}'+
+      '.tl-wrap{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg-panel)}'+
+      '.tl-gutter{flex:0 0 130px;border-right:1px solid var(--border);background:var(--bg-panel);position:sticky;left:0;z-index:2}'+
       '.tl-scroll{flex:1;overflow-x:auto;overflow-y:hidden;touch-action:pan-x pan-y;position:relative}'+
       '.tl-strip{position:relative}'+
       '.tl-row{height:44px;border-bottom:1px solid rgba(255,255,255,.04);position:relative}'+

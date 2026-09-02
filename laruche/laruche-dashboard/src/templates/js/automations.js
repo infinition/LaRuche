@@ -110,7 +110,7 @@ LaRuche.CronBuilder = (function(){
   function ensureStyle(){
     if(document.getElementById('lr-cb-style')) return;
     var s=document.createElement('style'); s.id='lr-cb-style';
-    s.textContent='.cb-wrap{border:1px solid var(--border);border-radius:8px;padding:10px;background:rgba(20,20,22,0.5)}'+
+    s.textContent='.cb-wrap{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--bg-card)}'+
       '.cb-row{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:8px}'+
       '.cb-field{display:flex;flex-direction:column;gap:3px}'+
       '.cb-field label{font-size:10px;color:var(--text-dim)}'+

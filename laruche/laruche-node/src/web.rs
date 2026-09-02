@@ -9,8 +9,9 @@
 //! add a match arm in `lang_data` / `lang_file`.
 
 use axum::extract::Path;
-use axum::http::{header, HeaderMap};
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse};
+use axum::Json;
 
 const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
 // Single language file: { "key": { "en": "...", "fr": "..." } }. Adding a language = add a
@@ -69,8 +70,37 @@ const APP_JS: &str = concat!(
 );
 
 /// Picks the UI language from the `laruche_lang` cookie (default "fr").
+/// Le fichier de langue du foyer.
+///
+/// Le choix ne vivait que dans un cookie et dans le `localStorage` du navigateur,
+/// c'est-a-dire nulle part que le RESTE du programme puisse lire. L'ecran de
+/// demarrage de l'application de bureau est une fenetre a part, servie depuis une
+/// autre origine: il n'a acces ni a l'un ni a l'autre, et annoncait donc son
+/// « Demarrage de LaRuche » en francais quelle que soit la langue reglee dans
+/// l'interface. Un fichier, comme `themes/actif.txt` pour le theme, se lit depuis
+/// n'importe ou et sans serveur.
+pub(crate) fn langue_du_foyer() -> Option<String> {
+    let c = std::fs::read_to_string("langue.txt").ok()?;
+    let c = c.trim().to_string();
+    (c == "en" || c == "fr").then_some(c)
+}
+
+/// POST /api/lang {"code":"en"} - enregistre la langue dans le foyer.
+pub async fn api_lang_set(Json(body): Json<serde_json::Value>) -> impl IntoResponse {
+    let code = body["code"].as_str().unwrap_or("");
+    if code != "en" && code != "fr" {
+        return (StatusCode::BAD_REQUEST, "code de langue inconnu").into_response();
+    }
+    match std::fs::write("langue.txt", code) {
+        Ok(()) => (StatusCode::OK, "ok").into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 fn ui_lang(headers: &HeaderMap) -> &'static str {
-    let code = headers
+    // Le cookie d'abord: c'est le choix de CE navigateur, et il doit primer sur le
+    // reglage general quand on ouvre l'interface depuis un autre appareil.
+    let depuis_cookie = headers
         .get(header::COOKIE)
         .and_then(|v| v.to_str().ok())
         .and_then(|c| {
@@ -78,7 +108,11 @@ fn ui_lang(headers: &HeaderMap) -> &'static str {
                 .map(|s| s.trim())
                 .find_map(|kv| kv.strip_prefix("laruche_lang="))
         })
-        .unwrap_or("fr");
+        .map(|s| s.to_string());
+    let code = depuis_cookie
+        .or_else(langue_du_foyer)
+        .unwrap_or_else(|| "fr".to_string());
+    let code = code.as_str();
     if code == "en" {
         "en"
     } else {

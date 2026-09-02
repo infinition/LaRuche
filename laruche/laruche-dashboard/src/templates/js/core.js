@@ -109,6 +109,17 @@ LaRuche.i18n = (function(){
     if(l !== lang){
       localStorage.setItem('laruche_lang', l);
       document.cookie = 'laruche_lang=' + l + ';path=/;max-age=31536000;samesite=lax';
+      // Et on le dit au noeud, qui l'ecrit dans le foyer. Le cookie ne vaut que
+      // pour ce navigateur; l'ecran de demarrage de l'application de bureau est
+      // une fenetre servie depuis une autre origine et n'y a pas acces. Sans ce
+      // fichier il restait en francais quelle que soit la langue choisie ici.
+      // On recharge sans attendre la reponse: elle ne change rien a l'affichage.
+      try{
+        fetch(LaRuche.API.base + '/api/lang', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ code: l })
+        }).catch(function(){});
+      }catch(e){}
       location.reload();
     }
   }

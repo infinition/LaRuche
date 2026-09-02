@@ -261,29 +261,60 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
             "Set the API address in Settings > Providers.".into(),
         ),
     };
+    // La cle, prise AVANT de rendre le verrou: le sondage en a besoin.
+    let cle = ec.api_key.clone();
     drop(ec);
 
-    let backend_ok = match &url_sonde {
-        Some(url) => reqwest::Client::new()
-            .get(url)
-            .timeout(std::time::Duration::from_secs(3))
-            .send()
-            .await
-            .map(|r| r.status().is_success())
-            .unwrap_or(false),
+    /// Ce que le sondage a appris. Trois issues, pas deux.
+    ///
+    /// Le sondage repondait par un booleen, et disait donc « injoignable » aussi
+    /// bien pour une adresse fausse que pour une adresse juste qui refuse la
+    /// requete. Or `/v1/models` est protege chez la plupart des hebergeurs: le
+    /// controle partait sans cle, recevait un 401, et annoncait une panne de
+    /// reseau. L'utilisateur est alors envoye corriger une URL qui etait bonne,
+    /// pendant que la conversation, elle, fonctionnait.
+    enum Sonde {
+        Ok,
+        Refuse(u16),
+        Injoignable,
+    }
+
+    let sonde = match &url_sonde {
+        Some(url) => {
+            let mut req = reqwest::Client::new()
+                .get(url)
+                .timeout(std::time::Duration::from_secs(3));
+            if !cle.trim().is_empty() {
+                req = req.bearer_auth(cle.trim());
+            }
+            match req.send().await {
+                Ok(r) if r.status().is_success() => Sonde::Ok,
+                Ok(r) => Sonde::Refuse(r.status().as_u16()),
+                Err(_) => Sonde::Injoignable,
+            }
+        }
         // Hosted provider: configured is as far as we can tell without spending money.
-        None => true,
+        None => Sonde::Ok,
     };
+    let backend_ok = matches!(sonde, Sonde::Ok);
     steps.push(serde_json::json!({
         "step": 1, "title": format!("LLM backend - {nom_backend}"),
         "done": backend_ok,
         // Where the user goes to act. The web modal turns it into a button, the CLI
         // prints it as a path. One source, two renderings - so they cannot drift.
         "section": "providers",
-        "instruction": match (&url_sonde, backend_ok) {
-            (Some(u), true)  => format!("Connected to {u}"),
-            (Some(u), false) => format!("Cannot reach {u}. {aide}"),
-            (None, _)        => format!("{nom_backend}: hosted provider, configured."),
+        // Chaque issue a sa phrase, parce que chacune demande un geste different:
+        // corriger l'adresse, corriger la cle, ou ne rien faire.
+        "instruction": match (&url_sonde, &sonde) {
+            (Some(u), Sonde::Ok) => format!("Connected to {u}"),
+            (Some(u), Sonde::Refuse(401)) | (Some(u), Sonde::Refuse(403)) => format!(
+                "{u} answers, but refuses the API key. The address is right: check the                  key in Settings > Providers."
+            ),
+            (Some(u), Sonde::Refuse(c)) => format!(
+                "{u} answers with HTTP {c}. The address is reachable, so the problem is                  the endpoint or the account, not the network."
+            ),
+            (Some(u), Sonde::Injoignable) => format!("Cannot reach {u}. {aide}"),
+            (None, _) => format!("{nom_backend}: hosted provider, configured."),
         },
     }));
 

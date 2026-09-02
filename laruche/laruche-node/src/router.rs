@@ -201,6 +201,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         // navigateur recevait un 413 sans corps JSON, la promesse echouait, et le
         // panneau restait sur "enregistrement..." pour toujours. Le plafond reel
         // du contenu est verifie dans `themes_api`, celui-ci lui laisse la place.
+        .route("/api/lang", post(web::api_lang_set))
         .route("/api/skills/livres", get(livres_api::api_livres_etat))
         .route("/api/skills/livres/contenu", get(livres_api::api_livres_contenu))
         .route("/api/skills/livres/appliquer", post(livres_api::api_livres_appliquer))

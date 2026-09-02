@@ -302,6 +302,46 @@ fn palette_attente(foyer: &std::path::Path) -> (String, String, String, String) 
     (p.0.into(), p.1.into(), p.2.into(), p.3.into())
 }
 
+/// Les phrases de l'ecran d'attente, dans la langue reglee dans l'interface.
+///
+/// Cet ecran est une fenetre a part, servie depuis l'application et non depuis le
+/// noeud: il n'a acces ni au cookie ni au `localStorage` ou vivait le choix de
+/// langue, et il annoncait donc son demarrage en francais meme quand toute
+/// l'interface etait en anglais. Le noeud ecrit desormais ce choix dans
+/// `langue.txt`, au meme titre que `themes/actif.txt` pour le theme, et un
+/// fichier se lit d'ici sans rien demander a personne.
+///
+/// Sept phrases, ecrites la plutot que tirees de `strings.json`: ce fichier est
+/// compile dans le noeud, pas dans l'application de bureau, et aller le chercher
+/// pour sept lignes couterait une dependance entre deux binaires qui n'en ont
+/// aucune autre.
+fn textes_attente(foyer: &std::path::Path) -> serde_json::Value {
+    let en = std::fs::read_to_string(foyer.join("langue.txt"))
+        .map(|c| c.trim() == "en")
+        .unwrap_or(false);
+    if en {
+        serde_json::json!({
+            "titre": "Starting LaRuche...",
+            "detail": "The hive is opening its memory and probing the network. A few seconds.",
+            "lent": "This is taking longer than usual. The memory may be indexing for the first time.",
+            "dejaTitre": "LaRuche is already running",
+            "dejaDetail": "A node answers on this machine: attaching to it, rather than starting a second one.",
+            "echecTitre": "LaRuche did not start",
+            "echecDetail": "Run laruche-node.exe by hand to see the error."
+        })
+    } else {
+        serde_json::json!({
+            "titre": "Demarrage de LaRuche...",
+            "detail": "La ruche ouvre sa memoire et sonde le reseau. Quelques secondes.",
+            "lent": "C'est plus long que d'habitude. La memoire s'indexe peut-etre pour la premiere fois.",
+            "dejaTitre": "LaRuche tourne deja",
+            "dejaDetail": "Un noeud repond sur ce poste: on s'y rattache, sans en lancer un second.",
+            "echecTitre": "LaRuche n'a pas demarre",
+            "echecDetail": "Lance laruche-node.exe a la main pour voir l'erreur."
+        })
+    }
+}
+
 /// Le fond de fenetre, en composantes, pour que Tauri peigne deja la bonne
 /// couleur avant le premier octet de HTML.
 fn composantes(hex: &str) -> (u8, u8, u8) {
@@ -358,12 +398,14 @@ fn main() {
     let (att_fond, att_texte, att_accent, att_attenue) =
         palette_attente(&std::env::current_dir().unwrap_or_else(|_| ".".into()));
     let (fond_r, fond_v, fond_b) = composantes(&att_fond);
+    let textes = textes_attente(&std::env::current_dir().unwrap_or_else(|_| ".".into()));
     let script_init = format!(
-        "window.__LARUCHE_BUREAU__ = true; window.__LARUCHE_PALETTE__ = {};",
+        "window.__LARUCHE_BUREAU__ = true; window.__LARUCHE_PALETTE__ = {}; window.__LARUCHE_TEXTES__ = {};",
         serde_json::json!({
             "fond": att_fond, "texte": att_texte,
             "accent": att_accent, "attenue": att_attenue
-        })
+        }),
+        textes
     );
 
     tauri::Builder::default()
@@ -411,7 +453,7 @@ fn main() {
                     // quinze secondes comme au premier lancement.
                     if DEJA_LA.load(std::sync::atomic::Ordering::Relaxed) {
                         let _ = fenetre.eval(
-                            "var t=document.getElementById('titre');                             if(t) t.textContent='LaRuche tourne deja';                             var d=document.getElementById('detail');                             if(d) d.textContent='Un noeud repond sur ce poste: on s_y rattache, sans en lancer un second.';",
+                            "var x=window.__LARUCHE_TEXTES__||{};var t=document.getElementById('titre');if(t) t.textContent=x.dejaTitre||t.textContent;var d=document.getElementById('detail');if(d) d.textContent=x.dejaDetail||d.textContent;",
                         );
                     }
                     let _ = fenetre.navigate(cible);
@@ -420,9 +462,7 @@ fn main() {
                 // ecran d'attente perpetuel, elle doit dire ce qui s'est passe.
                 Err(_) => {
                     let _ = fenetre.eval(
-                        "document.getElementById('titre').textContent='LaRuche n_a pas demarre';\
-                         document.getElementById('detail').textContent='Lance laruche-node.exe a la main pour voir l_erreur.';\
-                         document.querySelector('.barre').style.display='none';",
+                        "var x=window.__LARUCHE_TEXTES__||{};document.getElementById('titre').textContent=x.echecTitre||'LaRuche';document.getElementById('detail').textContent=x.echecDetail||'';document.querySelector('.barre').style.display='none';",
                     );
                     let _ = sortie;
                 }

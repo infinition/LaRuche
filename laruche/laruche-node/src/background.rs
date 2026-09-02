@@ -720,6 +720,22 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                     }
                 }
 
+                // A fire leaves a trace in LaRuche itself, whatever channel carries
+                // the message away. Without this the feed only ever recorded the
+                // CREATION of a watcher: one that had fired three times looked, from
+                // the interface, exactly like one that had never fired at all, and the
+                // only proof of it lived in a Telegram thread. Recorded here, above the
+                // match, so that a fourth action cannot be added that forgets it.
+                if !matches!(d.action, laruche_watchers::Action::Aucune) {
+                    laruche_essaim::feed_journal::record(
+                        if w_name.is_empty() { "watcher" } else { &w_name },
+                        "watcher",
+                        "fired",
+                        preview_text(&context, 160),
+                        chrono::Utc::now(),
+                    );
+                }
+
                 // Two of the three actions never touch a model. A fire used to cost a
                 // full agentic mission whatever the job was: a whole turn, paid and
                 // slow, to write "the file is gone", which it could also get wrong.

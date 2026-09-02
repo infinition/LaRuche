@@ -104,9 +104,16 @@
     // Au-dela d'un certain temps, dire ce qui se passe vaut mieux que continuer a
     // faire tourner une barre. Le demarrage a froid depasse rarement 20 secondes;
     // s'il traine, c'est presque toujours l'indexation initiale de la memoire.
+    // Les phrases suivent la langue reglee dans l'interface. La table est injectee
+    // par l'application avant que cette page ne s'execute, donc le premier rendu est
+    // deja dans la bonne langue: rien ne clignote d'une langue a l'autre.
+    var TX = window.__LARUCHE_TEXTES__ || {};
+    if (TX.titre) document.getElementById('titre').textContent = TX.titre;
+    if (TX.detail) document.getElementById('detail').textContent = TX.detail;
+
     setTimeout(function () {
       var d = document.getElementById('detail');
-      if (d) d.textContent = "C'est plus long que d'habitude. La memoire s'indexe peut-etre pour la premiere fois.";
+      if (d && TX.lent) d.textContent = TX.lent;
     }, 20000);
   </script>
 </body>
