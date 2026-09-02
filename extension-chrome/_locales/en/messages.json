@@ -428,11 +428,23 @@
   "crop_done": {
     "message": "Done"
   },
+  "crop_x": {
+    "message": "X (px)"
+  },
+  "crop_y": {
+    "message": "Y (px)"
+  },
+  "crop_width": {
+    "message": "Width (px)"
+  },
+  "crop_height": {
+    "message": "Height (px)"
+  },
   "crop_area": {
     "message": "Video crop area"
   },
   "crop_help": {
-    "message": "Drag the frame to move it. Drag a corner to resize it."
+    "message": "Drag the frame, pull a corner or enter exact pixel values."
   },
   "crop_values": {
     "message": "X $X$% · Y $Y$% · Width $WIDTH$% · Height $HEIGHT$%",

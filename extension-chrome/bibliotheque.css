@@ -206,7 +206,8 @@ button { color: inherit; }
 
 .outils-bibliotheque select,
 .champ input,
-.reglages-temps input {
+.reglages-temps input,
+.champs-recadrage input {
   border: 1px solid var(--bord);
   border-radius: 8px;
   background: var(--surface-2);
@@ -398,6 +399,8 @@ button { color: inherit; }
   pointer-events: none;
 }
 
+.calque-recadrage.actif { pointer-events: auto; }
+
 .cadre-recadrage {
   position: absolute;
   left: 0;
@@ -408,23 +411,28 @@ button { color: inherit; }
   outline: 9999px solid rgba(0, 0, 0, 0.44);
   cursor: move;
   pointer-events: auto;
+  touch-action: none;
 }
 
 .calque-recadrage:not(.actif) .cadre-recadrage { pointer-events: none; }
 
 .poignee {
   position: absolute;
-  width: 13px;
-  height: 13px;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
   border: 2px solid #171109;
   border-radius: 50%;
   background: var(--miel);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.7);
+  pointer-events: auto;
+  touch-action: none;
 }
 
-.poignee.nw { left: -7px; top: -7px; cursor: nwse-resize; }
-.poignee.ne { right: -7px; top: -7px; cursor: nesw-resize; }
-.poignee.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
-.poignee.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.poignee.nw { left: 2px; top: 2px; cursor: nwse-resize; }
+.poignee.ne { right: 2px; top: 2px; cursor: nesw-resize; }
+.poignee.sw { left: 2px; bottom: 2px; cursor: nesw-resize; }
+.poignee.se { right: 2px; bottom: 2px; cursor: nwse-resize; }
 
 .timeline-section {
   margin-top: 12px;
@@ -532,7 +540,8 @@ button { color: inherit; }
 }
 
 .reglages-temps label,
-.champ {
+.champ,
+.champs-recadrage label {
   min-width: 0;
   display: grid;
   gap: 4px;
@@ -541,7 +550,8 @@ button { color: inherit; }
 }
 
 .reglages-temps input,
-.champ input {
+.champ input,
+.champs-recadrage input {
   width: 100%;
   min-height: 34px;
   padding: 6px 8px;
@@ -580,6 +590,18 @@ button { color: inherit; }
   gap: 5px;
 }
 
+.champs-recadrage {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.champs-recadrage input {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .carte-reglage .bouton { margin-top: 9px; }
 
 .note {
@@ -589,8 +611,8 @@ button { color: inherit; }
 }
 
 .valeurs-recadrage {
-  min-height: 42px;
-  margin: 8px 0 0;
+  min-height: 20px;
+  margin: 6px 0 0;
   display: flex;
   align-items: center;
   color: var(--texte);

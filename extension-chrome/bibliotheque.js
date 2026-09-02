@@ -467,14 +467,42 @@ function bornerCoupe() {
   etat.fin = Math.min(etat.duree, Math.max(etat.fin, etat.debut + minimum));
 }
 
+function dimensionsSource() {
+  const lecteur = $('video');
+  return {
+    largeur: Math.max(1, lecteur.videoWidth || etat.selection?.largeur || 1),
+    hauteur: Math.max(1, lecteur.videoHeight || etat.selection?.hauteur || 1),
+  };
+}
+
+function bornerRecadrage(recadrage = etat.recadrage) {
+  const dimensions = dimensionsSource();
+  const minimumLargeur = Math.min(1, 2 / dimensions.largeur);
+  const minimumHauteur = Math.min(1, 2 / dimensions.hauteur);
+  const w = Math.max(minimumLargeur, Math.min(1, Number(recadrage.w) || minimumLargeur));
+  const h = Math.max(minimumHauteur, Math.min(1, Number(recadrage.h) || minimumHauteur));
+  const x = Math.max(0, Math.min(1 - w, Number(recadrage.x) || 0));
+  const y = Math.max(0, Math.min(1 - h, Number(recadrage.y) || 0));
+  return { x, y, w, h };
+}
+
+function afficherInstantCoupe(temps) {
+  if (!Number.isFinite(temps) || !etat.duree) return;
+  const cible = Math.max(0, Math.min(etat.duree, temps));
+  const lecteur = $('video');
+  lecteur.pause();
+  lecteur.currentTime = cible;
+  $('teteLecture').style.left = `${(cible / etat.duree) * 100}%`;
+}
+
 function actualiserEdition() {
   if (!etat.selection || !$('editeur')) return;
   bornerCoupe();
   const duree = Math.max(0.001, etat.duree);
   const debutPct = (etat.debut / duree) * 100;
   const finPct = (etat.fin / duree) * 100;
-  $('poigneeDebut').style.left = `calc(${debutPct}% - 6px)`;
-  $('poigneeFin').style.left = `calc(${finPct}% - 6px)`;
+  $('poigneeDebut').style.left = `${debutPct}%`;
+  $('poigneeFin').style.left = `calc(${finPct}% - 12px)`;
   $('selectionTimeline').style.left = `${debutPct}%`;
   $('selectionTimeline').style.width = `${Math.max(0, finPct - debutPct)}%`;
   $('masqueAvant').style.width = `${debutPct}%`;
@@ -486,7 +514,9 @@ function actualiserEdition() {
   const lecture = Number.isFinite($('video').currentTime) ? $('video').currentTime : 0;
   $('teteLecture').style.left = `${Math.max(0, Math.min(100, (lecture / duree) * 100))}%`;
 
+  etat.recadrage = bornerRecadrage();
   const crop = etat.recadrage;
+  const dimensions = dimensionsSource();
   $('calqueRecadrage').classList.toggle('actif', etat.recadrageActif);
   $('basculerRecadrage').textContent = t(etat.recadrageActif ? 'crop_done' : 'crop_edit');
   const cadre = $('cadreRecadrage');
@@ -494,6 +524,19 @@ function actualiserEdition() {
   cadre.style.top = `${crop.y * 100}%`;
   cadre.style.width = `${crop.w * 100}%`;
   cadre.style.height = `${crop.h * 100}%`;
+
+  const xPixels = Math.round(crop.x * dimensions.largeur);
+  const yPixels = Math.round(crop.y * dimensions.hauteur);
+  const largeurPixels = Math.round(crop.w * dimensions.largeur);
+  const hauteurPixels = Math.round(crop.h * dimensions.hauteur);
+  $('recadrageX').max = String(Math.max(0, dimensions.largeur - largeurPixels));
+  $('recadrageY').max = String(Math.max(0, dimensions.hauteur - hauteurPixels));
+  $('recadrageLargeur').max = String(Math.max(2, dimensions.largeur - xPixels));
+  $('recadrageHauteur').max = String(Math.max(2, dimensions.hauteur - yPixels));
+  $('recadrageX').value = String(xPixels);
+  $('recadrageY').value = String(yPixels);
+  $('recadrageLargeur').value = String(largeurPixels);
+  $('recadrageHauteur').value = String(hauteurPixels);
   $('valeursRecadrage').textContent = t('crop_values', [
     Math.round(crop.x * 100),
     Math.round(crop.y * 100),
@@ -548,32 +591,46 @@ function ratioTimeline(clientX) {
 function commencerGlissementTimeline(type, evenement) {
   evenement.preventDefault();
   evenement.stopPropagation();
+  const element = evenement.currentTarget;
+  if (typeof element.setPointerCapture === 'function') {
+    try { element.setPointerCapture(evenement.pointerId); } catch {}
+  }
+  let dernierTemps = type === 'debut' ? etat.debut : etat.fin;
   const mouvement = (event) => {
     const temps = ratioTimeline(event.clientX) * etat.duree;
     if (type === 'debut') etat.debut = Math.min(temps, etat.fin - Math.min(0.05, etat.duree));
     else etat.fin = Math.max(temps, etat.debut + Math.min(0.05, etat.duree));
+    dernierTemps = type === 'debut' ? etat.debut : etat.fin;
     actualiserEdition();
+    afficherInstantCoupe(dernierTemps);
   };
   const fin = () => {
     window.removeEventListener('pointermove', mouvement);
     window.removeEventListener('pointerup', fin);
+    window.removeEventListener('pointercancel', fin);
+    afficherInstantCoupe(dernierTemps);
   };
   window.addEventListener('pointermove', mouvement);
   window.addEventListener('pointerup', fin, { once: true });
+  window.addEventListener('pointercancel', fin, { once: true });
+  mouvement(evenement);
 }
 
 /* -------------------------------------------------------------- recadrage */
 
 function commencerRecadrage(evenement) {
-  if (!etat.selection || etat.export) return;
+  if (!etat.selection || etat.export || !etat.recadrageActif) return;
   evenement.preventDefault();
+  evenement.stopPropagation();
   const poignee = evenement.target.dataset.poignee || '';
   const mode = poignee || 'move';
   const origine = { ...etat.recadrage };
   const departX = evenement.clientX;
   const departY = evenement.clientY;
   const calque = $('calqueRecadrage');
-  const minimum = 0.05;
+  const dimensions = dimensionsSource();
+  const minimumLargeur = Math.min(1, 2 / dimensions.largeur);
+  const minimumHauteur = Math.min(1, 2 / dimensions.hauteur);
 
   const mouvement = (event) => {
     const dx = (event.clientX - departX) / Math.max(1, calque.clientWidth);
@@ -583,16 +640,16 @@ function commencerRecadrage(evenement) {
       x = Math.max(0, Math.min(1 - w, origine.x + dx));
       y = Math.max(0, Math.min(1 - h, origine.y + dy));
     } else {
-      if (mode.includes('e')) w = Math.max(minimum, Math.min(1 - x, origine.w + dx));
-      if (mode.includes('s')) h = Math.max(minimum, Math.min(1 - y, origine.h + dy));
+      if (mode.includes('e')) w = Math.max(minimumLargeur, Math.min(1 - x, origine.w + dx));
+      if (mode.includes('s')) h = Math.max(minimumHauteur, Math.min(1 - y, origine.h + dy));
       if (mode.includes('w')) {
         const droite = origine.x + origine.w;
-        x = Math.max(0, Math.min(droite - minimum, origine.x + dx));
+        x = Math.max(0, Math.min(droite - minimumLargeur, origine.x + dx));
         w = droite - x;
       }
       if (mode.includes('n')) {
         const bas = origine.y + origine.h;
-        y = Math.max(0, Math.min(bas - minimum, origine.y + dy));
+        y = Math.max(0, Math.min(bas - minimumHauteur, origine.y + dy));
         h = bas - y;
       }
     }
@@ -601,13 +658,41 @@ function commencerRecadrage(evenement) {
   };
   const fin = () => {
     window.removeEventListener('pointermove', mouvement);
+    window.removeEventListener('mousemove', mouvement);
     window.removeEventListener('pointerup', fin);
+    window.removeEventListener('mouseup', fin);
+    window.removeEventListener('pointercancel', fin);
   };
   window.addEventListener('pointermove', mouvement);
+  window.addEventListener('mousemove', mouvement);
   window.addEventListener('pointerup', fin, { once: true });
+  window.addEventListener('mouseup', fin, { once: true });
+  window.addEventListener('pointercancel', fin, { once: true });
+}
+
+function appliquerChampRecadrage(type) {
+  const ids = {
+    x: 'recadrageX',
+    y: 'recadrageY',
+    w: 'recadrageLargeur',
+    h: 'recadrageHauteur',
+  };
+  const valeur = Number.parseFloat($(ids[type]).value);
+  if (!Number.isFinite(valeur)) return;
+  const dimensions = dimensionsSource();
+  const diviseur = type === 'x' || type === 'w' ? dimensions.largeur : dimensions.hauteur;
+  const crop = { ...etat.recadrage };
+  const normalisee = Math.max(0, valeur / diviseur);
+  if (type === 'x') crop.x = Math.min(1 - crop.w, normalisee);
+  if (type === 'y') crop.y = Math.min(1 - crop.h, normalisee);
+  if (type === 'w') crop.w = Math.min(1 - crop.x, normalisee);
+  if (type === 'h') crop.h = Math.min(1 - crop.y, normalisee);
+  etat.recadrage = bornerRecadrage(crop);
+  actualiserEdition();
 }
 
 function deplacerRecadrageClavier(evenement) {
+  if (!etat.recadrageActif) return;
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(evenement.key)) return;
   evenement.preventDefault();
   const pas = evenement.shiftKey ? 0.01 : 0.0025;
@@ -901,12 +986,18 @@ $('timeline').addEventListener('pointerdown', (evenement) => {
 $('poigneeDebut').addEventListener('pointerdown', (evenement) => commencerGlissementTimeline('debut', evenement));
 $('poigneeFin').addEventListener('pointerdown', (evenement) => commencerGlissementTimeline('fin', evenement));
 $('tempsDebut').addEventListener('input', () => {
-  etat.debut = Number.parseFloat($('tempsDebut').value) || 0;
+  const valeur = Number.parseFloat($('tempsDebut').value);
+  if (!Number.isFinite(valeur)) return;
+  etat.debut = valeur;
   actualiserEdition();
+  afficherInstantCoupe(etat.debut);
 });
 $('tempsFin').addEventListener('input', () => {
-  etat.fin = Number.parseFloat($('tempsFin').value) || etat.duree;
+  const valeur = Number.parseFloat($('tempsFin').value);
+  if (!Number.isFinite(valeur)) return;
+  etat.fin = valeur;
   actualiserEdition();
+  afficherInstantCoupe(etat.fin);
 });
 $('marquerDebut').addEventListener('click', () => {
   etat.debut = Math.min($('video').currentTime, etat.fin);
@@ -927,6 +1018,14 @@ $('reinitialiserRecadrage').addEventListener('click', () => {
   etat.recadrage = { x: 0, y: 0, w: 1, h: 1 };
   actualiserEdition();
 });
+for (const [id, type] of [
+  ['recadrageX', 'x'],
+  ['recadrageY', 'y'],
+  ['recadrageLargeur', 'w'],
+  ['recadrageHauteur', 'h'],
+]) {
+  $(id).addEventListener('input', () => appliquerChampRecadrage(type));
+}
 
 $('renommer').addEventListener('click', renommerSelection);
 $('nouveauNom').addEventListener('keydown', (evenement) => {

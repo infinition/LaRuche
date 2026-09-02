@@ -104,8 +104,10 @@ et le tri restent locaux.
 L'editeur comprend:
 
 - un visualiseur video;
-- une timeline avec vignettes et points de debut et de fin;
-- un cadre de recadrage deplacable et redimensionnable;
+- une timeline avec vignettes et points de debut et de fin qui actualisent
+  immédiatement l'image du visualiseur pendant le déplacement;
+- un cadre de recadrage deplacable et redimensionnable, avec saisie exacte de
+  sa position, sa largeur et sa hauteur en pixels;
 - le renommage du fichier dans son dossier;
 - un export MP4 ou WebM qui combine la coupe et le recadrage.
 
