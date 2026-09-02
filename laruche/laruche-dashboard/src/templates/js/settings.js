@@ -265,6 +265,17 @@ LaRuche.i18n.add({
   'settings.kanbanFluxAide':     {fr:"Une tache creee arrive dans A faire et y reste. Seule la colonne Pret est relevee: glissez-la dedans, ou cliquez Lancer.",
                                   en:'A new task lands in Todo and stays there. Only Ready is polled: drag it there, or click Run.'},
   'settings.kanbanResultLabel':  {fr:'Résultat',         en:'Result'},
+  'settings.kanbanDeplaceEchoue': {fr:"Le deplacement n'a pas ete enregistre.", en:'The move was not saved.'},
+  'settings.kanbanNonConnecte':   {fr:'Session expiree: reconnectez-vous pour deplacer une carte.', en:'Session expired: sign in again to move a card.'},
+  'settings.etatActif':         {fr:'actif',                  en:'running'},
+  'settings.etatPause':         {fr:'en pause',               en:'paused'},
+  'settings.etatActifAide':     {fr:'Suspendre, sans supprimer', en:'Pause, without deleting'},
+  'settings.etatPauseAide':     {fr:'Relancer',               en:'Resume'},
+  'settings.etatEchoue':        {fr:"Le changement d'etat n'a pas ete enregistre.", en:'The state change was not saved.'},
+  'settings.chronoDans':        {fr:'dans',                   en:'in'},
+  'settings.chronoMaintenant':  {fr:'maintenant',             en:'now'},
+  'settings.chronoSuspendu':    {fr:'suspendu',               en:'paused'},
+  'settings.chronoUneFois':     {fr:'une seule fois',         en:'once only'},
   'settings.kanbanCols':         {fr:'Colonnes',         en:'Columns'},
   'settings.kanbanHorizontal':   {fr:'Horizontal',       en:'Horizontal'},
   'settings.kanbanDefProvider':  {fr:'Défaut (modèle actif)', en:'Default (active model)'},
@@ -3352,6 +3363,7 @@ LaRuche.Settings = (function(){
             LaRuche.i18n.t('settings.cronListTitle')+' ('+tasks.length+')</span></div>'
         : '')+
       tasks.map(function(t){ return cronCarte(t, profiles); }).join('');
+    demarrerHorloge();
     // Human-friendly cron builder for the creation form.
     if(LaRuche.CronBuilder){ _ncCronBuilderId = LaRuche.CronBuilder.mount('ncCronBuilder', { value:'' }); }
     // Real channels, like the four other forms: the hardcoded telegram|discord pair
@@ -3363,6 +3375,25 @@ LaRuche.Settings = (function(){
   }
   // Schedule in words, with the raw expression kept beside it in small type. A card that
   // only showed `0 9 * * *` asked the reader to parse cron in their head.
+  /* La prochaine occurrence, en millisecondes. `nextCron` vit dans le module de
+     chronologie, qui parcourt les minutes a venir: on ne reecrit pas un
+     analyseur de cron pour afficher un compte a rebours. Zero veut dire « rien a
+     attendre », et l'element affiche alors son texte de repli. */
+  function _prochainCron(t){
+    if(t.enabled === false) return 0;
+    if(t.fire_at){
+      var d = new Date(t.fire_at).getTime();
+      return isNaN(d) ? 0 : d;
+    }
+    if(t.cron_expr && LaRuche.Timeline && LaRuche.Timeline.nextCron){
+      try{
+        var n = LaRuche.Timeline.nextCron(t.cron_expr, new Date());
+        if(n) return new Date(n).getTime();
+      }catch(e){}
+    }
+    return 0;
+  }
+
   function cronLisible(t){
     var brut = t.cron_expr || t.fire_at || '';
     if(!brut) return '<span class="settings-value">-</span>';
@@ -3404,7 +3435,12 @@ LaRuche.Settings = (function(){
     };
     return '<div class="settings-card" data-cron="'+esc(t.id)+'">'+
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
-        '<div class="settings-card-title" style="flex:1">'+esc(t.name)+'</div>'+
+        '<div class="settings-card-title" style="flex:1;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+          esc(t.name)+
+          pastille(t.enabled !== false, t.id, 'cron')+
+          '<span class="cron-chrono" data-echeance="'+_prochainCron(t)+'" '+
+            'data-vide="'+esc(LaRuche.i18n.t(t.cron_expr ? 'settings.chronoSuspendu' : 'settings.chronoUneFois'))+'"></span>'+
+        '</div>'+
         '<div style="display:flex;gap:6px;flex:0 0 auto">'+
           '<button class="tl-btn tl-btn--active" onclick="LaRuche.Settings.lancerCronTask(\''+esc(t.id)+'\')">'+LaRuche.i18n.t('settings.tlRunNow')+'</button>'+
           '<button class="tl-btn" onclick="LaRuche.Settings.editCronTask(\''+esc(t.id)+'\')">'+LaRuche.i18n.t('settings.editBtn')+'</button>'+
@@ -3574,6 +3610,7 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="nwChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">'+LaRuche.i18n.t('settings.createBtn')+'</button></div>'+
       watchers.map(function(w){ return renderWatcherCard(w, profiles); }).join('');
+    demarrerHorloge();
     window.__fillChannels(document.getElementById('nwChannel'), '', LaRuche.i18n.t('settings.watcherHomeChannel'));
     // Channel selectors of the expanded cards need the live channel list too.
     watchers.forEach(function(w){
@@ -3636,7 +3673,13 @@ LaRuche.Settings = (function(){
       '<span class="wcard-name">'+esc(w.name||'?')+'</span>'+
       '<span class="wcard-type">'+esc(w.watcher_type||'')+'</span>'+
       (w.sustained?'<span class="wcard-sust" title="'+t('settings.wfSustained')+'">⟳</span>':'')+
-      (w.active===false?'<span class="wcard-sust" style="border-color:var(--red);color:var(--red)">OFF</span>':'')+
+      pastille(w.active !== false, w.id, 'watcher')+
+      // Le prochain passage, en clair. `last_run` plus l'intervalle: tant qu'elle
+      // n'a jamais tourne, on annonce le premier passage comme imminent plutot
+      // que de laisser un blanc.
+      '<span class="wcard-chrono" data-echeance="'+
+        (w.active === false ? 0 : (w.last_run ? (new Date(w.last_run).getTime() + (w.interval_secs||ivDef)*1000) : Date.now()))+
+        '" data-vide="'+esc(t('settings.chronoSuspendu'))+'"></span>'+
       '<span class="wcard-synth">'+esc(w.target||'')+' · '+(w.interval_secs||ivDef)+'s · '+(w.run_count||0)+t('automations.runsSuffix')+'</span>'+
       '<span class="wcard-chev">▶</span></div>';
     if(!open) return '<div class="wcard">'+head+'</div>';
@@ -3704,6 +3747,75 @@ LaRuche.Settings = (function(){
   }
 
   function toggleWatcherCard(id){ _watcherOpen[id]=!_watcherOpen[id]; rechargerWatchers(); }
+
+  /* Une SEULE horloge pour tous les comptes a rebours de la page.
+
+     Chaque carte pourrait tenir la sienne, et chacune serait un minuteur de plus
+     a arreter quand on change d'onglet, donc un de plus a oublier. Celle-ci
+     balaie les elements qui portent une echeance, et s'arrete d'elle-meme quand
+     il n'y en a plus. */
+  var _horloge = null;
+
+  function _restant(ms){
+    if(ms == null || isNaN(ms)) return '';
+    var s = Math.round(ms / 1000);
+    if(s <= 0) return LaRuche.i18n.t('settings.chronoMaintenant');
+    if(s < 60) return LaRuche.i18n.t('settings.chronoDans') + ' ' + s + ' s';
+    if(s < 3600) return LaRuche.i18n.t('settings.chronoDans') + ' ' + Math.floor(s/60) + ' min ' + (s%60) + ' s';
+    if(s < 86400) return LaRuche.i18n.t('settings.chronoDans') + ' ' + Math.floor(s/3600) + ' h ' + Math.floor((s%3600)/60) + ' min';
+    return LaRuche.i18n.t('settings.chronoDans') + ' ' + Math.floor(s/86400) + ' j';
+  }
+
+  function _battreHorloge(){
+    var cibles = document.querySelectorAll('[data-echeance]');
+    if(!cibles.length){ clearInterval(_horloge); _horloge = null; return; }
+    var maintenant = Date.now();
+    cibles.forEach(function(el){
+      var t = parseInt(el.getAttribute('data-echeance'), 10);
+      if(!t){ el.textContent = el.getAttribute('data-vide') || ''; return; }
+      el.textContent = _restant(t - maintenant);
+      // Passe l'echeance, l'element se teint: une vigie en retard se voit.
+      el.classList.toggle('chrono-du', t - maintenant <= 0);
+    });
+  }
+
+  function demarrerHorloge(){
+    if(_horloge) return;
+    _battreHorloge();
+    _horloge = setInterval(_battreHorloge, 1000);
+  }
+
+  /* La pastille d'etat, cliquable. Elle remplace un bouton « Pause » qui n'etait
+     visible qu'une fois la carte depliee: on ne pouvait donc pas suspendre une
+     vigie sans l'ouvrir, ni voir d'un coup d'oeil lesquelles tournaient. */
+  function pastille(actif, id, quoi){
+    return '<button type="button" class="etat-pastille'+(actif?' on':'')+'" '+
+      'data-bascule="'+quoi+'" data-id="'+id+'" '+
+      'title="'+LaRuche.Utils.esc(LaRuche.i18n.t(actif?'settings.etatActifAide':'settings.etatPauseAide'))+'" '+
+      'onclick="event.stopPropagation();LaRuche.Settings.basculerEtat(\''+quoi+'\',\''+id+'\','+(actif?'false':'true')+')">'+
+      '<span class="etat-point"></span>'+
+      LaRuche.i18n.t(actif?'settings.etatActif':'settings.etatPause')+'</button>';
+  }
+
+  /* Activer ou suspendre, pour une vigie comme pour un cron. Les deux passent par
+     le meme geste et le meme mot: c'est la meme idee, il n'y a pas de raison que
+     l'utilisateur apprenne deux fois. */
+  async function basculerEtat(quoi, id, actif){
+    var url = quoi === 'cron' ? '/api/cron/' + id : '/api/watchers/' + id;
+    var methode = quoi === 'cron' ? 'PUT' : 'PATCH';
+    var corps = quoi === 'cron' ? { enabled: actif } : { active: actif };
+    try{
+      var r = await fetch(LaRuche.API.base + url, {
+        method: methode, headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(corps)
+      });
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      if(quoi === 'cron') loadCron(document.getElementById('settingsContent'));
+      else rechargerWatchers();
+    }catch(e){
+      LaRuche.Toast.show(LaRuche.i18n.t('settings.etatEchoue'), 'err');
+    }
+  }
 
   function toggleWatcherActive(id, active){
     fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:active})})
@@ -4543,8 +4655,29 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
     var cible = kanbanCibleSous(e.clientX, e.clientY);
     var col = cible && cible.getAttribute('data-col');
     if(!col || col === g.depart){ _kanbanLast=''; refreshKanbanCols(); return; }
+
+    /* Deplacement OPTIMISTE, puis verite du serveur.
+
+       La carte revenait a sa colonne de depart pendant tout l'aller-retour, ce qui
+       se lit comme un refus meme quand la requete aboutit. Et si elle echouait, le
+       code ne faisait RIEN: pas de message, pas de trace, la carte revenait et
+       c'etait tout. Une session expiree, une erreur du serveur, une coupure
+       reseau, les trois donnaient le meme resultat a l'ecran, celui d'un glissement
+       qui n'aurait pas ete compris. */
+    var corps = cible.querySelector('.kb-col-corps') || cible;
+    if(g.carte && corps) corps.appendChild(g.carte);
+
     fetch(LaRuche.API.base+'/api/kanban/'+g.id+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:col})})
-      .then(function(r){ if(r.ok){ _kanbanLast=''; refreshKanbanCols(); } });
+      .then(function(r){
+        if(r.ok){ _kanbanLast=''; refreshKanbanCols(); return; }
+        LaRuche.Toast.show(LaRuche.i18n.t(
+          r.status === 401 ? 'settings.kanbanNonConnecte' : 'settings.kanbanDeplaceEchoue'), 'err');
+        _kanbanLast=''; refreshKanbanCols();   // remettre la carte ou elle est vraiment
+      })
+      .catch(function(){
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanDeplaceEchoue'), 'err');
+        _kanbanLast=''; refreshKanbanCols();
+      });
   }
 
   function kanbanEnGlisse(e){
@@ -5521,7 +5654,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab, dock:dock, fermerDock:fermerDock,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, basculerEtat:basculerEtat, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab, dock:dock, fermerDock:fermerDock,
     loadGeneral:loadGeneral, loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, lancerCronTask:lancerCronTask, visionReessayer:visionReessayer, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 

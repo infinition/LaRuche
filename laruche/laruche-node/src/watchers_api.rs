@@ -29,6 +29,10 @@ pub(crate) async fn api_list_watchers(State(state): State<Arc<AppState>>) -> Jso
                 // defaut », et l'enregistrement renvoyait zero. Or zero veut dire
                 // « efface, reviens au defaut » cote serveur. Modifier le nom d'une
                 // vigie efface son intervalle et son delai de garde, en silence.
+                // `last_run` sert au compte a rebours de l'interface: sans lui, on
+                // sait tous les combien la vigie regarde, jamais quand elle
+                // regardera la prochaine fois.
+                "last_run": w.last_run,
                 "interval_secs": w.interval_secs,
                 "cooldown_secs": w.cooldown_secs,
                 "sustained": w.sustained,

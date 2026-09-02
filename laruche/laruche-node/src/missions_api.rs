@@ -841,6 +841,13 @@ pub(crate) async fn api_update_cron(
     let Some(mut task) = cron.get(&uuid) else {
         return Json(serde_json::json!({"error": "not found"}));
     };
+    // `enabled` manquait: la liste le RENVOIE, mais rien ne savait l'ecrire. Il
+    // n'existait donc aucun moyen de suspendre une tache planifiee, ni depuis
+    // l'interface ni depuis un agent: la seule facon de l'arreter etait de la
+    // supprimer, ce qui emporte son texte et sa cadence.
+    if let Some(v) = body["enabled"].as_bool() {
+        task.enabled = v;
+    }
     if let Some(v) = body["name"].as_str() {
         task.name = v.to_string();
     }
