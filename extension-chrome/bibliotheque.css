@@ -39,6 +39,13 @@ body {
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+body {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 button,
 input,
 select { font: inherit; }
@@ -48,9 +55,8 @@ button { color: inherit; }
 [hidden] { display: none !important; }
 
 .entete {
-  position: sticky;
+  flex: 0 0 auto;
   z-index: 20;
-  top: 0;
   min-height: 70px;
   padding: 12px 18px;
   display: grid;
@@ -158,13 +164,17 @@ button { color: inherit; }
 }
 
 .application {
-  min-height: calc(100vh - 70px);
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
 }
 
 .panneau-bibliotheque {
+  min-height: 0;
   padding: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-right: 1px solid var(--bord);
   background: var(--surface);
 }
@@ -340,7 +350,10 @@ button { color: inherit; }
 
 .zone-edition {
   min-width: 0;
+  min-height: 0;
   padding: 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .editeur {
