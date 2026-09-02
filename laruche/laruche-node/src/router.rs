@@ -212,6 +212,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             get(config_api::api_get_channel_models).post(config_api::api_save_channel_model),
         )
         .route("/api/context/stats", get(config_api::api_get_context_stats))
+        .route("/api/reseau/qr", get(auth_api::api_reseau_qr))
         .route(
             "/api/config/compaction",
             get(config_api::api_get_compaction_config).post(config_api::api_set_compaction_config),

@@ -137,7 +137,22 @@ fn demarrer_noeud(url: &str) -> Option<Child> {
         // Sans cela le noeud ouvrirait le navigateur par-dessus notre fenetre - on
         // aurait l'interface en double.
         .env("LARUCHE_NO_BROWSER", "1")
+        // Pas de tableau de bord terminal: la fenetre console qui s'ouvrait a cote
+        // de l'application n'etait pas un artefact, c'etait le TUI complet du noeud
+        // (journaux, jauges, onglets). Il a tout son sens quand on lance
+        // laruche-node.exe soi-meme; lance PAR l'application, personne ne le
+        // regarde. Le noeud bascule alors sur serveur + icone de barre systeme.
+        .arg("--no-tui")
         .current_dir(&dossier);
+    // Et aucune console, pas meme un clignotement. `--no-tui` seul ne suffit pas:
+    // laruche-node est un binaire console, donc Windows lui en attribue une des
+    // qu'il demarre, vide et par-dessus tout le reste.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        commande.creation_flags(CREATE_NO_WINDOW);
+    }
     // Le port que nous allons afficher doit etre celui sur lequel il ecoute. Sans
     // cela, un LARUCHE_URL personnalise lancait un noeud sur son port par defaut et
     // la fenetre attendait sur un port ou personne ne repondrait jamais.
@@ -157,6 +172,16 @@ fn demarrer_noeud(url: &str) -> Option<Child> {
     }
     Some(enfant)
 }
+
+use tauri::Manager;
+
+/// Le noeud que NOUS avons demarre, ou rien.
+///
+/// Il naissait dans `main` et mourait avec elle. Depuis que la resolution part
+/// dans un fil, pour que la fenetre s'ouvre sans l'attendre, il faut un point de
+/// rendez-vous entre ce fil et la boucle d'evenements qui, seule, sait quand
+/// fermer. Sans lui, le noeud lance par l'application survivrait a sa fenetre.
+static ENFANT: std::sync::Mutex<Option<Child>> = std::sync::Mutex::new(None);
 
 /// Ecrit la page de choix a cote des donnees de l'application et rend son URL.
 fn page_choix_url(html: &str) -> tauri::Url {
@@ -229,11 +254,21 @@ fn main() {
         return;
     }
 
-    let (cible, mut enfant) = resoudre();
+    // La fenetre s'ouvre TOUT DE SUITE, sur l'ecran d'attente, et la resolution
+    // part dans un fil.
+    //
+    // `resoudre()` demarre le noeud et sonde jusqu'a 45 secondes: tant qu'elle
+    // tournait ici, rien n'etait construit et l'utilisateur avait double-clique
+    // dans le vide. C'etait supportable tant que la console du noeud servait de
+    // preuve de vie; maintenant qu'elle est silencieuse, ce ne l'est plus.
+    let (envoi, reception) = std::sync::mpsc::channel::<(tauri::Url, Option<Child>)>();
+    std::thread::spawn(move || {
+        let _ = envoi.send(resoudre());
+    });
 
     tauri::Builder::default()
         .setup(move |app| {
-            tauri::WebviewWindowBuilder::new(app, "principale", tauri::WebviewUrl::External(cible))
+            tauri::WebviewWindowBuilder::new(app, "principale", tauri::WebviewUrl::App("index.html".into()))
                 .title("LaRuche")
                 .inner_size(1400.0, 900.0)
                 // 380 px de large: la SPA est deja responsive et bascule en
@@ -256,6 +291,33 @@ fn main() {
                 // noeud ici, qui sait ouvrir le navigateur du systeme.
                 .initialization_script("window.__LARUCHE_BUREAU__ = true;")
                 .build()?;
+
+            // Des que la cible est connue, la fenetre y va. Un fil de plus plutot
+            // qu'une attente dans `setup`: Tauri veut la main pour peindre, et
+            // bloquer ici reviendrait exactement a ce qu'on vient de defaire.
+            let fenetre = app.get_webview_window("principale").expect("fenetre creee");
+            let sortie = app.handle().clone();
+            std::thread::spawn(move || match reception.recv() {
+                Ok((cible, ne)) => {
+                    // L'enfant voyage jusqu'a la boucle d'evenements, qui seule sait
+                    // quand l'arreter: sans cela le noeud que NOUS avons lance
+                    // survivrait a la fermeture de la fenetre.
+                    if let Some(c) = ne {
+                        ENFANT.lock().expect("verrou enfant").replace(c);
+                    }
+                    let _ = fenetre.navigate(cible);
+                }
+                // Le fil est mort sans repondre: on ne laisse pas la fenetre sur un
+                // ecran d'attente perpetuel, elle doit dire ce qui s'est passe.
+                Err(_) => {
+                    let _ = fenetre.eval(
+                        "document.getElementById('titre').textContent='LaRuche n_a pas demarre';\
+                         document.getElementById('detail').textContent='Lance laruche-node.exe a la main pour voir l_erreur.';\
+                         document.querySelector('.barre').style.display='none';",
+                    );
+                    let _ = sortie;
+                }
+            });
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -265,7 +327,7 @@ fn main() {
             // continue apres nous - fermer la fenetre ne doit pas couper un service
             // que quelqu'un d'autre utilise.
             if let tauri::RunEvent::Exit = evenement {
-                if let Some(c) = enfant.as_mut() {
+                if let Some(c) = ENFANT.lock().expect("verrou enfant").as_mut() {
                     let _ = c.kill();
                 }
             }

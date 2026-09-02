@@ -160,7 +160,7 @@ fn accueil_demarrage(scheme: &str, port: u16) {
 
 /// Best-effort local LAN IP (for the cert SAN list and the phone QR), via a UDP connect
 /// trick. No packet is actually sent; the OS just picks the outbound interface address.
-fn detect_local_ip() -> Option<String> {
+pub(crate) fn detect_local_ip() -> Option<String> {
     let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     sock.connect("8.8.8.8:80").ok()?;
     sock.local_addr().ok().map(|a| a.ip().to_string())

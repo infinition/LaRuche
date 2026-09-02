@@ -825,6 +825,41 @@ pub(crate) async fn api_totp_setup(
     Ok(Json(serde_json::json!({ "secret": secret, "otpauth_url": url, "qr_svg": qr })))
 }
 
+/// GET /api/reseau/qr - de quoi ouvrir LaRuche sur un telephone.
+///
+/// Le QR etait imprime au demarrage du noeud puis efface par son TUI, et il n'a
+/// jamais existe dans l'interface web: quelqu'un qui lance l'application de bureau
+/// n'avait aucun moyen d'atteindre sa ruche depuis son telephone, alors que la
+/// fonction etait la, a deux lignes de distance.
+///
+/// L'adresse LOCALE ne sert a rien ici: un telephone qui scannerait un code vers
+/// `localhost` ouvrirait son propre navigateur sur lui-meme. Sans adresse de
+/// reseau, on le dit plutot que de rendre un code inutile.
+pub(crate) async fn api_reseau_qr(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let ip = crate::detect_local_ip();
+    let port = state.config.api_port;
+    match ip {
+        Some(ip) => {
+            let url = format!("http://{ip}:{port}");
+            let svg = auth_user::generate_qr_svg(&url);
+            Json(serde_json::json!({
+                "disponible": true,
+                "url": url,
+                "qr_svg": svg,
+                // Le code peut etre parfait et la ruche muette: elle n'ecoute que sur
+                // la boucle locale tant qu'on ne le lui demande pas. Le dire ici evite
+                // de chercher du cote du telephone un probleme qui est cote serveur.
+                "bind_lan": std::env::var("LARUCHE_BIND_LAN").is_ok(),
+            }))
+        }
+        None => Json(serde_json::json!({
+            "disponible": false,
+            "raison": "no_lan_address",
+            "bind_lan": std::env::var("LARUCHE_BIND_LAN").is_ok(),
+        })),
+    }
+}
+
 /// POST /api/auth/totp/enable {secret, code} - verify a code against the pending secret, then
 /// turn 2FA on for the account.
 pub(crate) async fn api_totp_enable(

@@ -1,7 +1,60 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>LaRuche</title>
-<!-- Coquille vide, jamais affichee. La fenetre est creee a l'execution et pointee
-     sur le noeud local: l'interface servie est exactement la page web habituelle,
-     sans copie ni variante embarquee ici. Tauri exige neanmoins un `frontendDist`. -->
-<body style="margin:0;background:#0f0f10"></body>
+<!-- L'ecran d'attente, et rien de plus.
+     La fenetre s'ouvre ICI, immediatement, puis part sur le noeud des qu'il
+     repond. Avant, la fenetre n'etait construite qu'une fois le noeud debout:
+     un double clic suivi de rien pendant une minute sur un demarrage a froid,
+     avec pour seul signe de vie la console du noeud, celle-la meme qu'on vient
+     de faire taire. Cette page ne duplique aucune interface: la SPA reste servie
+     par le noeud, on ne fait qu'occuper l'attente honnetement. -->
+<style>
+  :root { color-scheme: dark; }
+  html, body {
+    height: 100%; margin: 0;
+    background: #0f0f10; color: #e8e8ea;
+    font: 14px/1.6 -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  body {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 22px; text-align: center;
+    padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+    overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+  }
+  .ruche { width: 76px; height: 76px; animation: souffle 2.4s ease-in-out infinite; }
+  .ruche path { fill: #f5a623; }
+  h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: .2px; }
+  p  { margin: 0; font-size: 13px; color: #8b8b92; max-width: 34ch; }
+  .barre { width: 190px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .barre i { display: block; width: 40%; height: 100%; border-radius: 2px; background: #f5a623; animation: va 1.5s ease-in-out infinite; }
+  @keyframes souffle { 0%, 100% { transform: scale(1); opacity: .92 } 50% { transform: scale(1.06); opacity: 1 } }
+  @keyframes va { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } }
+  /* Une animation qui pulse n'est pas negociable pour tout le monde. */
+  @media (prefers-reduced-motion: reduce) {
+    .ruche, .barre i { animation: none; }
+    .barre i { width: 100%; opacity: .5; }
+  }
+</style>
+<body>
+  <svg class="ruche" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 7 3.9v7.6l-7 3.9-7-3.9V8.2l7-3.9Z"/>
+    <path d="M12 7.2 7.5 9.7v4.6L12 16.8l4.5-2.5V9.7L12 7.2Z"/>
+  </svg>
+  <h1 id="titre">Démarrage de LaRuche…</h1>
+  <p id="detail">La ruche ouvre sa mémoire et sonde le réseau. Quelques secondes.</p>
+  <div class="barre"><i></i></div>
+
+  <script>
+    // Au-dela d'un certain temps, dire ce qui se passe vaut mieux que continuer a
+    // faire tourner une barre. Le demarrage a froid depasse rarement 20 secondes;
+    // s'il traine, c'est presque toujours l'indexation initiale de la memoire.
+    setTimeout(function () {
+      var d = document.getElementById('detail');
+      if (d) d.textContent = "C'est plus long que d'habitude. La memoire s'indexe peut-etre pour la premiere fois.";
+    }, 20000);
+  </script>
+</body>
