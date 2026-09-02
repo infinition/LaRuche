@@ -43,6 +43,17 @@ pub struct Carnet {
     pub auto_continue: usize,
     /// Web/network tool calls actually performed (proof of search).
     pub recolte_web: usize,
+    /// Exploration relaunches consumed over the WHOLE mission.
+    ///
+    /// Deliberately NOT rearmed by [`Self::rearmer_auto`]. `auto_continue` returns to
+    /// zero as soon as any tool runs, which is right for a model that botched a tool
+    /// call and fixed it, but it made the exploration rail unbounded: the nudge says
+    /// "do not conclude", the model re-fetches a page it has already read, the budget
+    /// rearms, and the same nudge fires again. Observed on 2026-09-02, the same GitHub
+    /// README pulled five times over seven minutes with the trace alternating
+    /// `Relaunch (1/3)`, `(2/3)`, `(1/3)` and never landing.
+    #[serde(default)]
+    pub relances_exploration: usize,
     /// Cumulative real input tokens over the whole butinage (provider-reported).
     #[serde(default)]
     pub tokens_entree_total: u64,
@@ -78,6 +89,7 @@ impl Carnet {
             passe: 0,
             auto_continue: 0,
             recolte_web: 0,
+            relances_exploration: 0,
             tokens_entree_total: 0,
             tokens_sortie_total: 0,
             vigie: None,
@@ -128,6 +140,11 @@ impl Carnet {
         self.auto_continue += 1;
     }
 
+    /// Consumes one EXPLORATION relaunch. Never rearmed: see the field's doc.
+    pub fn consommer_exploration(&mut self) {
+        self.relances_exploration += 1;
+    }
+
     /// Builds the decision context for [`crate::cap::boussole::cap`].
     pub fn contexte_cap(
         &self,
@@ -141,6 +158,7 @@ impl Carnet {
             relance_max,
             mode_exploration: self.mode == ModeMission::Exploration,
             recolte_web: self.recolte_web,
+            relances_exploration: self.relances_exploration,
             min_web_exploration,
             delegation_dispo,
             verification_dispo,

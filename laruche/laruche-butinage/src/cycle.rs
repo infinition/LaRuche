@@ -339,6 +339,10 @@ pub async fn butiner(
                     emet.emettre(Evenement::Statut("🔎 Self-check before landing…".into()));
                 }
                 carnet.consommer_auto();
+                // An exploration push also burns a budget that no tool call rearms.
+                if crate::cap::boussole::est_exploration(&nudge) {
+                    carnet.consommer_exploration();
+                }
                 emet.emettre(Evenement::Statut(format!(
                     "Relaunch ({}/{})",
                     carnet.auto_continue, reglages.relance_max

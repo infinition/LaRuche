@@ -34,6 +34,10 @@ pub struct ContexteCap {
     pub recolte_web: usize,
     /// In exploration mode, minimum web calls below which we relaunch (bounded by `relance_max`).
     pub min_web_exploration: usize,
+    /// Exploration relaunches already consumed over the WHOLE mission, never rearmed.
+    /// `auto_continue` cannot bound this rail on its own: any tool execution resets it,
+    /// so a model that re-reads a page it already has resets its own leash.
+    pub relances_exploration: usize,
     /// Is `delegate` available in THIS context? False for sub-agents (anti-recursion):
     /// the exploration nudge must not order a fan-out they cannot perform.
     pub delegation_dispo: bool,
@@ -47,6 +51,11 @@ pub struct ContexteCap {
 impl ContexteCap {
     fn relance_dispo(&self) -> bool {
         self.auto_continue < self.relance_max
+    }
+
+    /// Is another EXPLORATION relaunch allowed? Counted over the whole mission.
+    fn exploration_dispo(&self) -> bool {
+        self.relances_exploration < self.relance_max
     }
 }
 
@@ -107,6 +116,13 @@ mod nudge {
         operators. A 403/paywall is not a dead end: use web archives, caches, mirrors.";
 }
 
+/// Is this nudge one of the exploration pushes? The two constants are the only
+/// relaunches that must be counted over the whole mission rather than per sterile
+/// streak, so the loop needs to tell them apart from a truncation resume.
+pub fn est_exploration(nudge: &str) -> bool {
+    nudge == nudge::EXPLORER_PLUS || nudge == nudge::EXPLORER_PLUS_SOLO
+}
+
 /// Below this self-declared confidence, a `mission_accomplie` gets a self-check
 /// bounce even outside exploration mode (when the check is still available).
 const SEUIL_CONFIANCE_VERIF: f32 = 0.6;
@@ -165,6 +181,7 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
             if ctx.mode_exploration
                 && ctx.recolte_web < ctx.min_web_exploration
                 && ctx.relance_dispo()
+                && ctx.exploration_dispo()
             {
                 // Never order a fan-out where delegation is unavailable (sub-agents):
                 // the model would burn passes against the anti-recursion wall.
@@ -193,6 +210,7 @@ mod tests {
             relance_max: 3,
             mode_exploration: false,
             recolte_web: 0,
+            relances_exploration: 0,
             min_web_exploration: 12,
             delegation_dispo: true,
             verification_dispo: false,
@@ -358,4 +376,38 @@ mod tests {
         c.auto_continue = 3; // relances stériles épuisées
         assert_eq!(cap(&c, texte(base_texte())), Decision::Poser(FinDeVol::Accomplie));
     }
+
+    /// The 2026-09-02 runaway: the model alternates a text-only turn and a tool call.
+    /// Every tool run rearms `auto_continue`, so the per-streak leash never bites. Only
+    /// a mission-wide count stops the "do not conclude" nudge from firing forever.
+    #[test]
+    fn l_exploration_ne_se_reamorce_pas_en_rejouant_un_outil() {
+        let mut c = ctx();
+        c.mode_exploration = true;
+        c.recolte_web = 3; // toujours sous min_web_exploration
+        c.auto_continue = 0; // un outil vient de tourner: budge sterile rearme
+        for consommees in 0..3 {
+            c.relances_exploration = consommees;
+            assert!(
+                matches!(cap(&c, texte(base_texte())), Decision::Relancer(_)),
+                "relance {consommees} attendue"
+            );
+        }
+        // Trois poussees d'exploration consommees: on rend la main, meme si le budget
+        // sterile est intact et que la recolte web est toujours sous le minimum.
+        c.relances_exploration = 3;
+        assert!(matches!(
+            cap(&c, texte(base_texte())),
+            Decision::Poser(FinDeVol::Accomplie)
+        ));
+    }
+
+    #[test]
+    fn est_exploration_distingue_les_nudges() {
+        assert!(est_exploration(nudge::EXPLORER_PLUS));
+        assert!(est_exploration(nudge::EXPLORER_PLUS_SOLO));
+        assert!(!est_exploration(nudge::REPRISE_TRONQUEE));
+        assert!(!est_exploration(nudge::DEMARRER_PLAN));
+    }
+
 }
