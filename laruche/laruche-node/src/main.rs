@@ -887,6 +887,11 @@ async fn main() -> Result<()> {
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleWatcherDelete {
         watcher_store: watchers_arc.clone(),
     }));
+    // Suspendre plutot que detruire: l'agent n'avait que la suppression pour
+    // arreter une vigie, ce qui emportait sa cible, sa regle et son action.
+    essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleWatcherToggle {
+        watcher_store: watchers_arc.clone(),
+    }));
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleKanbanCreate {
         kanban_board: kanban_arc.clone(),
     }));

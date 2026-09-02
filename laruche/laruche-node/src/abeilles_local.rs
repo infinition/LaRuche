@@ -846,6 +846,75 @@ impl Abeille for AbeilleWatcherList {
     }
 }
 
+/// Suspendre une vigie sans la perdre.
+///
+/// L'agent savait creer, lister et SUPPRIMER, rien d'autre. Pour arreter une
+/// vigie devenue bavarde, il n'avait donc que la destruction, qui emporte avec
+/// elle sa cible, sa regle et son texte d'action: on ne la rallume pas, on la
+/// refait. Suspendre est le geste courant; supprimer devrait etre le rare.
+pub struct AbeilleWatcherToggle {
+    pub watcher_store: Arc<RwLock<laruche_watchers::WatchersRegistry>>,
+}
+
+#[async_trait]
+impl Abeille for AbeilleWatcherToggle {
+    fn nom(&self) -> &str {
+        "watcher_toggle"
+    }
+
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+
+    fn description(&self) -> &str {
+        "Enable or disable a watcher WITHOUT deleting it. Use this to pause a noisy \
+         or temporarily irrelevant watcher: its target, rule and action are kept, and \
+         `active: true` brings it back exactly as it was. Prefer this over watcher_delete."
+    }
+
+    fn schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "active": { "type": "boolean", "description": "true = running, false = paused" }
+            },
+            "required": ["id", "active"]
+        })
+    }
+
+    async fn executer(
+        &self,
+        args: Value,
+        _ctx: &ContextExecution,
+    ) -> anyhow::Result<ResultatAbeille> {
+        let Some(id_str) = args["id"].as_str() else {
+            return Ok(ResultatAbeille::err("Parameter 'id' is required.".to_string()));
+        };
+        let Some(actif) = args["active"].as_bool() else {
+            return Ok(ResultatAbeille::err(
+                "Parameter 'active' is required (true or false).".to_string(),
+            ));
+        };
+        let Ok(uuid) = Uuid::parse_str(id_str) else {
+            return Ok(ResultatAbeille::err("Invalid ID".to_string()));
+        };
+        let mut registry = self.watcher_store.write().await;
+        let ok = registry.update(
+            &uuid, None, None, None, None, None, Some(actif),
+            None, None, None, None, None, None, None,
+        );
+        if ok {
+            Ok(ResultatAbeille::ok(format!(
+                "Watcher {uuid} is now {}",
+                if actif { "running" } else { "paused" }
+            )))
+        } else {
+            Ok(ResultatAbeille::err("Watcher not found".to_string()))
+        }
+    }
+}
+
 pub struct AbeilleWatcherDelete {
     pub watcher_store: Arc<RwLock<laruche_watchers::WatchersRegistry>>,
 }

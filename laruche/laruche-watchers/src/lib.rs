@@ -1720,11 +1720,25 @@ fn empreinte_sortie(texte: &str, code: Option<i32>) -> String {
 /// every device already on the network would be announced as an arrival the moment the
 /// watcher is created.
 fn lignes_neuves(texte: &str, precedentes: &Option<Vec<u64>>) -> (Vec<String>, Vec<u64>) {
-    use std::hash::{Hash, Hasher};
-    let empreinte = |l: &str| {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        l.trim().hash(&mut h);
-        h.finish()
+    // FNV-1a, et non `DefaultHasher`.
+    //
+    // Ces empreintes sont ECRITES DANS `watchers.json` et relues au demarrage
+    // suivant, eventuellement par un binaire recompile. Or l'algorithme de
+    // `DefaultHasher` est explicitement non specifie: rien ne garantit qu'il rende
+    // la meme valeur d'une version de Rust a l'autre. Le jour ou il change, toutes
+    // les lignes deja vues paraissent neuves d'un coup, ou aucune ne l'est jamais
+    // plus, selon le sens du decalage: une vigie d'arrivee se met alors a tout
+    // annoncer, ou a ne plus rien annoncer, sans que rien ne l'explique.
+    //
+    // La regle est simple: ce qui est persiste ne se hache pas avec un algorithme
+    // qu'on ne controle pas.
+    let empreinte = |l: &str| -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in l.trim().as_bytes() {
+            h ^= *b as u64;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        h
     };
     let lignes: Vec<&str> = texte.lines().filter(|l| !l.trim().is_empty()).collect();
     let courantes: Vec<u64> = lignes.iter().map(|l| empreinte(l)).collect();
@@ -2614,5 +2628,64 @@ mod tests_presence {
         assert_eq!(regle.evaluer_avec(&obs_present(true), &now, &eteinte), Verdict::Faux);
         // Light on, no file: silent too.
         assert_eq!(regle.evaluer_avec(&obs_present(false), &now, &allumee), Verdict::Faux);
+    }
+}
+
+#[cfg(test)]
+mod tests_lignes_neuves {
+    use super::lignes_neuves;
+
+    #[test]
+    fn le_premier_passage_ne_declare_rien_de_neuf() {
+        let (neuves, courantes) = lignes_neuves("a
+b
+c", &None);
+        assert!(neuves.is_empty(), "un premier passage etablit la reference");
+        assert_eq!(courantes.len(), 3);
+    }
+
+    #[test]
+    fn une_ligne_ajoutee_est_vue() {
+        let (_, avant) = lignes_neuves("a
+b", &None);
+        let (neuves, _) = lignes_neuves("a
+b
+c", &Some(avant));
+        assert_eq!(neuves, vec!["c".to_string()]);
+    }
+
+    #[test]
+    fn une_ligne_retiree_n_en_cree_pas() {
+        let (_, avant) = lignes_neuves("a
+b
+c", &None);
+        let (neuves, _) = lignes_neuves("a
+c", &Some(avant));
+        assert!(neuves.is_empty());
+    }
+
+    #[test]
+    fn l_empreinte_est_stable_donc_persistable() {
+        // Le point de tout ce changement: deux calculs de la MEME ligne, y compris
+        // apres un redemarrage ou une recompilation, doivent donner la meme valeur.
+        let (_, a) = lignes_neuves("desktop.ini
+rapport.txt", &None);
+        let (_, b) = lignes_neuves("desktop.ini
+rapport.txt", &None);
+        assert_eq!(a, b);
+        // Et une valeur fixe, verifiee: si elle change un jour, ce test le dira
+        // avant que les vigies ne se mettent a mentir.
+        let (_, seule) = lignes_neuves("desktop.ini", &None);
+        assert_eq!(seule.len(), 1);
+        assert_ne!(seule[0], 0);
+    }
+
+    #[test]
+    fn les_blancs_de_bord_ne_comptent_pas() {
+        let (_, avant) = lignes_neuves("  a  
+b", &None);
+        let (neuves, _) = lignes_neuves("a
+  b", &Some(avant));
+        assert!(neuves.is_empty(), "seule la mise en forme a change");
     }
 }

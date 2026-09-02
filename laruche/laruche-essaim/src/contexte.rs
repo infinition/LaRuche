@@ -108,6 +108,7 @@ const CORE_TOOL_NAMES: &[&str] = &[
     "watcher_create",
     "watcher_list",
     "watcher_delete",
+    "watcher_toggle",
     "session_search",
     "web_deep_search",
     "clarify",
