@@ -63,6 +63,10 @@ LaRuche.i18n.add({
   'chat.pickerUp':              {fr:'Dossier parent',       en:'Parent folder'},
   'chat.pickerEmpty':           {fr:'Aucun sous-dossier',   en:'No subfolder'},
   'chat.pickerCancel':          {fr:'Annuler',              en:'Cancel'},
+  'chat.ttsNavigateur':         {fr:"Service de voix indisponible. La lecture passe par le narrateur intégré du navigateur (API Web Speech), qui emprunte les voix installées sur le système : voix Windows ou macOS de la machine. La qualité et les langues disponibles ne dépendent donc ni de LaRuche ni du navigateur, mais de ce qui est installé sur l'ordinateur.", en:'Voice service unavailable. Reading falls back to the browser built-in narrator (Web Speech API), which borrows the voices installed on the system: the machine Windows or macOS voices. Quality and available languages therefore depend neither on LaRuche nor on the browser, but on what is installed on the computer.'},
+  'chat.ttsNavigateurCourt':    {fr:'Voix du serveur indisponible : lecture par le narrateur du système.', en:'Server voice unavailable: reading with the system narrator.'},
+  'chat.muetOn':                {fr:'Voix coupée',    en:'Voice muted'},
+  'chat.muetOff':               {fr:'Voix rétablie',  en:'Voice restored'},
   'chat.dossier':               {fr:'Dossier: ',               en:'Folder: '},
   'chat.erreur':                {fr:'Erreur: ',                 en:'Error: '},
   'chat.conversationExportee':  {fr:'Conversation exportée',    en:'Conversation exported'},
@@ -3115,7 +3119,21 @@ LaRuche.Voice = (function(){
     ttsPlayQueue(sentences,0,first,btn,seq);
   }
 
+  /* Le narrateur de repli, nomme une fois par session.
+
+     "TTS indisponible" ne disait pas ce qui parlait quand meme. On entendait une
+     voix, souvent moins bonne, sans savoir d'ou elle venait ni pourquoi elle
+     avait change. C'est l'API Web Speech du navigateur, qui n'a pas de voix a
+     elle: elle emprunte celles du SYSTEME, donc les voix Windows (Microsoft
+     Hortense, Julie...) ou macOS installees sur la machine. D'ou la qualite et le
+     choix de langues, qui ne dependent ni de LaRuche ni du navigateur. */
+  var _replinNomme = false;
   function speakBrowser(text, btn) {
+    if(!_replinNomme){
+      _replinNomme = true;
+      LaRuche.Console.log('info','TTS', LaRuche.i18n.t('chat.ttsNavigateur'));
+      if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('chat.ttsNavigateurCourt'),'warn');
+    }
     if('speechSynthesis' in window){
       speechSynthesis.cancel();
       var utter=new SpeechSynthesisUtterance(text);
@@ -3146,7 +3164,7 @@ LaRuche.Voice = (function(){
     if(el !== _stts.el){
       _stts.el=el; _stts.enq=0; _stts.q=[]; _stts.used=false; _stts.busy=false; _stts.seq++; _stts.lastClean='';
     }
-    if(!autoTtsEnabled) return;
+    if(!autoTtsEnabled || _ttsMuet) return;
     _ttsFluxOuvert=true;
     _stts.lastClean=clean;
     if(vmOpen){ vmSpokenText=clean; var vmTr=document.getElementById('voiceModeTranscript'); if(vmTr) vmTr.textContent=clean; }
@@ -3185,7 +3203,7 @@ LaRuche.Voice = (function(){
   // Flush the final tail at end of message. Falls back to a one-shot read if streaming
   // never kicked in (e.g. a single-sentence answer, or auto-TTS toggled mid-stream).
   function finishStream(fullText, btn){
-    if(!autoTtsEnabled) return;
+    if(!autoTtsEnabled || _ttsMuet) return;
     // Le message est complet: ce qui reste a dire est desormais dans la file, et
     // `ttsEnCours` la surveille. Le flux peut se refermer.
     _ttsFluxOuvert=false;
@@ -3340,6 +3358,9 @@ LaRuche.Voice = (function(){
 
   function toggleAutoTts() {
     autoTtsEnabled=!autoTtsEnabled;
+    // Desactiver doit couper la phrase EN COURS. Sur un long texte, attendre la
+    // fin revenait a subir plusieurs minutes d'une voix qu'on venait d'eteindre.
+    if(!autoTtsEnabled) stopAllTts(); else ttsRendreLaVoix();
     try{ localStorage.setItem('laruche_autotts', autoTtsEnabled?'1':'0'); }catch(e){}
     var btn=document.getElementById('autoTtsToggle');
     btn.classList.toggle('active',autoTtsEnabled);
@@ -3557,7 +3578,9 @@ LaRuche.Voice = (function(){
     autoTtsEnabled=vmPrevAutoTts;
     if(vmRaf){ cancelAnimationFrame(vmRaf); vmRaf=null; }
     if(vmRecognition){ try{ vmRecognition.stop(); }catch(e){} vmRecognition=null; }
-    stopAllTts();
+    // Faire taire, et pas seulement vider: la reponse peut encore arriver, et
+    // `feedStream` rempilerait aussitot. Le verrou est relache au tour suivant.
+    ttsFaireTaire();
     if(typeof vmStopBarge==='function') vmStopBarge();
     document.removeEventListener('keydown', vmEsc);
     var tr=document.getElementById('voiceModeTranscript'); if(tr) tr.textContent='';
@@ -3692,7 +3715,14 @@ LaRuche.Voice = (function(){
     try{ localStorage.setItem('laruche_wakeword', wakeWordOn?'1':'0'); }catch(e){}
     var btn=document.getElementById('wakeWordBtn'); if(btn) btn.classList.toggle('active', wakeWordOn);
     if(wakeWordOn){ startWakeWord(); if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('chat.wakeWordOn'),'ok'); }
-    else { stopWakeWord(false); if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('chat.wakeWordOff'),'ok'); }
+    else {
+      stopWakeWord(false);
+      // On coupe le mot d'eveil PENDANT qu'elle parle: la voix devait s'arreter
+      // avec lui. Elle ne s'arretait pas du tout, `stopWakeWord` ne touchant que
+      // le micro.
+      ttsFaireTaire();
+      if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('chat.wakeWordOff'),'ok');
+    }
   }
 
   function init() {
@@ -3722,6 +3752,8 @@ LaRuche.Voice = (function(){
     toggleWakeWord:toggleWakeWord,
     refreshStatus:checkVoiceStatus,
     isAutoTts:function(){return autoTtsEnabled;}, cleanTextForTTS:cleanTextForTTS,
+    toggleMute:toggleMute, ttsEstMuet:ttsEstMuet, ttsFaireTaire:ttsFaireTaire,
+    ttsRendreLaVoix:ttsRendreLaVoix,
     selectTTS: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'tts'); },
     toggleTtsDrop:toggleTtsDrop, pickSbTts:pickSbTts,
     selectSTT: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'stt'); },

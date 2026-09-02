@@ -648,20 +648,29 @@
 <!--__LANG_INJECT__--><script src="/app.js"></script>
 <!-- BOTTOM STATUS BAR (desktop app aesthetic) -->
 <div class="status-bar" id="statusBar">
-  <div class="sb-model-wrap">
+  <!-- L'ordre se lit de gauche a droite comme une phrase: QUI supervise, QUEL
+       modele repond, et le silence au bout. LaReine ouvrait la marche apres le
+       modele, ce qui mettait le detail avant celui qui le decide. -->
+  <div class="sb-model-wrap" id="sbReineWrap">
+    <span id="sbReineLabel" title="LaReine" style="cursor:pointer;font-size:13px;line-height:1;opacity:.4">&#128081;</span>
+    <div class="sb-model-drop" id="sbReineDrop"></div>
+  </div>
+  <div class="sb-model-wrap" style="margin-left:8px">
     <span id="sbModelLabel" style="color:var(--amber);font-size:11px;font-weight:500;cursor:pointer;" data-i18n="automations.chargement">Loading...</span>
     <div class="sb-model-drop" id="sbModelDrop"></div>
   </div>
   <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" data-i18n-title="shell.tipChangeModel" title="Change model" style="display:none;">
     <option value="" data-i18n="automations.chargement">Loading...</option>
   </select>
+  <!-- Le muet coupe la voix EN COURS et empeche la suivante, ce qu'aucun des
+       autres boutons ne faisait: la lecture automatique ne decidait que des
+       reponses a venir. -->
+  <div class="sb-model-wrap" style="margin-left:8px">
+    <span id="sbMuteLabel" title="Muet" style="cursor:pointer;font-size:13px;line-height:1;opacity:.55" onclick="LaRuche.Voice.toggleMute()">&#128266;</span>
+  </div>
   <div class="sb-model-wrap" id="sbTtsWrap" style="margin-left:8px;display:none">
     <span id="sbTtsLabel" title="Voice (TTS)" style="cursor:pointer;font-size:13px;line-height:1;opacity:.6" onclick="LaRuche.Voice.toggleTtsDrop(event)">&#128266;</span>
     <div class="sb-model-drop" id="sbTtsDrop"></div>
-  </div>
-  <div class="sb-model-wrap" id="sbReineWrap" style="margin-left:8px">
-    <span id="sbReineLabel" title="LaReine" style="cursor:pointer;font-size:13px;line-height:1;opacity:.4">&#128081;</span>
-    <div class="sb-model-drop" id="sbReineDrop"></div>
   </div>
   <!-- Live activity: silent and invisible while nothing runs, one bee per running job
        when something does. Details on hover. -->
