@@ -94,14 +94,18 @@ impl Abeille for MemoireWrite {
     fn description(&self) -> &str {
         "Store a lasting fact, decision or preference in the cognitive map. \
          Use a dotted node_id: `projects.<name>`, `decisions.<topic>`, `people.<name>`. \
-         Call after any decision or fact that must persist across conversations."
+         Call after any decision or fact that must persist across conversations. \
+         `content` is rendered as MARKDOWN: for anything longer than a sentence, write \
+         it as such - headings, lists, tables, `code`, and [[wikilinks]] to other nodes. \
+         A report crammed into one paragraph is unreadable in the memory view, and one \
+         numbered item per line is read faster than \"1) ... 2) ... 3) ...\" run together."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
                 "node_id": { "type": "string", "description": "Dotted node, e.g. decisions.archi" },
-                "content": { "type": "string", "description": "The fact to memorize" },
+                "content": { "type": "string", "description": "The fact to memorize. Markdown, rendered as such: use lists, headings and [[wikilinks]] beyond one sentence" },
                 "source": { "type": "string", "description": "Optional provenance" }
             },
             "required": ["node_id", "content"]
