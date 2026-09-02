@@ -649,9 +649,12 @@ LaRuche.Chat = (function(){
         closeAssistantSegmentForTool();
         setFeedLive('tool');
         // Sub-agent badge: during a fan-out the transcript says WHO is searching what.
+        // Sur l'outil REEL, pas sur l'aiguilleur `tool_call`: sans ca un shell_exec
+        // passe par lui perdait son rendu terminal et son diff de fichier.
+        var appelReel=devoilerAppel(data.name,data.args);
         var toolLabel=agentBadge(data.agent)+toolActivityLabel(data.name,data.args);
-        maybeRenderFileDiff(data.name,data.args); // inline diff card for file edits
-        addActivity('tool-call',toolLabel+LaRuche.i18n.t('chat.enCours'),toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,agent:data.agent,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
+        maybeRenderFileDiff(appelReel.name,appelReel.args); // inline diff card for file edits
+        addActivity('tool-call',toolLabel+LaRuche.i18n.t('chat.enCours'),toolContext(appelReel.args),true,{toolName:data.name,activityLabel:toolLabel,agent:data.agent,live:true,terminal:(appelReel.name==='shell_exec'||appelReel.name==='execute_code'||appelReel.name==='run_script'),command:toolContext(appelReel.args)});
         break;
       case 'tool_output':
         appendToolOutput(data.name,data.text||data.chunk||'');
@@ -2006,8 +2009,9 @@ LaRuche.Chat = (function(){
   // argument de 300 Ko n'atterrisse pas entier dans le DOM.
   var DETAIL_MAX = 400;
   function toolActivityLabel(name,args){
-    var base=humanToolName(name);
-    var detail=(toolContext(args)||'').replace(/\s+/g,' ').trim();
+    var reel=devoilerAppel(name,args);
+    var base=humanToolName(reel.name);
+    var detail=(toolContext(reel.args)||'').replace(/\s+/g,' ').trim();
     if(!detail)return base;
     return base+' · '+(detail.length>DETAIL_MAX?detail.slice(0,DETAIL_MAX)+'…':detail);
   }
@@ -2039,9 +2043,39 @@ LaRuche.Chat = (function(){
     var mapped=LaRuche.i18n.t(key);
     return (mapped&&mapped!==key)?mapped:name.replace(/_/g,' ');
   }
+  // `tool_call` est un AIGUILLEUR: le vrai outil voyage dans ses arguments.
+  //
+  // Affiche tel quel, il donnait des lignes comme
+  //   tool call · {"args":{"node_id":"projects.tamagotchi-uni"},"tool":"memory_read_node"}
+  // ou l'utilisateur lit le nom de l'aiguilleur et doit deviner la destination dans
+  // du JSON. On dresse la ligne sur l'outil REELLEMENT appele.
+  function devoilerAppel(name,args){
+    args=args||{};
+    if(name==='tool_call' && typeof args.tool==='string' && args.tool){
+      var inner=(args.args && typeof args.args==='object' && !Array.isArray(args.args))?args.args:null;
+      return {name:args.tool, args:inner||args};
+    }
+    return {name:name, args:args};
+  }
+  // Les cles techniques du transport, jamais de l'information pour qui lit.
+  var ARGS_CACHES={tool:1,args:1};
+  // Les arguments en clair: `cle: valeur`, plutot qu'un JSON.stringify brut.
+  function argsLisibles(args){
+    var bouts=[];
+    for(var k in args){
+      if(!Object.prototype.hasOwnProperty.call(args,k) || ARGS_CACHES[k]) continue;
+      var v=args[k];
+      if(v===null || v===undefined || v==='') continue;
+      if(typeof v==='object') v=JSON.stringify(v);
+      v=String(v).replace(/\s+/g,' ').trim();
+      if(!v) continue;
+      bouts.push(k.replace(/_/g,' ')+': '+v);
+    }
+    return bouts.join(' · ');
+  }
   function toolContext(args){
     args=args||{};if(args.command)return args.command;if(args.code)return args.code.length>300?args.code.slice(0,300)+'…':args.code;if(args.path)return args.path;if(args.query)return args.query;if(args.url)return args.url;if(args.prompt)return args.prompt;
-    var raw=JSON.stringify(args);return raw==='{}'?'':raw;
+    return argsLisibles(args);
   }
   function thoughtLabel(phase,kind){
     var labels={orientation:LaRuche.i18n.t('chat.thoughtOrientation'),exploration:LaRuche.i18n.t('chat.thoughtExploration'),implementation:LaRuche.i18n.t('chat.thoughtImplementation'),verification:LaRuche.i18n.t('chat.thoughtVerification')};
@@ -2398,7 +2432,7 @@ LaRuche.Chat = (function(){
           var restoredArgs=msg.args||{};
           var restoredTool=msg.tool||'?';
           maybeRenderFileDiff(restoredTool,restoredArgs); // inline diff card (replay)
-          addActivity('tool-call',toolActivityLabel(restoredTool,restoredArgs)+' · '+LaRuche.i18n.t('chat.executes'),toolContext(restoredArgs),true,{toolName:restoredTool,activityLabel:toolActivityLabel(restoredTool,restoredArgs),terminal:(restoredTool==='shell_exec'||restoredTool==='execute_code'||restoredTool==='run_script'),command:toolContext(restoredArgs)});
+          var restoredReel=devoilerAppel(restoredTool,restoredArgs);addActivity('tool-call',toolActivityLabel(restoredTool,restoredArgs)+' · '+LaRuche.i18n.t('chat.executes'),toolContext(restoredReel.args),true,{toolName:restoredTool,activityLabel:toolActivityLabel(restoredTool,restoredArgs),terminal:(restoredReel.name==='shell_exec'||restoredReel.name==='execute_code'||restoredReel.name==='run_script'),command:toolContext(restoredReel.args)});
         }
         else if(msg.role==='tool'){
           var txt=msg.text||'';
