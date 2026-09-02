@@ -226,10 +226,10 @@ LaRuche.i18n.add({
      d'appels passes a chercher de quel projet on parlait. Une suggestion qui
      oblige a poser une question ne suggere rien.
      Une par pilier: les skills, le web, la surveillance, la memoire. */
-  'chat.suggestion1':           {fr:'Que sais-tu faire ? Montre-moi tes skills', en:'What can you do? Show me your skills'},
-  'chat.suggestion2':           {fr:'Cherche sur le web et fais-moi une synthese sourcee', en:'Search the web and write me a sourced summary'},
-  'chat.suggestion3':           {fr:'Previens-moi quand un fichier arrive sur mon bureau', en:'Warn me when a file lands on my desktop'},
-  'chat.suggestion4':           {fr:"Qu'est-ce que tu as retenu de moi ?", en:'What have you remembered about me?'},
+  'chat.suggestion1':           {fr:'Presente-toi : que sais-tu faire, concretement ?', en:'Introduce yourself: what can you actually do?'},
+  'chat.suggestion2':           {fr:"Cherche sur le web les nouveautes IA de la semaine, avec tes sources", en:"Search the web for this week's AI news, with your sources"},
+  'chat.suggestion3':           {fr:'Previens-moi si un fichier arrive sur mon bureau', en:'Warn me if a file lands on my desktop'},
+  'chat.suggestion4':           {fr:"Qu'as-tu retenu de moi jusqu'ici ?", en:'What have you remembered about me so far?'},
   'chat.mediaAjoutes':          {fr:' média(s) ajouté(s) à la réponse.', en:' media added to the response.'},
   'chat.skillsLabel':           {fr:'🧩 Skills',                en:'🧩 Skills'},
   'chat.monProfil':             {fr:'Mon profil',              en:'My profile'},
