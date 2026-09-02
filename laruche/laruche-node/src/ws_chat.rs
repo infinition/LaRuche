@@ -541,7 +541,7 @@ pub(crate) async fn ws_chat_connection(
                     tag: "agent".into(),
                     message: format!("Agent chat: {}", preview_text(&user_text_log, 60)),
                     full_prompt: Some(user_text_log.clone()),
-                    full_response: result.as_ref().ok().map(|r| preview_text(r, 4000)),
+                    full_response: result.as_ref().ok().map(|r| texte_complet(r, 4000)),
                     model_used: Some(config.model.clone()),
                     tokens_generated: None,
                     latency_ms: None,

@@ -156,6 +156,22 @@ pub(crate) fn preview_text(input: &str, max_chars: usize) -> String {
     }
 }
 
+/// Le texte COMPLET d'une reponse, borne mais non aplati.
+///
+/// Jumeau de `preview_text`, et la difference est tout le sujet: un apercu tient
+/// sur une ligne, une reponse conservee non. Les quatre endroits qui archivent une
+/// reponse d'agent passaient par `preview_text`, qui remplace les retours a la
+/// ligne par des espaces: le markdown etait donc detruit a l'ecriture, bien avant
+/// que le flux ne tente de le rendre. Le gras survivait, etant en ligne, mais les
+/// listes et les titres arrivaient colles en un seul pave.
+pub(crate) fn texte_complet(input: &str, max_chars: usize) -> String {
+    if input.chars().count() <= max_chars {
+        return input.to_string();
+    }
+    let tronque: String = input.chars().take(max_chars).collect();
+    format!("{tronque}...")
+}
+
 pub(crate) fn inject_no_think(prompt: &str, no_think: bool) -> String {
     if no_think && !prompt.trim_start().starts_with("/no_think") {
         format!("/no_think\n{prompt}")

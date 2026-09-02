@@ -38,7 +38,37 @@ pub(crate) fn nettoyer_reponse_feed(s: &str) -> String {
             }
         }
     }
-    out.split_whitespace().collect::<Vec<_>>().join(" ")
+    // Les retours a la ligne SURVIVENT.
+    //
+    // Ils etaient ecrases par un `split_whitespace().join(" ")`, et la reponse de
+    // LaRuche arrivait dans le flux en un seul pave. Le flux rend pourtant le
+    // markdown: le gras passait, parce qu'il est en ligne, mais ni les listes ni
+    // les titres, qui ont besoin d'un debut de ligne. On lisait donc "voies
+    // s'ouvrent : Voie A - Monter un point d'acces - Rediriger le trafic - Le Uni
+    // fait du TLS" d'un trait, la ou trois puces etaient ecrites.
+    //
+    // L'apercu, lui, reste sur une ligne: `preview_text` l'aplatit de son cote, et
+    // c'est le champ `full` qui porte le texte deplie.
+    //
+    // Le nettoyage des balises laisse derriere lui des trous: on ramene les
+    // espaces horizontaux en trop et on borne les lignes vides a une seule, sans
+    // jamais toucher a la structure.
+    let mut propre = String::with_capacity(out.len());
+    let mut vides = 0usize;
+    for ligne in out.lines() {
+        let l = ligne.trim_end();
+        if l.trim().is_empty() {
+            vides += 1;
+            if vides > 1 {
+                continue;
+            }
+        } else {
+            vides = 0;
+        }
+        propre.push_str(l);
+        propre.push('\n');
+    }
+    propre.trim().to_string()
 }
 
 /// POST /api/feed/ask {text} - talks to LaRuche FROM the Feed. Runs on a dedicated "feed"
@@ -96,7 +126,7 @@ pub(crate) async fn api_feed_ask(
                 tag: "agent".into(),
                 message: format!("Feed: {}", preview_text(&text, 60)),
                 full_prompt: Some(text.clone()),
-                full_response: result.as_ref().ok().map(|r| preview_text(r, 4000)),
+                full_response: result.as_ref().ok().map(|r| texte_complet(r, 4000)),
                 model_used: Some(cfg.model.clone()),
                 tokens_generated: None,
                 latency_ms: None,
@@ -406,4 +436,47 @@ pub(crate) async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
         // donc d'enregistrer le mauvais texte a la place des regles communes.
         "constitution": laruche_essaim::deliberation::CONSTITUTION,
     }))
+}
+
+#[cfg(test)]
+mod tests_nettoyage_feed {
+    use super::nettoyer_reponse_feed;
+
+    /// La structure markdown doit arriver intacte dans le flux, qui la rend.
+    ///
+    /// Elle etait aplatie par un split_whitespace: le gras survivait, etant en
+    /// ligne, mais les puces se retrouvaient collees les unes aux autres sur une
+    /// seule ligne, donc rendues comme du texte courant.
+    #[test]
+    fn les_retours_a_la_ligne_survivent() {
+        let reponse = "Voici les voies possibles :\n\n\
+                       **Voie A : interception reseau**\n\
+                       - Monter un point d'acces controle\n\
+                       - Rediriger le trafic vers un proxy\n\n\
+                       ### Voie B\n\
+                       Capturer la mise a jour.";
+        let out = nettoyer_reponse_feed(reponse);
+        assert!(out.contains("\n- Monter un point"), "les puces gardent leur ligne");
+        assert!(out.contains("\n### Voie B"), "les titres gardent la leur");
+        assert_eq!(out.lines().count(), 8);
+    }
+
+    /// Le nettoyage des balises reste entier, et ne laisse pas de trou beant.
+    #[test]
+    fn les_balises_partent_sans_laisser_de_vide() {
+        let out = nettoyer_reponse_feed(
+            "Debut.\n<think>raisonnement interne</think>\n\n\n\nFin.",
+        );
+        assert!(!out.contains("think"), "la balise et son contenu partent");
+        assert!(out.starts_with("Debut."));
+        assert!(out.ends_with("Fin."));
+        assert!(!out.contains("\n\n\n"), "pas plus d'une ligne vide d'affilee");
+    }
+
+    /// Une balise ouverte sans fermeture coupe la queue: comportement conserve.
+    #[test]
+    fn une_balise_non_fermee_coupe_la_suite() {
+        let out = nettoyer_reponse_feed("Reponse utile.\n<tool_call>{\"name\":");
+        assert_eq!(out, "Reponse utile.");
+    }
 }
