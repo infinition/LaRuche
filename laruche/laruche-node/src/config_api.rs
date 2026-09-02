@@ -80,6 +80,14 @@ pub(crate) async fn api_get_context_stats(
     let max_tokens = ec.context_max_tokens;
 
     let session_id = params.get("session_id");
+    // Le run est-il TOUJOURS en cours sur cette session ?
+    //
+    // C'est la seule source de verite. Le client, lui, oublie tout des qu'il
+    // recharge, et changer de langue fait justement un location.reload(): on
+    // revenait sur une conversation dont le travail tournait encore et le bouton
+    // affichait "Envoyer", sans plus aucun moyen d'arreter l'agent. Meme chose en
+    // changeant simplement de conversation et en revenant.
+    let mut running = false;
     let (messages, used_tokens) = if let Some(sid_str) = session_id {
         if let Ok(sid) = uuid::Uuid::parse_str(sid_str) {
             let session_stats = state
@@ -91,6 +99,7 @@ pub(crate) async fn api_get_context_stats(
                 .unwrap_or((0, 0));
             let active_stats = state.active_context_stats.read().await.get(&sid).cloned();
             if let Some(active) = active_stats {
+                running = active.running;
                 if active.running {
                     (
                         active.messages.max(session_stats.0),
@@ -121,7 +130,8 @@ pub(crate) async fn api_get_context_stats(
         "used_tokens": used_tokens,
         "max_tokens": max_tokens,
         "ratio": ratio,
-        "messages": messages
+        "messages": messages,
+        "running": running
     }))
 }
 

@@ -102,6 +102,86 @@ LaRuche.i18n.add({
   'chat.tool.memory_write':     {fr:'Mémoire mise à jour',         en:'Memory update'},
   'chat.tool.delegate':         {fr:'Sous-agent',                  en:'Sub-agent'},
   'chat.tool.mixture_of_agents':{fr:'Consultation multi-agents',   en:'Multi-agent consultation'},
+  'chat.tool.memory_read_node':   {fr:'Mémoire, lecture',               en:'Memory read'},
+  'chat.tool.memory_create_node': {fr:'Mémoire, nouveau nœud',          en:'Memory new node'},
+  'chat.tool.memory_update_node': {fr:'Mémoire, mise à jour',           en:'Memory update'},
+  'chat.tool.memory_delete_node': {fr:'Mémoire, suppression',           en:'Memory delete'},
+  'chat.tool.memory_tree':        {fr:'Mémoire, arborescence',          en:'Memory tree'},
+  'chat.tool.memory_grep':        {fr:'Mémoire, recherche exacte',      en:'Memory grep'},
+  'chat.tool.memory_stats':       {fr:'Mémoire, statistiques',          en:'Memory stats'},
+  'chat.tool.memory_review':      {fr:'Mémoire, relecture',             en:'Memory review'},
+  'chat.tool.memory_consolidate': {fr:'Mémoire, consolidation',         en:'Memory consolidation'},
+  'chat.tool.memory_doctor':      {fr:'Mémoire, diagnostic',            en:'Memory doctor'},
+  'chat.tool.web_discover':       {fr:'Exploration du site',            en:'Site discovery'},
+  'chat.tool.image_search':       {fr:"Recherche d'images",             en:'Image search'},
+  'chat.tool.browser':            {fr:'Navigateur',                     en:'Browser'},
+  'chat.tool.computer':           {fr:'Prise en main du bureau',        en:'Desktop control'},
+  'chat.tool.camera':             {fr:'Caméra',                         en:'Camera'},
+  'chat.tool.file_list':          {fr:'Liste de fichiers',              en:'File list'},
+  'chat.tool.file_watch':         {fr:'Surveillance de fichier',        en:'File watch'},
+  'chat.tool.lsp':                {fr:'Analyse du code',                en:'Code analysis'},
+  'chat.tool.math_eval':          {fr:'Calcul',                         en:'Computation'},
+  'chat.tool.system_info':        {fr:'Infos système',                  en:'System info'},
+  'chat.tool.git_status':         {fr:'Git, état',                      en:'Git status'},
+  'chat.tool.git_diff':           {fr:'Git, différences',               en:'Git diff'},
+  'chat.tool.git_log':            {fr:'Git, historique',                en:'Git log'},
+  'chat.tool.git_commit':         {fr:'Git, commit',                    en:'Git commit'},
+  'chat.tool.task_complete':      {fr:'Tâche terminée',                 en:'Task complete'},
+  'chat.tool.mission_create':     {fr:'Nouvelle mission',               en:'New mission'},
+  'chat.tool.mission_list':       {fr:'Liste des missions',             en:'Mission list'},
+  'chat.tool.research_mode':      {fr:'Mode recherche profonde',        en:'Deep research mode'},
+  'chat.tool.finding':            {fr:'Fait retenu',                    en:'Recorded finding'},
+  'chat.tool.todo':               {fr:'Liste de tâches',                en:'Task list'},
+  'chat.tool.plan_mode':          {fr:'Mode plan',                      en:'Plan mode'},
+  'chat.tool.clarify':            {fr:'Demande de précision',           en:'Clarification'},
+  'chat.tool.spawn_specialist':   {fr:'Spécialiste',                    en:'Specialist'},
+  'chat.tool.session_search':     {fr:'Recherche dans les échanges',    en:'Session search'},
+  'chat.tool.tool_search':        {fr:"Recherche d'outil",              en:'Tool search'},
+  'chat.tool.tool_call':          {fr:'Appel indirect',                 en:'Indirect call'},
+  'chat.tool.knowledge_add':      {fr:'Base de connaissance, ajout',    en:'Knowledge add'},
+  'chat.tool.knowledge_search':   {fr:'Base de connaissance',           en:'Knowledge search'},
+  'chat.tool.skill_view':         {fr:'Lecture de skill',               en:'Skill view'},
+  'chat.tool.skill_list':         {fr:'Liste des skills',               en:'Skill list'},
+  'chat.tool.skill_create':       {fr:'Nouveau skill',                  en:'New skill'},
+  'chat.tool.cron_create':        {fr:'Nouvelle tâche planifiée',       en:'New scheduled task'},
+  'chat.tool.cron_list':          {fr:'Tâches planifiées',              en:'Scheduled tasks'},
+  'chat.tool.watcher_create':     {fr:'Nouvelle vigie',                 en:'New watcher'},
+  'chat.tool.watcher_list':       {fr:'Vigies',                         en:'Watchers'},
+  'chat.tool.kanban_create':      {fr:'Kanban, nouvelle carte',         en:'Kanban new card'},
+  'chat.tool.kanban_list':        {fr:'Kanban',                         en:'Kanban'},
+  'chat.tool.kanban_next':        {fr:'Kanban, carte suivante',         en:'Kanban next'},
+  'chat.tool.kanban_complete':    {fr:'Kanban, carte terminée',         en:'Kanban done'},
+  'chat.tool.run_now':            {fr:'Lancement immédiat',             en:'Run now'},
+  'chat.tool.mesh_send':          {fr:'Message à une ruche',            en:'Message to a hive'},
+  'chat.tool.media_present':      {fr:'Média affiché',                  en:'Media shown'},
+  'chat.tool.plugin_list':        {fr:'Liste des plugins',              en:'Plugin list'},
+  'chat.tool.mcp_list':           {fr:'Serveurs MCP',                   en:'MCP servers'},
+
+  // Les cles d'arguments, pour que la ligne se lise en francais et non en JSON.
+  'chat.arg.node_id':             {fr:'nœud',                           en:'node'},
+  'chat.arg.query':               {fr:'requête',                        en:'query'},
+  'chat.arg.q':                   {fr:'requête',                        en:'query'},
+  'chat.arg.path':                {fr:'chemin',                         en:'path'},
+  'chat.arg.url':                 {fr:'adresse',                        en:'url'},
+  'chat.arg.command':             {fr:'commande',                       en:'command'},
+  'chat.arg.summary':             {fr:'résumé',                         en:'summary'},
+  'chat.arg.result':              {fr:'résultat',                       en:'result'},
+  'chat.arg.content':             {fr:'contenu',                        en:'content'},
+  'chat.arg.text':                {fr:'texte',                          en:'text'},
+  'chat.arg.fact':                {fr:'fait',                           en:'fact'},
+  'chat.arg.source':              {fr:'source',                         en:'source'},
+  'chat.arg.reason':              {fr:'raison',                         en:'reason'},
+  'chat.arg.task':                {fr:'tâche',                          en:'task'},
+  'chat.arg.role':                {fr:'rôle',                           en:'role'},
+  'chat.arg.tool':                {fr:'outil',                          en:'tool'},
+  'chat.arg.name':                {fr:'nom',                            en:'name'},
+  'chat.arg.title':               {fr:'titre',                          en:'title'},
+  'chat.arg.confidence':          {fr:'confiance',                      en:'confidence'},
+  'chat.arg.limit':               {fr:'limite',                         en:'limit'},
+  'chat.arg.offset':              {fr:'à partir de',                    en:'from'},
+  'chat.arg.depth':               {fr:'profondeur',                     en:'depth'},
+  'chat.arg.ext':                 {fr:'extension',                      en:'extension'},
+  'chat.arg.mode':                {fr:'mode',                           en:'mode'},
   'chat.dateAujourdhui':        {fr:"aujourd'hui", en:'today'},
   'chat.dateHier':              {fr:'hier',         en:'yesterday'},
   'chat.dateAvantHier':         {fr:'avant-hier',   en:'two days ago'},
@@ -1290,6 +1370,24 @@ LaRuche.Chat = (function(){
     }
   }
 
+  // Le serveur affirme que le travail tourne encore sur la conversation ouverte.
+  //
+  // Appele par le sondeur de la jauge, qui interroge deja /api/context/stats a
+  // chaque tick. C'est le filet: la vue perd son etat de deux facons, et aucune
+  // n'est rattrapable de l'interieur. Changer de conversation remet volontairement
+  // le bouton sur Envoyer (le run que l'on quitte continue en fond, et il faut
+  // pouvoir ecrire dans la nouvelle), mais rien ne le remettait sur Arreter au
+  // retour. Et changer de langue fait un location.reload(): apres lui, `isStreaming`
+  // et `runningSession` n'existent plus, la page ne sait meme pas qu'un run existe.
+  //
+  // Le filet ne remonte JAMAIS l'etat dans l'autre sens. Un run qui vient de
+  // demarrer n'est pas encore compte cote serveur, et un `false` transitoire
+  // retirerait le bouton Arreter en plein travail. La descente reste au `done`,
+  // `error` et `stopped`, qui sont exacts.
+  function signalerRunActif(){
+    reprendreLaMain();
+  }
+
   // Le tour reprend apres un `done`: rendre a l'utilisateur son bouton Stop.
   //
   // `done` marque la fin du BROUILLON, pas la fin du tour: LaReine juge ensuite, et
@@ -2069,9 +2167,20 @@ LaRuche.Chat = (function(){
       if(typeof v==='object') v=JSON.stringify(v);
       v=String(v).replace(/\s+/g,' ').trim();
       if(!v) continue;
-      bouts.push(k.replace(/_/g,' ')+': '+v);
+      bouts.push(humanArgName(k)+': '+v);
     }
     return bouts.join(' · ');
+  }
+  // La cle d'un argument, dite en francais quand on sait la dire.
+  //
+  // Le repli reste le nom brut sans ses underscores: un outil ajoute demain
+  // affichera `node id` plutot que rien, ce qui reste lisible. Traduire ce qu'on
+  // connait et degrader proprement vaut mieux qu'un dictionnaire a tenir a jour
+  // sous peine de trous.
+  function humanArgName(k){
+    var key='chat.arg.'+k;
+    var mapped=LaRuche.i18n.t(key);
+    return (mapped&&mapped!==key)?mapped:k.replace(/_/g,' ');
   }
   function toolContext(args){
     args=args||{};if(args.command)return args.command;if(args.code)return args.code.length>300?args.code.slice(0,300)+'…':args.code;if(args.path)return args.path;if(args.query)return args.query;if(args.url)return args.url;if(args.prompt)return args.prompt;
@@ -2769,7 +2878,7 @@ LaRuche.Chat = (function(){
     useSuggestion:useSuggestion, newSession:newSession, deleteSession:deleteSession,
     respondApproval:respondApproval, toggleSidebar:toggleSidebar,
     removePendingFile:removePendingFile, loadSessions:loadSessions,
-    getSessionId:getSessionId, switchSession:switchSession,
+    getSessionId:getSessionId, switchSession:switchSession, signalerRunActif:signalerRunActif,
     openProfile:openProfile, closeProfile:closeProfile, saveProfile:saveProfile,
     browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink, stopRun:stopRun,
     openHistory:openHistory, closeHistory:closeHistory, searchHistory:searchHistory,

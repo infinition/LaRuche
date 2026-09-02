@@ -367,6 +367,16 @@ pub(crate) struct AppState {
     pub(crate) memoire: Arc<dyn laruche_memoire::MemoireCognitive>,
     pub(crate) essaim_sessions: Arc<RwLock<HashMap<Uuid, Session>>>,
     pub(crate) active_context_stats: Arc<RwLock<HashMap<Uuid, ActiveContextStats>>>,
+    /// De quoi arreter le run d'une session, depuis N'IMPORTE quelle connexion.
+    ///
+    /// Le handle de la tache vivait dans la portee de la connexion qui avait lance
+    /// le travail, et nulle part ailleurs. Une autre connexion, celle d'apres un
+    /// rechargement de page par exemple, se rattachait bien au flux d'evenements
+    /// mais n'avait aucun moyen d'abreger quoi que ce soit: son `stop` tombait dans
+    /// le vide. Changer de langue suffisait a se retrouver spectateur d'un agent
+    /// qu'on ne pouvait plus arreter. Le handle est donc partage ici, pose au
+    /// demarrage du run et retire a sa fin.
+    pub(crate) runs_actifs: Arc<RwLock<HashMap<Uuid, tokio::task::AbortHandle>>>,
     pub(crate) essaim_cron: Arc<RwLock<CronScheduler>>,
     pub(crate) watchers: Arc<RwLock<laruche_watchers::WatchersRegistry>>,
     pub(crate) kanban_board: Arc<RwLock<laruche_kanban::KanbanBoard>>,

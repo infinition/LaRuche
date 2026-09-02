@@ -22,6 +22,24 @@ fn event_json_avec_session(event: &laruche_essaim::ChatEvent, session_id: Uuid) 
 /// Protocol:
 ///   Client → {"type":"message","text":"..."} or {"type":"message","text":"...","session_id":"uuid"}
 ///   Server → {"type":"token","text":"...","session_id":"uuid"} / {"type":"tool_call",...} / {"type":"done",...}
+/// Arrete le travail en cours sur une session, d'ou que vienne la demande.
+///
+/// Passe par le registre partage et non par un handle local: la connexion qui a
+/// lance le run n'est pas forcement celle qui demande l'arret. Apres un
+/// rechargement de page, changer de langue par exemple, c'en est meme rarement la
+/// meme. Sans registre, ce `stop` la n'atteignait rien.
+///
+/// Silencieux si la session n'a pas de run: demander l'arret de ce qui est deja
+/// fini est sans consequence, et c'est le cas normal d'un double clic.
+async fn arreter_run(state: &Arc<AppState>, session_id: Uuid) {
+    if let Some(handle) = state.runs_actifs.write().await.remove(&session_id) {
+        handle.abort();
+    }
+    if let Some(stats) = state.active_context_stats.write().await.get_mut(&session_id) {
+        stats.running = false;
+    }
+}
+
 pub(crate) async fn ws_chat_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
@@ -148,6 +166,28 @@ pub(crate) async fn ws_chat_connection(
                                     client_msg_opt = receiver.next() => {
                                         match client_msg_opt {
                                             Some(Ok(ws::Message::Close(_))) | None => { done = true; }
+                                            // Un `stop` arrive AUSSI par ici, et il etait
+                                            // avale. C'est la connexion d'apres un
+                                            // rechargement de page: elle voit le travail
+                                            // defiler et le bouton Arreter n'avait aucun
+                                            // effet. Le registre partage le rend vrai.
+                                            Some(Ok(ws::Message::Text(t))) => {
+                                                let veut_arret = serde_json::from_str::<serde_json::Value>(&t)
+                                                    .ok()
+                                                    .and_then(|v| v["type"].as_str().map(|s| s == "stop"))
+                                                    .unwrap_or(false);
+                                                if veut_arret {
+                                                    arreter_run(&state, id).await;
+                                                    let _ = sender.send(ws::Message::Text(
+                                                        serde_json::json!({
+                                                            "type": "stopped",
+                                                            "session_id": id.to_string(),
+                                                            "message": "Generation interrupted."
+                                                        }).to_string(),
+                                                    )).await;
+                                                    done = true;
+                                                }
+                                            }
                                             _ => {}
                                         }
                                     }
@@ -592,7 +632,16 @@ pub(crate) async fn ws_chat_connection(
                 &actor_react,
                 serde_json::json!({ "session_id": session_id, "preview": preview }),
             );
+            // Le run se retire du registre en partant: un handle laisse derriere
+            // ferait croire a un travail en cours, et le bouton Arreter resterait
+            // affiche sur une conversation terminee.
+            state_clone.runs_actifs.write().await.remove(&session_id);
         });
+        // Inscrit des le lancement: c'est ce qui permet a une AUTRE connexion, celle
+        // d'apres un rechargement de page, de l'arreter. Le handle sort du registre
+        // tout seul quand la tache finit.
+        state.runs_actifs.write().await.insert(session_id, react_handle.abort_handle());
+
 
         // Forward events to WebSocket + listen for approvals from client
         let mut done = false;
@@ -733,7 +782,7 @@ pub(crate) async fn ws_chat_connection(
                                     // Stop requested: abort the agent task. The session was already
                                     // saved as a snapshot (with the user message) BEFORE the run,
                                     // so only the in-progress response is dropped, not the session.
-                                    react_handle.abort();
+                                    arreter_run(&state, session_id).await;
                                     if let Some(stats) =
                                         state.active_context_stats.write().await.get_mut(&session_id)
                                     {

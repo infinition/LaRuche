@@ -1254,6 +1254,7 @@ async fn main() -> Result<()> {
         memoire,
         essaim_sessions: sessions_arc.clone(),
         active_context_stats: Arc::new(RwLock::new(HashMap::new())),
+        runs_actifs: Arc::new(RwLock::new(HashMap::new())),
         essaim_cron: cron_arc.clone(),
         watchers: watchers_arc.clone(),
         kanban_board: kanban_arc.clone(),

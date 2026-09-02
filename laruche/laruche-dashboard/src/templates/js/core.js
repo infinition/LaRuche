@@ -1293,6 +1293,14 @@ LaRuche.Header = (function(){
       var r=await fetch(url);
       if(!r.ok)return;
       var d=await r.json();
+      // Le serveur dit si le travail tourne encore sur cette conversation: on en
+      // profite pour remettre le bouton Arreter quand la vue l'a perdu. Deux
+      // chemins le perdaient, et tous deux laissaient l'utilisateur devant un
+      // agent qu'il ne pouvait plus stopper: changer de conversation et revenir,
+      // et changer de langue, qui recharge la page et efface tout l'etat JS.
+      if(d.running && window.LaRuche && LaRuche.Chat && LaRuche.Chat.signalerRunActif){
+        LaRuche.Chat.signalerRunActif();
+      }
       var pct = Math.round((d.ratio||0)*100);
       var fill = document.getElementById('chatCtxFill');
       if(fill) { fill.style.width=pct+'%'; fill.className='chat-ctx-fill'+(pct>66?' hot':pct>33?' warm':''); }
