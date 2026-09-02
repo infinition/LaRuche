@@ -88,6 +88,34 @@ l'exige `chrome.tabCapture`. Pour une fenetre ou un ecran complet, Chrome affich
 toujours son propre selecteur de partage. Une extension ne peut pas contourner ce
 choix de confidentialite.
 
+## Bibliotheque video
+
+Le bouton **Videos** de la barre d'outils ouvre la bibliotheque dans un onglet
+Chrome. Au premier lancement, choisissez le dossier `LaRuche/showcases`, ou un
+autre dossier contenant des fichiers MP4 et WebM. Ce choix donne a l'extension
+un acces local explicite au dossier. Le handle est memorise dans IndexedDB pour
+eviter de refaire la selection a chaque ouverture. Chrome peut redemander
+l'autorisation apres une revocation ou un changement de profil.
+
+La bibliotheque indexe aussi les sous-dossiers. Elle affiche une vignette, le
+nom, la date, la duree, la resolution et la taille de chaque video. La recherche
+et le tri restent locaux.
+
+L'editeur comprend:
+
+- un visualiseur video;
+- une timeline avec vignettes et points de debut et de fin;
+- un cadre de recadrage deplacable et redimensionnable;
+- le renommage du fichier dans son dossier;
+- un export MP4 ou WebM qui combine la coupe et le recadrage.
+
+L'export conserve toujours l'original et cree un nouveau fichier. Le traitement
+utilise les encodeurs de Chrome et ecrit les fragments directement dans le
+dossier choisi, sans charger toute la video finale en memoire. Il reste local et
+prend environ le temps de la selection, car la video est decodee et reencodee en
+temps reel. Fermer l'onglet pendant un export affiche un avertissement et le
+bouton **Annuler** supprime le fichier incomplet.
+
 Couper l'interrupteur du popup reprend la main immediatement : la connexion se
 ferme, l'agent perd le navigateur et recoit une erreur explicite.
 

@@ -55,6 +55,10 @@
     "message": "Bee",
     "description": "Bee companion toolbar toggle"
   },
+  "toolbar_library": {
+    "message": "Videos",
+    "description": "Opens the local video library"
+  },
   "toolbar_record": {
     "message": "Record",
     "description": "Recording toolbar action"
@@ -276,5 +280,233 @@
   },
   "garder_connexion": {
     "message": "Kept aside: tick \"Allow control\" to connect the extension to the hive, and it will be sent on its own."
+  },
+  "library_document_title": {
+    "message": "LaRuche Video Library"
+  },
+  "library_title": {
+    "message": "Video library"
+  },
+  "library_refresh": {
+    "message": "Refresh"
+  },
+  "library_choose_folder": {
+    "message": "Choose folder"
+  },
+  "library_change_folder": {
+    "message": "Change folder"
+  },
+  "library_reconnect": {
+    "message": "Reconnect"
+  },
+  "library_no_folder": {
+    "message": "Choose the folder that contains your LaRuche recordings."
+  },
+  "library_reconnect_folder": {
+    "message": "Reconnect $FOLDER$ to access its videos.",
+    "placeholders": {
+      "folder": { "content": "$1" }
+    }
+  },
+  "library_folder_ready": {
+    "message": "$FOLDER$ is connected. All processing stays on this computer.",
+    "placeholders": {
+      "folder": { "content": "$1" }
+    }
+  },
+  "library_scanning": {
+    "message": "Scanning $FOLDER$...",
+    "placeholders": {
+      "folder": { "content": "$1" }
+    }
+  },
+  "library_scan_error": {
+    "message": "The folder could not be read."
+  },
+  "library_picker_unavailable": {
+    "message": "This Chrome version does not provide folder access."
+  },
+  "library_search": {
+    "message": "Search videos"
+  },
+  "library_sort": {
+    "message": "Sort videos"
+  },
+  "library_sort_recent": {
+    "message": "Newest"
+  },
+  "library_sort_old": {
+    "message": "Oldest"
+  },
+  "library_sort_name": {
+    "message": "Name"
+  },
+  "library_sort_size": {
+    "message": "Size"
+  },
+  "library_video_count": {
+    "message": "Videos: $COUNT$",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "library_root_folder": {
+    "message": "Selected folder"
+  },
+  "library_empty_title": {
+    "message": "No video found"
+  },
+  "library_empty_text": {
+    "message": "Choose LaRuche/showcases or another folder containing MP4 and WebM recordings."
+  },
+  "editor_empty_title": {
+    "message": "Select a recording"
+  },
+  "editor_empty_text": {
+    "message": "The viewer, timeline and editing controls will appear here."
+  },
+  "timeline_title": {
+    "message": "Timeline"
+  },
+  "timeline_start": {
+    "message": "Start"
+  },
+  "timeline_end": {
+    "message": "End"
+  },
+  "timeline_mark_start": {
+    "message": "Use playhead"
+  },
+  "timeline_mark_end": {
+    "message": "Use playhead"
+  },
+  "timeline_selection": {
+    "message": "Selection: $DURATION$",
+    "placeholders": {
+      "duration": { "content": "$1" }
+    }
+  },
+  "rename_title": {
+    "message": "Rename"
+  },
+  "rename_label": {
+    "message": "File name"
+  },
+  "rename_action": {
+    "message": "Rename file"
+  },
+  "rename_help": {
+    "message": "The file stays in the same folder. Large files can take a moment to rename."
+  },
+  "rename_invalid": {
+    "message": "Enter a valid file name."
+  },
+  "rename_unchanged": {
+    "message": "The name is unchanged."
+  },
+  "rename_exists": {
+    "message": "A file with this name already exists."
+  },
+  "rename_working": {
+    "message": "Renaming the file..."
+  },
+  "rename_done": {
+    "message": "Renamed to $NAME$.",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "crop_title": {
+    "message": "Crop"
+  },
+  "crop_reset": {
+    "message": "Reset"
+  },
+  "crop_edit": {
+    "message": "Adjust"
+  },
+  "crop_done": {
+    "message": "Done"
+  },
+  "crop_area": {
+    "message": "Video crop area"
+  },
+  "crop_help": {
+    "message": "Drag the frame to move it. Drag a corner to resize it."
+  },
+  "crop_values": {
+    "message": "X $X$% · Y $Y$% · Width $WIDTH$% · Height $HEIGHT$%",
+    "placeholders": {
+      "x": { "content": "$1" },
+      "y": { "content": "$2" },
+      "width": { "content": "$3" },
+      "height": { "content": "$4" }
+    }
+  },
+  "export_title": {
+    "message": "Export"
+  },
+  "export_name": {
+    "message": "New file"
+  },
+  "export_action": {
+    "message": "Export selection"
+  },
+  "export_cancel": {
+    "message": "Cancel"
+  },
+  "export_help": {
+    "message": "The original is preserved. Export is processed locally and takes about the selected duration."
+  },
+  "export_preparing": {
+    "message": "Preparing local export..."
+  },
+  "export_progress": {
+    "message": "Exporting: $PERCENT$%",
+    "placeholders": {
+      "percent": { "content": "$1" }
+    }
+  },
+  "export_done": {
+    "message": "$NAME$ was created.",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "export_cancelled": {
+    "message": "Export cancelled. The incomplete file was removed."
+  },
+  "export_cancelling": {
+    "message": "Cancelling export..."
+  },
+  "export_selection_too_short": {
+    "message": "The selection is too short to export."
+  },
+  "export_no_encoder": {
+    "message": "Chrome does not provide a compatible video encoder."
+  },
+  "export_recording_error": {
+    "message": "The video encoder stopped unexpectedly."
+  },
+  "export_empty": {
+    "message": "The encoder produced an empty file."
+  },
+  "library_permission_denied": {
+    "message": "Folder access was not granted."
+  },
+  "library_cancelled": {
+    "message": "Operation cancelled."
+  },
+  "library_unknown_error": {
+    "message": "Unknown error."
+  },
+  "library_media_timeout": {
+    "message": "The video took too long to load."
+  },
+  "library_media_error": {
+    "message": "Chrome could not read this video."
+  },
+  "library_name_exhausted": {
+    "message": "No available file name could be generated."
   }
 }

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>LaRuche Video Library</title>
+    <link rel="stylesheet" href="bibliotheque.css" />
+  </head>
+  <body>
+    <header class="entete">
+      <a class="marque" href="https://github.com/infinition/LaRuche" target="_blank" rel="noreferrer">
+        <svg viewBox="0 0 42 42" aria-hidden="true">
+          <path d="m21 2 7 4v8l-7 4-7-4V6zm-10 15 7 4v8l-7 4-7-4v-8zm20 0 7 4v8l-7 4-7-4v-8zm-10 10 7 4v8l-7 4-7-4v-8z" />
+        </svg>
+        <span>
+          <strong>LaRuche</strong>
+          <small data-i18n="library_title"></small>
+        </span>
+      </a>
+
+      <div class="etat-dossier" id="etatDossier" role="status" aria-live="polite"></div>
+
+      <div class="actions-entete">
+        <button type="button" class="bouton secondaire" id="actualiser" data-i18n="library_refresh"></button>
+        <button type="button" class="bouton principal" id="choisirDossier" data-i18n="library_choose_folder"></button>
+        <button type="button" class="langue" id="langue"></button>
+      </div>
+    </header>
+
+    <main class="application">
+      <aside class="panneau-bibliotheque">
+        <div class="outils-bibliotheque">
+          <label class="recherche">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m16 16 5 5" /></svg>
+            <input id="recherche" type="search" autocomplete="off" data-i18n-placeholder="library_search" />
+          </label>
+          <select id="tri" data-i18n-aria-label="library_sort">
+            <option value="recent" data-i18n="library_sort_recent"></option>
+            <option value="old" data-i18n="library_sort_old"></option>
+            <option value="name" data-i18n="library_sort_name"></option>
+            <option value="size" data-i18n="library_sort_size"></option>
+          </select>
+        </div>
+
+        <div class="resume-liste">
+          <span id="compteurVideos"></span>
+          <span id="tailleVideos"></span>
+        </div>
+
+        <div class="liste-videos" id="listeVideos"></div>
+
+        <div class="etat-vide" id="etatVide">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="7" y="13" width="50" height="38" rx="7" /><path d="m27 24 15 8-15 8z" /></svg>
+          <h2 data-i18n="library_empty_title"></h2>
+          <p data-i18n="library_empty_text"></p>
+        </div>
+      </aside>
+
+      <section class="zone-edition">
+        <div class="accueil-editeur" id="accueilEditeur">
+          <svg viewBox="0 0 90 90" aria-hidden="true"><rect x="9" y="17" width="72" height="56" rx="10" /><path d="m38 33 22 12-22 12z" /></svg>
+          <h1 data-i18n="editor_empty_title"></h1>
+          <p data-i18n="editor_empty_text"></p>
+        </div>
+
+        <div class="editeur" id="editeur" hidden>
+          <header class="entete-editeur">
+            <div>
+              <h1 id="nomVideo"></h1>
+              <p id="metaVideo"></p>
+            </div>
+          </header>
+
+          <div class="visualiseur">
+            <div class="scene-video" id="sceneVideo">
+              <video id="video" controls playsinline preload="metadata"></video>
+              <div class="calque-recadrage" id="calqueRecadrage">
+                <div class="cadre-recadrage" id="cadreRecadrage" tabindex="0" data-i18n-aria-label="crop_area">
+                  <span class="poignee nw" data-poignee="nw"></span>
+                  <span class="poignee ne" data-poignee="ne"></span>
+                  <span class="poignee sw" data-poignee="sw"></span>
+                  <span class="poignee se" data-poignee="se"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <section class="timeline-section">
+            <div class="timeline-entete">
+              <strong data-i18n="timeline_title"></strong>
+              <span id="dureeSelection"></span>
+            </div>
+            <div class="timeline" id="timeline">
+              <div class="vignettes-timeline" id="vignettesTimeline"></div>
+              <div class="masque-timeline avant" id="masqueAvant"></div>
+              <div class="masque-timeline apres" id="masqueApres"></div>
+              <div class="selection-timeline" id="selectionTimeline"></div>
+              <button type="button" class="poignee-timeline debut" id="poigneeDebut" data-i18n-aria-label="timeline_start"></button>
+              <button type="button" class="poignee-timeline fin" id="poigneeFin" data-i18n-aria-label="timeline_end"></button>
+              <div class="tete-lecture" id="teteLecture"></div>
+            </div>
+            <div class="reglages-temps">
+              <label>
+                <span data-i18n="timeline_start"></span>
+                <input id="tempsDebut" type="number" min="0" step="0.01" />
+              </label>
+              <button type="button" class="bouton compact" id="marquerDebut" data-i18n="timeline_mark_start"></button>
+              <label>
+                <span data-i18n="timeline_end"></span>
+                <input id="tempsFin" type="number" min="0" step="0.01" />
+              </label>
+              <button type="button" class="bouton compact" id="marquerFin" data-i18n="timeline_mark_end"></button>
+            </div>
+          </section>
+
+          <div class="panneaux-edition">
+            <section class="carte-reglage">
+              <div class="titre-carte">
+                <h2 data-i18n="rename_title"></h2>
+              </div>
+              <label class="champ">
+                <span data-i18n="rename_label"></span>
+                <input id="nouveauNom" type="text" autocomplete="off" />
+              </label>
+              <button type="button" class="bouton secondaire pleine" id="renommer" data-i18n="rename_action"></button>
+              <p class="note" data-i18n="rename_help"></p>
+            </section>
+
+            <section class="carte-reglage">
+              <div class="titre-carte">
+                <h2 data-i18n="crop_title"></h2>
+                <div class="actions-recadrage">
+                  <button type="button" class="lien-action" id="basculerRecadrage"></button>
+                  <button type="button" class="lien-action" id="reinitialiserRecadrage" data-i18n="crop_reset"></button>
+                </div>
+              </div>
+              <p class="valeurs-recadrage" id="valeursRecadrage"></p>
+              <p class="note" data-i18n="crop_help"></p>
+            </section>
+
+            <section class="carte-reglage exportation">
+              <div class="titre-carte">
+                <h2 data-i18n="export_title"></h2>
+              </div>
+              <label class="champ">
+                <span data-i18n="export_name"></span>
+                <input id="nomExport" type="text" autocomplete="off" />
+              </label>
+              <div class="actions-export">
+                <button type="button" class="bouton principal pleine" id="exporter" data-i18n="export_action"></button>
+                <button type="button" class="bouton danger" id="annulerExport" data-i18n="export_cancel" hidden></button>
+              </div>
+              <div class="progression" id="blocProgression" hidden>
+                <div class="barre-progression"><span id="progression"></span></div>
+                <p id="etatExport" role="status" aria-live="polite"></p>
+              </div>
+              <p class="note" data-i18n="export_help"></p>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <template id="modeleVideo">
+      <button type="button" class="carte-video">
+        <span class="poster">
+          <img alt="" />
+          <span class="duree"></span>
+          <span class="lecture"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 9 6-9 6z" /></svg></span>
+        </span>
+        <span class="infos-carte">
+          <strong></strong>
+          <small class="chemin"></small>
+          <small class="details"></small>
+        </span>
+      </button>
+    </template>
+
+    <div class="notification" id="notification" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="bibliotheque.js"></script>
+  </body>
+</html>

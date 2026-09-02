@@ -55,6 +55,10 @@
     "message": "Abeille",
     "description": "Interrupteur du compagnon dans la barre d outils"
   },
+  "toolbar_library": {
+    "message": "Vidéos",
+    "description": "Ouvre la bibliotheque video locale"
+  },
   "toolbar_record": {
     "message": "Enregistrer",
     "description": "Action d enregistrement dans la barre d outils"
@@ -276,5 +280,233 @@
   },
   "garder_connexion": {
     "message": "Garde de cote: coche \"Autoriser le pilotage\" pour connecter l'extension a la ruche, l'envoi se fera tout seul."
+  },
+  "library_document_title": {
+    "message": "Bibliothèque vidéo LaRuche"
+  },
+  "library_title": {
+    "message": "Bibliothèque vidéo"
+  },
+  "library_refresh": {
+    "message": "Actualiser"
+  },
+  "library_choose_folder": {
+    "message": "Choisir le dossier"
+  },
+  "library_change_folder": {
+    "message": "Changer de dossier"
+  },
+  "library_reconnect": {
+    "message": "Reconnecter"
+  },
+  "library_no_folder": {
+    "message": "Choisissez le dossier qui contient les enregistrements LaRuche."
+  },
+  "library_reconnect_folder": {
+    "message": "Reconnectez $FOLDER$ pour accéder à ses vidéos.",
+    "placeholders": {
+      "folder": { "content": "$1" }
+    }
+  },
+  "library_folder_ready": {
+    "message": "$FOLDER$ est connecté. Tous les traitements restent sur cet ordinateur.",
+    "placeholders": {
+      "folder": { "content": "$1" }
+    }
+  },
+  "library_scanning": {
+    "message": "Analyse de $FOLDER$...",
+    "placeholders": {
+      "folder": { "content": "$1" }
+    }
+  },
+  "library_scan_error": {
+    "message": "Le dossier n'a pas pu être lu."
+  },
+  "library_picker_unavailable": {
+    "message": "Cette version de Chrome ne permet pas l'accès aux dossiers."
+  },
+  "library_search": {
+    "message": "Rechercher une vidéo"
+  },
+  "library_sort": {
+    "message": "Trier les vidéos"
+  },
+  "library_sort_recent": {
+    "message": "Plus récentes"
+  },
+  "library_sort_old": {
+    "message": "Plus anciennes"
+  },
+  "library_sort_name": {
+    "message": "Nom"
+  },
+  "library_sort_size": {
+    "message": "Taille"
+  },
+  "library_video_count": {
+    "message": "Vidéos : $COUNT$",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "library_root_folder": {
+    "message": "Dossier sélectionné"
+  },
+  "library_empty_title": {
+    "message": "Aucune vidéo trouvée"
+  },
+  "library_empty_text": {
+    "message": "Choisissez LaRuche/showcases ou un autre dossier contenant des enregistrements MP4 et WebM."
+  },
+  "editor_empty_title": {
+    "message": "Sélectionnez un enregistrement"
+  },
+  "editor_empty_text": {
+    "message": "Le visualiseur, la timeline et les outils d'édition apparaîtront ici."
+  },
+  "timeline_title": {
+    "message": "Timeline"
+  },
+  "timeline_start": {
+    "message": "Début"
+  },
+  "timeline_end": {
+    "message": "Fin"
+  },
+  "timeline_mark_start": {
+    "message": "Prendre le curseur"
+  },
+  "timeline_mark_end": {
+    "message": "Prendre le curseur"
+  },
+  "timeline_selection": {
+    "message": "Sélection : $DURATION$",
+    "placeholders": {
+      "duration": { "content": "$1" }
+    }
+  },
+  "rename_title": {
+    "message": "Renommer"
+  },
+  "rename_label": {
+    "message": "Nom du fichier"
+  },
+  "rename_action": {
+    "message": "Renommer le fichier"
+  },
+  "rename_help": {
+    "message": "Le fichier reste dans le même dossier. Un fichier volumineux peut prendre un moment."
+  },
+  "rename_invalid": {
+    "message": "Saisissez un nom de fichier valide."
+  },
+  "rename_unchanged": {
+    "message": "Le nom est inchangé."
+  },
+  "rename_exists": {
+    "message": "Un fichier porte déjà ce nom."
+  },
+  "rename_working": {
+    "message": "Renommage du fichier..."
+  },
+  "rename_done": {
+    "message": "Fichier renommé en $NAME$.",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "crop_title": {
+    "message": "Recadrage"
+  },
+  "crop_reset": {
+    "message": "Réinitialiser"
+  },
+  "crop_edit": {
+    "message": "Ajuster"
+  },
+  "crop_done": {
+    "message": "Terminer"
+  },
+  "crop_area": {
+    "message": "Zone de recadrage de la vidéo"
+  },
+  "crop_help": {
+    "message": "Déplacez le cadre ou tirez un coin pour le redimensionner."
+  },
+  "crop_values": {
+    "message": "X $X$% · Y $Y$% · Largeur $WIDTH$% · Hauteur $HEIGHT$%",
+    "placeholders": {
+      "x": { "content": "$1" },
+      "y": { "content": "$2" },
+      "width": { "content": "$3" },
+      "height": { "content": "$4" }
+    }
+  },
+  "export_title": {
+    "message": "Export"
+  },
+  "export_name": {
+    "message": "Nouveau fichier"
+  },
+  "export_action": {
+    "message": "Exporter la sélection"
+  },
+  "export_cancel": {
+    "message": "Annuler"
+  },
+  "export_help": {
+    "message": "L'original est conservé. L'export est local et dure environ le temps de la sélection."
+  },
+  "export_preparing": {
+    "message": "Préparation de l'export local..."
+  },
+  "export_progress": {
+    "message": "Export : $PERCENT$%",
+    "placeholders": {
+      "percent": { "content": "$1" }
+    }
+  },
+  "export_done": {
+    "message": "$NAME$ a été créé.",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "export_cancelled": {
+    "message": "Export annulé. Le fichier incomplet a été supprimé."
+  },
+  "export_cancelling": {
+    "message": "Annulation de l'export..."
+  },
+  "export_selection_too_short": {
+    "message": "La sélection est trop courte pour être exportée."
+  },
+  "export_no_encoder": {
+    "message": "Chrome ne fournit aucun encodeur vidéo compatible."
+  },
+  "export_recording_error": {
+    "message": "L'encodeur vidéo s'est arrêté de manière inattendue."
+  },
+  "export_empty": {
+    "message": "L'encodeur a produit un fichier vide."
+  },
+  "library_permission_denied": {
+    "message": "L'accès au dossier n'a pas été accordé."
+  },
+  "library_cancelled": {
+    "message": "Opération annulée."
+  },
+  "library_unknown_error": {
+    "message": "Erreur inconnue."
+  },
+  "library_media_timeout": {
+    "message": "La vidéo a mis trop de temps à charger."
+  },
+  "library_media_error": {
+    "message": "Chrome n'a pas pu lire cette vidéo."
+  },
+  "library_name_exhausted": {
+    "message": "Aucun nom de fichier disponible n'a pu être généré."
   }
 }

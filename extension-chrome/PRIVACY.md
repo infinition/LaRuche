@@ -1,6 +1,6 @@
 # LaRuche Chrome extension privacy policy
 
-Effective date: September 1, 2026
+Effective date: September 2, 2026
 
 The LaRuche Chrome extension connects Chrome to a LaRuche node running on the
 same computer. It has no advertising, analytics, tracking SDK or developer-run
@@ -26,6 +26,13 @@ The optional recording feature can capture a selected tab, Chrome window or
 screen after the user enables recording and grants Chrome's permission. The
 resulting video is saved through Chrome to the user's Downloads folder or to a
 location selected by the user.
+
+The optional video library can access a folder only after the user selects it
+through Chrome's folder picker. It reads video names, paths, sizes, dates,
+durations, dimensions and frames used to create local thumbnails. When the user
+requests an edit, it can rename a file or create a trimmed and cropped export in
+that folder. Processing uses Chrome's local media APIs. Videos and thumbnails
+are not uploaded.
 
 ## How data is used
 
@@ -55,6 +62,11 @@ Chrome local extension storage contains settings such as the selected language,
 node port, enabled features, recording preferences, companion position and any
 pending **Keep** entries. The extension does not set a remote identifier and
 does not create an analytics profile.
+
+The video library stores the selected folder handle in extension-owned
+IndexedDB. This handle identifies the user-selected local folder and is used
+only to reopen the library. Chrome controls the underlying read and write
+permission, and the user can revoke it.
 
 Captured videos are retained wherever the user saves them. Entries accepted by
 the local node follow LaRuche's local memory settings. Temporary browser-control
@@ -103,6 +115,14 @@ avec le commentaire saisi. Si le noeud est indisponible, jusqu'a 200 entrees
 peuvent rester dans le stockage local de l'extension. L'enregistrement est
 facultatif, soumis aux autorisations de Chrome et sauvegarde dans le dossier
 choisi par l'utilisateur.
+
+La bibliotheque video accede uniquement au dossier choisi explicitement dans le
+selecteur de Chrome. Elle lit les noms, chemins, tailles, dates, durees,
+dimensions et images necessaires aux vignettes locales. A la demande de
+l'utilisateur, elle peut renommer un fichier ou creer dans ce dossier un export
+recadre et raccourci. Les videos et les vignettes ne sont pas envoyees sur le
+reseau. Le handle du dossier est conserve dans IndexedDB et son autorisation
+reste controlee et revocable par Chrome.
 
 L'extension communique uniquement avec le noeud local sur
 `ws://127.0.0.1:<port>`. Le noeud LaRuche peut ensuite utiliser un fournisseur

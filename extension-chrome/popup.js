@@ -110,6 +110,7 @@ function traduire() {
     ['aideGarder', 'garder_aide'],
     ['libelleActif', 'toolbar_control'],
     ['libelleCompagnon', 'toolbar_companion'],
+    ['libelleBibliotheque', 'toolbar_library'],
     ['libelleCurseurAgent', 'popup_agent_cursor'],
     ['libellePort', 'popup_port'],
     ['titreConfidentialite', 'popup_privacy_summary'],
@@ -545,6 +546,11 @@ chrome.runtime.onMessage.addListener((msgEvent) => {
 
 sur('langue', 'click', () => {
   basculerLangue().catch(() => {});
+});
+
+sur('ouvrirBibliotheque', 'click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('bibliotheque.html') }).catch(() => {});
+  window.close();
 });
 
 // Rien ne se peint avant que le catalogue choisi soit charge. Sinon le premier

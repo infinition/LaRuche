@@ -1,6 +1,6 @@
 # Publication sur le Chrome Web Store
 
-Etat au 1er septembre 2026: le manifeste et le paquet sont prepares pour MV3,
+Etat au 2 septembre 2026: le manifeste et le paquet sont prepares pour MV3,
 mais l'extension ne doit pas encore etre soumise. Le protocole de pilotage
 contient un point bloquant de politique Web Store decrit ci-dessous.
 
@@ -42,6 +42,8 @@ References officielles:
 - description systeme en anglais, 107 caracteres sur 132 maximum
 - anglais par defaut dans le popup, francais disponible au choix
 - aucun CDN, aucune bibliotheque distante, aucune analytique
+- bibliotheque et montage video executes localement avec les API de Chrome
+- acces au dossier video uniquement apres un choix explicite de l'utilisateur
 - pilotage, compagnon, curseur et enregistrement desactives par defaut
 - `desktopCapture` retire car il n'etait pas utilise
 - permissions de capture demandees seulement quand l'enregistrement est active
@@ -101,7 +103,8 @@ local connection and detaches the debugger.
 The popup can also save the current page or a note to local LaRuche memory. An
 optional recorder captures the active tab, a selected Chrome window or a screen
 and saves the video through Chrome. Manual recording works without an active
-agent.
+agent. A local video library can index a folder selected by the user, rename
+recordings and create trimmed or cropped exports without uploading the files.
 
 The extension connects only to the LaRuche node on `127.0.0.1`. It contains no
 advertising, analytics or developer-operated collection service. LaRuche is
@@ -153,12 +156,13 @@ strictement coherentes.
 
 1. charger le dossier non empaquete et tester toutes les fonctions
 2. verifier le bouton d'enregistrement manuel sans agent connecte
-3. tester le refus puis l'acceptation de chaque permission facultative
-4. tester l'arret du pilotage et le retour d'un onglet emprunte dans son groupe
-5. executer les controles JavaScript, JSON et Rust
-6. generer le paquet Web Store avec le workflow de release
-7. verifier que `manifest.json` est a la racine du ZIP et que `key` en est absent
-8. televerser en brouillon et tester l'Item ID du Web Store avec le noeud
-9. fournir captures, icone, categorie, email de support et politique de
+3. tester la bibliotheque, le renommage, la coupe, le recadrage, l'export et son annulation
+4. tester le refus puis l'acceptation de chaque permission facultative
+5. tester l'arret du pilotage et le retour d'un onglet emprunte dans son groupe
+6. executer les controles JavaScript, JSON et Rust
+7. generer le paquet Web Store avec le workflow de release
+8. verifier que `manifest.json` est a la racine du ZIP et que `key` en est absent
+9. televerser en brouillon et tester l'Item ID du Web Store avec le noeud
+10. fournir captures, icone, categorie, email de support et politique de
    confidentialite dans le tableau de bord
-10. utiliser la publication differee pour garder la main apres validation
+11. utiliser la publication differee pour garder la main apres validation
