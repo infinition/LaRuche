@@ -153,6 +153,16 @@ fn lang_flat_json(code: &str) -> &'static str {
 /// GET / (and the SPA client routes): serve the shell with the active language injected.
 pub async fn spa_page(headers: HeaderMap) -> Html<String> {
     let lang = ui_lang(&headers);
+    // Le fichier suit la langue SERVIE, pas seulement les changements de langue.
+    //
+    // Il n'etait ecrit que par le bouton de bascule: quelqu'un qui avait deja
+    // regle l'anglais avant que ce fichier n'existe n'en declenchait jamais
+    // l'ecriture, et l'ecran de demarrage restait en francais sans qu'aucun geste
+    // ne puisse le corriger, sauf a passer en francais puis revenir a l'anglais.
+    // Ecrire ici rattrape ce cas des le premier chargement de l'interface.
+    if langue_du_foyer().as_deref() != Some(lang) {
+        let _ = std::fs::write("langue.txt", lang);
+    }
     // Escape '<' so a translation value can never break out of the inline <script> tag.
     // '<' is a valid escape in both JSON and JS string literals.
     let data = lang_flat_json(lang).replace('<', "\\u003c");

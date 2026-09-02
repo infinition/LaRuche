@@ -2348,6 +2348,10 @@ LaRuche.Settings = (function(){
       document.documentElement.style.setProperty(cle, valeur);
       var txt = el.querySelector('[data-jeton-txt="'+cle+'"]');
       if(txt && txt.value !== valeur) txt.value = valeur;
+      // Le flou de l'image est cuit DANS l'image, une seule fois, plutot que
+      // recalcule par le navigateur a chaque repeinte. Changer son rayon ne
+      // suffit donc plus a changer ce qu'on voit: il faut refaire l'image.
+      if(cle === '--fond-flou' && T && T.rafraichirFond) T.rafraichirFond();
       declarer();
     }
     function couleurDe(cle){
