@@ -3105,7 +3105,7 @@ LaRuche.Settings = (function(){
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
-    ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+    ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:var(--bg-panel);border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+(name?(LaRuche.i18n.t('settings.skillEditPrefix')+LaRuche.Utils.esc(name)):LaRuche.i18n.t('settings.skillNewTitle'))+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.skillEditorHint')+'</span></div>'+
       '<textarea id="skEditor" class="form-input" style="flex:1;margin:12px 12px 6px;font-family:var(--mono);font-size:12px;resize:none">'+LaRuche.Utils.esc(content)+'</textarea>'+
       '<div style="margin:0 12px 6px">'+
@@ -3207,7 +3207,7 @@ LaRuche.Settings = (function(){
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
-    ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+    ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:var(--bg-panel);border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+LaRuche.i18n.t('settings.pluginEditTitle')+LaRuche.Utils.esc(name)+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.pluginEditorHint')+'</span></div>'+
       '<textarea id="plEditor" data-name="'+LaRuche.Utils.esc(name)+'" class="form-input" style="flex:1;margin:12px;font-family:var(--mono);font-size:12px;resize:none" spellcheck="false">'+LaRuche.Utils.esc(content)+'</textarea>'+
       '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
@@ -3534,7 +3534,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
-    ov.innerHTML='<div style="width:480px;max-width:92vw;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;padding:16px">'+
+    ov.innerHTML='<div style="width:480px;max-width:92vw;background:var(--bg-panel);border:1px solid var(--amber);border-radius:10px;padding:16px">'+
       '<div style="font-weight:600;color:var(--amber);margin-bottom:10px">'+LaRuche.i18n.t('settings.kanbanEditTitle')+'</div>'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditTitleLabel')+'</label><input class="form-input" id="kbeTitle" value="'+LaRuche.Utils.esc(t?t.title:'')+'">'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditDescLabel')+'</label><textarea class="form-input" id="kbeDesc" rows="4">'+LaRuche.Utils.esc(t?(t.description||''):'')+'</textarea>'+

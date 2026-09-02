@@ -201,7 +201,7 @@ LaRuche.PluginFiles = (function(){
     ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) close(); };
-    ov.innerHTML='<div style="width:880px;max-width:95vw;height:84vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+    ov.innerHTML='<div style="width:880px;max-width:95vw;height:84vh;background:var(--bg-panel);border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber);display:flex;align-items:center;gap:10px">'+
         '<span style="flex:1">'+LaRuche.i18n.t('core.pluginFilesTitle')+'</span>'+
         '<button class="tl-btn" onclick="LaRuche.PluginFiles.newFile()">'+LaRuche.i18n.t('core.newFile')+'</button>'+

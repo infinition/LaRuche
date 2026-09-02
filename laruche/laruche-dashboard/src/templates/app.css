@@ -221,10 +221,19 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 /* ============================== */
 /* SCROLLBARS                     */
 /* ============================== */
-::-webkit-scrollbar { width: 5px; }
+/* Le pouce prend `--border-light`, jamais `--border`.
+   `--border` est la teinte des FILETS: par definition la moins contrastee de la
+   palette, choisie pour se faire oublier. Un pouce de defilement a le besoin
+   inverse. Les deux se confondaient des qu'un theme resserrait l'ecart, et le
+   theme `ardoise` pose `--border: #232932` sur le fond sombre des modales: la
+   barre disparaissait, et avec elle le seul moyen visible de lire un prompt
+   plus long que la fenetre.
+   5px etait par ailleurs trop fin pour etre attrape a la souris. */
+* { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--amber-dim); }
 
 /* ============================== */
 /* ANIMATIONS                     */

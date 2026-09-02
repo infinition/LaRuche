@@ -1149,16 +1149,16 @@ LaRuche.Chat = (function(){
         st.textContent=
           '.lr-art-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center;animation:lrfade .12s ease}'+
           '@keyframes lrfade{from{opacity:0}to{opacity:1}}'+
-          '.lr-art-win{width:92vw;height:90vh;background:#0d0d10;border:1px solid var(--amber,#f5a623);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}'+
+          '.lr-art-win{width:92vw;height:90vh;background:var(--bg-panel);border:1px solid var(--amber,#f5a623);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}'+
           '.lr-art-head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2a2a2e}'+
           '.lr-art-title{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-right:6px}'+
-          '.lr-art-tab{background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:4px 14px;cursor:pointer;font-size:12px}'+
+          '.lr-art-tab{background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 14px;cursor:pointer;font-size:12px}'+
           '.lr-art-tab.on{background:var(--amber,#f5a623);color:#000;border-color:transparent}'+
           '.lr-art-act{margin-left:auto;display:flex;gap:6px}'+
-          '.lr-art-x{background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;line-height:1}'+
-          '.lr-art-body{flex:1;overflow:auto;background:#101014}'+
+          '.lr-art-x{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1}'+
+          '.lr-art-body{flex:1;overflow:auto;background:var(--bg);}'+
           '.lr-art-body iframe{width:100%;height:100%;border:0;background:#fff}'+
-          '.lr-art-body pre{margin:0;padding:16px;white-space:pre-wrap;word-break:break-word;color:#e0e0e0;font:12.5px/1.6 ui-monospace,Consolas,monospace}';
+          '.lr-art-body pre{margin:0;padding:16px;white-space:pre-wrap;word-break:break-word;color:var(--text);font:12.5px/1.6 ui-monospace,Consolas,monospace}';
         document.head.appendChild(st);
       }
       var renderable=/^(html|xml|svg|markup)$/i.test(lang||'');
@@ -1299,14 +1299,14 @@ LaRuche.Chat = (function(){
       var role=(m.role||'?'); var c=roleColor[role]||'#bbb';
       var content=(typeof m.content==='string')?m.content:JSON.stringify(m.content,null,2);
       body+='<div style="margin-bottom:10px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:'+c+';font-weight:600;margin-bottom:3px">'+LaRuche.Utils.esc(role)+'</div>'+
-        '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font:11px/1.5 ui-monospace,monospace;color:#ddd;background:rgba(255,255,255,.03);border-left:2px solid '+c+';padding:6px 8px;border-radius:3px">'+LaRuche.Utils.esc(content)+'</pre></div>';
+        '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font:11px/1.5 ui-monospace,monospace;color:var(--text);background:var(--bg-card);border-left:2px solid '+c+';padding:6px 8px;border-radius:3px">'+LaRuche.Utils.esc(content)+'</pre></div>';
     });
     var tokens=Math.round(JSON.stringify(msgs).length/4);
-    ov.innerHTML='<div style="width:760px;max-width:94vw;height:84vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+    ov.innerHTML='<div style="width:760px;max-width:94vw;height:84vh;background:var(--bg-panel);border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">'+
       '<span style="font-weight:600;color:var(--amber)">'+LaRuche.i18n.t('chat.promptReel')+'</span>'+
       '<span style="font-size:10px;color:var(--text-dim)">'+msgs.length+' messages · ~'+tokens+' tokens · '+LaRuche.Utils.esc((data.provider||'')+'/'+(data.model||''))+'</span>'+
-      '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-left:auto;background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">&times;</button></div>'+
+      '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-left:auto;background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer">&times;</button></div>'+
       '<div style="flex:1;overflow:auto;padding:14px">'+(body||'<div style="color:var(--text-dim)">'+LaRuche.i18n.t('chat.vide')+'</div>')+'</div></div>';
     document.body.appendChild(ov);
   }
