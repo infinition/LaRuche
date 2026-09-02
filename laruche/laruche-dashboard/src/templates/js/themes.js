@@ -78,6 +78,17 @@
       ]
     },
     {
+      id: 'markdown', titre: { fr: 'Texte mis en forme', en: 'Formatted text' }, jetons: [
+        { cle: '--md-titre', fr: 'Titres', en: 'Headings' },
+        { cle: '--md-lien', fr: 'Liens', en: 'Links' },
+        { cle: '--md-gras', fr: 'Gras', en: 'Bold' },
+        { cle: '--md-code', fr: 'Code en ligne', en: 'Inline code' },
+        { cle: '--md-code-fond', fr: 'Code en ligne, fond', en: 'Inline code, surface' },
+        { cle: '--md-citation', fr: 'Citation, barre', en: 'Quote, bar' },
+        { cle: '--md-citation-fond', fr: 'Citation, fond', en: 'Quote, surface' }
+      ]
+    },
+    {
       id: 'typo', titre: { fr: 'Typographie', en: 'Typography' }, jetons: [
         { cle: '--font', fr: 'Police de l’interface', en: 'Interface typeface', type: 'police' },
         { cle: '--font-msg', fr: 'Police des messages', en: 'Message typeface', type: 'police' },
@@ -85,7 +96,10 @@
         { cle: '--mono', fr: 'Police à chasse fixe', en: 'Monospace typeface', type: 'police', mono: true },
         { cle: '--taille-ui', fr: 'Taille du texte, interface', en: 'Interface text size', type: 'taille', min: 10, max: 20, pas: 0.5, unite: 'px' },
         { cle: '--taille-msg', fr: 'Taille du texte, messages', en: 'Message text size', type: 'taille', min: 11, max: 24, pas: 0.5, unite: 'px' },
-        { cle: '--taille-contenu', fr: 'Taille du texte, contenu', en: 'Content text size', type: 'taille', min: 10, max: 22, pas: 0.5, unite: 'px' }
+        { cle: '--taille-contenu', fr: 'Taille du texte, contenu', en: 'Content text size', type: 'taille', min: 10, max: 22, pas: 0.5, unite: 'px' },
+        { cle: '--taille-h1', fr: 'Taille des titres, niveau 1', en: 'Heading size, level 1', type: 'taille', min: 1, max: 3, pas: 0.05, unite: 'em' },
+        { cle: '--taille-h2', fr: 'Taille des titres, niveau 2', en: 'Heading size, level 2', type: 'taille', min: 1, max: 2.6, pas: 0.05, unite: 'em' },
+        { cle: '--taille-h3', fr: 'Taille des titres, niveau 3', en: 'Heading size, level 3', type: 'taille', min: 1, max: 2.2, pas: 0.05, unite: 'em' }
       ]
     },
     {
@@ -379,8 +393,9 @@
     return _iconesOrigine[cle];
   }
 
-  function peindreIcones(icones) {
+  function peindreIcones(icones, tailles) {
     icones = icones || {};
+    tailles = tailles || {};
     ICONES.forEach(function (it) {
       var cible = document.querySelector(it.sel);
       if (!cible) return;
@@ -392,6 +407,16 @@
       } else {
         cible.innerHTML = _iconesOrigine[it.cle];
         cible.classList.remove('lr-icone-perso');
+      }
+      /* La taille se pose sur le conteneur, en `font-size`: les SVG du logiciel
+         sont dimensionnes en `em`, ils la suivent donc sans etre reecrits. */
+      var t = tailles[it.cle];
+      if (t) {
+        cible.style.fontSize = t + 'px';
+        cible.setAttribute('data-lr-ic', '1');
+      } else {
+        cible.style.fontSize = '';
+        cible.removeAttribute('data-lr-ic');
       }
     });
   }
@@ -450,10 +475,47 @@
     }
   }
 
-  function habillageDe(id) {
-    if (!estPerso(id)) return { marque: {}, fond: {}, icones: {} };
+  /* Les polices IMPORTEES, posees en `@font-face` dans une feuille a nous.
+
+     Elles voyagent DANS le theme, encodees, et non a cote: un theme se partage en
+     un fichier, et une police citee par son nom seul ne suivrait pas. Celui qui
+     recoit le theme verrait alors le repli de la pile, sans comprendre pourquoi
+     ce n'est pas ce qu'on lui a montre.
+
+     Le nom declare ici devient une famille CSS ordinaire: elle apparait dans les
+     listes deroulantes a cote des piles systeme, et se tape aussi a la main. */
+  function peindrePolices(polices) {
+    var f = document.getElementById('lr-polices');
+    if (!f) {
+      f = document.createElement('style');
+      f.id = 'lr-polices';
+      document.head.appendChild(f);
+    }
+    f.textContent = (polices || []).map(function (p) {
+      if (!p || !p.nom || !p.data) return '';
+      // Le nom est entre guillemets et debarrasse des siens: il vient de
+      // l'utilisateur et atterrit dans une feuille de style.
+      var nom = String(p.nom).replace(/["\\]/g, '').trim();
+      if (!nom) return '';
+      return '@font-face{font-family:"' + nom + '";src:url(' + JSON.stringify(String(p.data)) +
+             ');font-display:swap;}';
+    }).join('\n');
+  }
+
+  function policesDe(id) {
+    if (!estPerso(id)) return [];
     var t = persoParId(id) || {};
-    return { marque: t.marque || {}, fond: t.fond || {}, icones: t.icones || {} };
+    return t.polices || [];
+  }
+
+  function habillageDe(id) {
+    if (!estPerso(id)) return { marque: {}, fond: {}, icones: {}, polices: [] };
+    var t = persoParId(id) || {};
+    return {
+      marque: t.marque || {}, fond: t.fond || {},
+      icones: t.icones || {}, polices: t.polices || [],
+      taillesIcones: t.taillesIcones || {}
+    };
   }
 
   /* Peindre. Un integre pose l'attribut et retire toute valeur en ligne; un
@@ -471,9 +533,10 @@
         if (br.jetons && br.jetons[c]) r.style.setProperty(c, br.jetons[c]);
         else r.style.removeProperty(c);
       });
+      peindrePolices(br.polices || []);
       peindreFond(br.fond || {});
       peindreMarque(br.marque || {});
-      peindreIcones(br.icones || {});
+      peindreIcones(br.icones || {}, br.taillesIcones || {});
       return;
     }
     if (estPerso(id)) {
@@ -494,9 +557,12 @@
     // L'habillage suit le theme, et se REMET A ZERO quand le theme n'en porte
     // pas: sans cela le logo d'un theme perso survivait au retour sur un integre.
     var h = habillageDe(id);
+    // Les polices d'abord: une famille absente au moment ou le jeton se pose
+    // ferait clignoter le texte dans son repli avant de se corriger.
+    peindrePolices(h.polices);
     peindreFond(h.fond);
     peindreMarque(h.marque);
-    peindreIcones(h.icones);
+    peindreIcones(h.icones, h.taillesIcones);
     try {
       if (estPerso(id)) localStorage.setItem(CLE_HABILLAGE, JSON.stringify(h));
       else localStorage.removeItem(CLE_HABILLAGE);
@@ -601,12 +667,13 @@
      vit dans la feuille de style de l'application, le reecrire demanderait de
      reinstaller pour revenir en arriere. Le garder intact rend au contraire la
      remise a zero gratuite, il suffit de le reselectionner. */
-  async function dupliquer(nom, jetons, marque, fond, icones) {
+  async function dupliquer(nom, jetons, marque, fond, icones, polices, taillesIcones) {
     var parent = etat.actif;
     var base = jetons ? Object.assign({}, jetons) : baseCourante();
     var r = await envoyer({
       id: null, nom: nom, jetons: jetons || baseCourante(),
-      marque: marque || {}, fond: fond || {}, icones: icones || {},
+      marque: marque || {}, fond: fond || {}, icones: icones || {}, polices: polices || [],
+      taillesIcones: taillesIcones || {},
       parent: estPerso(parent) ? clePerso(parent) : parent, base: base
     });
     if (r && r.status === 'ok') {
@@ -637,12 +704,13 @@
     }
   }
 
-  async function enregistrer(nom, jetons, id, marque, fond, icones) {
+  async function enregistrer(nom, jetons, id, marque, fond, icones, polices, taillesIcones) {
     // `undefined` disparait a la serialisation: c'est exactement ce qu'on veut,
     // le serveur garde alors ce qui est deja sur le disque.
     var r = await envoyer({
       id: id || null, nom: nom, jetons: jetons,
-      marque: marque || {}, fond: fond || {}, icones: icones
+      marque: marque || {}, fond: fond || {}, icones: icones, polices: polices,
+      taillesIcones: taillesIcones
     });
     if (r && r.status === 'ok') {
       await charger();
@@ -734,6 +802,7 @@
     resoudreCouleur: resoudreCouleur, versHex: versHex,
     composerCouleur: composerCouleur, tripletRgb: tripletRgb,
     ICONES: ICONES, peindreIcones: peindreIcones, iconeOrigine: iconeOrigine,
+    peindrePolices: peindrePolices, policesDe: policesDe,
     ajouterIcones: ajouterIcones,
     peindreFond: peindreFond, peindreMarque: peindreMarque,
     habillageDe: habillageDe, dupliquer: dupliquer, baseCourante: baseCourante,

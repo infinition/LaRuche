@@ -335,7 +335,7 @@ pub(crate) async fn api_mesh_send(
         peer_name,
         dir: "out".into(),
         text,
-        ts: chrono::Utc::now().timestamp(),
+        ts: chrono::Utc::now().timestamp_millis(),
         read: true,
     });
     Json(serde_json::json!({ "status": if ok { "ok" } else { "local_only" } }))
@@ -370,7 +370,7 @@ pub(crate) async fn api_mesh_receive(
         peer_name: from_name,
         dir: "in".into(),
         text,
-        ts: chrono::Utc::now().timestamp(),
+        ts: chrono::Utc::now().timestamp_millis(),
         read: false,
     });
     Json(serde_json::json!({ "status": "ok" }))

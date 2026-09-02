@@ -186,10 +186,63 @@ fn icones_sur(v: &serde_json::Value) -> Result<serde_json::Value, String> {
 /// - champ ABSENT: on garde ce qui est sur le disque, rien n'a change;
 /// - champ VIDE: on efface, l'utilisateur a retire l'image;
 /// - champ RENSEIGNE: on valide et on remplace.
+/// Les polices importees, validees avant d'entrer dans un fichier de theme.
+///
+/// Elles voyagent encodees dans le theme, donc dans un fichier qui se partage. Le
+/// nom devient une famille CSS ecrite dans une feuille de style: on n'y laisse
+/// donc que des caracteres ordinaires, sinon un nom bien choisi fermerait la
+/// declaration et ecrirait la suite a sa guise.
+fn polices_sur(v: &serde_json::Value) -> Result<serde_json::Value, String> {
+    const POLICE_MAX: usize = 2 * 1024 * 1024;
+    const NOMBRE_MAX: usize = 8;
+    let mut out: Vec<serde_json::Value> = Vec::new();
+    for p in v.as_array().map(|a| a.as_slice()).unwrap_or(&[]) {
+        if out.len() >= NOMBRE_MAX {
+            return Err("trop de polices importees (8 au maximum)".into());
+        }
+        let nom: String = p["nom"]
+            .as_str()
+            .unwrap_or("")
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_')
+            .take(48)
+            .collect();
+        let nom = nom.trim().to_string();
+        let data = p["data"].as_str().unwrap_or("").trim();
+        if nom.is_empty() || data.is_empty() {
+            continue;
+        }
+        if data.len() > POLICE_MAX {
+            return Err(format!("police {nom}: fichier trop lourd"));
+        }
+        // Une police, et rien d'autre. `data:` accepte n'importe quel type, et une
+        // feuille de style qui charge autre chose n'a aucune raison d'exister ici.
+        let bas = data.to_lowercase();
+        let ok = bas.starts_with("data:font/")
+            || bas.starts_with("data:application/font")
+            || bas.starts_with("data:application/x-font")
+            || bas.starts_with("data:application/octet-stream");
+        if !ok {
+            return Err(format!("police {nom}: ce n'est pas un fichier de police"));
+        }
+        out.push(serde_json::json!({ "nom": nom, "data": data }));
+    }
+    Ok(serde_json::Value::Array(out))
+}
+
 fn habillage_sur(
     body: &serde_json::Value,
     ancien: Option<&serde_json::Value>,
-) -> Result<(serde_json::Value, serde_json::Value, serde_json::Value), String> {
+) -> Result<
+    (
+        serde_json::Value,
+        serde_json::Value,
+        serde_json::Value,
+        serde_json::Value,
+        serde_json::Value,
+    ),
+    String,
+> {
     let m = &body["marque"];
     let nom: String = m["nom"].as_str().unwrap_or("").trim().chars().take(60).collect();
     let logo = match m.get("logo") {
@@ -243,7 +296,28 @@ fn habillage_sur(
             .and_then(|a| a.get("icones").cloned())
             .unwrap_or_else(|| serde_json::Value::Object(Default::default())),
     };
-    Ok((marque, fond, icones))
+    let polices = match body.get("polices") {
+        Some(v) => polices_sur(v)?,
+        None => ancien
+            .and_then(|a| a.get("polices").cloned())
+            .unwrap_or_else(|| serde_json::Value::Array(Vec::new())),
+    };
+    // Les tailles d'icones: un nombre de pixels par emplacement, borne. Une valeur
+    // absente vaut « taille d'origine », c'est ce qui distingue un curseur au repos
+    // d'un curseur pose sur sa valeur par defaut.
+    let mut tailles = serde_json::Map::new();
+    if let Some(obj) = body.get("taillesIcones").and_then(|v| v.as_object()) {
+        for (cle, val) in obj {
+            if let Some(px) = val.as_i64() {
+                if px > 0 {
+                    tailles.insert(cle.clone(), serde_json::Value::from(px.clamp(8, 96)));
+                }
+            }
+        }
+    } else if let Some(a) = ancien.and_then(|a| a.get("taillesIcones")).and_then(|v| v.as_object()) {
+        tailles = a.clone();
+    }
+    Ok((marque, fond, icones, polices, serde_json::Value::Object(tailles)))
 }
 
 /// GET /api/themes - les themes personnalises, tries par nom.
@@ -299,7 +373,7 @@ pub(crate) async fn api_themes_save(
     let ancien = std::fs::read_to_string(dossier().join(format!("{id}.json")))
         .ok()
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
-    let (marque, fond, icones) = match habillage_sur(&body, ancien.as_ref()) {
+    let (marque, fond, icones, polices, tailles_icones) = match habillage_sur(&body, ancien.as_ref()) {
         Ok(v) => v,
         Err(e) => return Json(serde_json::json!({ "status": "error", "error": e })),
     };
@@ -321,7 +395,8 @@ pub(crate) async fn api_themes_save(
         .unwrap_or_else(|| body["base"].clone());
     let theme = serde_json::json!({
         "id": id, "nom": nom, "jetons": jetons, "marque": marque, "fond": fond,
-        "icones": icones, "parent": parent, "base": base
+        "icones": icones, "polices": polices, "taillesIcones": tailles_icones,
+        "parent": parent, "base": base
     });
     let chemin = dossier().join(format!("{id}.json"));
     match serde_json::to_string_pretty(&theme)

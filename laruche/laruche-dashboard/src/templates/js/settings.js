@@ -440,6 +440,13 @@ LaRuche.i18n.add({
   'settings.brandClear':        {fr:'Retirer',                en:'Remove'},
   'settings.brandSvgHint':      {fr:"SVG de preference: il herite de la couleur d'accent, donc il suit le theme. Un PNG garde la sienne. Le SVG est lave par le serveur avant d'etre enregistre.", en:'Prefer SVG: it inherits the accent colour, so it follows the theme. A PNG keeps its own. SVG is sanitised by the server before being stored.'},
   'settings.brandTooBig':       {fr:'Logo trop lourd (512 Ko maximum).', en:'Logo too heavy (512 KB max).'},
+  'settings.fontTitle':         {fr:'Polices importees',      en:'Imported fonts'},
+  'settings.fontHint':          {fr:"Ajoutez vos propres fichiers de police. Ils voyagent DANS le theme, donc ils suivent quand vous le partagez, et apparaissent dans les listes ci-dessous.", en:'Add your own font files. They travel INSIDE the theme, so they follow when you share it, and appear in the lists below.'},
+  'settings.fontAdd':           {fr:'Importer une police',     en:'Import a font'},
+  'settings.fontNone':          {fr:'Aucune police importee.', en:'No imported font.'},
+  'settings.fontSample':        {fr:'Le vif renard brun saute', en:'The quick brown fox jumps'},
+  'settings.fontTooBig':        {fr:'Police trop lourde (2 Mo maximum).', en:'Font too heavy (2 MB max).'},
+  'settings.iconSize':          {fr:"Taille de cette icone",  en:'Size of this icon'},
   'settings.iconTitle':         {fr:'Icones',                 en:'Icons'},
   'settings.iconHint':          {fr:"Remplacez une icone par un SVG a vous. Elle herite de la couleur d'accent, donc elle suit le theme. L'apercu montre celle qui est en place.", en:'Replace an icon with your own SVG. It inherits the accent colour, so it follows the theme. The preview shows the one currently in place.'},
   'settings.bgTitle':           {fr:"Image de fond",         en:'Background image'},
@@ -1886,6 +1893,8 @@ LaRuche.Settings = (function(){
   var _marqueBrouillon = {};
   var _fondBrouillon = {};
   var _iconesBrouillon = {};
+  var _policesBrouillon = [];
+  var _taillesIcones = {};
   var _sauveMinuteur = null;
   var _apparenceHote = null;
   /* Dessiner le panneau n'est pas le MODIFIER.
@@ -1963,7 +1972,9 @@ LaRuche.Settings = (function(){
         champ+'</div>';
     }
     if(j.type === 'police'){
-      var piles = j.mono ? T.PILES_MONO : T.PILES;
+      // Les polices importees d'abord: on vient de les ajouter, on les cherche.
+      var piles = (_policesBrouillon || []).map(function(p){ return { nom: p.nom, v: '"'+p.nom+'"' }; })
+        .concat(j.mono ? T.PILES_MONO : T.PILES);
       var opts = '<option value="">—</option>'+piles.map(function(p){
         return '<option value="'+esc(p.v)+'"'+(p.v===valeur.trim()?' selected':'')+'>'+esc(p.nom)+'</option>';
       }).join('');
@@ -2042,7 +2053,9 @@ LaRuche.Settings = (function(){
     _fondBrouillon = Object.assign({ opacite: 0.35, cadrage: 'cover', zones: {} }, h.fond);
     _fondBrouillon.zones = Object.assign({}, _fondBrouillon.zones);
     _iconesBrouillon = Object.assign({}, h.icones);
-    _sale = { fond: false, icones: false, logo: false };
+    _policesBrouillon = (h.polices || []).slice();
+    _taillesIcones = Object.assign({}, h.taillesIcones);
+    _sale = { fond: false, icones: false, logo: false, polices: false };
 
     var champs = T.GROUPES.map(function(g){
       var lignes = g.jetons.map(function(j){ return _ligneJeton(j, jetons[j.cle] || '', esc); }).join('');
@@ -2094,6 +2107,13 @@ LaRuche.Settings = (function(){
         '<p style="color:var(--text-muted);font-size:11px;margin:6px 0 0">'+t('settings.brandSvgHint')+'</p>'+
       '</div>'+
 
+      '<div class="settings-card"><div class="settings-card-title">'+t('settings.fontTitle')+'</div>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.fontHint')+'</p>'+
+        '<div id="policesListe"></div>'+
+        '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">'+
+          '<button class="cwd-btn" id="policeAjouter" style="opacity:1;font-size:12px;padding:6px 10px">'+t('settings.fontAdd')+'</button>'+
+          '<input type="file" id="policeFichier" accept=".woff2,.woff,.ttf,.otf,font/*" style="display:none"></div>'+
+      '</div>'+
       '<div class="settings-card"><div class="settings-card-title">'+t('settings.iconTitle')+'</div>'+
         '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.iconHint')+'</p>'+
         '<div class="lr-icones-liste">'+
@@ -2101,6 +2121,9 @@ LaRuche.Settings = (function(){
           return '<div style="display:flex;align-items:center;gap:9px;padding:4px 0">'+
             '<span class="lr-icone-apercu" data-icone-apercu="'+ic.cle+'"></span>'+
             '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+esc(ic[lg]||ic.fr)+'</span>'+
+            '<input type="range" data-icone-taille="'+ic.cle+'" min="10" max="64" step="1" '+
+              'value="'+(_taillesIcones[ic.cle]||16)+'" title="'+esc(t('settings.iconSize'))+'" '+
+              'style="width:92px;accent-color:var(--amber)'+(_taillesIcones[ic.cle]?'':';opacity:.45')+'">'+
             '<button class="cwd-btn" data-icone-choisir="'+ic.cle+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+t('settings.brandPick')+'</button>'+
             '<button class="cwd-btn" data-icone-vider="'+ic.cle+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+t('settings.brandClear')+'</button>'+
           '</div>';
@@ -2183,7 +2206,7 @@ LaRuche.Settings = (function(){
     function declarer(){
       if(_initEnCours) return;
       T.definirBrouillon({ id: actif, jetons: _themeBrouillon, marque: _marqueBrouillon,
-                           fond: _fondBrouillon, icones: _iconesBrouillon });
+                           fond: _fondBrouillon, icones: _iconesBrouillon, taillesIcones: _taillesIcones });
       majEtat();
       if(perso) planifierSauvegarde();
     }
@@ -2228,8 +2251,10 @@ LaRuche.Settings = (function(){
         if(_sale.logo) marque.logo = _marqueBrouillon.logo || '';
         var r = await T.enregistrer(nom.trim()||nomActuel, _themeBrouillon,
                                     actif.slice('perso:'.length), marque, fond,
-                                    _sale.icones ? _iconesBrouillon : undefined);
-        if(r && r.status === 'ok'){ _sale = { fond:false, icones:false, logo:false }; }
+                                    _sale.icones ? _iconesBrouillon : undefined,
+                                    _sale.polices ? _policesBrouillon : undefined,
+                                    _sale.icones ? _taillesIcones : undefined);
+        if(r && r.status === 'ok'){ _sale = { fond:false, icones:false, logo:false, polices:false }; }
         majEtat(r && r.status === 'ok' ? t('settings.themeSavedOk') : t('settings.themeSaveFail'));
       }, 700);
     }
@@ -2355,6 +2380,52 @@ LaRuche.Settings = (function(){
     var mv = document.getElementById('marqueVider');
     if(mv) mv.onclick = function(){ _marqueBrouillon.logo = ''; _sale.logo = true; rendreMarque(); };
 
+    /* ---- Les polices importees ---- */
+    function rendrePolices(){
+      var liste = document.getElementById('policesListe');
+      if(liste){
+        liste.innerHTML = _policesBrouillon.length
+          ? _policesBrouillon.map(function(p, i){
+              return '<div style="display:flex;align-items:center;gap:9px;padding:4px 0">'+
+                '<span style="flex:1;font-size:13px;color:var(--text);font-family:\''+esc(p.nom)+'\'">'+
+                  esc(p.nom)+' &mdash; '+t('settings.fontSample')+'</span>'+
+                '<span style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">'+
+                  Math.round((p.data||'').length/1024)+' Ko</span>'+
+                '<button class="cwd-btn" data-police-vider="'+i+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+
+                  t('settings.brandClear')+'</button></div>';
+            }).join('')
+          : '<div style="color:var(--text-muted);font-size:12px">'+t('settings.fontNone')+'</div>';
+        liste.querySelectorAll('[data-police-vider]').forEach(function(b){
+          b.onclick = function(){
+            _policesBrouillon.splice(parseInt(b.dataset.policeVider,10), 1);
+            _sale.polices = true; rendrePolices(); loadApparence(el);
+          };
+        });
+      }
+      T.peindrePolices(_policesBrouillon);
+      declarer();
+    }
+    var pa = document.getElementById('policeAjouter'), pf = document.getElementById('policeFichier');
+    if(pa && pf){
+      pa.onclick = function(){ pf.value=''; pf.click(); };
+      pf.onchange = function(){
+        var f = pf.files && pf.files[0]; if(!f) return;
+        if(f.size > 2*1024*1024){ LaRuche.Toast.show(t('settings.fontTooBig'),'warn'); return; }
+        var fr = new FileReader();
+        fr.onload = function(){
+          // Le nom du fichier fait le nom de la famille: c'est celui que
+          // l'utilisateur reconnaitra dans la liste.
+          var nom = f.name.replace(/\.[^.]+$/, '').replace(/[^\w \-]/g, '').trim() || 'Police';
+          _policesBrouillon.push({ nom: nom, data: String(fr.result) });
+          _sale.polices = true;
+          rendrePolices();
+          loadApparence(el);   // les listes deroulantes doivent la proposer
+        };
+        fr.readAsDataURL(f);
+      };
+    }
+    rendrePolices();
+
     /* ---- Les icones ---- */
     function rendreIcones(){
       T.ICONES.forEach(function(ic){
@@ -2374,9 +2445,21 @@ LaRuche.Settings = (function(){
         var e = (!v && ic.echelle) ? ic.echelle : 1;
         ap.firstElementChild && (ap.firstElementChild.style.transform = e === 1 ? '' : 'scale(' + e + ')');
       });
-      T.peindreIcones(_iconesBrouillon);
+      T.peindreIcones(_iconesBrouillon, _taillesIcones);
       declarer();
     }
+    /* La taille se regle icone par icone: une barre d'outils et un logo n'ont pas
+       la meme place, et un reglage global les aurait tirees ensemble. Un curseil
+       laisse au repos garde son opacite reduite, pour dire qu'il ne fait rien. */
+    el.querySelectorAll('[data-icone-taille]').forEach(function(r){
+      r.oninput = function(){
+        _taillesIcones[r.dataset.iconeTaille] = parseInt(r.value, 10);
+        r.style.opacity = '1';
+        _sale.icones = true;
+        rendreIcones();
+      };
+    });
+
     var _icAttente = null;
     var icf = document.getElementById('iconeFichier');
     el.querySelectorAll('[data-icone-choisir]').forEach(function(b){
@@ -2456,7 +2539,7 @@ LaRuche.Settings = (function(){
     if(save) save.onclick = async function(){
       var nom = nomDemande(nomActuel || (t('settings.themeCopyOf') + ' ' + (T.catalogue().filter(function(x){return x.id===actif;})[0]||{}).nom));
       if(!nom.trim()){ return; }
-      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
+      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon, _iconesBrouillon, _policesBrouillon, _taillesIcones);
       if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
       else LaRuche.Toast.show((r&&r.error)||'erreur','warn');
     };
@@ -2466,7 +2549,7 @@ LaRuche.Settings = (function(){
       var nom = (document.getElementById('themeNom')||{}).value || '';
       if(!nom.trim()){ LaRuche.Toast.show(t('settings.themeName'),'warn'); return; }
       var r = await T.enregistrer(nom.trim(), _themeBrouillon, actif.slice('perso:'.length),
-                                  _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
+                                  _marqueBrouillon, _fondBrouillon, _iconesBrouillon, _policesBrouillon, _taillesIcones);
       if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
     };
 
@@ -2475,7 +2558,7 @@ LaRuche.Settings = (function(){
       var courant = (T.catalogue().filter(function(x){return x.id===actif;})[0]||{}).nom || '';
       var nom = window.prompt(t('settings.themeAskName'), t('settings.themeCopyOf') + ' ' + courant);
       if(!nom || !nom.trim()) return;
-      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
+      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon, _iconesBrouillon, _policesBrouillon, _taillesIcones);
       if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
       else LaRuche.Toast.show((r&&r.error)||'erreur','warn');
     };
@@ -2500,7 +2583,7 @@ LaRuche.Settings = (function(){
       if(perso && base){
         _themeBrouillon = Object.assign({}, base);
         await T.enregistrer(nomActuel, _themeBrouillon, actif.slice('perso:'.length),
-                            _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
+                            _marqueBrouillon, _fondBrouillon, _iconesBrouillon, _policesBrouillon, _taillesIcones);
       }
       T.appliquer(actif);
       loadApparence(el);
@@ -3964,7 +4047,7 @@ LaRuche.Settings = (function(){
   }
   // Kanban card (HTML), shared between column mode and horizontal mode.
   function kanbanCardHtml(t){
-    var h='<div class="kb-carte" data-id="'+t.id+'" style="background:#2a2a2e;border:1px solid var(--border);border-radius:4px;padding:8px;cursor:grab;touch-action:none">';
+    var h='<div class="kb-carte" data-id="'+t.id+'" style="background:var(--border);border:1px solid var(--border);border-radius:4px;padding:8px;cursor:grab;touch-action:none">';
     h+='<div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px">'+LaRuche.Utils.esc(t.title)+'</div>';
     h+='<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">'+LaRuche.Utils.esc(t.description||'')+'</div>';
     if(t.profile_id || t.model){

@@ -46,6 +46,26 @@
   --taille-ui: 13px;
   --taille-msg: 14px;
   --taille-contenu: 13px;
+  /* Les titres se reglent SEPAREMENT du corps. Ils etaient des multiples fixes de
+     la taille du texte, donc agrandir le corps grossissait tout dans la meme
+     proportion, ce qui ne laissait jamais choisir le contraste entre les deux. */
+  --taille-h1: 1.55em;
+  --taille-h2: 1.32em;
+  --taille-h3: 1.15em;
+
+  /* Le MARKDOWN a ses propres couleurs.
+
+     Tout y pointait sur l'accent: les titres, le code en ligne, la barre de
+     citation. Un document de la memoire etait donc entierement orange, et le
+     seul moyen d'y changer quoi que ce soit etait de changer l'accent de toute
+     l'application. Ces jetons partent des memes valeurs, mais se reglent seuls. */
+  --md-titre: var(--amber-light);
+  --md-lien: var(--amber);
+  --md-code: var(--amber-light);
+  --md-code-fond: var(--bg-input);
+  --md-citation: var(--amber);
+  --md-citation-fond: var(--amber-glow);
+  --md-gras: var(--text);
   --radius-msg: 16px;
   --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
   --mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
@@ -324,8 +344,8 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   transform-origin:center; pointer-events:none;
 }
 .feed-kind-badge { font-size:8.5px; letter-spacing:.3px; text-transform:uppercase; padding:0 5px; border-radius:var(--radius-btn); border:1px solid currentColor; opacity:.85; line-height:1.5; }
-.kb-memory{color:#a78bfa} .kb-agent{color:var(--amber)} .kb-cron{color:#f59e0b} .kb-mission{color:#34d399} .kb-watcher{color:#60a5fa} .kb-dm{color:#a855f7}
-.feed-av-peer { background:#a855f7; color:#fff; border-radius:50%; font-size:14px; font-weight:700; }
+.kb-memory{color:var(--purple)} .kb-agent{color:var(--amber)} .kb-cron{color:var(--amber)} .kb-mission{color:var(--green)} .kb-watcher{color:var(--blue)} .kb-dm{color:var(--purple)}
+.feed-av-peer { background:var(--purple); color:#fff; border-radius:50%; font-size:14px; font-weight:700; }
 .feed-expandable { cursor:pointer; }
 .feed-more { color:var(--amber); font-size:10px; opacity:.8; }
 /* Conversation dot: empty (reserves space) unless new = amber dot. */
@@ -346,26 +366,26 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 /* caret removed (user request) */
 .cc-act .act-ico { font-size:10px; flex-shrink:0; line-height:1; }
 .cc-act .act-ico.tool-call { color:var(--amber); }
-.cc-act .act-ico.tool-ok { color:var(--green,#34d399); }
-.cc-act .act-ico.tool-err { color:var(--red,#f87171); }
-.cc-act .act-ico.thinking { color:#60a5fa; }
+.cc-act .act-ico.tool-ok { color:var(--green,var(--green)); }
+.cc-act .act-ico.tool-err { color:var(--red,var(--red)); }
+.cc-act .act-ico.thinking { color:var(--blue); }
 .cc-act .act-txt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
 .cc-act.act-noise .act-txt { color:var(--text-muted); }
 .cc-act .act-time { font-size:10px; color:var(--text-dim); flex-shrink:0; }
-.cc-act .act-body { margin:3px 0 5px 25px; padding:8px 10px; background:rgba(0,0,0,.28); border-left:2px solid var(--border); border-radius:var(--radius-xs); font:11px/1.5 var(--mono); white-space:pre-wrap; word-break:break-word; max-height:360px; overflow:auto; color:#cdd2d8; }
+.cc-act .act-body { margin:3px 0 5px 25px; padding:8px 10px; background:rgba(0,0,0,.28); border-left:2px solid var(--border); border-radius:var(--radius-xs); font:11px/1.5 var(--mono); white-space:pre-wrap; word-break:break-word; max-height:360px; overflow:auto; color:var(--text); }
 .cc-act.cc-collapsed .act-body { display:none; }
 .cc-act .act-shots { display:flex; flex-wrap:wrap; gap:6px; margin:3px 0 5px 25px; }
 .cc-act.cc-collapsed .act-shots { display:none; }
 .cc-act .act-shot { width:150px; max-width:44%; height:auto; border-radius:var(--radius-btn); border:1px solid var(--border); cursor:zoom-in; background:var(--bg); transition:border-color .15s; }
-.cc-act .act-shot:hover { border-color:var(--miel,#F5A623); }
+.cc-act .act-shot:hover { border-color:var(--miel,var(--amber)); }
 .cc-act.terminal .act-body { background:var(--bg); }
-.cc-act.terminal .terminal-command { color:#7dd3fc; display:block; }
-.cc-act.terminal .terminal-output { color:#cdd2d8; display:block; margin-top:4px; }
+.cc-act.terminal .terminal-command { color:var(--cyan); display:block; }
+.cc-act.terminal .terminal-output { color:var(--text); display:block; margin-top:4px; }
 /* Status accumulator: ONE animated line for N "noise" phases, click = expand the steps. */
 .cc-status { margin:0; }
 .cc-status-head { display:flex; align-items:center; gap:7px; padding:3px 8px; border-radius:var(--radius-btn); cursor:pointer; font:12px/1.45 var(--mono,monospace); }
 .cc-status-head:hover { background:rgba(255,255,255,.04); }
-.cc-status-head .act-ico.thinking { color:#60a5fa; font-size:10px; }
+.cc-status-head .act-ico.thinking { color:var(--blue); font-size:10px; }
 .cc-status-current { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-muted); font-style:italic; }
 .cc-status-count { font-size:10px; color:var(--text-dim); flex-shrink:0; }
 .cc-status-head .act-time { font-size:10px; color:var(--text-dim); flex-shrink:0; }
@@ -399,8 +419,8 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .cc-diff-head:hover { background:rgba(255,255,255,.03); }
 .cc-diff-file { color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cc-diff-stat { margin-left:auto; flex-shrink:0; font-size:11px; }
-.cc-diff-add { color:var(--green,#34d399); }
-.cc-diff-del { color:var(--red,#f87171); }
+.cc-diff-add { color:var(--green,var(--green)); }
+.cc-diff-del { color:var(--red,var(--red)); }
 .cc-diff.cc-collapsed .cc-diff-body { display:none; }
 .cc-diff-body { font:11px/1.5 var(--mono); max-height:420px; overflow:auto; border-top:1px solid var(--border); }
 .cc-diff-body .dl { display:block; padding:0 10px; white-space:pre-wrap; word-break:break-word; }
@@ -429,7 +449,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .profile-modal textarea:focus { outline:none; border-color:var(--amber); }
 .profile-modal-actions { display:flex; justify-content:flex-end; margin-top:12px; }
 /* ===== Messagerie mesh (Phase 4) ===== */
-.mesh-badge { position:absolute; top:-3px; right:-3px; min-width:15px; height:15px; padding:0 3px; border-radius:var(--radius); background:#ef4444; color:#fff; font-size:9px; line-height:15px; text-align:center; font-weight:700; }
+.mesh-badge { position:absolute; top:-3px; right:-3px; min-width:15px; height:15px; padding:0 3px; border-radius:var(--radius); background:var(--red); color:#fff; font-size:9px; line-height:15px; text-align:center; font-weight:700; }
 .mesh-inbox { position:fixed; width:300px; max-height:70vh; overflow-y:auto; z-index:3000; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-card); box-shadow:0 10px 30px rgba(0,0,0,.5); display:none; padding:6px; }
 .mesh-inbox.open { display:block; }
 .mesh-inbox-head { font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted,var(--text-dim)); padding:8px 8px 4px; }
@@ -439,7 +459,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .mesh-peer { color:var(--amber); font-size:13px; }
 .mesh-conv-name { font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px; }
 .mesh-conv-last { font-size:11px; color:var(--text-dim); }
-.mesh-unread { background:#ef4444; color:#fff; font-size:9px; font-weight:700; border-radius:var(--radius); padding:0 5px; }
+.mesh-unread { background:var(--red); color:#fff; font-size:9px; font-weight:700; border-radius:var(--radius); padding:0 5px; }
 /* LOW z-index: mini-chat windows go BEHIND the left sidebar (mobile 120) and the right
    feed panel (4000). Above the chat content only. */
 .mesh-windows { position:fixed; right:14px; z-index:90; display:flex; gap:10px; align-items:flex-end; pointer-events:none; }
@@ -1115,10 +1135,10 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 }
 .chat-ctx-fill {
   position:absolute; inset:0; border-radius:2px;
-  background:var(--green,#34d399); transition:width .3s ease, background .3s ease; width:0%;
+  background:var(--green,var(--green)); transition:width .3s ease, background .3s ease; width:0%;
 }
 .chat-ctx-fill.warm { background:var(--amber); }
-.chat-ctx-fill.hot { background:var(--red,#f87171); }
+.chat-ctx-fill.hot { background:var(--red,var(--red)); }
 .chat-ctx-pct { font-weight:600; font-variant-numeric:tabular-nums; min-width:2.6em; }
 .chat-ctx-detail { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
@@ -1188,8 +1208,8 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 .send-btn:hover { opacity:.85; transform:scale(1.02); }
 .send-btn:active { transform:scale(.98); }
 .send-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
-.send-btn.stop-btn { background:#ef4444; color:#fff; }
-.send-btn.stop-btn:hover { background:#dc2626; opacity:1; }
+.send-btn.stop-btn { background:var(--red); color:#fff; }
+.send-btn.stop-btn:hover { background:var(--red); opacity:1; }
 .input-action-btn {
   background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius);
   color:var(--text-dim); font-size:18px; width:40px; height:40px; min-width:40px; min-height:40px;
@@ -1607,15 +1627,15 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 .mem2-graphbar-hint { font-size:10px; color:var(--text-muted); margin-left:auto; }
 .mem2-gnode text { user-select:none; }
 /* Markdown rendering (adapted from scriptorium, amber/ruche palette) */
-.mem2-md h1,.mem2-md h2,.mem2-md h3,.mem2-md h4,.mem2-md h5,.mem2-md h6 { color:var(--amber-light); font-weight:700; line-height:1.3; margin:1.1em 0 .5em; }
-.mem2-md h1 { font-size:1.55em; border-bottom:1px solid var(--border); padding-bottom:.25em; }
-.mem2-md h2 { font-size:1.32em; border-bottom:1px solid var(--border); padding-bottom:.2em; }
-.mem2-md h3 { font-size:1.15em; } .mem2-md h4 { font-size:1.04em; }
+.mem2-md h1,.mem2-md h2,.mem2-md h3,.mem2-md h4,.mem2-md h5,.mem2-md h6 { color:var(--md-titre); font-weight:700; line-height:1.3; margin:1.1em 0 .5em; }
+.mem2-md h1 { font-size:var(--taille-h1); border-bottom:1px solid var(--border); padding-bottom:.25em; }
+.mem2-md h2 { font-size:var(--taille-h2); border-bottom:1px solid var(--border); padding-bottom:.2em; }
+.mem2-md h3 { font-size:var(--taille-h3); } .mem2-md h4 { font-size:1.04em; }
 .mem2-md p { margin:.55em 0; }
 .mem2-md ul,.mem2-md ol { margin:.5em 0; padding-left:1.5em; }
 .mem2-md li { margin:.2em 0; }
-.mem2-md blockquote { border-left:3px solid var(--amber); margin:.7em 0; padding:.2em 0 .2em 1em; color:var(--text-dim); background:rgba(245,158,11,.05); border-radius:0 6px 6px 0; }
-.mem2-md code { font-family:var(--mono); font-size:.88em; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-xs); padding:1px 5px; color:var(--amber-light); }
+.mem2-md blockquote { border-left:3px solid var(--md-citation); margin:.7em 0; padding:.2em 0 .2em 1em; color:var(--text-dim); background:var(--md-citation-fond); border-radius:0 6px 6px 0; }
+.mem2-md code { font-family:var(--mono); font-size:.88em; background:var(--md-code-fond); border:1px solid var(--border); border-radius:var(--radius-xs); padding:1px 5px; color:var(--md-code); }
 .mem2-md pre { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; overflow:auto; margin:.8em 0; }
 .mem2-md pre code { background:none; border:none; padding:0; color:var(--text); font-size:12.5px; line-height:1.5; }
 .mem2-md a { color:var(--amber); text-decoration:none; border-bottom:1px dotted var(--amber-dim); }
@@ -2140,8 +2160,8 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
    machine, bleu pour une ruche du reseau. Une information qu'on lit d'un coup
    d'oeil n'a pas besoin d'un cadre autour d'elle. */
 .mesh-point { flex: none; width: 6px; height: 6px; border-radius: 50%; }
-.mesh-point-local { background: var(--green, #22c55e); }
-.mesh-point-distant { background: var(--blue, #3b82f6); }
+.mesh-point-local { background: var(--green, var(--green)); }
+.mesh-point-distant { background: var(--blue, var(--blue)); }
 
 .mesh-ligne-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .mesh-nom {
@@ -2353,12 +2373,12 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   min-width:0; overflow:hidden; text-overflow:ellipsis;
 }
 /* Clearly distinct actors: Me (solid blue) · LaRuche/my agent (solid amber) · another ruche (purple). */
-.feed-actor.actor-user { background:#3b82f6; color:#fff; border:1px solid #3b82f6; font-weight:700; }
-.feed-actor.actor-laruche { background:#f59e0b; color:#1a1a1a; border:1px solid #f59e0b; font-weight:700; }
-.feed-actor.actor-peer { background:#a855f7; color:#fff; border:1px solid #a855f7; font-weight:700; }
+.feed-actor.actor-user { background:var(--blue); color:#fff; border:1px solid var(--blue); font-weight:700; }
+.feed-actor.actor-laruche { background:var(--amber); color:#1a1a1a; border:1px solid var(--amber); font-weight:700; }
+.feed-actor.actor-peer { background:var(--purple); color:#fff; border:1px solid var(--purple); font-weight:700; }
 /* Colored left border of the row per actor (visual reinforcement). */
-.feed-row:has(.actor-user) { border-left:2px solid #3b82f6; }
-.feed-row:has(.actor-peer) { border-left:2px solid #a855f7; }
+.feed-row:has(.actor-user) { border-left:2px solid var(--blue); }
+.feed-row:has(.actor-peer) { border-left:2px solid var(--purple); }
 .feed-row-text { font-size:12px; color:var(--text); line-height:1.4; word-break:break-word; }
 .feed-obj-ref { color:var(--amber); cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px; }
 .feed-obj-ref:hover { text-decoration:underline; }
@@ -2515,7 +2535,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
    l'abeille ordinaire. */
 .bee-reine{filter:drop-shadow(0 0 8px rgba(251,191,36,.8))}
 .bee-reine .bee--body span:first-child::after,
-.bee-reine .bee--body span:last-child::after{background:#fbbf24}
+.bee-reine .bee--body span:last-child::after{background:var(--amber-light)}
 .bee--crown{
   position:absolute; z-index:100; width:24px; height:14px;
   /* La tete fait 32 px et commence a 20 px: son milieu est a 36 px. Une
@@ -2532,7 +2552,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
    pixels. */
 .bee--crown::after{
   content:''; position:absolute; left:0; right:0; bottom:1px; height:3px;
-  background:linear-gradient(90deg,#b45309 0 18%,transparent 18% 82%,#b45309 82% 100%);
+  background:linear-gradient(90deg,var(--amber-dim) 0 18%,transparent 18% 82%,#b45309 82% 100%);
   border-radius:1px;
 }
 @keyframes bee-crown{0%,100%{top:-11px}50%{top:-13px}}
@@ -2602,8 +2622,8 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .message-row.assistant .reaction-trigger[aria-expanded="true"] {
   opacity:.75; transform:none; pointer-events:auto;
 }
-.reaction-trigger:hover { opacity:1; border-color:var(--accent, #f5a623); }
-.reaction-trigger:focus-visible { outline:2px solid var(--accent, #f5a623); outline-offset:2px; opacity:1; }
+.reaction-trigger:hover { opacity:1; border-color:var(--accent, var(--amber)); }
+.reaction-trigger:focus-visible { outline:2px solid var(--accent, var(--amber)); outline-offset:2px; opacity:1; }
 
 .reaction-picker {
   position:absolute; bottom:24px; left:0; z-index:20;
@@ -2633,7 +2653,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 @keyframes reactionIn { from { opacity:0; transform:translateY(7px) scale(.6); } }
 
 .reaction-option:hover { transform:scale(1.32) translateY(-3px); background:var(--bg-hover, rgba(255,255,255,.07)); }
-.reaction-option:focus-visible { outline:2px solid var(--accent, #f5a623); outline-offset:1px; transform:scale(1.2); }
+.reaction-option:focus-visible { outline:2px solid var(--accent, var(--amber)); outline-offset:1px; transform:scale(1.2); }
 .reaction-option:active { transform:scale(1.05); }
 
 .reaction-chip {
@@ -2644,8 +2664,8 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   background:var(--bg-card); cursor:pointer;
   transition:transform .13s ease, border-color .13s ease;
 }
-.reaction-chip:hover { transform:scale(1.08); border-color:var(--accent, #f5a623); }
-.reaction-chip:focus-visible { outline:2px solid var(--accent, #f5a623); outline-offset:2px; }
+.reaction-chip:hover { transform:scale(1.08); border-color:var(--accent, var(--amber)); }
+.reaction-chip:focus-visible { outline:2px solid var(--accent, var(--amber)); outline-offset:2px; }
 .reaction-chip.pop { animation:reactionPop .34s cubic-bezier(.2,.9,.3,1.5); }
 @keyframes reactionPop {
   0% { transform:scale(.4); opacity:0; }
@@ -2710,7 +2730,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .reine-score-track { height:5px; border-radius:99px; background:var(--border); overflow:hidden; }
 .reine-score-fill { display:block; height:100%; border-radius:99px; transition:width .5s cubic-bezier(.2,.9,.3,1); }
 .reine-score-fill.good { background:#46c46a; }
-.reine-score-fill.mid  { background:#f5a623; }
+.reine-score-fill.mid  { background:var(--amber); }
 .reine-score-fill.low  { background:#e5484d; }
 .reine-score-value { text-align:right; opacity:.72; font-variant-numeric:tabular-nums; }
 
@@ -3144,7 +3164,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 
 .help-maj { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .help-maj-etat { font-size:12px; color:var(--text-dim); min-width:0; flex:1; }
-.help-maj-ok { color:#22c55e; }
+.help-maj-ok { color:var(--green); }
 .help-maj-neuve { color:var(--amber); }
 .help-maj-etat a { color:var(--amber); text-decoration:underline; }
 
@@ -3520,3 +3540,28 @@ code, pre, .mono, [style*="var(--mono)"] { font-family: var(--mono); }
 .settings-nav-icw { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .settings-nav-icw > svg, .settings-nav-icw > img { width: 1.15em; height: 1.15em; display: block; }
 .settings-nav-icw > svg { fill: currentColor; }
+
+/* Le markdown du flux et des messages suit les memes jetons que celui de la
+   memoire: c'est le meme texte, rendu au meme endroit de la tete du lecteur, et
+   deux reglages pour la meme chose seraient deux occasions de diverger. */
+.feed-md h1, .feed-md h2, .feed-md h3, .feed-md h4,
+.message h1, .message h2, .message h3, .message h4 { color: var(--md-titre); }
+
+.feed-md a, .message a, .mem2-md a { color: var(--md-lien); }
+
+.feed-md code, .message code { background: var(--md-code-fond); color: var(--md-code); }
+.feed-md pre code, .message pre code { background: none; color: var(--text); }
+
+.feed-md blockquote, .message blockquote {
+  border-left: 3px solid var(--md-citation);
+  background: var(--md-citation-fond);
+  color: var(--text-dim);
+}
+
+.mem2-md strong, .feed-md strong, .message strong { color: var(--md-gras); }
+
+/* La taille d'une icone se pose sur son CONTENEUR: la plupart des SVG du logiciel
+   sont dimensionnes en `em`, ils suivent donc la taille de police de ce qui les
+   porte. Une seule propriete, et elle marche pour la grande majorite d'entre eux
+   sans avoir a les reecrire un par un. */
+[data-lr-ic] > svg, [data-lr-ic] > img { width: 1.2em; height: 1.2em; }

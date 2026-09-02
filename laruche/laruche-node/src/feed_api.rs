@@ -15,8 +15,30 @@ use std::sync::Arc;
 /// passait donc systematiquement au-dessus de tout le reste, quelle que soit
 /// l'heure reelle, et comme la troncature vient apres le tri, le reste pouvait
 /// disparaitre entierement du flux.
+/// Une seconde devient le MILIEU de cette seconde, pas son debut.
+///
+/// La multiplication seule posait l'evenement a `.000`, c'est-a-dire au plus tot
+/// de la seconde ou il a eu lieu. Face a une source qui, elle, connait ses
+/// millisecondes, il coulait donc sous tout ce qui s'etait produit dans la meme
+/// seconde: un watcher cree entre une question et sa reponse s'affichait sous les
+/// deux, jusqu'a 999 millisecondes trop tot.
+///
+/// Le milieu ne devine rien, il centre l'erreur: elle passe de « toujours en
+/// retard, jusqu'a une seconde » a « au plus une demi-seconde, dans un sens ou
+/// dans l'autre ». C'est le mieux qu'on puisse faire quand la precision manque
+/// vraiment, et il ne reste que deux sources dans ce cas: les mutations de la
+/// memoire, dont la colonne `ts` est en secondes, et les messages directs. Les
+/// crons, les vigies, les missions et le kanban tenaient une date complete et
+/// jetaient leurs millisecondes en la convertissant: ils les gardent desormais.
 fn ms(secondes: i64) -> i64 {
-    secondes.saturating_mul(1000)
+    // Zero reste zero: c'est la sentinelle « pas d'horodatage », pas un instant.
+    // La centrer en ferait une vraie date, le 1er janvier 1970 a minuit et demie
+    // seconde, et la passe de normalisation qui l'ignore justement la laisserait
+    // alors passer pour telle.
+    if secondes == 0 {
+        return 0;
+    }
+    secondes.saturating_mul(1000).saturating_add(500)
 }
 
 /// Actor of a memory mutation based on its `src` (source/reason). UI -> User, otherwise LaRuche.
@@ -306,7 +328,7 @@ pub(crate) async fn api_feed(
         for t in cron.list() {
             if let Some(lr) = t.last_run {
                 events.push(serde_json::json!({
-                    "ts": ms(lr.timestamp()), "actor": "LaRuche", "kind": "cron",
+                    "ts": lr.timestamp_millis(), "actor": "LaRuche", "kind": "cron",
                     "action": "ran the cron", "object": t.name, "ref": serde_json::Value::Null
                 }));
             }
@@ -318,10 +340,10 @@ pub(crate) async fn api_feed(
         for m in missions.list() {
             if let Some(lr) = m.last_run.as_deref() {
                 let ts = chrono::DateTime::parse_from_rfc3339(lr)
-                    .map(|d| d.timestamp())
+                    .map(|d| d.timestamp_millis())
                     .unwrap_or(0);
                 events.push(serde_json::json!({
-                    "ts": ms(ts), "actor": "LaRuche", "kind": "mission",
+                    "ts": ts, "actor": "LaRuche", "kind": "mission",
                     "action": "advanced the mission", "object": m.slug, "ref": serde_json::Value::Null
                 }));
             }
@@ -333,7 +355,7 @@ pub(crate) async fn api_feed(
         for w in watchers.list() {
             if let Some(lr) = w.last_run {
                 events.push(serde_json::json!({
-                    "ts": ms(lr.timestamp()), "actor": "LaRuche", "kind": "watcher",
+                    "ts": lr.timestamp_millis(), "actor": "LaRuche", "kind": "watcher",
                     "action": "triggered the watcher", "object": w.name, "ref": serde_json::Value::Null
                 }));
             }
@@ -346,9 +368,9 @@ pub(crate) async fn api_feed(
         let board = state.kanban_board.read().await;
         for t in board.list() {
             if let Some(fin) = t.completed_at {
-                let ts = fin.timestamp();
+                let ts = fin.timestamp_millis();
                 events.push(serde_json::json!({
-                    "ts": ms(ts), "actor": "LaRuche", "kind": "kanban",
+                    "ts": ts, "actor": "LaRuche", "kind": "kanban",
                     "action": "finished the kanban task", "object": t.title,
                     "ref": serde_json::Value::Null
                 }));
@@ -365,7 +387,7 @@ pub(crate) async fn api_feed(
             (m.peer_name.clone(), "wrote to you".to_string(), "peer")
         };
         events.push(serde_json::json!({
-            "ts": ms(m.ts), "actor": actor, "kind": "dm", "action": action,
+            "ts": m.ts, "actor": actor, "kind": "dm", "action": action,
             "object": preview_text(&m.text, 160), "full": m.text,
             "ref": serde_json::Value::Null, "actor_kind": akind
         }));
@@ -392,10 +414,15 @@ pub(crate) async fn api_feed(
         }));
     }
 
+    // Le filet de securite, et le seul endroit qui rattrape une valeur restee en
+    // secondes: un `inbox.json` ecrit avant que les messages directs ne passent aux
+    // millisecondes, ou une source qu'on ajouterait demain en l'oubliant. Il centre
+    // comme `ms`, sinon la meme donnee tomberait a deux endroits differents du flux
+    // selon le chemin qu'elle a pris.
     for e in events.iter_mut() {
         if let Some(ts) = e.get("ts").and_then(|v| v.as_i64()) {
             if ts != 0 && ts < 1_000_000_000_000 {
-                e["ts"] = serde_json::Value::from(ts * 1000);
+                e["ts"] = serde_json::Value::from(ts.saturating_mul(1000).saturating_add(500));
             }
         }
     }
@@ -455,6 +482,28 @@ pub(crate) async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
         // donc d'enregistrer le mauvais texte a la place des regles communes.
         "constitution": laruche_essaim::deliberation::CONSTITUTION,
     }))
+}
+
+#[cfg(test)]
+mod tests_horodatage_feed {
+    use super::ms;
+
+    #[test]
+    fn une_seconde_devient_son_milieu() {
+        // Le debut de la seconde placait l'evenement avant TOUT ce qui portait des
+        // millisecondes reelles dans cette meme seconde.
+        assert_eq!(ms(1_700_000_000), 1_700_000_000_500);
+        // Sauf zero, qui veut dire « on ne sait pas » et doit le rester.
+        assert_eq!(ms(0), 0);
+    }
+
+    #[test]
+    fn l_ordre_relatif_des_secondes_est_preserve() {
+        assert!(ms(10) < ms(11));
+        // Et une source en millisecondes s'intercale des deux cotes du milieu.
+        assert!(ms(10) > 10_200);
+        assert!(ms(10) < 10_800);
+    }
 }
 
 #[cfg(test)]
