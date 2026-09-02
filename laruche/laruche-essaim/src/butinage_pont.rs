@@ -1439,6 +1439,19 @@ Concretely: a mission like "find things to do in Cannes" produces NOTHING. Do no
 ALWAYS call `skill_list` FIRST. If ANY existing skill is even loosely related to what you're considering, you must PATCH that one (or do nothing) - NEVER create a second skill for the same class. Prefer a few RICH skills over many narrow near-duplicates.
 If `skill_list` already shows two skills covering the same class, MERGE them: patch the best, then `skill_delete` the redundant one.
 
+## Patching without REGRESSING (mandatory whenever you patch)
+A patch ADDS or CORRECTS. It never shrinks a skill to make room for what you are adding. `skill_view` the current body in FULL first, then keep every instruction still true: exact commands, argument formats, the gotchas someone already paid for. Deleting a line is allowed only when that line is now WRONG, and then you replace it with what is right. If your patch would leave the skill shorter without removing something false, you are regressing it: rewrite the patch.
+Skill BODIES are cheap: they load only when the agent opens the skill. Be exhaustive there - full commands, edge cases, the error message and its fix.
+
+## Descriptions are EXPENSIVE: one line, under 80 characters
+The `name - description` of EVERY skill is injected into EVERY turn of EVERY conversation. The index cuts a description at ~80 characters and appends an ellipsis, so whatever you write past that is paid for AND lost. One dense line saying WHEN to reach for this skill, in the user's own terms, no filler ("helps you to", "this skill allows the agent to"). The detail goes in the body, never in the description.
+GOOD: `Control Philips Hue lights, scenes, rooms via OpenHue CLI.`
+BAD: `A comprehensive skill that allows the agent to interact with the Philips Hue ecosystem in order to...`
+
+## Declare what the skill NEEDS, and check that it exists
+A skill that calls a binary, a plugin, an MCP server or a bundled script must declare it in the frontmatter (`prerequisites:`, `tools:`), and that dependency must REALLY exist. Before saving: `plugin_list` / `tool_search` every tool you name, and for a CLI give the install line in the body. A skill whose tools do not exist is worse than no skill: the agent reads it, trusts it, and fails. If the dependency is missing and you can build it, build it (`plugin_create`, then `reload_plugins`, then verify once via `shell_exec`). If you cannot, say so plainly in the body under a `## Prerequisites` heading.
+A skill that ships its own scripts keeps them in its OWN folder and invokes them relative to the ruche home (`python skills/<name>/scripts/<file>.py`), which is where tools run.
+
 ## When you DO act - two kinds of capability
 - SKILL = a reusable PROCEDURE (the "how"): non-obvious multi-step know-how, steps, pitfalls, exact commands. `skill_create`/`skill_patch`. Body = concise Markdown. Decision tree: patch a loaded skill > patch an existing umbrella > add a support file (`skill_file_write`) > create new (last resort, class-level name).
 - TOOL/PLUGIN = an ATOMIC repeatable shell-able action. `plugin_create(name, description, command, schema)` where `command` is a shell template with `{{slots}}`. Run `plugin_list` first. AFTER creating: `reload_plugins`, then VERIFY by running its command once with safe args via `shell_exec`; if it errors, fix it or `plugin_delete` it - never leave a broken tool.
