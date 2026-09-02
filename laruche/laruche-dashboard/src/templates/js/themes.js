@@ -408,14 +408,26 @@
         cible.innerHTML = _iconesOrigine[it.cle];
         cible.classList.remove('lr-icone-perso');
       }
-      /* La taille se pose sur le conteneur, en `font-size`: les SVG du logiciel
-         sont dimensionnes en `em`, ils la suivent donc sans etre reecrits. */
+      /* La taille se pose sur le CONTENEUR, jamais sur le SVG.
+         
+         La regle `.tab-icon svg { width: 100% !important }` existe deja, et le
+         conteneur porte une taille fixe de dix-huit pixels: agrandir le SVG ne
+         pouvait donc rien donner, il remplissait un cadre qui, lui, ne bougeait
+         pas. On dimensionne le cadre, et le SVG suit. `font-size` accompagne,
+         pour les icones qui sont dimensionnees en `em` plutot qu'en pourcentage.
+         
+         `important` parce que ces regles-la en portent aussi, et parce qu'un
+         reglage explicite de l'utilisateur doit gagner: c'est l'usage legitime
+         de ce mot, et il n'y en a pas d'autre ici. */
       var t = tailles[it.cle];
+      var props = ['width', 'height', 'min-width', 'min-height'];
       if (t) {
-        cible.style.fontSize = t + 'px';
+        props.forEach(function (p) { cible.style.setProperty(p, t + 'px', 'important'); });
+        cible.style.setProperty('font-size', t + 'px', 'important');
         cible.setAttribute('data-lr-ic', '1');
       } else {
-        cible.style.fontSize = '';
+        props.forEach(function (p) { cible.style.removeProperty(p); });
+        cible.style.removeProperty('font-size');
         cible.removeAttribute('data-lr-ic');
       }
     });
@@ -521,6 +533,33 @@
   /* Peindre. Un integre pose l'attribut et retire toute valeur en ligne; un
      personnalise fait l'inverse. Les deux chemins nettoient ce que l'autre a
      laisse, sinon un theme perso survivrait au passage a un integre. */
+  /* Les COMPOSANTES se deduisent de la couleur, elles ne se reglent pas.
+
+     Tout ce qui est translucide dans la feuille de style s'ecrit
+     `rgba(var(--amber-rgb), .12)`: il faut donc que `--amber-rgb` existe. Les
+     themes livres le declarent, un theme fabrique par l'utilisateur ne declare
+     que `--amber`. Sans cette derivation, ses bandeaux et ses survols garderaient
+     l'ambre par defaut alors que son accent est ailleurs, ce qui est exactement
+     le defaut qu'on vient de corriger. On les calcule donc apres chaque
+     peinture, pour tous les themes, integres compris: la valeur derivee est
+     toujours celle de la couleur effective. */
+  var COMPOSANTES = [
+    ['--amber', '--amber-rgb'], ['--red', '--red-rgb'], ['--green', '--green-rgb'],
+    ['--blue', '--blue-rgb'], ['--purple', '--purple-rgb'], ['--cyan', '--cyan-rgb'],
+    ['--border', '--border-rgb']
+  ];
+
+  function deriverComposantes() {
+    var r = document.documentElement;
+    var st = getComputedStyle(r);
+    COMPOSANTES.forEach(function (paire) {
+      var v = (st.getPropertyValue(paire[0]) || '').trim();
+      if (!v) return;
+      var c = resoudreCouleur(v);
+      if (c) r.style.setProperty(paire[1], c.r + ',' + c.v + ',' + c.b);
+    });
+  }
+
   function peindre(id) {
     var r = document.documentElement;
     var br = (etat.brouillon && etat.brouillon.id === id) ? etat.brouillon : null;
@@ -533,6 +572,7 @@
         if (br.jetons && br.jetons[c]) r.style.setProperty(c, br.jetons[c]);
         else r.style.removeProperty(c);
       });
+      deriverComposantes();
       peindrePolices(br.polices || []);
       peindreFond(br.fond || {});
       peindreMarque(br.marque || {});
@@ -556,6 +596,7 @@
     }
     // L'habillage suit le theme, et se REMET A ZERO quand le theme n'en porte
     // pas: sans cela le logo d'un theme perso survivait au retour sur un integre.
+    deriverComposantes();
     var h = habillageDe(id);
     // Les polices d'abord: une famille absente au moment ou le jeton se pose
     // ferait clignoter le texte dans son repli avant de se corriger.

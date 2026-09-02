@@ -446,6 +446,32 @@ LaRuche.i18n.add({
   'settings.fontNone':          {fr:'Aucune police importee.', en:'No imported font.'},
   'settings.fontSample':        {fr:'Le vif renard brun saute', en:'The quick brown fox jumps'},
   'settings.fontTooBig':        {fr:'Police trop lourde (2 Mo maximum).', en:'Font too heavy (2 MB max).'},
+  'settings.apH1':              {fr:'Un titre de niveau 1',   en:'A level 1 heading'},
+  'settings.apH2':              {fr:'Un titre de niveau 2',   en:'A level 2 heading'},
+  'settings.apH3':              {fr:'Un titre de niveau 3',   en:'A level 3 heading'},
+  'settings.apIntro':           {fr:'Du texte courant, avec du', en:'Body text, with some'},
+  'settings.apGras':            {fr:'gras',                   en:'bold'},
+  'settings.apItalique':        {fr:'italique',               en:'italic'},
+  'settings.apEt':              {fr:'et',                     en:'and'},
+  'settings.apLien':            {fr:'un lien',                en:'a link'},
+  'settings.apPuce1':           {fr:'Une puce, pour voir les listes', en:'A bullet, to see lists'},
+  'settings.apPuce2':           {fr:'Une seconde, avec du code',      en:'A second one, with code'},
+  'settings.apOrdre1':          {fr:'Une liste numerotee',    en:'A numbered list'},
+  'settings.apOrdre2':          {fr:'Son deuxieme point',     en:'Its second item'},
+  'settings.apCitation':        {fr:'Une citation, pour juger la barre et son fond.', en:'A quote, to judge the bar and its surface.'},
+  'settings.apColonne':         {fr:'Colonne',                en:'Column'},
+  'settings.apValeur':          {fr:'Valeur',                 en:'Value'},
+  'settings.apLigne':           {fr:'Une ligne de tableau',   en:'A table row'},
+  'settings.apAttenue':         {fr:'en texte attenue',       en:'in dimmed text'},
+  'settings.apSucces':          {fr:'succes',                 en:'success'},
+  'settings.apErreur':          {fr:'erreur',                 en:'error'},
+  'settings.apInfo':            {fr:'info',                   en:'info'},
+  'settings.apViolet':          {fr:'violet',                 en:'purple'},
+  'settings.apBouton':          {fr:'Bouton principal',       en:'Primary button'},
+  'settings.apBouton2':         {fr:'Bouton discret',         en:'Quiet button'},
+  'settings.apChamp':           {fr:'Un champ de saisie',     en:'An input field'},
+  'settings.apCarte':           {fr:'Une carte, sur le fond des panneaux', en:'A card, on the panel surface'},
+  'settings.apDiscret':         {fr:'Et une ligne en texte discret.', en:'And a line in muted text.'},
   'settings.iconSize':          {fr:"Taille de cette icone",  en:'Size of this icon'},
   'settings.iconTitle':         {fr:'Icones',                 en:'Icons'},
   'settings.iconHint':          {fr:"Remplacez une icone par un SVG a vous. Elle herite de la couleur d'accent, donc elle suit le theme. L'apercu montre celle qui est en place.", en:'Replace an icon with your own SVG. It inherits the accent colour, so it follows the theme. The preview shows the one currently in place.'},
@@ -1868,24 +1894,58 @@ LaRuche.Settings = (function(){
     return null;
   }
 
+  /* L'apercu montre le rendu REEL, avec les memes classes que les vraies pages.
+
+     Il dessinait un document generique avec ses couleurs ecrites en dur, donc il
+     ne bougeait pas quand on reglait le markdown: on modifiait la couleur des
+     titres et rien ne changeait sous les yeux. Il utilise maintenant `mem2-md`,
+     la classe de la memoire, et montre chaque chose qu'un jeton peut toucher. */
   function _apercuMarkdown(){
     var t = LaRuche.i18n.t;
     return '<div class="settings-card"><div class="settings-card-title">'+t('settings.themePreview')+'</div>'+
-      '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px">'+
-        '<h3 style="margin:0 0 4px;font-size:19px;color:var(--text)">Titre de document</h3>'+
-        '<p style="margin:0 0 12px;font-size:12px;color:var(--text-dim)">Sous-titre, en texte atténué</p>'+
-        '<p style="margin:0 0 8px;color:var(--text);font-size:13.5px">Du texte courant avec du <b>gras</b>, de l’<i>italique</i>, '+
-          '<code style="background:var(--bg-input);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:12px">du code</code> '+
-          'et un <a href="#" onclick="return false" style="color:var(--amber)">lien</a>.</p>'+
-        '<blockquote style="margin:0 0 10px;padding:4px 0 4px 11px;border-left:2px solid var(--amber);color:var(--text-dim);font-style:italic;font-size:13px">Une citation, pour voir la bordure d’accent.</blockquote>'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+
-          '<span style="background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:10px;font-size:11px">succès</span>'+
-          '<span style="background:var(--red-dim);color:var(--red);padding:2px 8px;border-radius:10px;font-size:11px">erreur</span>'+
-          '<span style="background:var(--blue-dim);color:var(--blue);padding:2px 8px;border-radius:10px;font-size:11px">info</span>'+
-          '<span style="background:var(--cyan-dim);color:var(--cyan);padding:2px 8px;border-radius:10px;font-size:11px">cyan</span>'+
+      '<div class="mem2-md" style="background:var(--bg);border:1px solid var(--border);'+
+        'border-radius:var(--radius);padding:4px 16px 16px;max-height:420px;overflow:auto">'+
+
+        '<h1>'+t('settings.apH1')+'</h1>'+
+        '<p>'+t('settings.apIntro')+' <strong>'+t('settings.apGras')+'</strong>, '+
+          '<em>'+t('settings.apItalique')+'</em>, <code>code_en_ligne()</code> '+
+          t('settings.apEt')+' <a href="#" onclick="return false">'+t('settings.apLien')+'</a>.</p>'+
+
+        '<h2>'+t('settings.apH2')+'</h2>'+
+        '<ul><li>'+t('settings.apPuce1')+'</li>'+
+            '<li>'+t('settings.apPuce2')+' <code>--md-titre</code></li></ul>'+
+        '<ol><li>'+t('settings.apOrdre1')+'</li><li>'+t('settings.apOrdre2')+'</li></ol>'+
+
+        '<h3>'+t('settings.apH3')+'</h3>'+
+        '<blockquote>'+t('settings.apCitation')+'</blockquote>'+
+
+        '<pre><code>fn principal() {'+"\\n"+'    // un bloc de code, en chasse fixe'+"\\n"+
+          '    afficher("bonjour");'+"\\n"+'}</code></pre>'+
+
+        '<table style="width:100%;border-collapse:collapse;font-size:.92em;margin:.6em 0">'+
+          '<tr><th style="text-align:left;border-bottom:1px solid var(--border);padding:4px">'+t('settings.apColonne')+'</th>'+
+              '<th style="text-align:left;border-bottom:1px solid var(--border);padding:4px">'+t('settings.apValeur')+'</th></tr>'+
+          '<tr><td style="padding:4px;border-bottom:1px solid var(--border)">'+t('settings.apLigne')+'</td>'+
+              '<td style="padding:4px;border-bottom:1px solid var(--border);color:var(--text-dim)">'+t('settings.apAttenue')+'</td></tr>'+
+        '</table>'+
+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">'+
+          '<span style="background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:999px;font-size:.85em">'+t('settings.apSucces')+'</span>'+
+          '<span style="background:var(--red-dim);color:var(--red);padding:2px 8px;border-radius:999px;font-size:.85em">'+t('settings.apErreur')+'</span>'+
+          '<span style="background:var(--blue-dim);color:var(--blue);padding:2px 8px;border-radius:999px;font-size:.85em">'+t('settings.apInfo')+'</span>'+
+          '<span style="background:var(--purple-dim);color:var(--purple);padding:2px 8px;border-radius:999px;font-size:.85em">'+t('settings.apViolet')+'</span>'+
+          '<span style="background:var(--cyan-dim);color:var(--cyan);padding:2px 8px;border-radius:999px;font-size:.85em">cyan</span>'+
         '</div>'+
-        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:9px 11px">'+
-          '<div style="font-size:12px;color:var(--text-dim)">Une carte, sur le fond des panneaux</div>'+
+
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">'+
+          '<button class="send-btn" onclick="return false" style="pointer-events:none"><span>'+t('settings.apBouton')+'</span></button>'+
+          '<button class="cwd-btn" onclick="return false" style="opacity:1;pointer-events:none">'+t('settings.apBouton2')+'</button>'+
+          '<input class="form-input" value="'+t('settings.apChamp')+'" readonly style="width:170px;pointer-events:none">'+
+        '</div>'+
+
+        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:9px 11px">'+
+          '<div style="color:var(--text-dim)">'+t('settings.apCarte')+'</div>'+
+          '<div style="color:var(--text-muted);font-size:.88em;margin-top:3px">'+t('settings.apDiscret')+'</div>'+
         '</div>'+
       '</div></div>';
   }
@@ -2103,7 +2163,9 @@ LaRuche.Settings = (function(){
           '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandSize')+'</span>'+
           '<input type="range" id="marqueTaille" min="18" max="96" step="1" value="'+(_marqueBrouillon.taille||34)+'" '+
             'style="width:180px;accent-color:var(--amber)">'+
-          '<span id="marqueTailleVal" style="width:44px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)"></span></div>'+
+          '<span id="marqueTailleVal" style="width:44px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)"></span>'+
+          '<button type="button" id="marqueTailleDefaut" title="'+esc(t('settings.tokenReset'))+'" '+
+            'style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0 2px">&#8634;</button></div>'+
         '<p style="color:var(--text-muted);font-size:11px;margin:6px 0 0">'+t('settings.brandSvgHint')+'</p>'+
       '</div>'+
 
@@ -2124,6 +2186,9 @@ LaRuche.Settings = (function(){
             '<input type="range" data-icone-taille="'+ic.cle+'" min="10" max="64" step="1" '+
               'value="'+(_taillesIcones[ic.cle]||16)+'" title="'+esc(t('settings.iconSize'))+'" '+
               'style="width:92px;accent-color:var(--amber)'+(_taillesIcones[ic.cle]?'':';opacity:.45')+'">'+
+            '<button type="button" data-icone-defaut="'+ic.cle+'" title="'+esc(t('settings.tokenReset'))+'" '+
+              'style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0 2px;'+
+              'visibility:'+(_taillesIcones[ic.cle]?'visible':'hidden')+'">&#8634;</button>'+
             '<button class="cwd-btn" data-icone-choisir="'+ic.cle+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+t('settings.brandPick')+'</button>'+
             '<button class="cwd-btn" data-icone-vider="'+ic.cle+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+t('settings.brandClear')+'</button>'+
           '</div>';
@@ -2142,7 +2207,9 @@ LaRuche.Settings = (function(){
           '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.bgOpacity')+'</span>'+
           '<input type="range" id="fondOpacite" min="0" max="1" step="0.01" value="'+_fondBrouillon.opacite+'" '+
             'style="width:180px;accent-color:var(--amber)">'+
-          '<span id="fondOpaciteVal" style="width:38px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)"></span></div>'+
+          '<span id="fondOpaciteVal" style="width:38px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)"></span>'+
+          '<button type="button" id="fondOpaciteDefaut" title="'+esc(t('settings.tokenReset'))+'" '+
+            'style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0 2px">&#8634;</button></div>'+
         '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
           '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.bgFit')+'</span>'+
           '<select id="fondCadrage" style="width:130px;background:var(--bg-input);color:var(--text);'+
@@ -2362,6 +2429,14 @@ LaRuche.Settings = (function(){
         else fr.readAsDataURL(f);
       };
     }
+    var mtd = document.getElementById('marqueTailleDefaut');
+    if(mtd) mtd.onclick = function(){
+      delete _marqueBrouillon.taille;
+      var r = document.getElementById('marqueTaille'); if(r) r.value = 34;
+      var v = document.getElementById('marqueTailleVal'); if(v) v.textContent = '34px';
+      rendreMarque();
+    };
+
     var man = document.getElementById('marqueAfficherNom');
     if(man) man.onchange = function(){ _marqueBrouillon.masquerNom = !man.checked; rendreMarque(); };
 
@@ -2455,6 +2530,22 @@ LaRuche.Settings = (function(){
       r.oninput = function(){
         _taillesIcones[r.dataset.iconeTaille] = parseInt(r.value, 10);
         r.style.opacity = '1';
+        var z = el.querySelector('[data-icone-defaut="'+r.dataset.iconeTaille+'"]');
+        if(z) z.style.visibility = 'visible';
+        _sale.icones = true;
+        rendreIcones();
+      };
+    });
+    // Revenir a la taille d'origine: on RETIRE la valeur, on n'en pose pas une
+    // autre. Une taille absente laisse l'icone a celle que l'application lui
+    // donne, et c'est different de « la meme valeur, mais choisie ».
+    el.querySelectorAll('[data-icone-defaut]').forEach(function(b){
+      b.onclick = function(){
+        var cle = b.dataset.iconeDefaut;
+        delete _taillesIcones[cle];
+        var r = el.querySelector('[data-icone-taille="'+cle+'"]');
+        if(r){ r.value = 16; r.style.opacity = '.45'; }
+        b.style.visibility = 'hidden';
         _sale.icones = true;
         rendreIcones();
       };
@@ -2518,6 +2609,13 @@ LaRuche.Settings = (function(){
     if(fv) fv.onclick = function(){ _fondBrouillon.image = ''; _sale.fond = true; rendreFond(); };
     var fo = document.getElementById('fondOpacite');
     if(fo) fo.oninput = function(){ _fondBrouillon.opacite = parseFloat(fo.value); rendreFond(); };
+    var fod = document.getElementById('fondOpaciteDefaut');
+    if(fod) fod.onclick = function(){
+      _fondBrouillon.opacite = 0.35;
+      var r = document.getElementById('fondOpacite'); if(r) r.value = 0.35;
+      rendreFond();
+    };
+
     var fcad = document.getElementById('fondCadrage');
     if(fcad) fcad.onchange = function(){ _fondBrouillon.cadrage = fcad.value; rendreFond(); };
     el.querySelectorAll('[data-zone]').forEach(function(cb){
