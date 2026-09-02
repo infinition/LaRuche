@@ -218,6 +218,16 @@ pub trait Abeille: Send + Sync {
     /// This is injected into the system prompt so the LLM knows how to call the tool.
     fn schema(&self) -> serde_json::Value;
 
+    /// Une phrase de plus quand les arguments sont refuses, pour les outils dont
+    /// l'erreur classique a une cause connue.
+    ///
+    /// La forme attendue est deja derivee du schema; ceci sert a dire ce que le
+    /// modele voulait probablement faire. Vide par defaut: la plupart des outils
+    /// n'ont rien a ajouter, et une phrase generique de plus serait du bruit.
+    fn conseil_arguments_invalides(&self) -> Option<&'static str> {
+        None
+    }
+
     /// Danger level: determines if user approval is needed
     fn niveau_danger(&self) -> NiveauDanger;
 
@@ -355,9 +365,23 @@ impl AbeilleRegistry {
 
         if let Some(a) = abeille {
             if let Err(e) = valider_et_normaliser_args(&a.schema(), &mut args) {
-                return Ok(ResultatAbeille::err(format!(
-                    "Invalid arguments for {nom}: {e}. Check the tool schema and retry."
-                )));
+                // "Check the tool schema and retry" ne disait rien: le schema, le
+                // modele vient justement de se tromper en le lisant, et le lui
+                // rappeler ne lui apprend rien. On lui rend la FORME attendue,
+                // derivee du schema lui-meme, plus le conseil de l'outil quand il
+                // en a un. Chaque aller-retour coute une passe, et une eclaireuse
+                // n'en a que douze: observee le 02/09/2026, une qui avait fini son
+                // travail a brule les siennes sur ce message et n'a jamais rendu
+                // son rapport.
+                let mut msg = format!("Invalid arguments for {nom}: {e}.");
+                if let Some(forme) = forme_attendue(&a.schema()) {
+                    msg.push_str(&format!(" Expected shape: {forme}"));
+                }
+                if let Some(conseil) = a.conseil_arguments_invalides() {
+                    msg.push(' ');
+                    msg.push_str(conseil);
+                }
+                return Ok(ResultatAbeille::err(msg));
             }
             let mut res = a.executer(args, ctx).await?;
             // Return trip of the vault: a tool output that ECHOES a secret value
@@ -397,6 +421,61 @@ fn type_json(v: &serde_json::Value) -> &'static str {
 ///
 /// Lenient by design: extra keys pass, undeclared keys pass, absent optional
 /// keys pass. Only `required` presence and declared top-level types are hard.
+/// La forme d'appel attendue, ecrite depuis le schema de l'outil.
+///
+/// Les champs requis d'abord, avec leur type, puis les optionnels entre crochets.
+/// C'est ce qui manquait a "Check the tool schema and retry": le modele n'a pas le
+/// schema sous les yeux au moment ou il lit l'erreur, et le lui rappeler ne lui
+/// apprend rien. Une ligne exacte, elle, se recopie.
+///
+/// Rendu pour `tool_call`:
+///   {"tool": <string>, "args"?: <object>}
+fn forme_attendue(schema: &serde_json::Value) -> Option<String> {
+    let props = schema.get("properties")?.as_object()?;
+    if props.is_empty() {
+        return None;
+    }
+    let requis: Vec<&str> = schema
+        .get("required")
+        .and_then(|r| r.as_array())
+        .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
+        .unwrap_or_default();
+
+    let rendu = |cle: &str, spec: &serde_json::Value| -> String {
+        // Le type peut etre une chaine, une union, ou absent: on rend ce qu'on a.
+        let t = match spec.get("type") {
+            Some(serde_json::Value::String(t)) => t.clone(),
+            Some(serde_json::Value::Array(ts)) => ts
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join("|"),
+            _ => "any".to_string(),
+        };
+        let opt = if requis.contains(&cle) { "" } else { "?" };
+        format!("\"{cle}\"{opt}: <{t}>")
+    };
+
+    // Les requis en tete: c'est presque toujours celui-la qui manque.
+    let mut champs: Vec<String> = requis
+        .iter()
+        .filter_map(|k| props.get(*k).map(|spec| rendu(k, spec)))
+        .collect();
+    // Puis les autres, bornes: un outil a vingt champs noierait le message.
+    const MAX_OPTIONNELS: usize = 6;
+    champs.extend(
+        props
+            .iter()
+            .filter(|(k, _)| !requis.contains(&k.as_str()))
+            .take(MAX_OPTIONNELS)
+            .map(|(k, spec)| rendu(k, spec)),
+    );
+    if champs.is_empty() {
+        return None;
+    }
+    Some(format!("{{{}}}", champs.join(", ")))
+}
+
 pub fn valider_et_normaliser_args(
     schema: &serde_json::Value,
     args: &mut serde_json::Value,
@@ -687,5 +766,47 @@ mod tests {
         )
         .unwrap();
         assert!(args.is_object());
+    }
+}
+
+#[cfg(test)]
+mod tests_forme_attendue {
+    use super::forme_attendue;
+    use serde_json::json;
+
+    /// Le cas qui a coute des passes: `tool_call` appele sans son champ `tool`.
+    #[test]
+    fn la_forme_met_le_requis_en_tete() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "tool": { "type": "string" },
+                "args": { "type": "object" }
+            },
+            "required": ["tool"]
+        });
+        let f = forme_attendue(&schema).unwrap();
+        assert_eq!(f, r#"{"tool": <string>, "args"?: <object>}"#);
+    }
+
+    /// Une union de types se rend telle quelle: c'est le cas de `confidence`,
+    /// que le modele ecrit tantot en nombre tantot en mot.
+    #[test]
+    fn une_union_de_types_se_rend_entiere() {
+        let schema = json!({
+            "properties": { "confidence": { "type": ["number", "string"] } },
+            "required": []
+        });
+        assert_eq!(
+            forme_attendue(&schema).unwrap(),
+            r#"{"confidence"?: <number|string>}"#
+        );
+    }
+
+    /// Pas de proprietes, rien a dire: on n'ajoute pas une accolade vide au message.
+    #[test]
+    fn un_schema_sans_propriete_ne_dit_rien() {
+        assert!(forme_attendue(&json!({})).is_none());
+        assert!(forme_attendue(&json!({"type": "object", "properties": {}})).is_none());
     }
 }

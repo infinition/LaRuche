@@ -144,6 +144,11 @@ impl Abeille for ToolCall {
             "required": ["tool"]
         })
     }
+    fn conseil_arguments_invalides(&self) -> Option<&'static str> {
+        Some(
+            "`tool` is the NAME of the tool to run, and `args` are ITS arguments:              putting the payload directly in `args` calls nothing. If you meant to              finish and hand back your report, call task_complete directly instead.",
+        )
+    }
     fn niveau_danger(&self) -> NiveauDanger {
         NiveauDanger::Safe
     }
