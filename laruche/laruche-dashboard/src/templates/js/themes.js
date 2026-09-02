@@ -103,6 +103,22 @@
       ]
     },
     {
+      /* Le VERRE. Deux flous, et c'est la distinction qui compte.
+
+         Le premier porte sur l'IMAGE de fond: une photo nette derriere du texte
+         se lit comme un desordre, la flouter la rend a son role de fond. Le
+         second porte sur les PANNEAUX: ils deviennent translucides et floutent ce
+         qui passe dessous, ce qui donne la matiere du verre. Les melanger en un
+         seul reglage obligerait a choisir entre une image lisible et des panneaux
+         qui ont de la matiere. */
+      id: 'verre', titre: { fr: 'Verre et flou', en: 'Glass and blur' }, jetons: [
+        { cle: '--fond-flou', fr: 'Flou de l’image de fond', en: 'Background image blur', type: 'taille', min: 0, max: 40, pas: 1, unite: 'px' },
+        { cle: '--verre-flou', fr: 'Flou des panneaux', en: 'Panel blur', type: 'taille', min: 0, max: 30, pas: 1, unite: 'px' },
+        { cle: '--verre-opacite', fr: 'Opacité des panneaux', en: 'Panel opacity', type: 'taille', min: 0.15, max: 1, pas: 0.01, unite: '' },
+        { cle: '--verre-bord', fr: 'Reflet du bord', en: 'Edge highlight' }
+      ]
+    },
+    {
       id: 'formes', titre: { fr: 'Formes et mouvement', en: 'Shapes and motion' }, jetons: [
         { cle: '--radius-xs', fr: 'Arrondi des badges et pastilles', en: 'Badge rounding', type: 'taille', min: 0, max: 14, pas: 1, unite: 'px' },
         { cle: '--radius-btn', fr: 'Arrondi des boutons et champs', en: 'Button and field rounding', type: 'taille', min: 0, max: 20, pas: 1, unite: 'px' },
@@ -546,12 +562,19 @@
   var COMPOSANTES = [
     ['--amber', '--amber-rgb'], ['--red', '--red-rgb'], ['--green', '--green-rgb'],
     ['--blue', '--blue-rgb'], ['--purple', '--purple-rgb'], ['--cyan', '--cyan-rgb'],
-    ['--border', '--border-rgb'], ['--bg', '--bg-rgb']
+    ['--border', '--border-rgb'], ['--bg', '--bg-rgb'],
+    ['--bg-panel', '--bg-panel-rgb'], ['--bg-card', '--bg-card-rgb']
   ];
 
   function deriverComposantes() {
     var r = document.documentElement;
     var st = getComputedStyle(r);
+    /* Le verre s'allume tout seul, a partir de son propre reglage. Une case a
+       cocher de plus dirait la meme chose que « flou a zero », et permettrait de
+       les contredire: verre coche, flou nul. */
+    var flou = parseFloat(st.getPropertyValue('--verre-flou')) || 0;
+    if (flou > 0) r.setAttribute('data-verre', '1');
+    else r.removeAttribute('data-verre');
     COMPOSANTES.forEach(function (paire) {
       var v = (st.getPropertyValue(paire[0]) || '').trim();
       if (!v) return;
@@ -676,15 +699,25 @@
       var d = await fetch('/api/themes').then(function (r) { return r.json(); });
       etat.perso = (d && d.themes) || [];
     } catch (e) { etat.perso = []; }
-    var local = null;
-    try { local = localStorage.getItem(CLE_ACTIF); } catch (e) {}
-    if (local) { etat.actif = local; }
-    else {
-      // Aucun cache: cet appareil decouvre la ruche, on prend son choix a elle.
-      try {
-        var a = await fetch('/api/themes/actif').then(function (r) { return r.json(); });
-        if (a && a.actif) etat.actif = a.actif;
-      } catch (e) {}
+    /* Le NOEUD fait foi, le cache local ne sert qu'a peindre sans clignoter.
+
+       C'etait l'inverse: le cache gagnait, et le serveur n'etait consulte que
+       s'il n'y avait pas de cache. Un theme choisi dans l'application de bureau
+       n'atteignait donc jamais le meme navigateur ouvert a cote, qui gardait le
+       sien et paraissait ignorer le changement. La ruche est une seule ruche;
+       ses fenetres doivent montrer la meme chose.
+
+       On garde la peinture immediate depuis le cache, faite avant meme ce
+       module, puis on adopte la reponse du noeud des qu'elle arrive. */
+    try { etat.actif = localStorage.getItem(CLE_ACTIF) || etat.actif; } catch (e) {}
+    try {
+      var a = await fetch('/api/themes/actif').then(function (r) { return r.json(); });
+      if (a && a.actif) {
+        etat.actif = a.actif;
+        try { localStorage.setItem(CLE_ACTIF, a.actif); } catch (e) {}
+      }
+    } catch (e) {
+      // Noeud injoignable: le cache local reste le meilleur choix disponible.
     }
     peindre(etat.actif);
   }

@@ -24,6 +24,15 @@
   --cyan-rgb: 6,182,212;
   --border-rgb: 42,42,46;
   --bg-rgb: 9,9,11;
+  --bg-panel-rgb: 17,17,19;
+  --bg-card-rgb: 24,24,27;
+
+  /* Le verre. Zero partout: sans reglage, l'interface reste opaque et rien ne
+     change. C'est un effet qu'on choisit, pas un defaut qu'on subit. */
+  --fond-flou: 0px;
+  --verre-flou: 0px;
+  --verre-opacite: 0.72;
+  --verre-bord: rgba(255,255,255,0.08);
   --border-light: #3a3a3e;
   --text: #fafafa;
   --text-dim: #a1a1aa;
@@ -3794,3 +3803,76 @@ html[data-fond-app="1"] .table-ronde { background: transparent; }
   flex: none; white-space: nowrap;
 }
 .wcard-chrono.chrono-du, .cron-chrono.chrono-du { color: var(--amber); }
+
+/* ==========================================================================
+   LE VERRE.
+
+   Deux flous distincts, et la distinction est tout le sujet. `--fond-flou`
+   porte sur l'IMAGE elle-meme: une photo nette derriere du texte se lit comme
+   un desordre, la flouter la rend a son role de fond. `--verre-flou` porte sur
+   les PANNEAUX: ils deviennent translucides et floutent ce qui passe dessous,
+   ce qui donne la matiere.
+
+   Le mode ne s'allume que si le flou des panneaux est non nul, et il n'agit que
+   sur des surfaces choisies: rendre TOUT translucide ne donne pas du verre,
+   cela donne une bouillie ou plus rien ne se detache. Les panneaux qui portent
+   le fond, les cartes qui portent un contenu, les fenetres. Pas les champs de
+   saisie, pas les boutons, pas les pastilles: ce sont des objets poses SUR le
+   verre, et ils doivent se lire.
+   ========================================================================== */
+#lr-fond { filter: blur(var(--fond-flou)); }
+
+html[data-verre="1"] .header,
+html[data-verre="1"] .chat-sidebar,
+html[data-verre="1"] .status-bar,
+html[data-verre="1"] .feed-drawer,
+html[data-verre="1"] .lr-dock {
+  background: rgba(var(--bg-panel-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+}
+
+html[data-verre="1"] .settings-card,
+html[data-verre="1"] .panel,
+html[data-verre="1"] .lr-modal,
+html[data-verre="1"] .mesh-win,
+html[data-verre="1"] .profile-modal,
+html[data-verre="1"] .stats-card,
+html[data-verre="1"] .infer-panel,
+html[data-verre="1"] .log-strip,
+html[data-verre="1"] .tr-place,
+html[data-verre="1"] .kb-col,
+html[data-verre="1"] .suggested-prompt,
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .login-card,
+html[data-verre="1"] .cc-act {
+  background: rgba(var(--bg-card-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+  border-color: var(--verre-bord);
+}
+
+/* Le reflet du bord: une ligne claire en haut, comme sur une vitre eclairee par
+   au-dessus. C'est ce detail qui distingue une surface translucide d'une vraie
+   plaque de verre, et il ne coute qu'une bordure. */
+html[data-verre="1"] .settings-card,
+html[data-verre="1"] .lr-modal,
+html[data-verre="1"] .panel,
+html[data-verre="1"] .tr-place {
+  border-top-color: var(--verre-bord);
+  box-shadow: inset 0 1px 0 var(--verre-bord), 0 4px 24px rgba(0,0,0,.18);
+}
+
+/* La barre collante de la table ronde a deja son voile: sous le verre, elle
+   prend le meme, sinon elle serait la seule surface opaque de la page. */
+html[data-verre="1"] .tr-table {
+  background: rgba(var(--bg-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou));
+  -webkit-backdrop-filter: blur(var(--verre-flou));
+}
+
+/* Ce qui se pose SUR le verre reste opaque, sinon il disparait dedans. */
+html[data-verre="1"] input,
+html[data-verre="1"] textarea,
+html[data-verre="1"] select,
+html[data-verre="1"] .etat-pastille { backdrop-filter: none; }

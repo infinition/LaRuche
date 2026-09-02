@@ -191,6 +191,12 @@ fn page_choix_url(html: &str) -> tauri::Url {
 }
 
 /// Ou pointer la fenetre, et faut-il arreter un noeud en partant.
+/// Vrai quand un noeud repondait deja: la coque s'y rattache au lieu d'en lancer
+/// un. Un booleen partage plutot qu'une valeur de retour de plus, parce que le
+/// canal qui relie `resoudre` a la fenetre porte deja une paire et que le
+/// troisieme element ne servirait qu'a une phrase.
+static DEJA_LA: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 fn resoudre() -> (tauri::Url, Option<Child>) {
     // 1. Choix explicite: on n'essaie rien d'autre, meme si la ruche ne repond pas
     //    encore - c'est peut-etre une machine en train de demarrer.
@@ -203,8 +209,14 @@ fn resoudre() -> (tauri::Url, Option<Child>) {
         return (url.parse().expect("LARUCHE_URL n'est pas une URL valide"), enfant);
     }
 
-    // 2. Un noeud local repond deja.
+    // 2. Un noeud local repond deja: on s'y rattache, on n'en lance pas un second.
+    //
+    // C'etait deja le comportement, mais rien ne le DISAIT: l'ecran annoncait
+    // « Demarrage de LaRuche » dans tous les cas, et on pouvait croire qu'un
+    // second noeud allait se lancer par-dessus le premier. Ce sont deux
+    // situations differentes, elles meritent deux phrases.
     if noeud_repond(URL_LOCALE) {
+        DEJA_LA.store(true, std::sync::atomic::Ordering::Relaxed);
         return (URL_LOCALE.parse().expect("URL locale valide"), None);
     }
 
@@ -392,6 +404,15 @@ fn main() {
                     // survivrait a la fermeture de la fenetre.
                     if let Some(c) = ne {
                         ENFANT.lock().expect("verrou enfant").replace(c);
+                    }
+                    // Le dire AVANT de naviguer: la phrase n'a que le temps du
+                    // chargement pour etre lue, mais elle explique pourquoi
+                    // l'application s'ouvre instantanement au lieu de mettre
+                    // quinze secondes comme au premier lancement.
+                    if DEJA_LA.load(std::sync::atomic::Ordering::Relaxed) {
+                        let _ = fenetre.eval(
+                            "var t=document.getElementById('titre');                             if(t) t.textContent='LaRuche tourne deja';                             var d=document.getElementById('detail');                             if(d) d.textContent='Un noeud repond sur ce poste: on s_y rattache, sans en lancer un second.';",
+                        );
                     }
                     let _ = fenetre.navigate(cible);
                 }
