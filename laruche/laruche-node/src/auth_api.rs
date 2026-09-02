@@ -825,6 +825,39 @@ pub(crate) async fn api_totp_setup(
     Ok(Json(serde_json::json!({ "secret": secret, "otpauth_url": url, "qr_svg": qr })))
 }
 
+/// GET /api/reseau/bind-lan - la ruche est-elle servie sur tout le reseau ?
+///
+/// Rend l'etat EN COURS et l'etat VOULU, qui peuvent differer: la liaison se decide
+/// a l'ouverture du port et ne se change pas a chaud. Les distinguer evite la
+/// question suivante, "j'ai coche, pourquoi mon telephone ne repond toujours pas".
+pub(crate) async fn api_bind_lan_get(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let force = std::env::var("LARUCHE_BIND_LAN").ok();
+    let voulu = *state.bind_lan.read().await;
+    let en_cours = match force.as_deref() {
+        Some("1") => true,
+        Some("0") => false,
+        _ => voulu,
+    };
+    Json(serde_json::json!({
+        "en_cours": en_cours,
+        "voulu": voulu,
+        // Une variable posee gele le reglage: le dire, plutot que d'offrir un bouton
+        // qui ne changerait rien au prochain demarrage.
+        "impose_par_env": force.is_some(),
+    }))
+}
+
+/// POST /api/reseau/bind-lan {actif}
+pub(crate) async fn api_bind_lan_set(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let actif = body["actif"].as_bool().unwrap_or(false);
+    *state.bind_lan.write().await = actif;
+    crate::state::save_persistent_state(&state).await;
+    Json(serde_json::json!({ "status": "ok", "voulu": actif }))
+}
+
 /// GET /api/reseau/qr - de quoi ouvrir LaRuche sur un telephone.
 ///
 /// Le QR etait imprime au demarrage du noeud puis efface par son TUI, et il n'a

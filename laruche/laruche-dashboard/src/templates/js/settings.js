@@ -430,6 +430,12 @@ LaRuche.i18n.add({
   'settings.qrHint':            {fr:"Scanne le code, ou tape l'adresse. Le téléphone doit être sur le même réseau que cette machine.", en:'Scan the code, or type the address. The phone must be on the same network as this machine.'},
   'settings.qrNoLan':           {fr:'Aucune adresse réseau utilisable sur cette machine.', en:'No usable network address on this machine.'},
   'settings.qrNoLanHint':       {fr:"L'adresse locale ne veut rien dire pour un téléphone : il ouvrirait son propre navigateur sur lui-même.", en:'The local address means nothing to a phone: it would open its own browser on itself.'},
+  'settings.lanTitre':          {fr:'Rendre la ruche joignable sur le réseau', en:'Make the hive reachable on the network'},
+  'settings.lanHint':           {fr:'Sans cela, LaRuche n’écoute que sur cette machine : le code ci-dessus mène à une adresse qui ne répond pas.', en:'Without this, LaRuche only listens on this machine: the code above points at an address that does not answer.'},
+  'settings.lanRedemarrage':    {fr:'Le changement prend effet au prochain démarrage de LaRuche : le port s’ouvre une fois, au lancement, et ne se déplace pas en cours de route.', en:'The change takes effect the next time LaRuche starts: the port opens once, at launch, and cannot move afterwards.'},
+  'settings.lanEnv':            {fr:'Réglage imposé par la variable d’environnement LARUCHE_BIND_LAN. Retirez-la du lanceur pour reprendre la main ici.', en:'Setting forced by the LARUCHE_BIND_LAN environment variable. Remove it from the launcher to control it here.'},
+  'settings.lanActifMaintenant':{fr:'Actif',                   en:'On'},
+  'settings.lanInactifMaintenant':{fr:'Inactif',               en:'Off'},
   'settings.qrBindTitle':       {fr:"Le code ne marchera pas encore", en:'The code will not work yet'},
   'settings.qrBindWarn':        {fr:'La ruche n\'écoute que sur cette machine. Démarre-la avec LARUCHE_BIND_LAN=1, sinon elle s\'annonce sur le réseau sans y répondre.', en:'The hive only listens on this machine. Start it with LARUCHE_BIND_LAN=1, otherwise it announces itself on the network without answering.'},
   'settings.qrCopy':            {fr:"Copier l'adresse", en:'Copy the address'},
@@ -1567,9 +1573,47 @@ LaRuche.Settings = (function(){
      lance l'application de bureau n'avait aucun moyen d'atteindre sa ruche depuis
      son telephone. En tete de la section reseau, parce que c'est la question
      reseau qu'on se pose le plus souvent. */
+  /* L'interrupteur reseau, avec la distinction qui evite la question suivante.
+
+     L'etat EN COURS et l'etat VOULU peuvent differer, et c'est normal: le port
+     s'ouvre une fois, au lancement, et ne se deplace pas ensuite. Montrer les deux
+     vaut mieux qu'un interrupteur qui semble n'avoir servi a rien. */
+  function _interrupteurLan(lan){
+    if(!lan) return '';
+    var t = LaRuche.i18n.t;
+    var voulu = !!lan.voulu, enCours = !!lan.en_cours, fige = !!lan.impose_par_env;
+    var pastille = '<span style="font-size:10.5px;padding:1px 7px;border-radius:9px;'+
+      (enCours ? 'background:var(--green-dim);color:var(--green)' : 'background:var(--bg-input);color:var(--text-muted)')+
+      '">'+t(enCours?'settings.lanActifMaintenant':'settings.lanInactifMaintenant')+'</span>';
+    return '<div style="margin:14px 0 0;padding-top:12px;border-top:1px solid var(--border)">'+
+      '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">'+
+        '<label style="display:flex;align-items:center;gap:7px;cursor:'+(fige?'not-allowed':'pointer')+';font-size:13px">'+
+          '<input type="checkbox" id="lanToggle"'+(voulu?' checked':'')+(fige?' disabled':'')+'>'+
+          '<span>'+t('settings.lanTitre')+'</span>'+
+        '</label>'+
+        pastille+
+      '</div>'+
+      '<p style="color:var(--text-dim);font-size:11.5px;margin:6px 0 0">'+t('settings.lanHint')+'</p>'+
+      (fige
+        ? '<p style="color:var(--amber);font-size:11px;margin:6px 0 0">'+t('settings.lanEnv')+'</p>'
+        // Le rappel du redemarrage n'apparait QUE quand le voulu et l'en-cours
+        // divergent: le repeter en permanence le rendrait invisible le jour ou il
+        // compte.
+        : (voulu !== enCours
+            ? '<p style="color:var(--amber);font-size:11px;margin:6px 0 0">'+t('settings.lanRedemarrage')+'</p>'
+            : ''))+
+    '</div>';
+  }
+
   async function carteQr() {
-    var d = null;
-    try { d = await fetch('/api/reseau/qr').then(function(r){ return r.json(); }); } catch(e) {}
+    var d = null, lan = null;
+    try {
+      var r2 = await Promise.all([
+        fetch('/api/reseau/qr').then(function(r){ return r.json(); }),
+        fetch('/api/reseau/bind-lan').then(function(r){ return r.json(); })
+      ]);
+      d = r2[0]; lan = r2[1];
+    } catch(e) {}
     if (!d) return '';
     var t = LaRuche.i18n.t;
     var corps;
@@ -1586,11 +1630,11 @@ LaRuche.Settings = (function(){
           '</div>'+
           // Le code peut etre parfait et la ruche muette: le dire ici evite de
           // chercher du cote du telephone un probleme qui est cote serveur.
-          // En TETE et non en note de bas de page: sans LARUCHE_BIND_LAN=1 le
-          // code est juste faux, il pointe une adresse ou personne ne repond. Le
-          // laisser passer pour un detail, c'est envoyer chercher du cote du
-          // telephone un probleme qui est cote serveur.
-          (d.bind_lan ? '' : '<p style="color:var(--amber);font-size:11px;margin:10px 0 0"><b>'+t('settings.qrBindTitle')+'.</b> '+t('settings.qrBindWarn')+'</p>')+
+          // Un INTERRUPTEUR et non une consigne. Dire "démarre-la avec
+          // LARUCHE_BIND_LAN=1" revient a demander de sortir de l'application, de
+          // trouver le bon lanceur et de l'editer, pour une question qu'on se pose
+          // ici, telephone en main.
+          _interrupteurLan(lan)+
         '</div>'+
       '</div>';
     } else {
@@ -1773,6 +1817,12 @@ LaRuche.Settings = (function(){
       return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(n.name||'?')+'</div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.hostLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(n.host||'')+':'+LaRuche.Utils.esc(n.port||'?')+'</span></div><div style="margin-top:4px">'+caps+'</div></div>';
     }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.noNodes')+'</div>';
     el.innerHTML=qrCard+codeCard+nodesHtml;
+    var lanT=document.getElementById('lanToggle');
+    if(lanT) lanT.onchange=async function(){
+      await fetch('/api/reseau/bind-lan',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({actif:lanT.checked})}).catch(function(){});
+      loadNetwork(el); // relit l'etat: le voulu a change, l'en-cours non
+    };
     var copier=document.getElementById('qrCopier');
     if(copier) copier.onclick=function(){
       var u=copier.dataset.url||'';

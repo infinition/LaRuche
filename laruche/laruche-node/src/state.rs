@@ -84,6 +84,15 @@ pub(crate) struct PersistentState {
     /// Per-capability service selection (with source): survives restart.
     #[serde(default)]
     pub(crate) capability_selection: Option<HashMap<String, CapabilitySelection>>,
+    /// Servir la ruche sur tout le reseau, et non sur cette machine seule.
+    ///
+    /// Un reglage et non plus une seule variable d'environnement: celle-ci obligeait
+    /// a sortir de l'application, a trouver le bon lanceur et a l'editer, pour une
+    /// question qu'on se pose depuis l'interface, telephone en main. Elle reste
+    /// prioritaire quand elle est posee, pour qu'un lancement en ligne de commande
+    /// garde le dernier mot sur ce que l'interface a retenu.
+    #[serde(default)]
+    pub(crate) bind_lan: Option<bool>,
     #[serde(default)]
     pub(crate) activity_log: Vec<ActivityLogEntry>,
     #[serde(default)]
@@ -387,6 +396,13 @@ pub(crate) struct AppState {
     /// peindre avant le premier rendu; celle-ci sert a un appareil qui decouvre
     /// cette ruche et n'a rien en cache.
     pub(crate) theme_actif: Arc<RwLock<String>>,
+    /// Servir la ruche sur tout le reseau, tel que l'utilisateur l'a demande.
+    ///
+    /// Ce n'est PAS forcement l'etat en cours: la liaison se decide a l'ouverture du
+    /// port et ne se change pas a chaud. Ce drapeau dit ce que sera le prochain
+    /// demarrage, et l'interface distingue les deux plutot que de laisser croire
+    /// qu'un clic suffit.
+    pub(crate) bind_lan: Arc<RwLock<bool>>,
     pub(crate) essaim_cron: Arc<RwLock<CronScheduler>>,
     pub(crate) watchers: Arc<RwLock<laruche_watchers::WatchersRegistry>>,
     pub(crate) kanban_board: Arc<RwLock<laruche_kanban::KanbanBoard>>,
@@ -569,6 +585,7 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         default_models: Some(dm.clone()),
         capability_selection: Some(state.capability_selection.read().await.clone()),
         activity_log: logs.iter().cloned().collect(),
+        bind_lan: Some(*state.bind_lan.read().await),
         disabled_tools: state.essaim_config.read().await.disabled_tools.clone(),
         disabled_skills: state.essaim_config.read().await.disabled_skills.clone(),
         permission_mode: Some(

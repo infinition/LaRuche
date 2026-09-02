@@ -1270,6 +1270,7 @@ async fn main() -> Result<()> {
         runs_actifs: Arc::new(RwLock::new(HashMap::new())),
         dossier_travail: Arc::new(RwLock::new(local_api::dossier_travail_defaut())),
         theme_actif: Arc::new(RwLock::new(themes_api::theme_actif_au_demarrage())),
+        bind_lan: Arc::new(RwLock::new(persistent.bind_lan.unwrap_or(false))),
         essaim_cron: cron_arc.clone(),
         watchers: watchers_arc.clone(),
         kanban_board: kanban_arc.clone(),
@@ -1353,7 +1354,16 @@ async fn main() -> Result<()> {
     // Bind to loopback ONLY by default (single-user local app). Serving on the whole
     // network is an explicit opt-in (LARUCHE_BIND_LAN=1) since not every route requires
     // the session cookie; the choice is loudly logged so it is never accidental.
-    let bind_lan = std::env::var("LARUCHE_BIND_LAN").as_deref() == Ok("1");
+    // La variable d'environnement d'abord, le reglage ensuite. L'ordre compte: un
+    // lancement en ligne de commande, ou par un .bat, doit pouvoir imposer son choix
+    // sans que l'interface le contredise en silence. Mais quand la variable est
+    // absente, ce que l'utilisateur a coche fait foi, plutot que de l'obliger a
+    // editer un fichier pour ouvrir sa ruche a son telephone.
+    let bind_lan = match std::env::var("LARUCHE_BIND_LAN").as_deref() {
+        Ok("1") => true,
+        Ok("0") => false,
+        _ => persistent.bind_lan.unwrap_or(false),
+    };
     let bind_ip = if bind_lan { "0.0.0.0" } else { "127.0.0.1" };
     let addr = format!("{bind_ip}:{}", config.api_port);
     let scheme = if std::env::var("LARUCHE_HTTPS").as_deref() == Ok("1")

@@ -218,6 +218,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/context/stats", get(config_api::api_get_context_stats))
         .route("/api/reseau/qr", get(auth_api::api_reseau_qr))
+        .route("/api/reseau/bind-lan", get(auth_api::api_bind_lan_get).post(auth_api::api_bind_lan_set))
         .route(
             "/api/config/compaction",
             get(config_api::api_get_compaction_config).post(config_api::api_set_compaction_config),
