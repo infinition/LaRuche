@@ -3738,3 +3738,12 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--amber); }
      il redevient une simple bande qui se replie. */
   .tr-rang--cercle { max-width: 100%; }
 }
+
+/* La rangee d'un specialiste tient sur UNE ligne; seule la strategie passe
+   dessous. `flex-wrap` etait necessaire pour elle, mais sans tailles les champs
+   reclamaient toute la largeur et chaque specialiste occupait trois lignes. */
+.tr-pool-ligne .tr-av { width:54px; flex:0 0 54px; text-align:center; font-size:15px; }
+.tr-pool-ligne .tr-nom-in { flex:1 1 110px; min-width:80px; }
+.tr-pool-ligne .tr-role { flex:0 1 130px; min-width:96px; }
+.tr-pool-ligne .tr-prof { flex:0 1 170px; min-width:110px; }
+.tr-av-vide { opacity:.45; font-size:14px; }

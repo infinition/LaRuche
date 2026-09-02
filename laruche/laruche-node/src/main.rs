@@ -236,6 +236,162 @@ static PLUGINS_LIVRES: include_dir::Dir<'_> =
 static MCP_LIVRES: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/../mcp");
 
+/// Empreinte deterministe d'un contenu. FNV-1a, ecrite ici plutot que tiree d'une
+/// bibliotheque: elle est persistee dans le foyer, donc elle doit donner la meme
+/// valeur d'une version de LaRuche a l'autre, ce que `DefaultHasher` ne garantit
+/// pas. Il ne s'agit pas de securite, seulement de reconnaitre un fichier
+/// inchange.
+fn empreinte(contenu: &[u8]) -> String {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in contenu {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{h:016x}")
+}
+
+/// Le registre de ce qui a DEJA ete depose, et dans quel etat.
+///
+/// C'est lui qui permet de distinguer trois situations que le seul examen du
+/// disque confond:
+///   - une capacite jamais vue: elle n'est ni dans le registre ni sur le disque,
+///     c'est une nouveaute de la mise a jour, on la depose;
+///   - une capacite que l'utilisateur a EFFACEE: elle est dans le registre et
+///     absente du disque, on la laisse morte;
+///   - une capacite presente: si son fichier est identique a ce qu'on avait
+///     depose, personne n'y a touche et on peut la rafraichir; s'il differe,
+///     c'est le travail de l'utilisateur et on n'y touche pas.
+///
+/// Sur un foyer existant sans registre, tout ce qui est deja la compte comme
+/// modifie: on ne devine pas, on ne remplace rien. Seules les nouveautes
+/// arrivent, ce qui est exactement le manque qu'on repare.
+fn registre_livre(cible: &std::path::Path) -> std::collections::HashMap<String, String> {
+    std::fs::read_to_string(cible.join(".livres.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn ecrire_registre(cible: &std::path::Path, reg: &std::collections::HashMap<String, String>) {
+    if let Ok(t) = serde_json::to_string_pretty(reg) {
+        let _ = std::fs::write(cible.join(".livres.json"), t);
+    }
+}
+
+/// Depose les capacites livrees qui manquent, et rafraichit celles que personne
+/// n'a modifiees.
+///
+/// `amorcer` ne s'executait que sur un foyer VIERGE. Le raisonnement etait bon,
+/// ne pas ressusciter ce qu'on a efface, mais il avait une consequence qu'on ne
+/// voyait pas: une capacite ajoutee par une mise a jour n'arrivait JAMAIS chez
+/// quelqu'un qui avait deja lance LaRuche une fois. Le skill `laruche`, qui
+/// embarque le wiki, serait reste invisible pour tout le monde sauf pour une
+/// installation neuve.
+///
+/// Le registre tranche sans deviner: on ajoute ce qui n'a jamais ete vu, on
+/// rafraichit ce qui est intact, on ne touche a rien d'autre.
+fn tenir_a_jour(livre: &include_dir::Dir<'_>, cible: &str) {
+    let racine = std::path::Path::new(cible);
+    if !racine.exists() {
+        return; // `amorcer` vient de tout deposer, il n'y a rien a rattraper.
+    }
+    let mut reg = registre_livre(racine);
+    let mut ajoutes = 0usize;
+    let mut majs = 0usize;
+
+    for f in livre.files() {
+        deposer_fichier(f, racine, &mut reg, &mut ajoutes, &mut majs);
+    }
+    for d in livre.dirs() {
+        for f in d.files() {
+            deposer_fichier(f, racine, &mut reg, &mut ajoutes, &mut majs);
+        }
+        for sd in d.dirs() {
+            for f in sd.files() {
+                deposer_fichier(f, racine, &mut reg, &mut ajoutes, &mut majs);
+            }
+        }
+    }
+    if ajoutes > 0 || majs > 0 {
+        ecrire_registre(racine, &reg);
+        info!(dossier = cible, ajoutes, majs, "capacites livrees mises a jour");
+    }
+}
+
+/// Ce qu'il faut faire d'un fichier livre, sans toucher au disque.
+///
+/// Extraite pour etre testable: c'est la seule regle de tout ce module qui peut
+/// ECRASER le travail de quelqu'un, et une erreur y serait silencieuse.
+#[derive(Debug, PartialEq, Eq)]
+enum Depot {
+    /// Absent et jamais depose: c'est une nouveaute.
+    Poser,
+    /// Present, identique a ce qu'on avait depose, et le livre a change.
+    Rafraichir,
+    /// Efface par l'utilisateur, modifie par lui, ou deja a jour.
+    NePasToucher,
+}
+
+fn decider(connu: Option<&str>, actuel: Option<&str>, livre: &str) -> Depot {
+    match actuel {
+        None => {
+            if connu.is_some() {
+                Depot::NePasToucher // efface volontairement
+            } else {
+                Depot::Poser
+            }
+        }
+        Some(a) if a == livre => Depot::NePasToucher, // deja a jour
+        Some(a) => {
+            if connu == Some(a) {
+                Depot::Rafraichir // intact depuis notre depot
+            } else {
+                Depot::NePasToucher // le sien
+            }
+        }
+    }
+}
+
+fn deposer_fichier(
+    f: &include_dir::File<'_>,
+    racine: &std::path::Path,
+    reg: &mut std::collections::HashMap<String, String>,
+    ajoutes: &mut usize,
+    majs: &mut usize,
+) {
+    let rel = f.path().to_string_lossy().replace('\\', "/");
+    let chemin = racine.join(f.path());
+    let livre_h = empreinte(f.contents());
+    let connu = reg.get(&rel).cloned();
+
+    let sur_disque = std::fs::read(&chemin).ok();
+    let actuel_h = sur_disque.as_deref().map(empreinte);
+    match decider(connu.as_deref(), actuel_h.as_deref(), &livre_h) {
+        Depot::Poser => {
+            if let Some(parent) = chemin.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if std::fs::write(&chemin, f.contents()).is_ok() {
+                reg.insert(rel, livre_h);
+                *ajoutes += 1;
+            }
+        }
+        Depot::Rafraichir => {
+            if std::fs::write(&chemin, f.contents()).is_ok() {
+                reg.insert(rel, livre_h);
+                *majs += 1;
+            }
+        }
+        Depot::NePasToucher => {
+            // Deja a jour: on note quand meme l'empreinte, pour que le prochain
+            // rafraichissement sache que ce fichier est bien le notre.
+            if actuel_h.as_deref() == Some(livre_h.as_str()) {
+                reg.insert(rel, livre_h);
+            }
+        }
+    }
+}
+
 /// Depose le contenu livre dans le foyer, si et seulement si le dossier n'existe pas.
 ///
 /// La condition porte sur le DOSSIER, pas sur chaque fichier: quelqu'un qui supprime
@@ -418,6 +574,11 @@ async fn main() -> Result<()> {
     amorcer(&SKILLS_LIVRES, "skills");
     amorcer(&PLUGINS_LIVRES, "plugins");
     amorcer(&MCP_LIVRES, "mcp");
+    // Et sur un foyer DEJA etabli: on ajoute ce qui n'a jamais ete vu, on
+    // rafraichit ce que personne n'a modifie, on ne ressuscite rien.
+    tenir_a_jour(&SKILLS_LIVRES, "skills");
+    tenir_a_jour(&PLUGINS_LIVRES, "plugins");
+    tenir_a_jour(&MCP_LIVRES, "mcp");
 
 
     info!(name = %config.node_name, tier = ?config.tier, "Starting LaRuche node");
@@ -1661,4 +1822,49 @@ fn load_config() -> Result<NodeConfig> {
     }
 
     Ok(config)
+}
+
+#[cfg(test)]
+mod tests_depot_livre {
+    use super::{decider, empreinte, Depot};
+
+    #[test]
+    fn une_nouveaute_est_deposee() {
+        // Ni dans le registre, ni sur le disque: la mise a jour l'apporte.
+        assert_eq!(decider(None, None, "aaa"), Depot::Poser);
+    }
+
+    #[test]
+    fn ce_que_l_utilisateur_a_efface_reste_efface() {
+        // Nous l'avions depose, il n'est plus la: c'est un choix, pas un manque.
+        assert_eq!(decider(Some("aaa"), None, "bbb"), Depot::NePasToucher);
+    }
+
+    #[test]
+    fn un_fichier_intact_se_rafraichit() {
+        // Sur le disque tel que nous l'avions ecrit, et le livre a change.
+        assert_eq!(decider(Some("aaa"), Some("aaa"), "bbb"), Depot::Rafraichir);
+    }
+
+    #[test]
+    fn le_travail_de_l_utilisateur_ne_se_perd_jamais() {
+        // Modifie depuis notre depot.
+        assert_eq!(decider(Some("aaa"), Some("zzz"), "bbb"), Depot::NePasToucher);
+        // Present mais inconnu du registre: c'est le cas d'un foyer existant a la
+        // toute premiere mise a jour. On ne devine pas, on ne remplace pas.
+        assert_eq!(decider(None, Some("zzz"), "bbb"), Depot::NePasToucher);
+    }
+
+    #[test]
+    fn rien_a_faire_quand_c_est_deja_la_bonne_version() {
+        assert_eq!(decider(Some("bbb"), Some("bbb"), "bbb"), Depot::NePasToucher);
+        assert_eq!(decider(None, Some("bbb"), "bbb"), Depot::NePasToucher);
+    }
+
+    #[test]
+    fn l_empreinte_est_stable_et_distingue() {
+        assert_eq!(empreinte(b"bonjour"), empreinte(b"bonjour"));
+        assert_ne!(empreinte(b"bonjour"), empreinte(b"bonsoir"));
+        assert_eq!(empreinte(b"").len(), 16);
+    }
 }

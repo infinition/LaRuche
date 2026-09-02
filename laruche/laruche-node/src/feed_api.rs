@@ -490,27 +490,7 @@ pub(crate) async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
     }))
 }
 
-#[cfg(test)]
-mod tests_horodatage_feed {
-    use super::ms;
 
-    #[test]
-    fn une_seconde_devient_son_milieu() {
-        // Le debut de la seconde placait l'evenement avant TOUT ce qui portait des
-        // millisecondes reelles dans cette meme seconde.
-        assert_eq!(ms(1_700_000_000), 1_700_000_000_500);
-        // Sauf zero, qui veut dire « on ne sait pas » et doit le rester.
-        assert_eq!(ms(0), 0);
-    }
-
-    #[test]
-    fn l_ordre_relatif_des_secondes_est_preserve() {
-        assert!(ms(10) < ms(11));
-        // Et une source en millisecondes s'intercale des deux cotes du milieu.
-        assert!(ms(10) > 10_200);
-        assert!(ms(10) < 10_800);
-    }
-}
 
 #[cfg(test)]
 mod tests_nettoyage_feed {
@@ -598,5 +578,27 @@ mod tests_ordre_feed {
     fn une_date_absurde_ne_deborde_pas() {
         assert_eq!(ms(i64::MAX), i64::MAX);
         assert_eq!(ms(0), 0);
+    }
+}
+
+#[cfg(test)]
+mod tests_horodatage_feed {
+    use super::ms;
+
+    #[test]
+    fn une_seconde_devient_son_milieu() {
+        // Le debut de la seconde placait l'evenement avant TOUT ce qui portait des
+        // millisecondes reelles dans cette meme seconde.
+        assert_eq!(ms(1_700_000_000), 1_700_000_000_500);
+        // Sauf zero, qui veut dire « on ne sait pas » et doit le rester.
+        assert_eq!(ms(0), 0);
+    }
+
+    #[test]
+    fn l_ordre_relatif_des_secondes_est_preserve() {
+        assert!(ms(10) < ms(11));
+        // Et une source en millisecondes s'intercale des deux cotes du milieu.
+        assert!(ms(10) > 10_200);
+        assert!(ms(10) < 10_800);
     }
 }

@@ -764,6 +764,43 @@
     return r;
   }
 
+  /* Un theme est deja UN objet: jetons, marque, fond, icones, polices. L'exporter
+     n'est donc que le rendre, et l'importer que le reposer. Il se partageait deja
+     en copiant son fichier dans `<foyer>/themes/`; il manquait les deux gestes qui
+     evitent d'avoir a savoir ou est ce dossier. */
+  function exporter(id) {
+    var t = estPerso(id) ? persoParId(id) : null;
+    if (!t) {
+      // Un integre n'a pas de fichier: on exporte ce qu'il DONNE, c'est-a-dire ses
+      // valeurs calculees, ce qui en fait une copie qu'on pourra rejouer ailleurs.
+      t = { id: id, nom: id, jetons: jetonsCourants(), marque: {}, fond: {}, icones: {}, polices: [] };
+    }
+    return {
+      laruche_theme: 1,
+      nom: t.nom, jetons: t.jetons || {},
+      marque: t.marque || {}, fond: t.fond || {},
+      icones: t.icones || {}, polices: t.polices || [],
+      taillesIcones: t.taillesIcones || {}
+    };
+  }
+
+  async function importer(objet) {
+    if (!objet || typeof objet !== 'object' || !objet.jetons) {
+      return { status: 'error', error: 'ce fichier n est pas un theme' };
+    }
+    var r = await envoyer({
+      id: null, nom: String(objet.nom || 'Theme importe').slice(0, 60),
+      jetons: objet.jetons, marque: objet.marque || {}, fond: objet.fond || {},
+      icones: objet.icones || {}, polices: objet.polices || [],
+      taillesIcones: objet.taillesIcones || {}, base: objet.jetons
+    });
+    if (r && r.status === 'ok') {
+      await charger();
+      appliquer('perso:' + r.theme.id);
+    }
+    return r;
+  }
+
   async function supprimer(id) {
     await fetch('/api/themes/' + encodeURIComponent(clePerso(id)), { method: 'DELETE' })
       .catch(function () {});
@@ -847,6 +884,7 @@
     ajouterIcones: ajouterIcones,
     peindreFond: peindreFond, peindreMarque: peindreMarque,
     habillageDe: habillageDe, dupliquer: dupliquer, baseCourante: baseCourante,
+    exporter: exporter, importer: importer,
     definirBrouillon: definirBrouillon, brouillonCourant: brouillonCourant,
     baseDe: function (id) {
       var t = estPerso(id) ? persoParId(id) : null;

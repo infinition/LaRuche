@@ -535,57 +535,7 @@ pub(crate) fn super_admin_id(
     .map(|u| u.id)
 }
 
-#[cfg(test)]
-mod tests_super_admin {
-    use super::*;
-    use chrono::{Duration, Utc};
 
-    fn compte(nom: &str, role: auth_user::UserRole, age_jours: i64) -> auth_user::User {
-        let mut u = auth_user::create_user(nom, role, None);
-        u.created_at = Utc::now() - Duration::days(age_jours);
-        u
-    }
-
-    fn table(v: Vec<auth_user::User>) -> std::collections::HashMap<Uuid, auth_user::User> {
-        v.into_iter().map(|u| (u.id, u)).collect()
-    }
-
-    /// Le cas qui a motive la regle: un compte de verification cree avant tout le
-    /// monde, mais simple utilisateur, ne doit pas prendre le pas sur l'admin.
-    #[test]
-    fn un_utilisateur_plus_ancien_ne_prime_pas_sur_un_admin() {
-        let vieux = compte("Codex Verif", auth_user::UserRole::User, 90);
-        let patron = compte("infinition", auth_user::UserRole::Admin, 60);
-        let attendu = patron.id;
-        let m = table(vec![vieux, patron]);
-        assert_eq!(super_admin_id(&m), Some(attendu));
-    }
-
-    #[test]
-    fn entre_deux_admins_c_est_le_plus_ancien() {
-        let ancien = compte("premier", auth_user::UserRole::Admin, 90);
-        let recent = compte("second", auth_user::UserRole::Admin, 10);
-        let attendu = ancien.id;
-        let m = table(vec![recent, ancien]);
-        assert_eq!(super_admin_id(&m), Some(attendu));
-    }
-
-    /// Sans aucun admin, l'instance garde quand meme un super-admin: c'est toute la
-    /// raison d'etre de cette fonction.
-    #[test]
-    fn sans_admin_on_retombe_sur_le_plus_ancien_compte() {
-        let a = compte("a", auth_user::UserRole::User, 90);
-        let b = compte("b", auth_user::UserRole::User, 10);
-        let attendu = a.id;
-        let m = table(vec![b, a]);
-        assert_eq!(super_admin_id(&m), Some(attendu));
-    }
-
-    #[test]
-    fn une_instance_vide_n_a_pas_de_super_admin() {
-        assert_eq!(super_admin_id(&table(vec![])), None);
-    }
-}
 
 pub(crate) async fn api_admin_list_users(
     State(state): State<Arc<AppState>>,
@@ -934,4 +884,56 @@ pub(crate) async fn api_totp_disable(
     user.totp_secret = None;
     let _ = auth_user::save_user(user, std::path::Path::new("users"));
     Ok(Json(serde_json::json!({ "status": "disabled" })))
+}
+
+#[cfg(test)]
+mod tests_super_admin {
+    use super::*;
+    use chrono::{Duration, Utc};
+
+    fn compte(nom: &str, role: auth_user::UserRole, age_jours: i64) -> auth_user::User {
+        let mut u = auth_user::create_user(nom, role, None);
+        u.created_at = Utc::now() - Duration::days(age_jours);
+        u
+    }
+
+    fn table(v: Vec<auth_user::User>) -> std::collections::HashMap<Uuid, auth_user::User> {
+        v.into_iter().map(|u| (u.id, u)).collect()
+    }
+
+    /// Le cas qui a motive la regle: un compte de verification cree avant tout le
+    /// monde, mais simple utilisateur, ne doit pas prendre le pas sur l'admin.
+    #[test]
+    fn un_utilisateur_plus_ancien_ne_prime_pas_sur_un_admin() {
+        let vieux = compte("Codex Verif", auth_user::UserRole::User, 90);
+        let patron = compte("infinition", auth_user::UserRole::Admin, 60);
+        let attendu = patron.id;
+        let m = table(vec![vieux, patron]);
+        assert_eq!(super_admin_id(&m), Some(attendu));
+    }
+
+    #[test]
+    fn entre_deux_admins_c_est_le_plus_ancien() {
+        let ancien = compte("premier", auth_user::UserRole::Admin, 90);
+        let recent = compte("second", auth_user::UserRole::Admin, 10);
+        let attendu = ancien.id;
+        let m = table(vec![recent, ancien]);
+        assert_eq!(super_admin_id(&m), Some(attendu));
+    }
+
+    /// Sans aucun admin, l'instance garde quand meme un super-admin: c'est toute la
+    /// raison d'etre de cette fonction.
+    #[test]
+    fn sans_admin_on_retombe_sur_le_plus_ancien_compte() {
+        let a = compte("a", auth_user::UserRole::User, 90);
+        let b = compte("b", auth_user::UserRole::User, 10);
+        let attendu = a.id;
+        let m = table(vec![b, a]);
+        assert_eq!(super_admin_id(&m), Some(attendu));
+    }
+
+    #[test]
+    fn une_instance_vide_n_a_pas_de_super_admin() {
+        assert_eq!(super_admin_id(&table(vec![])), None);
+    }
 }

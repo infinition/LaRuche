@@ -83,8 +83,22 @@ pub(crate) async fn api_memory_write(
         item = item.with_tags(tags);
     }
 
+    // `propose=true` passe par la FILE de LaReine, plus par `propose_write`.
+    //
+    // `propose_write` posait l'item en `status='proposed'` et s'arretait la: aucune
+    // route ne sait approuver un item dans cet etat, `/api/memory/proposed` est en
+    // lecture seule. Il etait donc compte par le bandeau, absent du panneau, et
+    // n'avait aucun moyen de devenir un fait. La file, elle, a ses deux boutons.
     let result = if propose {
-        state.memoire.propose_write(item).await
+        laruche_essaim::reine_queue::proposer_memoire(
+            &state.memoire,
+            item,
+            true,
+            "humaine",
+            "api",
+        )
+        .await;
+        Ok(serde_json::json!({ "queued": true }))
     } else {
         state.memoire.write(item).await
     };

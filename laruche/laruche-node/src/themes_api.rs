@@ -456,25 +456,7 @@ pub(crate) fn theme_actif_au_demarrage() -> String {
         .unwrap_or_else(|| "defaut".to_string())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::identifiant_sur;
 
-    /// Le nom vient de l'utilisateur et devient un chemin de fichier.
-    #[test]
-    fn un_identifiant_ne_peut_pas_voyager() {
-        assert_eq!(identifiant_sur("Mon Theme").as_deref(), Some("mon-theme"));
-        assert_eq!(identifiant_sur("  Nuit  ").as_deref(), Some("nuit"));
-        // Le point-point et les separateurs sont neutralises, pas rejetes: le nom
-        // reste utilisable, il ne sort simplement plus du dossier.
-        assert_eq!(identifiant_sur("../../memoire").as_deref(), Some("memoire"));
-        assert_eq!(identifiant_sur("a/b\\c").as_deref(), Some("a-b-c"));
-        // Rien d'exploitable: on refuse plutot que d'inventer un nom.
-        assert!(identifiant_sur("").is_none());
-        assert!(identifiant_sur("...").is_none());
-        assert!(identifiant_sur(&"x".repeat(200)).is_none());
-    }
-}
 
 #[cfg(test)]
 mod tests_laveur_svg {
@@ -526,5 +508,25 @@ mod tests_laveur_svg {
         // Un SVG encode contournerait le laveur: il doit venir en texte.
         assert!(logo_sur("data:image/svg+xml;base64,AAAA").is_err());
         assert!(logo_sur("https://ailleurs/logo.svg").is_err());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::identifiant_sur;
+
+    /// Le nom vient de l'utilisateur et devient un chemin de fichier.
+    #[test]
+    fn un_identifiant_ne_peut_pas_voyager() {
+        assert_eq!(identifiant_sur("Mon Theme").as_deref(), Some("mon-theme"));
+        assert_eq!(identifiant_sur("  Nuit  ").as_deref(), Some("nuit"));
+        // Le point-point et les separateurs sont neutralises, pas rejetes: le nom
+        // reste utilisable, il ne sort simplement plus du dossier.
+        assert_eq!(identifiant_sur("../../memoire").as_deref(), Some("memoire"));
+        assert_eq!(identifiant_sur("a/b\\c").as_deref(), Some("a-b-c"));
+        // Rien d'exploitable: on refuse plutot que d'inventer un nom.
+        assert!(identifiant_sur("").is_none());
+        assert!(identifiant_sur("...").is_none());
+        assert!(identifiant_sur(&"x".repeat(200)).is_none());
     }
 }

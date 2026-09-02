@@ -237,14 +237,11 @@ pub async fn write_skill(mem: &dyn MemoireCognitive, skill: &Skill) -> Result<Va
     .await
 }
 
-pub async fn propose_skill(mem: &dyn MemoireCognitive, skill: &Skill) -> Result<Value> {
-    mem.propose_write(
-        MemoryItem::new(skill.node_id(), skill.to_markdown())
-            .with_source("auto-skill")
-            .with_tags(vec!["skill".to_string(), "okf".to_string()]),
-    )
-    .await
-}
+// `propose_skill` a ete retiree: elle n'avait aucun appelant, et elle passait par
+// `propose_write`, qui posait un item en `status='proposed'` que rien ne savait
+// approuver. Un skill propose par cette voie devenait invisible, ni actif ni dans
+// la file. Le chemin vivant est `reine_queue::proposer_skill`, cote essaim, qui
+// ecrit AUSSI le fichier SKILL.md a l'approbation.
 
 pub async fn read_skill(mem: &dyn MemoireCognitive, name: &str) -> Result<Option<Skill>> {
     let node_id = skill_node_id(name);

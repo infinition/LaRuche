@@ -58,6 +58,13 @@ Do NOT send it back for:
 - Tone, an emoji, a turn of phrase, an em dash.
 - Formatting you would have done differently.
 - Detail you would have added, when what was asked is already answered.
+- **A description of what a tool SHOWED.** When the transcript contains a vision
+  call (a screenshot, a camera frame, an image read) and the answer describes what
+  it returned, that description IS grounded: the model looked. Sending it back as
+  "invented" was the costly mistake, because it taught the worker to hedge about
+  things it had actually seen, and a hedged observation is worse than none. The
+  test is the tool call, not the confidence of the sentence. Absent that call, a
+  visual claim remains an invention and goes back.
 
 Those go in `raison` on an `approuver`. The worker reads the verdict; a remark
 lands without costing a mission. **Style alone is never a `reviser`.**

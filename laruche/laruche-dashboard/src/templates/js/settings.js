@@ -421,6 +421,9 @@ LaRuche.i18n.add({
   'settings.themeSaveAs':       {fr:'Enregistrer comme nouveau theme', en:'Save as a new theme'},
   'settings.themeRename':       {fr:'Renommer',               en:'Rename'},
   'settings.themeDuplicate':    {fr:'Dupliquer',              en:'Duplicate'},
+  'settings.themeExport':       {fr:'Exporter',               en:'Export'},
+  'settings.themeImport':       {fr:'Importer',               en:'Import'},
+  'settings.themeImportBad':    {fr:"Ce fichier n'est pas un theme LaRuche.", en:'This file is not a LaRuche theme.'},
   'settings.themeRevert':       {fr:"Revenir aux valeurs d'origine", en:'Back to original values'},
   'settings.themeAutoSaved':    {fr:"Theme a vous: chaque changement est enregistre tout seul.", en:'Your own theme: every change is saved on its own.'},
   'settings.themeUnsaved':      {fr:'non enregistre',         en:'unsaved'},
@@ -2238,6 +2241,9 @@ LaRuche.Settings = (function(){
           '<button class="cwd-btn" id="themeDup" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeDuplicate')+'</button>'+
           (perso?'<button class="cwd-btn" id="themeDel" style="opacity:1;font-size:12px;padding:7px 11px;color:var(--red)">'+t('settings.themeDelete')+'</button>':'')+
           '<button class="cwd-btn" id="themeReset" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeRevert')+'</button>'+
+          '<button class="cwd-btn" id="themeExport" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeExport')+'</button>'+
+          '<button class="cwd-btn" id="themeImport" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeImport')+'</button>'+
+          '<input type="file" id="themeFichier" accept=".json,application/json" style="display:none">'+
           '<span id="themeEtat" style="font-size:11.5px;color:var(--text-muted)"></span>'+
         '</div>'+
       '</div>';
@@ -2674,6 +2680,34 @@ LaRuche.Settings = (function(){
     // Le panneau est dessine: a partir d'ici, un changement est un vrai
     // changement, et vaut enregistrement.
     _initEnCours = false;
+
+    var exp = document.getElementById('themeExport');
+    if(exp) exp.onclick = function(){
+      var objet = T.exporter(actif);
+      var nom = (objet.nom || 'theme').replace(/[^\w -]/g, '').trim() || 'theme';
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(objet, null, 2)], {type:'application/json'}));
+      a.download = nom + '.laruche-theme.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    };
+    var imp = document.getElementById('themeImport'), impf = document.getElementById('themeFichier');
+    if(imp && impf){
+      imp.onclick = function(){ impf.value=''; impf.click(); };
+      impf.onchange = function(){
+        var f = impf.files && impf.files[0]; if(!f) return;
+        var fr = new FileReader();
+        fr.onload = async function(){
+          var objet;
+          try { objet = JSON.parse(String(fr.result)); }
+          catch(e){ LaRuche.Toast.show(t('settings.themeImportBad'),'warn'); return; }
+          var r = await T.importer(objet);
+          if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
+          else LaRuche.Toast.show((r&&r.error)||t('settings.themeImportBad'),'warn');
+        };
+        fr.readAsText(f);
+      };
+    }
 
     var reset = document.getElementById('themeReset');
     if(reset) reset.onclick = async function(){

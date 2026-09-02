@@ -336,7 +336,12 @@ LaRuche.TableRonde = (function(){
     return '<div class="tr-pool-ligne" data-id="'+esc(s.id)+'">'+
       '<label class="tr-pool-embauche" title="'+esc(LaRuche.i18n.t('tr.embaucher'))+'">'+
         '<input type="checkbox" class="tr-emb" '+(s.embauche?'checked':'')+'></label>'+
-      '<button class="tr-av-btn" title="'+esc(LaRuche.i18n.t('tr.avatarAide'))+'">'+avatarHtml(s.avatar)+'</button>'+
+      // Le bouton sert a POSER UNE IMAGE; le champ a cote porte l'emoji. Les deux
+      // affichaient le meme emoji, ce qui donnait deux fois la meme chose sur la
+      // ligne sans qu'on devine laquelle faisait quoi. Le bouton ne montre donc
+      // l'avatar que lorsqu'il est une image, et sinon l'invitation a en choisir une.
+      '<button class="tr-av-btn" title="'+esc(LaRuche.i18n.t('tr.avatarAide'))+'">'+
+        (estImage ? avatarHtml(s.avatar) : '<span class="tr-av-vide">&#128247;</span>')+'</button>'+
       '<input type="text" class="tr-av" value="'+esc(estImage ? '' : (s.avatar||''))+'" maxlength="4" placeholder="🙂">'+
       '<input type="text" class="tr-nom-in" value="'+esc(s.nom)+'">'+
       '<select class="tr-role">'+
@@ -360,6 +365,9 @@ LaRuche.TableRonde = (function(){
         l.querySelector('.tr-avdata').value = url;
         l.querySelector('.tr-av').value = '';
         l.querySelector('.tr-av-btn').innerHTML = '<img class="tr-av-img" src="'+url+'" alt="">';
+        // L'image prend la main: le champ emoji se vide, sinon les deux se
+        // disputeraient l'avatar a l'enregistrement.
+        var champ = l.querySelector('.tr-av'); if(champ) champ.value = '';
       });
     };
     l.querySelector('.tr-strat-btn').onclick = function(){
@@ -560,7 +568,9 @@ LaRuche.TableRonde = (function(){
   /* Un debat se supprime comme une conversation. La route existait cote noeud
      depuis le debut; c'est l'interface qui n'en offrait pas le chemin. */
   async function supprimerTour(id){
-    if(!confirm(LaRuche.i18n.t('tr.supprimer'))) return;
+    // Pas de confirmation: la croix est deja un geste delibere, elle n'apparait
+    // qu'au survol de la ligne, et une conversation du chat se supprime de la
+    // meme facon sans qu'on demande deux fois.
     try{
       var r = await fetch('/api/deliberation/tour/'+encodeURIComponent(id), { method:'DELETE' });
       if(!r.ok) throw new Error('HTTP '+r.status);

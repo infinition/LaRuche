@@ -212,109 +212,7 @@ fn session_message_for_client(message: &laruche_essaim::Message) -> Option<serde
     }
 }
 
-#[cfg(test)]
-mod session_display_tests {
-    use super::*;
 
-    #[test]
-    fn user_display_hides_agent_only_instructions() {
-        // Legacy hint (recorded sessions) and current hint are both stripped.
-        let raw = "Download this\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.";
-        assert_eq!(display_user_text(raw).as_deref(), Some("Download this"));
-        let raw2 = "Download this\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create), run long missions (mission_list/mission_create) and search your past conversations (session_search) yourself.";
-        assert_eq!(display_user_text(raw2).as_deref(), Some("Download this"));
-        assert!(display_user_text(
-            "Continue immediately with the next step of the plan, without stopping."
-        )
-        .is_none());
-    }
-
-    #[test]
-    fn assistant_display_keeps_plan_structured_and_hides_markup() {
-        let message = laruche_essaim::Message::Assistant(
-            "<plan>[{\"task\":\"Download\",\"status\":\"done\"}]</plan>\nFile ready.<tool_call>{}</tool_call>"
-                .into(),
-        );
-        let display = session_message_for_client(&message).unwrap();
-        assert_eq!(display["text"], "File ready.");
-        assert_eq!(display["plan"][0]["task"], "Download");
-    }
-
-    #[test]
-    fn active_context_stats_progressent_pendant_les_outils() {
-        let mut stats = ActiveContextStats {
-            messages: 1,
-            base_tokens: 65,
-            running: true,
-            ..ActiveContextStats::default()
-        };
-
-        stats.apply_event(&ChatEvent::Token {
-            text: "I will fetch the page then analyze the result.".into(),
-        });
-        stats.apply_event(&ChatEvent::ToolCall {
-            name: "web_fetch".into(),
-            args: serde_json::json!({"url":"https://example.test/long-page"}),
-            iteration: Some(1),
-            agent: None,
-        });
-        stats.apply_event(&ChatEvent::ToolResult {
-            name: "web_fetch".into(),
-            result: "content ".repeat(200),
-            success: true,
-            elapsed_ms: Some(42),
-            agent: None,
-            images: Vec::new(),
-        });
-
-        assert!(stats.messages >= 4);
-        assert!(stats.used_tokens() > 65);
-        assert!(stats.running);
-    }
-
-    #[test]
-    fn la_compaction_fait_redescendre_la_jauge() {
-        let mut stats = ActiveContextStats {
-            messages: 14,
-            base_tokens: 20_000,
-            extra_tokens: 14_000,
-            running: true,
-            ..ActiveContextStats::default()
-        };
-        let avant = stats.used_tokens();
-        // The engine halves its working context: the gauge must follow it DOWN.
-        // Previously this event was ignored and the bar stayed pinned past 100%.
-        stats.apply_event(&ChatEvent::Compaction {
-            messages_before: 14,
-            messages_after: 6,
-        });
-        assert!(stats.used_tokens() < avant, "the gauge must drop after a compaction");
-        assert_eq!(stats.messages, 6);
-    }
-
-    #[test]
-    fn le_travail_des_sous_agents_ne_gonfle_pas_la_jauge() {
-        // A scout runs on an ISOLATED context: only its compact report reaches the
-        // main context. Counting its pages here pushed the bar past 100%.
-        let mut stats = ActiveContextStats {
-            messages: 1,
-            base_tokens: 1_000,
-            running: true,
-            ..ActiveContextStats::default()
-        };
-        let avant = stats.used_tokens();
-        stats.apply_event(&ChatEvent::ToolResult {
-            name: "web_deep_search".into(),
-            result: "page ".repeat(4000),
-            success: true,
-            elapsed_ms: Some(10),
-            agent: Some("Eclaireuse#1".into()),
-            images: Vec::new(),
-        });
-        assert_eq!(stats.used_tokens(), avant, "a scout's page is not the main context");
-        assert!(stats.messages > 1, "but it is still counted as activity");
-    }
-}
 
 /// GET /api/sessions/:id/messages - get session messages (with ownership check).
 pub(crate) async fn api_get_session_messages(
@@ -616,4 +514,108 @@ pub(crate) async fn api_reactions_palette() -> Json<serde_json::Value> {
         .map(|r| serde_json::json!({ "key": r.cle, "emoji": r.emoji }))
         .collect();
     Json(serde_json::json!({ "reactions": palette }))
+}
+
+#[cfg(test)]
+mod session_display_tests {
+    use super::*;
+
+    #[test]
+    fn user_display_hides_agent_only_instructions() {
+        // Legacy hint (recorded sessions) and current hint are both stripped.
+        let raw = "Download this\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.";
+        assert_eq!(display_user_text(raw).as_deref(), Some("Download this"));
+        let raw2 = "Download this\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create), run long missions (mission_list/mission_create) and search your past conversations (session_search) yourself.";
+        assert_eq!(display_user_text(raw2).as_deref(), Some("Download this"));
+        assert!(display_user_text(
+            "Continue immediately with the next step of the plan, without stopping."
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn assistant_display_keeps_plan_structured_and_hides_markup() {
+        let message = laruche_essaim::Message::Assistant(
+            "<plan>[{\"task\":\"Download\",\"status\":\"done\"}]</plan>\nFile ready.<tool_call>{}</tool_call>"
+                .into(),
+        );
+        let display = session_message_for_client(&message).unwrap();
+        assert_eq!(display["text"], "File ready.");
+        assert_eq!(display["plan"][0]["task"], "Download");
+    }
+
+    #[test]
+    fn active_context_stats_progressent_pendant_les_outils() {
+        let mut stats = ActiveContextStats {
+            messages: 1,
+            base_tokens: 65,
+            running: true,
+            ..ActiveContextStats::default()
+        };
+
+        stats.apply_event(&ChatEvent::Token {
+            text: "I will fetch the page then analyze the result.".into(),
+        });
+        stats.apply_event(&ChatEvent::ToolCall {
+            name: "web_fetch".into(),
+            args: serde_json::json!({"url":"https://example.test/long-page"}),
+            iteration: Some(1),
+            agent: None,
+        });
+        stats.apply_event(&ChatEvent::ToolResult {
+            name: "web_fetch".into(),
+            result: "content ".repeat(200),
+            success: true,
+            elapsed_ms: Some(42),
+            agent: None,
+            images: Vec::new(),
+        });
+
+        assert!(stats.messages >= 4);
+        assert!(stats.used_tokens() > 65);
+        assert!(stats.running);
+    }
+
+    #[test]
+    fn la_compaction_fait_redescendre_la_jauge() {
+        let mut stats = ActiveContextStats {
+            messages: 14,
+            base_tokens: 20_000,
+            extra_tokens: 14_000,
+            running: true,
+            ..ActiveContextStats::default()
+        };
+        let avant = stats.used_tokens();
+        // The engine halves its working context: the gauge must follow it DOWN.
+        // Previously this event was ignored and the bar stayed pinned past 100%.
+        stats.apply_event(&ChatEvent::Compaction {
+            messages_before: 14,
+            messages_after: 6,
+        });
+        assert!(stats.used_tokens() < avant, "the gauge must drop after a compaction");
+        assert_eq!(stats.messages, 6);
+    }
+
+    #[test]
+    fn le_travail_des_sous_agents_ne_gonfle_pas_la_jauge() {
+        // A scout runs on an ISOLATED context: only its compact report reaches the
+        // main context. Counting its pages here pushed the bar past 100%.
+        let mut stats = ActiveContextStats {
+            messages: 1,
+            base_tokens: 1_000,
+            running: true,
+            ..ActiveContextStats::default()
+        };
+        let avant = stats.used_tokens();
+        stats.apply_event(&ChatEvent::ToolResult {
+            name: "web_deep_search".into(),
+            result: "page ".repeat(4000),
+            success: true,
+            elapsed_ms: Some(10),
+            agent: Some("Eclaireuse#1".into()),
+            images: Vec::new(),
+        });
+        assert_eq!(stats.used_tokens(), avant, "a scout's page is not the main context");
+        assert!(stats.messages > 1, "but it is still counted as activity");
+    }
 }
