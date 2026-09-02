@@ -869,6 +869,96 @@ fn mesh_headers(path: &str) -> Vec<(String, String)> {
 
 // ─── OpenAI-compatible streaming (Deepseek, Together, Groq, etc.) ────────────
 
+/// Transcript generique -> messages OpenAI, pour un modele donne.
+///
+/// Extrait de `openai_chat_stream` pour etre testable: le rejeu du
+/// `reasoning_content` y a ete casse une fois sans que rien ne le voie, et cela ne
+/// se voit qu'en construisant un transcript complet.
+fn construire_messages_openai(
+    messages: &[serde_json::Value],
+    model: &str,
+) -> Vec<serde_json::Value> {
+    messages.iter().map(|m| {
+        // Native tool transcript (OpenAI wire format). The generic layer guarantees
+        // pairing (every tool_calls entry is followed by its role:"tool" results).
+    if m["role"].as_str() == Some("tool") {
+        return serde_json::json!({
+            "role": "tool",
+            "tool_call_id": m["tool_call_id"].as_str().unwrap_or(""),
+            "content": m["content"].as_str().unwrap_or(""),
+        });
+    }
+    let attachments_val = m.get("attachments").and_then(|a| a.as_array());
+    let has_attachments = attachments_val.map(|a| !a.is_empty()).unwrap_or(false);
+    let mut sortie = if let Some(tcs) = m.get("tool_calls").and_then(|v| v.as_array()) {
+        let tool_calls: Vec<serde_json::Value> = tcs.iter().map(|t| {
+            // OpenAI wants `arguments` as a JSON *string*; the generic layer
+            // carries an object.
+            let args = t["function"]["arguments"].clone();
+            serde_json::json!({
+                "id": t["id"].as_str().unwrap_or(""),
+                "type": "function",
+                "function": {
+                    "name": t["function"]["name"].as_str().unwrap_or(""),
+                    "arguments": serde_json::to_string(&args).unwrap_or_else(|_| "{}".into()),
+                }
+            })
+        }).collect();
+        serde_json::json!({
+            "role": "assistant",
+            "content": m["content"].as_str().unwrap_or(""),
+            "tool_calls": tool_calls,
+        })
+    } else if has_attachments {
+        let mut parts = vec![serde_json::json!({"type": "text", "text": m["content"].as_str().unwrap_or("")})];
+        for att in attachments_val.unwrap() {
+            let kind = att["kind"].as_str().unwrap_or("");
+            let mime_type = att["mime_type"].as_str().unwrap_or("");
+            let data = att["data"].as_str().unwrap_or("");
+            if kind == "image" {
+                parts.push(serde_json::json!({"type": "image_url", "image_url": {
+                    "url": format!("data:{};base64,{}", mime_type, data)
+                }}));
+            } else if kind == "audio" {
+                let format = match mime_type {
+                    "audio/mpeg" | "audio/mp3" => "mp3",
+                    _ => "wav",
+                };
+                parts.push(serde_json::json!( {
+                    "type": "input_audio",
+                    "input_audio": {"data": data, "format": format}
+                }));
+            }
+        }
+        serde_json::json!({"role": m["role"], "content": parts})
+    } else {
+        serde_json::json!({
+            "role": m["role"],
+            "content": m["content"].as_str().unwrap_or(""),
+        })
+    };
+    // Le raisonnement, rendu au fournisseur qui l'a produit.
+    //
+    // DeepSeek exige de le recevoir en retour; sans lui le deuxieme tour d'une
+    // conversation en mode thinking est rejete. Mais on ne le renvoie QU'AU MEME
+    // MODELE: un autre backend compatible OpenAI recevrait un champ qu'il ne
+    // connait pas, et les plus stricts refusent la requete entiere. Anthropic,
+    // Ollama et Codex construisent leurs messages ailleurs et ne voient jamais ce
+    // champ, donc ils ne sont pas concernes.
+    //
+    // POSE ICI, apres les trois branches, et non dans une seule. Greffe sur le
+    // seul cas "ni outil ni piece jointe", le rejeu manquait precisement les tours
+    // que DeepSeek reclame: ceux qui portent un appel d'outil. Une mission longue
+    // mourait donc sur ce meme 400 des qu'un tour natif correle entrait dans la
+    // fenetre, apres avoir tourne des dizaines de messages (02/09/2026: 75
+    // messages, 76703 octets, une recherche profonde entiere perdue).
+    if let Some(r) = rejouer_raisonnement(m, model) {
+        sortie["reasoning_content"] = serde_json::json!(r);
+    }
+    sortie
+    }).collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn openai_chat_stream(
     model: &str,
@@ -910,80 +1000,7 @@ async fn openai_chat_stream(
         format!("{trimmed}/v1/chat/completions")
     };
 
-    let openai_messages: Vec<serde_json::Value> = messages.iter().map(|m| {
-        // Native tool transcript (OpenAI wire format). The generic layer guarantees
-        // pairing (every tool_calls entry is followed by its role:"tool" results).
-        if m["role"].as_str() == Some("tool") {
-            return serde_json::json!({
-                "role": "tool",
-                "tool_call_id": m["tool_call_id"].as_str().unwrap_or(""),
-                "content": m["content"].as_str().unwrap_or(""),
-            });
-        }
-        if let Some(tcs) = m.get("tool_calls").and_then(|v| v.as_array()) {
-            let tool_calls: Vec<serde_json::Value> = tcs.iter().map(|t| {
-                // OpenAI wants `arguments` as a JSON *string*; the generic layer
-                // carries an object.
-                let args = t["function"]["arguments"].clone();
-                serde_json::json!({
-                    "id": t["id"].as_str().unwrap_or(""),
-                    "type": "function",
-                    "function": {
-                        "name": t["function"]["name"].as_str().unwrap_or(""),
-                        "arguments": serde_json::to_string(&args).unwrap_or_else(|_| "{}".into()),
-                    }
-                })
-            }).collect();
-            return serde_json::json!({
-                "role": "assistant",
-                "content": m["content"].as_str().unwrap_or(""),
-                "tool_calls": tool_calls,
-            });
-        }
-        let attachments_val = m.get("attachments").and_then(|a| a.as_array());
-        let has_attachments = attachments_val.map(|a| !a.is_empty()).unwrap_or(false);
-        if has_attachments {
-            let mut parts = vec![serde_json::json!({"type": "text", "text": m["content"].as_str().unwrap_or("")})];
-            for att in attachments_val.unwrap() {
-                let kind = att["kind"].as_str().unwrap_or("");
-                let mime_type = att["mime_type"].as_str().unwrap_or("");
-                let data = att["data"].as_str().unwrap_or("");
-                if kind == "image" {
-                    parts.push(serde_json::json!({"type": "image_url", "image_url": {
-                        "url": format!("data:{};base64,{}", mime_type, data)
-                    }}));
-                } else if kind == "audio" {
-                    let format = match mime_type {
-                        "audio/mpeg" | "audio/mp3" => "mp3",
-                        _ => "wav",
-                    };
-                    parts.push(serde_json::json!( {
-                        "type": "input_audio",
-                        "input_audio": {"data": data, "format": format}
-                    }));
-                }
-            }
-            serde_json::json!({"role": m["role"], "content": parts})
-        } else {
-            let mut sortie = serde_json::json!({
-                "role": m["role"],
-                "content": m["content"].as_str().unwrap_or(""),
-            });
-            // Le raisonnement, rendu au fournisseur qui l'a produit.
-            //
-            // DeepSeek exige de le recevoir en retour; sans lui le deuxieme tour
-            // d'une conversation en mode thinking est rejete. Mais on ne le
-            // renvoie QU'AU MEME MODELE: un autre backend compatible OpenAI
-            // recevrait un champ qu'il ne connait pas, et les plus stricts
-            // refusent la requete entiere. Anthropic, Ollama et Codex
-            // construisent leurs messages ailleurs et ne voient jamais ce
-            // champ, donc ils ne sont pas concernes.
-            if let Some(r) = rejouer_raisonnement(m, model) {
-                sortie["reasoning_content"] = serde_json::json!(r);
-            }
-            sortie
-        }
-    }).collect();
+    let openai_messages = construire_messages_openai(messages, model);
 
     let mut body = serde_json::json!({
         "model": model,
@@ -1061,13 +1078,17 @@ async fn openai_chat_stream(
     let mut response = req.body(corps_brut.clone()).send().await?;
 
     // Thinking mode on some OpenAI-compatible backends (deepseek) demands that the
-    // `reasoning_content` it streamed be handed BACK on the next call. We accumulate
-    // it but never replay it, because the engine's transcript has no slot for it, so
-    // the second turn of any thinking conversation died on
-    // "The reasoning_content in the thinking mode must be passed back to the API".
-    // Rather than lose the feature everywhere it works statelessly (OpenAI o-series),
-    // drop the flag and retry once: the turn completes without thinking instead of
-    // failing. Replaying the reasoning is the real fix and needs a transcript change.
+    // `reasoning_content` it streamed be handed BACK on the next call. We DO replay it
+    // now (see the message builder above): the transcript carries it, and it goes back
+    // to the model that produced it, on every message shape.
+    //
+    // This retry stays as the last resort, for what the replay cannot cover: a turn
+    // whose reasoning was never captured (stream cut, resumed session predating the
+    // field, provider switched mid-run). Dropping the flag lets the turn complete
+    // without thinking instead of failing. Note it CANNOT save a model that thinks by
+    // default (deepseek-v4-flash): removing `reasoning_effort` does not stop it from
+    // reasoning, so the same 400 comes back and the error is reported as fatal. That
+    // is expected: at that point the transcript itself is the problem.
     if response.status().as_u16() == 400 && body.get("reasoning_effort").is_some() {
         let apercu = response.text().await.unwrap_or_default();
         if apercu.contains("reasoning_content") {
@@ -1940,6 +1961,63 @@ mod tests {
         // Message ordinaire: rien non plus, et pas de panique.
         let simple = serde_json::json!({ "role": "user", "content": "salut" });
         assert!(rejouer_raisonnement(&simple, "deepseek-v4-flash").is_none());
+    }
+
+    /// Le rejeu doit couvrir LES TROIS formes de message, pas seulement la derniere.
+    ///
+    /// Il n'etait branche que sur la branche "ni outil ni piece jointe". Un tour
+    /// portant un appel d'outil natif partait donc sans son raisonnement, et c'est
+    /// exactement celui que DeepSeek reclame: toute mission longue mourait sur
+    /// "The reasoning_content in the thinking mode must be passed back to the API"
+    /// des qu'un tel tour entrait dans la fenetre (02/09/2026, 75 messages).
+    #[test]
+    fn le_raisonnement_survit_a_un_tour_qui_appelle_un_outil() {
+        let modele = "deepseek-v4-flash";
+        let transcript = vec![
+            serde_json::json!({ "role": "user", "content": "cherche" }),
+            // 1. tour assistant AVEC appel d'outil natif
+            serde_json::json!({
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{
+                    "id": "c1",
+                    "type": "function",
+                    "function": { "name": "web_search", "arguments": {"q": "uni"} },
+                }],
+                "reasoning_content": "je vais chercher",
+                "reasoning_model": modele,
+            }),
+            serde_json::json!({ "role": "tool", "tool_call_id": "c1", "content": "resultat" }),
+            // 2. tour assistant AVEC piece jointe
+            serde_json::json!({
+                "role": "assistant",
+                "content": "voici l'ecran",
+                "attachments": [{ "kind": "image", "mime_type": "image/png", "data": "AAAA" }],
+                "reasoning_content": "je regarde l'image",
+                "reasoning_model": modele,
+            }),
+            // 3. tour assistant simple
+            serde_json::json!({
+                "role": "assistant",
+                "content": "voila",
+                "reasoning_content": "je conclus",
+                "reasoning_model": modele,
+            }),
+        ];
+
+        let rendu = construire_messages_openai(&transcript, modele);
+        assert_eq!(rendu[1]["reasoning_content"], "je vais chercher", "tour avec outil");
+        assert_eq!(rendu[3]["reasoning_content"], "je regarde l'image", "tour avec image");
+        assert_eq!(rendu[4]["reasoning_content"], "je conclus", "tour simple");
+        // La forme du message reste celle attendue par OpenAI.
+        assert_eq!(rendu[1]["tool_calls"][0]["function"]["name"], "web_search");
+        assert!(rendu[3]["content"].is_array(), "les pieces jointes restent en parts");
+        // Le message d'outil ne porte jamais de raisonnement.
+        assert!(rendu[2].get("reasoning_content").is_none());
+
+        // Et rien ne part a un AUTRE fournisseur, sur aucune des trois formes.
+        let ailleurs = construire_messages_openai(&transcript, "gpt-4o");
+        assert!(ailleurs.iter().all(|m| m.get("reasoning_content").is_none()));
     }
     use super::*;
 

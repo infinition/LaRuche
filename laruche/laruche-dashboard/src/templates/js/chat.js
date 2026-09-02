@@ -700,6 +700,10 @@ LaRuche.Chat = (function(){
         // LaReine review: animated "thinking" chip while she judges, then the verdict.
         // Appended to the ROW (not the bubble) so finalizeMessage on 'done' does not wipe it.
         if(statusMessage==='__reine_thinking__'){
+          // Le tour n'est pas fini: `done` a deja rebascule le bouton sur Envoyer, mais
+          // LaReine travaille encore et peut renvoyer bosser. Sans ca l'utilisateur
+          // regarde tourner un run qu'il n'a plus aucun moyen d'arreter.
+          reprendreLaMain();
           if(_reineThinkingEl){_reineThinkingEl.remove();}
           var rHost=reineHost();
           if(rHost){
@@ -803,6 +807,10 @@ LaRuche.Chat = (function(){
         // LaReine sends the worker back to redo the work: show a chip and tag the
         // next streamed assistant message as her rework (crowned avatar).
         if(statusMessage.indexOf('__reine_rework_start__|')===0){
+          // LaRuche repart au travail, avec ses eclaireuses: le bouton doit redevenir
+          // Stop. C'est le scenario qui laissait l'utilisateur sans reprise en main,
+          // devant une meute de sous-agents qu'il ne pouvait plus interrompre.
+          reprendreLaMain();
           var rwInstr=statusMessage.slice('__reine_rework_start__|'.length).trim();
           if(_reineThinkingEl){_reineThinkingEl.remove(); _reineThinkingEl=null;}
           var rwHost=reineHost();
@@ -1261,6 +1269,21 @@ LaRuche.Chat = (function(){
       var av = rows[j].querySelector('.avatar.assistant-avatar');
       if (av) av.style.visibility = (j === lastLaruche || j === lastReine) ? 'visible' : 'hidden';
     }
+  }
+
+  // Le tour reprend apres un `done`: rendre a l'utilisateur son bouton Stop.
+  //
+  // `done` marque la fin du BROUILLON, pas la fin du tour: LaReine juge ensuite, et
+  // elle peut renvoyer LaRuche au travail, qui relance des eclaireuses. Pendant tout
+  // ce temps le bouton etait revenu sur Envoyer et `stopRun` sortait aussitot sur
+  // `if(!isStreaming) return`, donc plus rien n'etait arretable. Les deux etats vont
+  // ensemble: le drapeau autorise l'arret, le bouton le rend atteignable.
+  function reprendreLaMain(){
+    if(isStreaming) return;
+    isStreaming = true;
+    setRunning(true);
+    var inp = document.getElementById('userInput');
+    if(inp) inp.placeholder = LaRuche.i18n.t('chat.steeringPlaceholder');
   }
 
   // Toggle Send <-> Stop based on run state (assistant-style UX: during generation,

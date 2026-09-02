@@ -748,11 +748,18 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
     // `research_mode`: the model SELF-DECLARES a long-running research once it has read
     // the mission (more reliable than keyword gates on the user prompt). Intercepted -
     // never executed as a tool. One-way escalation; declaring it is a productive act.
+    // Declaring is productive whether or not the mode actually FLIPS: gating this on the
+    // Standard -> Exploration transition made every call after the first one look like a
+    // malformed tool call (`appels` emptied, stop=Outils), so the model was told to
+    // re-emit and looped on `research_mode` until the relance budget ran out - without
+    // ever starting the research. Drained in a loop: two calls in one turn must not leak
+    // one to the executor.
     let mut mode_declare = false;
-    if let Some(pos) = appels.iter().position(|a| a.nom == "research_mode") {
+    while let Some(pos) = appels.iter().position(|a| a.nom == "research_mode") {
         let a = appels.remove(pos);
         let mode = a.args.get("mode").and_then(|v| v.as_str()).unwrap_or("deep");
-        mode_declare = escalader_mode(carnet, mode);
+        escalader_mode(carnet, mode);
+        mode_declare = true;
     }
 
     // `finding`: records a decisive fact (with source) into the mission LEDGER -
@@ -1434,6 +1441,49 @@ It is Sunday.".into()),
         } else {
             panic!("expected TexteSeul");
         }
+    }
+
+    /// `research_mode` re-declared once the mode is ALREADY Exploration must stay a
+    /// productive act. Gating it on the mode flip turned the second call into a
+    /// "malformed tool call" (the call is intercepted, so `appels` is empty while the
+    /// provider reported stop=Outils), the engine answered REFORMER_OUTIL, and the model
+    /// re-emitted the same call until the relance budget was exhausted. Observed on
+    /// 02/09/2026: a deep-research mission that never ran a single search.
+    #[test]
+    fn research_mode_redeclare_reste_productif() {
+        let mut carnet = Carnet::ouvrir("cherche tout sur X", ModeMission::Exploration, t0());
+        let rep = ReponseModele {
+            texte: "let me declare deep research".into(),
+            stop: StopReason::Outils,
+            appels: vec![Appel::nouveau("research_mode", json!({"mode": "deep"}))],
+            usage: None, ..Default::default()
+        };
+        assert!(
+            matches!(analyser(&rep, &mut carnet, ProfilModele::NatifOutils), Issue::PlanEnregistre),
+            "re-declaring must not be reported as a malformed call"
+        );
+        assert_eq!(carnet.mode, ModeMission::Exploration);
+    }
+
+    /// Two `research_mode` calls in the same turn: both intercepted, none leaks to the
+    /// executor (`if let` only removed the first one).
+    #[test]
+    fn research_mode_en_double_est_entierement_intercepte() {
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        let rep = ReponseModele {
+            texte: String::new(),
+            stop: StopReason::Outils,
+            appels: vec![
+                Appel::nouveau("research_mode", json!({"mode": "deep"})),
+                Appel::nouveau("research_mode", json!({"mode": "deep"})),
+            ],
+            usage: None, ..Default::default()
+        };
+        assert!(
+            matches!(analyser(&rep, &mut carnet, ProfilModele::NatifOutils), Issue::PlanEnregistre),
+            "no research_mode may reach the tool executor"
+        );
+        assert_eq!(carnet.mode, ModeMission::Exploration);
     }
 
     #[test]
