@@ -9,6 +9,16 @@ const DB_NAME = 'laruche-video-library';
 const DB_VERSION = 1;
 const STORE_HANDLES = 'handles';
 const HANDLE_LIBRARY = 'showcases-directory';
+// Hauteur reservee a la barre de controle native sous la video.
+const HAUTEUR_CONTROLES = 48;
+// Deplacement minimal avant qu'une pression devienne un glissement.
+const SEUIL_GLISSEMENT = 4;
+const CHAMPS_RECADRAGE = [
+  ['x', 'recadrageX', 'curseurRecadrageX'],
+  ['y', 'recadrageY', 'curseurRecadrageY'],
+  ['w', 'recadrageLargeur', 'curseurRecadrageLargeur'],
+  ['h', 'recadrageHauteur', 'curseurRecadrageHauteur'],
+];
 
 let langue = 'en';
 let messages = {};
@@ -537,14 +547,21 @@ function actualiserEdition() {
   const yPixels = Math.round(crop.y * dimensions.hauteur);
   const largeurPixels = Math.round(crop.w * dimensions.largeur);
   const hauteurPixels = Math.round(crop.h * dimensions.hauteur);
-  $('recadrageX').max = String(Math.max(0, dimensions.largeur - largeurPixels));
-  $('recadrageY').max = String(Math.max(0, dimensions.hauteur - hauteurPixels));
-  $('recadrageLargeur').max = String(Math.max(2, dimensions.largeur - xPixels));
-  $('recadrageHauteur').max = String(Math.max(2, dimensions.hauteur - yPixels));
-  $('recadrageX').value = String(xPixels);
-  $('recadrageY').value = String(yPixels);
-  $('recadrageLargeur').value = String(largeurPixels);
-  $('recadrageHauteur').value = String(hauteurPixels);
+  const bornes = {
+    x: [0, Math.max(0, dimensions.largeur - largeurPixels), xPixels],
+    y: [0, Math.max(0, dimensions.hauteur - hauteurPixels), yPixels],
+    w: [2, Math.max(2, dimensions.largeur - xPixels), largeurPixels],
+    h: [2, Math.max(2, dimensions.hauteur - yPixels), hauteurPixels],
+  };
+  for (const [type, idChamp, idCurseur] of CHAMPS_RECADRAGE) {
+    const [minimum, maximum, valeur] = bornes[type];
+    for (const id of [idChamp, idCurseur]) {
+      $(id).min = String(minimum);
+      $(id).max = String(maximum);
+      if (document.activeElement !== $(id)) $(id).value = String(valeur);
+    }
+  }
+  ajusterSurfaceDeplacement(crop);
   $('valeursRecadrage').textContent = t('crop_values', [
     Math.round(crop.x * 100),
     Math.round(crop.y * 100),
@@ -668,6 +685,20 @@ function commencerGlissementTimeline(type, evenement) {
 
 /* -------------------------------------------------------------- recadrage */
 
+// Le bord bas de la surface recule juste ce qu'il faut pour degager la barre
+// de controle native quand le cadre descend jusqu'en bas de la video.
+function ajusterSurfaceDeplacement(crop) {
+  const surface = $('surfaceDeplacement');
+  if (!surface) return;
+  const hauteur = $('calqueRecadrage').clientHeight;
+  if (etat.recadrageActif || etat.recadrageEnCours || !hauteur) {
+    surface.style.bottom = '0px';
+    return;
+  }
+  const empietement = Math.max(0, HAUTEUR_CONTROLES - hauteur * (1 - crop.y - crop.h));
+  surface.style.bottom = `${Math.min(empietement, (crop.h * hauteur) / 2)}px`;
+}
+
 function basculerControlesVideo(visibles) {
   const lecteur = $('video');
   if (visibles) lecteur.setAttribute('controls', '');
@@ -677,16 +708,11 @@ function basculerControlesVideo(visibles) {
 function commencerRecadrage(evenement) {
   if (!etat.selection || etat.export) return;
   const poignee = evenement.target.dataset.poignee || '';
-  // Les poignees restent saisissables hors mode recadrage, le glissement du
-  // cadre entier reste reserve au mode actif pour laisser passer les
-  // controles natifs de la video.
-  if (!poignee && !etat.recadrageActif) return;
-  evenement.preventDefault();
-  evenement.stopPropagation();
   const mode = poignee || 'move';
-  // Un glissement de poignee n'entre pas en mode recadrage: les controles
-  // natifs reviennent des le relachement.
-  etat.recadrageEnCours = true;
+  evenement.stopPropagation();
+  // Le recadrage ne bascule pas en mode edition: les controles natifs sont
+  // masques le temps du glissement puis restaures au relachement.
+  let glisse = false;
   if (typeof evenement.target.setPointerCapture === 'function') {
     try { evenement.target.setPointerCapture(evenement.pointerId); } catch {}
   }
@@ -699,6 +725,15 @@ function commencerRecadrage(evenement) {
   const minimumHauteur = Math.min(1, 2 / dimensions.hauteur);
 
   const mouvement = (event) => {
+    if (!glisse) {
+      // Sous le seuil la pression reste un simple clic: ni deplacement du
+      // cadre, ni disparition des controles.
+      if (Math.abs(event.clientX - departX) < SEUIL_GLISSEMENT
+        && Math.abs(event.clientY - departY) < SEUIL_GLISSEMENT) return;
+      glisse = true;
+      etat.recadrageEnCours = true;
+    }
+    event.preventDefault();
     const dx = (event.clientX - departX) / Math.max(1, calque.clientWidth);
     const dy = (event.clientY - departY) / Math.max(1, calque.clientHeight);
     let { x, y, w, h } = origine;
@@ -726,23 +761,23 @@ function commencerRecadrage(evenement) {
     window.removeEventListener('pointermove', mouvement);
     window.removeEventListener('pointerup', fin);
     window.removeEventListener('pointercancel', fin);
+    // Un clic sans glissement garde le comportement du lecteur.
+    if (!glisse && mode === 'move' && !etat.recadrageActif) basculerLecture();
     etat.recadrageEnCours = false;
     actualiserEdition();
   };
   window.addEventListener('pointermove', mouvement);
   window.addEventListener('pointerup', fin, { once: true });
   window.addEventListener('pointercancel', fin, { once: true });
-  actualiserEdition();
 }
 
-function appliquerChampRecadrage(type) {
-  const ids = {
-    x: 'recadrageX',
-    y: 'recadrageY',
-    w: 'recadrageLargeur',
-    h: 'recadrageHauteur',
-  };
-  const valeur = Number.parseFloat($(ids[type]).value);
+function basculerLecture() {
+  const lecteur = $('video');
+  if (lecteur.paused) lecteur.play().catch(() => {});
+  else lecteur.pause();
+}
+
+function appliquerValeurRecadrage(type, valeur) {
   if (!Number.isFinite(valeur)) return;
   const dimensions = dimensionsSource();
   const diviseur = type === 'x' || type === 'w' ? dimensions.largeur : dimensions.hauteur;
@@ -1082,13 +1117,10 @@ $('reinitialiserRecadrage').addEventListener('click', () => {
   etat.recadrage = { x: 0, y: 0, w: 1, h: 1 };
   actualiserEdition();
 });
-for (const [id, type] of [
-  ['recadrageX', 'x'],
-  ['recadrageY', 'y'],
-  ['recadrageLargeur', 'w'],
-  ['recadrageHauteur', 'h'],
-]) {
-  $(id).addEventListener('input', () => appliquerChampRecadrage(type));
+for (const [type, idChamp, idCurseur] of CHAMPS_RECADRAGE) {
+  for (const id of [idChamp, idCurseur]) {
+    $(id).addEventListener('input', () => appliquerValeurRecadrage(type, Number.parseFloat($(id).value)));
+  }
 }
 
 $('renommer').addEventListener('click', renommerSelection);

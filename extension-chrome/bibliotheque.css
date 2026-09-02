@@ -414,6 +414,9 @@ button { color: inherit; }
 
 .calque-recadrage.actif { pointer-events: auto; }
 
+.calque-recadrage,
+.cadre-recadrage { user-select: none; }
+
 .cadre-recadrage {
   position: absolute;
   left: 0;
@@ -422,12 +425,22 @@ button { color: inherit; }
   height: 100%;
   border: 2px solid var(--miel);
   outline: 9999px solid rgba(0, 0, 0, 0.44);
+  pointer-events: none;
+  touch-action: none;
+}
+
+/* Surface de saisie du cadre. Son bord bas recule quand le cadre empiete sur
+   la barre de controle native, qui reste ainsi cliquable. */
+.surface-deplacement {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
   cursor: move;
   pointer-events: auto;
   touch-action: none;
 }
-
-.calque-recadrage:not(.actif) .cadre-recadrage { pointer-events: none; }
 
 .poignee {
   position: absolute;
@@ -622,13 +635,41 @@ button { color: inherit; }
 .champs-recadrage {
   margin-top: 8px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
 }
 
 .champs-recadrage input {
   min-width: 0;
   font-variant-numeric: tabular-nums;
+}
+
+.champ-recadrage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 78px);
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.champ-recadrage > span { grid-column: 1; }
+.champ-recadrage > input[type="number"] { grid-column: 2; }
+
+.curseur-recadrage {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  accent-color: var(--miel);
+  cursor: pointer;
+  touch-action: none;
+}
+
+@media (max-width: 1180px) {
+  .champs-recadrage { grid-template-columns: minmax(0, 1fr); }
 }
 
 .carte-reglage .bouton { margin-top: 9px; }

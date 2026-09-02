@@ -77,6 +77,7 @@
               <video id="video" controls playsinline preload="metadata"></video>
               <div class="calque-recadrage" id="calqueRecadrage">
                 <div class="cadre-recadrage" id="cadreRecadrage" tabindex="0" data-i18n-aria-label="crop_area">
+                  <span class="surface-deplacement" id="surfaceDeplacement"></span>
                   <span class="poignee nw" data-poignee="nw"></span>
                   <span class="poignee ne" data-poignee="ne"></span>
                   <span class="poignee sw" data-poignee="sw"></span>
@@ -136,21 +137,25 @@
                 </div>
               </div>
               <div class="champs-recadrage">
-                <label>
+                <label class="champ-recadrage">
                   <span data-i18n="crop_x"></span>
                   <input id="recadrageX" type="number" min="0" step="1" inputmode="numeric" />
+                  <input id="curseurRecadrageX" class="curseur-recadrage" type="range" min="0" step="1" data-i18n-aria-label="crop_x" />
                 </label>
-                <label>
+                <label class="champ-recadrage">
                   <span data-i18n="crop_y"></span>
                   <input id="recadrageY" type="number" min="0" step="1" inputmode="numeric" />
+                  <input id="curseurRecadrageY" class="curseur-recadrage" type="range" min="0" step="1" data-i18n-aria-label="crop_y" />
                 </label>
-                <label>
+                <label class="champ-recadrage">
                   <span data-i18n="crop_width"></span>
                   <input id="recadrageLargeur" type="number" min="2" step="1" inputmode="numeric" />
+                  <input id="curseurRecadrageLargeur" class="curseur-recadrage" type="range" min="2" step="1" data-i18n-aria-label="crop_width" />
                 </label>
-                <label>
+                <label class="champ-recadrage">
                   <span data-i18n="crop_height"></span>
                   <input id="recadrageHauteur" type="number" min="2" step="1" inputmode="numeric" />
+                  <input id="curseurRecadrageHauteur" class="curseur-recadrage" type="range" min="2" step="1" data-i18n-aria-label="crop_height" />
                 </label>
               </div>
               <p class="valeurs-recadrage" id="valeursRecadrage"></p>
