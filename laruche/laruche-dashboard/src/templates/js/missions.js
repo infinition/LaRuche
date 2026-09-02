@@ -210,7 +210,7 @@ LaRuche.Missions = (function(){
           '<span><button class="mem2-tbtn" id="misEditBtn">'+LaRuche.i18n.t('missions.btnEdit')+'</button> '+
           '<button class="mem2-tbtn" id="misExportBtn">'+LaRuche.i18n.t('missions.btnExport')+'</button></span>'+
         '</div>'+
-        '<div id="misEditBox" style="display:none;border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:14px;background:rgba(245,158,11,.06)">'+
+        '<div id="misEditBox" style="display:none;border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:14px;background:rgba(var(--amber-rgb),.06)">'+
           '<div style="font-weight:600;color:var(--amber);margin-bottom:8px">'+LaRuche.i18n.t('missions.editTitle')+'</div>'+
           '<label class="form-label" style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('missions.labelObjective')+'</label>'+
           '<textarea class="form-input" id="misEditObj" rows="3" style="width:100%;margin-bottom:10px">'+esc(curObjective)+'</textarea>'+

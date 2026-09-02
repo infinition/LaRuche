@@ -410,21 +410,21 @@ LaRuche.Timeline = (function(){
       '.gantt-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}'+
       '.gantt-scroll{overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);-webkit-overflow-scrolling:touch}'+
       '.gantt-grid{position:relative}'+
-      '.gantt-row{display:flex;align-items:stretch;border-bottom:1px solid rgba(42,42,46,.5);min-height:42px}'+
-      '.gantt-row.sect{background:rgba(245,158,11,.06)}'+
+      '.gantt-row{display:flex;align-items:stretch;border-bottom:1px solid rgba(var(--border-rgb),.5);min-height:42px}'+
+      '.gantt-row.sect{background:rgba(var(--amber-rgb),.06)}'+
       '.gantt-gutter{position:sticky;left:0;z-index:3;flex:0 0 auto;width:170px;background:var(--bg-panel);border-right:1px solid var(--border);padding:6px 8px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}'+
       '.gantt-gutter .gn{font-size:11px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
       '.gantt-gutter .gs{font-size:9px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
       '.gantt-lane{position:relative;flex:1 1 auto}'+
       '.gantt-head{position:sticky;top:0;z-index:2;background:var(--bg-panel);border-bottom:1px solid var(--border)}'+
-      '.gantt-tick{position:absolute;top:0;bottom:0;border-left:1px solid rgba(42,42,46,.55)}'+
+      '.gantt-tick{position:absolute;top:0;bottom:0;border-left:1px solid rgba(var(--border-rgb),.55)}'+
       '.gantt-tick span{position:absolute;top:2px;left:3px;font-size:9px;color:var(--text-dim);white-space:nowrap}'+
       '.gantt-now{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:4;pointer-events:none}'+
       '.gantt-now:before{content:"now";position:absolute;top:0;left:3px;font-size:8px;color:var(--red);font-weight:700}'+
       '.gantt-mark{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);cursor:pointer;border:1px solid rgba(0,0,0,.4);transition:transform .1s}'+
       '.gantt-mark:hover{transform:translate(-50%,-50%) scale(1.5);z-index:5}'+
       '.gantt-mark.past{opacity:.4}'+
-      '.gantt-detail{margin-top:10px;border:1px solid var(--amber);border-radius:8px;padding:10px;background:rgba(245,158,11,.07);font-size:12px}'+
+      '.gantt-detail{margin-top:10px;border:1px solid var(--amber);border-radius:8px;padding:10px;background:rgba(var(--amber-rgb),.07);font-size:12px}'+
       '.gantt-detail .gd-t{font-weight:600;color:var(--amber);margin-bottom:4px}'+
       '@media(max-width:640px){.gantt-gutter{width:110px}}';
     document.head.appendChild(s);
@@ -557,7 +557,7 @@ LaRuche.Timeline = (function(){
       var wnames = (data.watchers||[]).map(function(w){ return w.name||LaRuche.i18n.t('automations.watcherFallback'); }).join(', ');
       rows += '<div class="gantt-row sect"><div class="gantt-gutter"><div class="gn">👁 '+LaRuche.i18n.t('automations.surveillanceCont')+'</div><div class="gs">'+(data.watchers||[]).length+LaRuche.i18n.t('automations.monitorsSuffix')+'</div></div>'+
         '<div class="gantt-lane" style="width:'+graphW+'px;display:flex;align-items:center"><div style="position:relative;width:100%">'+ticks+nowLine+
-          '<div style="position:absolute;top:50%;left:0;right:8px;height:4px;transform:translateY(-50%);background:linear-gradient(90deg,rgba(6,182,212,.15),rgba(6,182,212,.5));border-radius:3px"></div>'+
+          '<div style="position:absolute;top:50%;left:0;right:8px;height:4px;transform:translateY(-50%);background:linear-gradient(90deg,rgba(var(--cyan-rgb),.15),rgba(var(--cyan-rgb),.5));border-radius:3px"></div>'+
           '<div style="position:absolute;top:50%;left:8px;transform:translateY(-50%);font-size:10px;color:var(--cyan);white-space:nowrap;text-shadow:0 0 4px #000">'+LaRuche.Utils.esc(wnames.substring(0,80))+'</div>'+
         '</div></div></div>';
     }

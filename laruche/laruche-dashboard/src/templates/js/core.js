@@ -242,7 +242,7 @@ LaRuche.PluginFiles = (function(){
         return '<div class="pf-file" data-path="'+esc(f.path)+'" style="padding:4px 6px;padding-left:'+indent+'px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:5px"><span>📄</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.path.split('/').pop())+'</span>'+kb+'</div>';
       }).join('');
       Array.prototype.forEach.call(t.querySelectorAll('.pf-file'), function(el){
-        el.onclick=function(){ openFile(el.dataset.path); Array.prototype.forEach.call(t.querySelectorAll('.pf-file'),function(x){x.style.background='';}); el.style.background='rgba(245,158,11,.15)'; };
+        el.onclick=function(){ openFile(el.dataset.path); Array.prototype.forEach.call(t.querySelectorAll('.pf-file'),function(x){x.style.background='';}); el.style.background='rgba(var(--amber-rgb),.15)'; };
       });
     });
   }
@@ -301,7 +301,7 @@ LaRuche.Secrets = (function(){
   function ensureBox(){ if(box)return box; box=document.createElement('div'); box.id='secretAC'; box.style.cssText='position:fixed;z-index:100001;display:none;background:#16161a;border:1px solid var(--amber);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.55);max-height:220px;overflow:auto;min-width:170px;font-size:12px'; document.body.appendChild(box); return box; }
   function hide(){ if(box) box.style.display='none'; targetEl=null; sel=-1; }
   function currentToken(el){ var pos=el.selectionStart; if(pos==null)return null; var m=el.value.slice(0,pos).match(/@@([A-Za-z0-9_\-]*)$/); return m?{start:pos-m[0].length, partial:m[1]}:null; }
-  function paint(){ if(!box)return; Array.prototype.forEach.call(box.querySelectorAll('.sac-item'), function(it,i){ it.style.background=(i===sel)?'rgba(245,158,11,.2)':''; }); }
+  function paint(){ if(!box)return; Array.prototype.forEach.call(box.querySelectorAll('.sac-item'), function(it,i){ it.style.background=(i===sel)?'rgba(var(--amber-rgb),.2)':''; }); }
   function render(el, tok){
     var f=tok.partial.toLowerCase();
     items = names.filter(function(n){ return n.toLowerCase().indexOf(f)>=0; });
@@ -309,7 +309,7 @@ LaRuche.Secrets = (function(){
     sel=0; targetEl=el; tokenStart=tok.start;
     var b=ensureBox();
     b.innerHTML = '<div style="padding:3px 10px;color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">'+LaRuche.i18n.t('core.secretsHeader')+'</div>'+
-      items.map(function(n,i){ return '<div class="sac-item" data-i="'+i+'" style="padding:6px 10px;cursor:pointer;color:var(--amber);'+(i===0?'background:rgba(245,158,11,.2)':'')+'">@@'+LaRuche.Utils.esc(n)+'</div>'; }).join('');
+      items.map(function(n,i){ return '<div class="sac-item" data-i="'+i+'" style="padding:6px 10px;cursor:pointer;color:var(--amber);'+(i===0?'background:rgba(var(--amber-rgb),.2)':'')+'">@@'+LaRuche.Utils.esc(n)+'</div>'; }).join('');
     // Placed against the REAL size of the panel, measured after it is filled, and clamped
     // on both axes. It used to clamp only horizontally, against a width guessed at 200px,
     // and never vertically: opened from a field near the bottom of the window, it hung

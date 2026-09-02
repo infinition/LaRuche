@@ -1350,10 +1350,10 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.tier3Warn')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.tier3')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier3" '+(reineCfg.tier_supervision?'checked':'')+'><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.queueGateHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.queueGate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineQueue" '+(reineCfg.queue_gate?'checked':'')+'><span class="lr-slider"></span></label></div>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveReineCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button>'+
-      '<div style="margin-top:10px;border-top:1px solid rgba(245,158,11,.2);padding-top:8px">'+
+      '<div style="margin-top:10px;border-top:1px solid rgba(var(--amber-rgb),.2);padding-top:8px">'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.queueTitle')+'</span><span style="font-size:10px;color:var(--text-dim);text-align:right">'+LaRuche.i18n.t('reine.queueInMemory')+'</span></div>'+
       '</div>'+
-      '<div id="reineScorecards" style="margin-top:10px;border-top:1px solid rgba(245,158,11,.2);padding-top:8px"></div>'+
+      '<div id="reineScorecards" style="margin-top:10px;border-top:1px solid rgba(var(--amber-rgb),.2);padding-top:8px"></div>'+
       '</div>'+
       '</div>';
     renderReineScorecards();
@@ -1741,7 +1741,7 @@ LaRuche.Settings = (function(){
     
     var html = '<div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:20px;">';
     html += '<button onclick="LaRuche.Settings.toggleAllTools(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--green)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(16,185,129,0.15)\';this.style.color=\'var(--green)\'">'+LaRuche.i18n.t('settings.enableAll')+'</button>';
-    html += '<button onclick="LaRuche.Settings.toggleAllTools(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--red)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(239,68,68,0.15)\';this.style.color=\'var(--red)\'">'+LaRuche.i18n.t('settings.disableAll')+'</button>';
+    html += '<button onclick="LaRuche.Settings.toggleAllTools(false)" style="background:rgba(var(--red-rgb),0.15);color:var(--red);border:1px solid var(--red);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--red)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(var(--red-rgb),0.15)\';this.style.color=\'var(--red)\'">'+LaRuche.i18n.t('settings.disableAll')+'</button>';
     html += '</div>';
 
     html += '<div class="settings-grid">'+tools.map(function(t, idx){
@@ -1751,7 +1751,7 @@ LaRuche.Settings = (function(){
       return '<div class="settings-card" style="cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; position:relative;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify(window._allTools['+idx+'], null, 2))">'+
         '<div class="settings-card-title" style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
           '<span style="color:var(--cyan);font-weight:600;">'+LaRuche.Utils.esc(t.name)+originBadge+'</span>'+
-          '<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:6px;color:'+(enabled?'var(--green)':'var(--red)')+';font-size:10px;text-transform:none;letter-spacing:0;background:'+(enabled?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)')+';padding:3px 8px;border-radius:12px;font-weight:bold;">'+
+          '<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:6px;color:'+(enabled?'var(--green)':'var(--red)')+';font-size:10px;text-transform:none;letter-spacing:0;background:'+(enabled?'rgba(16,185,129,0.1)':'rgba(var(--red-rgb),0.1)')+';padding:3px 8px;border-radius:12px;font-weight:bold;">'+
             '<input type="checkbox" '+(enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(t.name)+'\',this.checked)"> '+(enabled?LaRuche.i18n.t('settings.toolOn'):LaRuche.i18n.t('settings.toolOff'))+
           '</label>'+
         '</div>'+
@@ -2697,7 +2697,7 @@ LaRuche.Settings = (function(){
       '<div style="display:flex;gap:8px"><input id="meshCodeInput" type="password" placeholder="'+(codeSet?LaRuche.i18n.t('settings.meshCodePlaceholderSet'):LaRuche.i18n.t('settings.meshCodePlaceholderNew'))+'" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px"><button class="send-btn" id="meshCodeSave"><span>'+LaRuche.i18n.t('settings.meshSave')+'</span></button></div></div>';
     var d={nodes:[]};try{d=await fetch('/swarm').then(function(r){return r.json();});}catch(e){}
     var nodesHtml=(d.nodes||[]).map(function(n){
-      var caps=(n.capabilities||[]).map(function(c){return '<span style="background:rgba(6,182,212,.15);color:var(--cyan);padding:1px 6px;border-radius:8px;font-size:10px">'+LaRuche.Utils.esc(c)+'</span>';}).join(' ');
+      var caps=(n.capabilities||[]).map(function(c){return '<span style="background:rgba(var(--cyan-rgb),.15);color:var(--cyan);padding:1px 6px;border-radius:8px;font-size:10px">'+LaRuche.Utils.esc(c)+'</span>';}).join(' ');
       return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(n.name||'?')+'</div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.hostLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(n.host||'')+':'+LaRuche.Utils.esc(n.port||'?')+'</span></div><div style="margin-top:4px">'+caps+'</div></div>';
     }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.noNodes')+'</div>';
     el.innerHTML=qrCard+codeCard+nodesHtml;
@@ -3245,7 +3245,7 @@ LaRuche.Settings = (function(){
         // Read-only: a remote server is named by its endpoint, a local one by its command.
         var detail = s.url ? s.url : ((s.command||'')+' '+(s.args?s.args.join(' '):'')).trim();
         var actif = (s.enabled !== false);
-        html += '<div class="settings-row" style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(42,42,46,0.3)">'+
+        html += '<div class="settings-row" style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(var(--border-rgb),0.3)">'+
           '<span class="settings-label" style="flex:1">'+LaRuche.Utils.esc(k)+
           ' <span style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t(s.url?'settings.mcpRemote':'settings.mcpLocal')+' - '+LaRuche.Utils.esc(detail)+'</span></span>'+
           '<span style="font-size:10px;color:'+(actif?'var(--green)':'var(--text-dim)')+'">'+LaRuche.i18n.t(actif?'settings.mcpOn':'settings.mcpOff')+'</span></div>';
@@ -4036,7 +4036,7 @@ LaRuche.Settings = (function(){
     var f=(document.getElementById('skToolsSearch')||{}).value||''; f=f.toLowerCase();
     function row(it){
       var on=!!checked[it.name];
-      return '<label title="'+LaRuche.Utils.esc(it.desc||'')+'" style="display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:5px;cursor:pointer;'+(on?'background:rgba(245,158,11,.13)':'')+'" onmouseover="this.style.background=\''+(on?'rgba(245,158,11,.2)':'rgba(255,255,255,.05)')+'\'" onmouseout="this.style.background=\''+(on?'rgba(245,158,11,.13)':'transparent')+'\'">'+
+      return '<label title="'+LaRuche.Utils.esc(it.desc||'')+'" style="display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:5px;cursor:pointer;'+(on?'background:rgba(var(--amber-rgb),.13)':'')+'" onmouseover="this.style.background=\''+(on?'rgba(var(--amber-rgb),.2)':'rgba(255,255,255,.05)')+'\'" onmouseout="this.style.background=\''+(on?'rgba(var(--amber-rgb),.13)':'transparent')+'\'">'+
         '<input type="checkbox" value="'+LaRuche.Utils.esc(it.name)+'" '+(on?'checked':'')+' onchange="LaRuche.Settings.toggleSkillTool(this.value,this.checked)" style="accent-color:var(--amber)">'+
         '<span style="font-size:12px;'+(on?'color:var(--amber)':'')+'">'+LaRuche.Utils.esc(it.name)+'</span>'+
         (it.desc?'<span style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+LaRuche.Utils.esc(it.desc)+'</span>':'')+
@@ -5160,10 +5160,10 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
       html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">'+LaRuche.i18n.t('settings.kbColSource')+'</th>';
       html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">'+LaRuche.i18n.t('settings.kbColActions')+'</th></tr>';
       data.entries.forEach(function(e) {
-        html += '<tr><td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);font-family:var(--mono);font-size:10px;color:var(--text-muted)">'+LaRuche.Utils.esc(e.id)+'</td>';
-        html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3)">'+LaRuche.Utils.esc((e.text||'').substring(0,100))+'</td>';
-        html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);color:var(--text-dim)">'+LaRuche.Utils.esc(e.source||'-')+'</td>';
-        html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);text-align:center">' +
+        html += '<tr><td style="padding:6px;border-bottom:1px solid rgba(var(--border-rgb),.3);font-family:var(--mono);font-size:10px;color:var(--text-muted)">'+LaRuche.Utils.esc(e.id)+'</td>';
+        html += '<td style="padding:6px;border-bottom:1px solid rgba(var(--border-rgb),.3)">'+LaRuche.Utils.esc((e.text||'').substring(0,100))+'</td>';
+        html += '<td style="padding:6px;border-bottom:1px solid rgba(var(--border-rgb),.3);color:var(--text-dim)">'+LaRuche.Utils.esc(e.source||'-')+'</td>';
+        html += '<td style="padding:6px;border-bottom:1px solid rgba(var(--border-rgb),.3);text-align:center">' +
           '<button onclick="LaRuche.Settings.editKnowledge(\''+e.id+'\',this)" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-right:4px">'+LaRuche.i18n.t('settings.kbEditBtn')+'</button>' +
           '<button onclick="LaRuche.Settings.deleteKnowledge(\''+e.id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.kbDelBtn')+'</button></td></tr>';
       });
