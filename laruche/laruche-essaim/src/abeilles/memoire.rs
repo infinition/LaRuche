@@ -142,8 +142,26 @@ impl Abeille for MemoireWrite {
             item = item.with_source(src);
         }
 
+        // Une seule file, celle de LaReine.
+        //
+        // `propose_write` deposait l'item en `status='proposed'` sans que rien ne
+        // puisse plus l'en sortir: il n'existe aucune route d'approbation cote
+        // memoire. Les items s'y accumulaient, comptes par le bandeau ("9 en
+        // attente") mais absents du panneau, qui lit la file de LaReine.
+        //
+        // `proposer_memoire` fait les deux cas: file quand la validation est active,
+        // ecriture directe sinon. La decision de proposer ou d'ecrire lui revient
+        // donc entierement, et il n'y a plus deux endroits ou elle se prend.
         let res = if self.propose {
-            self.mem.propose_write(item).await
+            crate::reine_queue::proposer_memoire(
+                &self.mem,
+                item,
+                true,
+                "hybride",
+                "memory_write",
+            )
+            .await;
+            Ok(serde_json::json!({ "status": "proposed" }))
         } else {
             self.mem.write(item).await
         };

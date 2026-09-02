@@ -79,7 +79,11 @@ async fn reconcilier_skills_orphelines(
         .list_proposed(Some(200))
         .await
         .ok()
-        .and_then(|v| v.as_array().cloned())
+        // ATTENTION: list_proposed rend un OBJET {count, items}, pas un tableau. Un
+        // `as_array()` dessus echoue toujours, la garde etait donc toujours vide et
+        // le balayage supprimait exactement ce qu'elle devait epargner. Le
+        // commentaire ci-dessus decrivait une protection qui n'a jamais fonctionne.
+        .and_then(|v| v.get("items").and_then(|i| i.as_array()).cloned())
         .map(|items| {
             items
                 .iter()
@@ -127,6 +131,66 @@ async fn reconcilier_skills_orphelines(
     }
     if supprimes > 0 {
         tracing::info!(count = supprimes, "empty skill nodes swept from the catalog");
+    }
+}
+
+/// Rattrape les propositions memoire restees en rade, une fois pour toutes.
+///
+/// `propose_write` posait un item en `status='proposed'` et s'arretait la: aucune
+/// route ne sait approuver un item memoire, `/api/memory/proposed` est en lecture
+/// seule. Ils s'accumulaient donc, comptes par le bandeau ("9 en attente") mais
+/// absents du panneau, qui lit la file de LaReine. Un skill ainsi propose avait de
+/// surcroit l'air vide, une lecture de noeud ne rendant que les items actifs.
+///
+/// Les ecrivains sont corriges, mais ceux qui sont deja poses ne se deplaceront pas
+/// tout seuls. On les verse dans la file de LaReine, puis on retire la ligne
+/// d'origine: sans cela, approuver ecrirait une copie active a cote de la
+/// proposition, qui continuerait de compter dans le bandeau.
+async fn rattraper_propositions_orphelines(memoire: &Arc<dyn laruche_memoire::MemoireCognitive>) {
+    let Ok(v) = memoire.list_proposed(Some(200)).await else {
+        return;
+    };
+    let items: Vec<serde_json::Value> = v
+        .get("items")
+        .and_then(|i| i.as_array())
+        .cloned()
+        .unwrap_or_default();
+    if items.is_empty() {
+        return;
+    }
+    let mut verses = 0usize;
+    for it in &items {
+        let (Some(id), Some(node), Some(contenu)) = (
+            it.get("id").and_then(|x| x.as_str()),
+            it.get("node_id").and_then(|x| x.as_str()),
+            it.get("content").and_then(|x| x.as_str()),
+        ) else {
+            continue;
+        };
+        let source = it.get("source").and_then(|x| x.as_str()).unwrap_or("rattrapage");
+        // Un skill garde son chemin d'application a lui: approuver un `SkillNouveau`
+        // ecrit le noeud ET le fichier SKILL.md, ce qu'un simple ajout memoire ne
+        // ferait pas, et le skill resterait invisible sur le disque.
+        if node.starts_with("capacities.skills.") {
+            laruche_essaim::reine_queue::proposer_skill(node, contenu, source);
+        } else {
+            laruche_essaim::reine_queue::proposer_memoire(
+                memoire,
+                laruche_memoire::MemoryItem::new(node, contenu).with_source(source),
+                true,
+                "hybride",
+                source,
+            )
+            .await;
+        }
+        let _ = memoire.delete_item(id, Some("rattrapage-file-unique")).await;
+        verses += 1;
+    }
+    if verses > 0 {
+        tracing::info!(
+            count = verses,
+            "propositions memoire orphelines versees dans la file de LaReine"
+        );
     }
 }
 
@@ -231,6 +295,7 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
         _ => {}
     }
     reconcilier_skills_orphelines(memoire, &sur_disque).await;
+    rattraper_propositions_orphelines(memoire).await;
     // Targeted purge of META-SKILLS from other agent frameworks (CLI docs of third-party agents),
     // wrongly imported: they describe ANOTHER agent, not LaRuche. Explicit DENYLIST: definitely
     // NOT a disk diff "delete everything not on disk" (that would destroy skills

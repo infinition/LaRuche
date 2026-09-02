@@ -386,13 +386,19 @@ pub(crate) async fn extraire_skill_memoire(
         return Ok(());
     }
 
-    let _ = memoire
-        .propose_write(
-            MemoryItem::new(node_id, okf)
-                .with_source("auto-skill")
-                .with_tags(vec!["skill".to_string(), "okf".to_string()]),
-        )
-        .await;
+    // La file de LaReine, et non `propose_write`.
+    //
+    // `propose_write` pose l'item en `status='proposed'` et s'arrete la. Or aucune
+    // route ne sait approuver un item mémoire: `/api/memory/proposed` est en lecture
+    // seule. Le skill restait donc invisible pour toujours, son noeud paraissait vide
+    // (une lecture ne rend que les items actifs), et le balayage des skills sans
+    // document le prenait pour une coquille. Observe: un `weather-forecast` cree apres
+    // une conversation, jamais approuvable, disparu de l'arbre.
+    //
+    // `proposer_skill` le met dans la SEULE file qui ait une interface, celle qui sait
+    // classer le risque, appliquer ce qui est sur et, a l'approbation, ecrire a la fois
+    // le noeud memoire et le fichier SKILL.md.
+    crate::reine_queue::proposer_skill(&node_id, &okf, "curateur");
     // Learning loop: signal that a skill was just born (UI -> toast + review queue).
     let _ = tx.send(ChatEvent::SkillProposed { name: name.clone() });
     tracing::info!(skill = %name, "OKF skill proposed (auto-learning)");
