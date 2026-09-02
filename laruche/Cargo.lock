@@ -3347,6 +3347,7 @@ name = "laruche-bureau"
 version = "1.5.0"
 dependencies = [
  "miel-protocol",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tokio",

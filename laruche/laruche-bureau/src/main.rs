@@ -231,6 +231,81 @@ fn resoudre() -> (tauri::Url, Option<Child>) {
     (page_choix_url(&html), None)
 }
 
+/// La palette de l'ecran d'attente, lue dans le foyer avant d'ouvrir la fenetre.
+///
+/// Cet ecran s'affiche AVANT que le noeud existe: il ne peut donc rien lui
+/// demander, et il restait sombre et ambre quel que soit le theme choisi. Il est
+/// pourtant la premiere chose que l'on voit, et la seule surface de LaRuche a ne
+/// pas suivre le reglage de l'utilisateur.
+///
+/// Le theme actif est un simple fichier, `themes/actif.txt`. Un theme a soi porte
+/// ses valeurs dans son propre JSON, qu'on lit exactement. Les themes livres
+/// vivent dans la feuille de style de l'application, hors d'atteinte d'ici: leurs
+/// quatre couleurs sont donc reprises ci-dessous. Quatre sur trente-trois, pour
+/// un ecran qui affiche un logo, un titre et une ligne de detail: la duplication
+/// est bornee, et elle est le prix d'un demarrage qui ne clignote pas.
+fn palette_attente(foyer: &std::path::Path) -> (String, String, String, String) {
+    const DEFAUT: (&str, &str, &str, &str) = ("#0f0f10", "#e8e8ea", "#f5a623", "#8b8b92");
+    const INTEGRES: &[(&str, (&str, &str, &str, &str))] = &[
+        ("defaut", DEFAUT),
+        ("ardoise", ("#0b0d10", "#f1f5f9", "#7dd3fc", "#94a3b8")),
+        ("foret", ("#0a0f0d", "#ecfdf5", "#6ee7b7", "#9ca3af")),
+        ("nuit", ("#000000", "#fafafa", "#fbbf24", "#a1a1aa")),
+        ("papier", ("#faf7f2", "#1c1917", "#b45309", "#57534e")),
+    ];
+    let actif = std::fs::read_to_string(foyer.join("themes").join("actif.txt"))
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if let Some(id) = actif.strip_prefix("perso:") {
+        // Un identifiant vient d'un fichier: il sert de nom de fichier, donc on
+        // n'en garde que ce qui ne peut pas remonter l'arborescence.
+        let sur: String = id
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if !sur.is_empty() {
+            if let Ok(t) = std::fs::read_to_string(foyer.join("themes").join(format!("{sur}.json")))
+            {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&t) {
+                    let j = &v["jetons"];
+                    let lire = |cle: &str, repli: &str| {
+                        j[cle].as_str().unwrap_or(repli).to_string()
+                    };
+                    return (
+                        lire("--bg", DEFAUT.0),
+                        lire("--text", DEFAUT.1),
+                        lire("--amber", DEFAUT.2),
+                        lire("--text-dim", DEFAUT.3),
+                    );
+                }
+            }
+        }
+    }
+    let p = INTEGRES
+        .iter()
+        .find(|(id, _)| *id == actif)
+        .map(|(_, p)| *p)
+        .unwrap_or(DEFAUT);
+    (p.0.into(), p.1.into(), p.2.into(), p.3.into())
+}
+
+/// Le fond de fenetre, en composantes, pour que Tauri peigne deja la bonne
+/// couleur avant le premier octet de HTML.
+fn composantes(hex: &str) -> (u8, u8, u8) {
+    let h = hex.trim().trim_start_matches('#');
+    if h.len() == 6 {
+        if let (Ok(r), Ok(v), Ok(b)) = (
+            u8::from_str_radix(&h[0..2], 16),
+            u8::from_str_radix(&h[2..4], 16),
+            u8::from_str_radix(&h[4..6], 16),
+        ) {
+            return (r, v, b);
+        }
+    }
+    (0x0f, 0x0f, 0x10)
+}
+
 fn main() {
     // Diagnostic: « qu'est-ce que ce client voit sur le reseau ? ». Repond a la
     // question sans ouvrir de fenetre ni demarrer quoi que ce soit - utile quand un
@@ -266,6 +341,19 @@ fn main() {
         let _ = envoi.send(resoudre());
     });
 
+    // La palette est lue UNE fois, avant la fenetre: l'ecran d'attente s'ouvre
+    // deja dans le theme de l'utilisateur, sans transition ni clignotement.
+    let (att_fond, att_texte, att_accent, att_attenue) =
+        palette_attente(&std::env::current_dir().unwrap_or_else(|_| ".".into()));
+    let (fond_r, fond_v, fond_b) = composantes(&att_fond);
+    let script_init = format!(
+        "window.__LARUCHE_BUREAU__ = true; window.__LARUCHE_PALETTE__ = {};",
+        serde_json::json!({
+            "fond": att_fond, "texte": att_texte,
+            "accent": att_accent, "attenue": att_attenue
+        })
+    );
+
     tauri::Builder::default()
         .setup(move |app| {
             tauri::WebviewWindowBuilder::new(app, "principale", tauri::WebviewUrl::App("index.html".into()))
@@ -277,7 +365,7 @@ fn main() {
                 .min_inner_size(380.0, 500.0)
                 // Meme fond que la page: sans cela la fenetre clignote en blanc le
                 // temps que la SPA peigne.
-                .background_color(tauri::window::Color(0x0f, 0x0f, 0x10, 0xff))
+                .background_color(tauri::window::Color(fond_r, fond_v, fond_b, 0xff))
                 // Un marqueur, pose avant que la page ne s'execute.
                 //
                 // La SPA est la meme dans un navigateur et ici, mais un lien
@@ -289,7 +377,7 @@ fn main() {
                 // La page a besoin de savoir ou elle tourne pour choisir: son
                 // comportement normal dans un navigateur, un passage par le
                 // noeud ici, qui sait ouvrir le navigateur du systeme.
-                .initialization_script("window.__LARUCHE_BUREAU__ = true;")
+                .initialization_script(&script_init)
                 .build()?;
 
             // Des que la cible est connue, la fenetre y va. Un fil de plus plutot

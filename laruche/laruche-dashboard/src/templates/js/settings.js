@@ -438,6 +438,8 @@ LaRuche.i18n.add({
   'settings.brandClear':        {fr:'Retirer',                en:'Remove'},
   'settings.brandSvgHint':      {fr:"SVG de preference: il herite de la couleur d'accent, donc il suit le theme. Un PNG garde la sienne. Le SVG est lave par le serveur avant d'etre enregistre.", en:'Prefer SVG: it inherits the accent colour, so it follows the theme. A PNG keeps its own. SVG is sanitised by the server before being stored.'},
   'settings.brandTooBig':       {fr:'Logo trop lourd (512 Ko maximum).', en:'Logo too heavy (512 KB max).'},
+  'settings.iconTitle':         {fr:'Icones',                 en:'Icons'},
+  'settings.iconHint':          {fr:"Remplacez une icone par un SVG a vous. Elle herite de la couleur d'accent, donc elle suit le theme. Douze emplacements, ceux que l'oeil reconnait.", en:'Replace an icon with your own SVG. It inherits the accent colour, so it follows the theme. Twelve slots, the ones the eye recognises.'},
   'settings.bgTitle':           {fr:"Image de fond",         en:'Background image'},
   'settings.bgHint':            {fr:"Une seule image, derriere tout, et vous choisissez les zones qui la laissent voir.", en:'One image, behind everything, and you choose which zones let it show.'},
   'settings.bgPick':            {fr:'Choisir une image',      en:'Pick an image'},
@@ -1863,7 +1865,37 @@ LaRuche.Settings = (function(){
 
   var _marqueBrouillon = {};
   var _fondBrouillon = {};
+  var _iconesBrouillon = {};
   var _sauveMinuteur = null;
+  var _apparenceHote = null;
+
+  /* Reduire l'image de fond avant de la ranger dans le theme.
+
+     Un theme se partage en un fichier: une photo d'appareil de huit mebioctets y
+     entrerait telle quelle, encodee en base64, donc un tiers plus lourde encore.
+     Elle depassait la limite de corps de la requete, et l'echec etait muet.
+     Deux mille deux cents pixels sur le grand cote suffisent a un fond d'ecran,
+     et le JPEG a 85 pour cent ramene le tout a quelques centaines de kilooctets.
+     On garde le PNG d'origine quand il est deja leger: lui, il peut etre
+     transparent, et le reencoder en JPEG lui poserait un fond noir. */
+  function _reduireImage(dataUri, cb){
+    var MAX = 2200, SEUIL_PNG = 400 * 1024;
+    var img = new Image();
+    img.onload = function(){
+      var ech = Math.min(1, MAX / Math.max(img.width, img.height));
+      var estPng = /^data:image\/png/i.test(dataUri);
+      if(ech === 1 && estPng && dataUri.length < SEUIL_PNG){ cb(dataUri); return; }
+      var c = document.createElement('canvas');
+      c.width = Math.round(img.width * ech);
+      c.height = Math.round(img.height * ech);
+      var g = c.getContext('2d');
+      g.drawImage(img, 0, 0, c.width, c.height);
+      var out = c.toDataURL('image/jpeg', 0.85);
+      cb(out.length < dataUri.length ? out : dataUri);
+    };
+    img.onerror = function(){ cb(dataUri); };
+    img.src = dataUri;
+  }
 
   /* Une ligne de reglage, choisie par le TYPE du jeton.
 
@@ -1917,8 +1949,18 @@ LaRuche.Settings = (function(){
       champ+'</div>';
   }
 
+  /* Un seul ecouteur pour toute la vie de la page, qui redessine l'onglet
+     Apparence quand le theme change AILLEURS: dans le menu de la barre du haut,
+     ou depuis le dock. Sans lui, chaque surface gardait son idee du theme actif,
+     celle du moment ou elle avait ete dessinee, et choisir dans l'une laissait
+     l'autre en arriere. */
+  document.addEventListener('laruche:theme', function(){
+    if(_apparenceHote && _apparenceHote.isConnected) loadApparence(_apparenceHote);
+  });
+
   function loadApparence(el){
     if(!window.LaRuche || !LaRuche.Themes){ el.innerHTML=''; return; }
+    _apparenceHote = el;
     var t = LaRuche.i18n.t, esc = LaRuche.Utils.esc, T = LaRuche.Themes;
     var actif = T.actif();
     var perso = T.estPerso(actif);
@@ -1944,6 +1986,7 @@ LaRuche.Settings = (function(){
     _marqueBrouillon = Object.assign({}, h.marque);
     _fondBrouillon = Object.assign({ opacite: 0.35, cadrage: 'cover', zones: {} }, h.fond);
     _fondBrouillon.zones = Object.assign({}, _fondBrouillon.zones);
+    _iconesBrouillon = Object.assign({}, h.icones);
 
     var champs = T.GROUPES.map(function(g){
       var lignes = g.jetons.map(function(j){ return _ligneJeton(j, jetons[j.cle] || '', esc); }).join('');
@@ -1985,6 +2028,18 @@ LaRuche.Settings = (function(){
         '<p style="color:var(--text-muted);font-size:11px;margin:6px 0 0">'+t('settings.brandSvgHint')+'</p>'+
       '</div>'+
 
+      '<div class="settings-card"><div class="settings-card-title">'+t('settings.iconTitle')+'</div>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.iconHint')+'</p>'+
+        T.ICONES.map(function(ic){
+          return '<div style="display:flex;align-items:center;gap:9px;padding:4px 0">'+
+            '<span class="lr-icone-apercu" data-icone-apercu="'+ic.cle+'"></span>'+
+            '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+esc(ic[lg]||ic.fr)+'</span>'+
+            '<button class="cwd-btn" data-icone-choisir="'+ic.cle+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+t('settings.brandPick')+'</button>'+
+            '<button class="cwd-btn" data-icone-vider="'+ic.cle+'" style="opacity:1;font-size:11.5px;padding:4px 9px">'+t('settings.brandClear')+'</button>'+
+          '</div>';
+        }).join('')+
+        '<input type="file" id="iconeFichier" accept=".svg,image/svg+xml,image/png,image/webp" style="display:none">'+
+      '</div>'+
       '<div class="settings-card"><div class="settings-card-title">'+t('settings.bgTitle')+'</div>'+
         '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.bgHint')+'</p>'+
         '<div style="display:flex;align-items:center;gap:9px;padding:3px 0;flex-wrap:wrap">'+
@@ -2047,7 +2102,8 @@ LaRuche.Settings = (function(){
        repeint le theme actif, et le repeignait depuis le fichier enregistre. Une
        image de fond posee disparaissait donc au premier mouvement de souris. */
     function declarer(){
-      T.definirBrouillon({ id: actif, jetons: _themeBrouillon, marque: _marqueBrouillon, fond: _fondBrouillon });
+      T.definirBrouillon({ id: actif, jetons: _themeBrouillon, marque: _marqueBrouillon,
+                           fond: _fondBrouillon, icones: _iconesBrouillon });
       majEtat();
       if(perso) planifierSauvegarde();
     }
@@ -2082,7 +2138,7 @@ LaRuche.Settings = (function(){
       _sauveMinuteur = setTimeout(async function(){
         var nom = (document.getElementById('themeNom')||{}).value || nomActuel;
         var r = await T.enregistrer(nom.trim()||nomActuel, _themeBrouillon,
-                                    actif.slice('perso:'.length), _marqueBrouillon, _fondBrouillon);
+                                    actif.slice('perso:'.length), _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
         majEtat(r && r.status === 'ok' ? t('settings.themeSavedOk') : t('settings.themeSaveFail'));
       }, 700);
     }
@@ -2192,6 +2248,40 @@ LaRuche.Settings = (function(){
     var mv = document.getElementById('marqueVider');
     if(mv) mv.onclick = function(){ _marqueBrouillon.logo = ''; rendreMarque(); };
 
+    /* ---- Les icones ---- */
+    function rendreIcones(){
+      T.ICONES.forEach(function(ic){
+        var ap = el.querySelector('[data-icone-apercu="'+ic.cle+'"]');
+        if(!ap) return;
+        var v = _iconesBrouillon[ic.cle];
+        ap.innerHTML = v
+          ? (String(v).slice(0,4) === 'data' ? '<img src="'+esc(v)+'" alt="">' : v)
+          : '<span style="color:var(--text-muted);font-size:15px">&#8722;</span>';
+      });
+      T.peindreIcones(_iconesBrouillon);
+      declarer();
+    }
+    var _icAttente = null;
+    var icf = document.getElementById('iconeFichier');
+    el.querySelectorAll('[data-icone-choisir]').forEach(function(b){
+      b.onclick = function(){ _icAttente = b.dataset.iconeChoisir; if(icf){ icf.value=''; icf.click(); } };
+    });
+    el.querySelectorAll('[data-icone-vider]').forEach(function(b){
+      b.onclick = function(){ delete _iconesBrouillon[b.dataset.iconeVider]; rendreIcones(); };
+    });
+    if(icf) icf.onchange = function(){
+      var f = icf.files && icf.files[0];
+      if(!f || !_icAttente) return;
+      if(f.size > 256*1024){ LaRuche.Toast.show(t('settings.brandTooBig'),'warn'); return; }
+      var fr = new FileReader();
+      // Un SVG voyage en TEXTE: le serveur doit pouvoir le laver, et on ne lave
+      // pas ce qu'on ne peut pas lire.
+      fr.onload = function(){ _iconesBrouillon[_icAttente] = String(fr.result); _icAttente = null; rendreIcones(); };
+      if(/svg/i.test(f.type) || /\.svg$/i.test(f.name)) fr.readAsText(f);
+      else fr.readAsDataURL(f);
+    };
+    rendreIcones();
+
     /* ---- Le fond ---- */
     function rendreFond(){
       var ap = document.getElementById('fondApercu');
@@ -2210,14 +2300,16 @@ LaRuche.Settings = (function(){
         if(f.size > 3*1024*1024){ LaRuche.Toast.show(t('settings.bgTooBig'),'warn'); return; }
         var fr = new FileReader();
         fr.onload = function(){
-          _fondBrouillon.image = String(fr.result);
-          // Poser une image sans allumer une zone ne montrerait rien: la zone
-          // centrale s'allume d'office, les autres restent au choix.
-          if(!Object.keys(_fondBrouillon.zones).some(function(k){ return _fondBrouillon.zones[k]; })){
-            _fondBrouillon.zones.app = true;
-            var b = el.querySelector('[data-zone="app"]'); if(b) b.checked = true;
-          }
-          rendreFond();
+          _reduireImage(String(fr.result), function(reduite){
+            _fondBrouillon.image = reduite;
+            // Poser une image sans allumer une zone ne montrerait rien: la zone
+            // centrale s'allume d'office, les autres restent au choix.
+            if(!Object.keys(_fondBrouillon.zones).some(function(k){ return _fondBrouillon.zones[k]; })){
+              _fondBrouillon.zones.app = true;
+              var b = el.querySelector('[data-zone="app"]'); if(b) b.checked = true;
+            }
+            rendreFond();
+          });
         };
         fr.readAsDataURL(f);
       };
@@ -2247,7 +2339,7 @@ LaRuche.Settings = (function(){
     if(save) save.onclick = async function(){
       var nom = nomDemande(nomActuel || (t('settings.themeCopyOf') + ' ' + (T.catalogue().filter(function(x){return x.id===actif;})[0]||{}).nom));
       if(!nom.trim()){ return; }
-      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon);
+      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
       if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
       else LaRuche.Toast.show((r&&r.error)||'erreur','warn');
     };
@@ -2257,7 +2349,7 @@ LaRuche.Settings = (function(){
       var nom = (document.getElementById('themeNom')||{}).value || '';
       if(!nom.trim()){ LaRuche.Toast.show(t('settings.themeName'),'warn'); return; }
       var r = await T.enregistrer(nom.trim(), _themeBrouillon, actif.slice('perso:'.length),
-                                  _marqueBrouillon, _fondBrouillon);
+                                  _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
       if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
     };
 
@@ -2266,7 +2358,7 @@ LaRuche.Settings = (function(){
       var courant = (T.catalogue().filter(function(x){return x.id===actif;})[0]||{}).nom || '';
       var nom = window.prompt(t('settings.themeAskName'), t('settings.themeCopyOf') + ' ' + courant);
       if(!nom || !nom.trim()) return;
-      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon);
+      var r = await T.dupliquer(nom.trim(), _themeBrouillon, _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
       if(r && r.status === 'ok'){ LaRuche.Toast.show(t('settings.themeSaved'),'ok'); loadApparence(el); }
       else LaRuche.Toast.show((r&&r.error)||'erreur','warn');
     };
@@ -2287,7 +2379,7 @@ LaRuche.Settings = (function(){
       if(perso && base){
         _themeBrouillon = Object.assign({}, base);
         await T.enregistrer(nomActuel, _themeBrouillon, actif.slice('perso:'.length),
-                            _marqueBrouillon, _fondBrouillon);
+                            _marqueBrouillon, _fondBrouillon, _iconesBrouillon);
       }
       T.appliquer(actif);
       loadApparence(el);

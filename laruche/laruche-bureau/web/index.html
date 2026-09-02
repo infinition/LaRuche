@@ -9,11 +9,39 @@
      avec pour seul signe de vie la console du noeud, celle-la meme qu'on vient
      de faire taire. Cette page ne duplique aucune interface: la SPA reste servie
      par le noeud, on ne fait qu'occuper l'attente honnetement. -->
+<script>
+  /* La coque pose `window.__LARUCHE_PALETTE__` avant que cette page ne
+     s'execute. On l'applique tout de suite, avant la premiere peinture: poser
+     ces variables apres coup ferait voir un ecran sombre qui vire au clair. */
+  (function () {
+    var p = window.__LARUCHE_PALETTE__;
+    if (!p) return;
+    var r = document.documentElement;
+    if (p.fond) r.style.setProperty('--att-fond', p.fond);
+    if (p.texte) r.style.setProperty('--att-texte', p.texte);
+    if (p.accent) r.style.setProperty('--att-accent', p.accent);
+    if (p.attenue) r.style.setProperty('--att-attenue', p.attenue);
+    // Un fond clair veut des controles clairs: sans cela la barre de defilement
+    // et les champs natifs restent sombres au milieu d'une page blanche.
+    var h = String(p.fond || '').replace('#', '');
+    if (h.length === 6) {
+      var l = (parseInt(h.slice(0,2),16)*299 + parseInt(h.slice(2,4),16)*587 + parseInt(h.slice(4,6),16)*114) / 1000;
+      r.style.setProperty('color-scheme', l > 140 ? 'light' : 'dark');
+    }
+  })();
+</script>
 <style>
-  :root { color-scheme: dark; }
+  /* Les quatre couleurs viennent de la coque, qui a lu le theme actif dans le
+     foyer avant d'ouvrir la fenetre. Les valeurs ecrites ici restent le repli:
+     lancee sans coque, cette page doit s'afficher quand meme. */
+  :root {
+    color-scheme: dark;
+    --att-fond: #0f0f10; --att-texte: #e8e8ea;
+    --att-accent: #f5a623; --att-attenue: #8b8b92;
+  }
   html, body {
     height: 100%; margin: 0;
-    background: #0f0f10; color: #e8e8ea;
+    background: var(--att-fond); color: var(--att-texte);
     font: 14px/1.6 -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
   }
   body {
@@ -26,9 +54,9 @@
     -webkit-user-select: none; user-select: none;
   }
   .ruche { width: 76px; height: 76px; animation: souffle 2.4s ease-in-out infinite; }
-  .ruche path { fill: #f5a623; }
+  .ruche path { fill: var(--att-accent); }
   h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: .2px; }
-  p  { margin: 0; font-size: 13px; color: #8b8b92; max-width: 34ch; }
+  p  { margin: 0; font-size: 13px; color: var(--att-attenue); max-width: 34ch; }
   .barre { width: 190px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
   .barre i { display: block; width: 40%; height: 100%; border-radius: 2px; background: #f5a623; animation: va 1.5s ease-in-out infinite; }
   @keyframes souffle { 0%, 100% { transform: scale(1); opacity: .92 } 50% { transform: scale(1.06); opacity: 1 } }

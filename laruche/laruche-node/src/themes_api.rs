@@ -150,7 +150,34 @@ fn logo_sur(brut: &str) -> Result<String, &'static str> {
 /// La validation est ici et non dans le navigateur, parce que c'est ici qu'est la
 /// frontiere: un fichier de theme peut arriver d'ailleurs, ou etre modifie a la
 /// main dans le foyer.
-fn habillage_sur(body: &serde_json::Value) -> Result<(serde_json::Value, serde_json::Value), String> {
+/// Les icones de remplacement, lavees une par une comme le logo.
+///
+/// Meme raison, meme severite: chacune est un SVG, donc du code, et un fichier de
+/// theme se partage. Une seule icone refusee fait refuser l'enregistrement
+/// entier, avec son nom: accepter les onze autres en taisant la douzieme
+/// donnerait un theme dont on croirait qu'il est complet.
+fn icones_sur(v: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let mut out = serde_json::Map::new();
+    if let Some(obj) = v.as_object() {
+        for (cle, val) in obj {
+            let brut = val.as_str().unwrap_or("").trim();
+            if brut.is_empty() {
+                continue;
+            }
+            match logo_sur(brut) {
+                Ok(propre) => {
+                    out.insert(cle.clone(), serde_json::Value::String(propre));
+                }
+                Err(e) => return Err(format!("icone {cle}: {e}")),
+            }
+        }
+    }
+    Ok(serde_json::Value::Object(out))
+}
+
+fn habillage_sur(
+    body: &serde_json::Value,
+) -> Result<(serde_json::Value, serde_json::Value, serde_json::Value), String> {
     let m = &body["marque"];
     let nom: String = m["nom"].as_str().unwrap_or("").trim().chars().take(60).collect();
     let logo = logo_sur(m["logo"].as_str().unwrap_or("")).map_err(|e| e.to_string())?;
@@ -180,7 +207,8 @@ fn habillage_sur(body: &serde_json::Value) -> Result<(serde_json::Value, serde_j
     let fond = serde_json::json!({
         "image": image, "opacite": opacite, "cadrage": cadrage, "zones": zones
     });
-    Ok((marque, fond))
+    let icones = icones_sur(&body["icones"])?;
+    Ok((marque, fond, icones))
 }
 
 /// GET /api/themes - les themes personnalises, tries par nom.
@@ -233,7 +261,7 @@ pub(crate) async fn api_themes_save(
     if !jetons.is_object() {
         return Json(serde_json::json!({ "status": "error", "error": "jetons doit etre un objet" }));
     }
-    let (marque, fond) = match habillage_sur(&body) {
+    let (marque, fond, icones) = match habillage_sur(&body) {
         Ok(v) => v,
         Err(e) => return Json(serde_json::json!({ "status": "error", "error": e })),
     };
@@ -258,7 +286,7 @@ pub(crate) async fn api_themes_save(
         .unwrap_or_else(|| body["base"].clone());
     let theme = serde_json::json!({
         "id": id, "nom": nom, "jetons": jetons, "marque": marque, "fond": fond,
-        "parent": parent, "base": base
+        "icones": icones, "parent": parent, "base": base
     });
     let chemin = dossier().join(format!("{id}.json"));
     match serde_json::to_string_pretty(&theme)

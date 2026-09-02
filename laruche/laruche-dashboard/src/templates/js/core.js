@@ -52,6 +52,9 @@ LaRuche.i18n = (function(){
     'common.cancel':  { fr:'Annuler',     en:'Cancel' },
     'common.delete':  { fr:'Supprimer',   en:'Delete' },
     'common.close':   { fr:'Fermer',      en:'Close' },
+    'shell.splitOuvrir':    { fr:'Mettre cette page a cote du chat', en:'Put this page beside the chat' },
+    'shell.splitFermer':    { fr:'Fermer le partage, revenir au chat seul', en:'Close the split, back to the chat alone' },
+    'shell.splitImpossible':{ fr:"Le chat est deja la page maitresse: allez sur une autre page pour la mettre a cote", en:'The chat is already the master page: go to another page to put it beside' },
     'common.edit':    { fr:'Éditer',      en:'Edit' },
     'common.apply':   { fr:'Appliquer',   en:'Apply' },
     'common.create':  { fr:'Créer',       en:'Create' },
@@ -1048,11 +1051,98 @@ LaRuche.Router = (function(){
     if(location.hash !== cible) history.replaceState(null, '', cible);
   }
 
+  /* ------------------------------------------------------------------------
+     LE PARTAGE. Le chat reste la page maitresse, a gauche; la page qu'on
+     regardait vient a cote, a droite, avec un separateur qu'on tire.
+
+     Le chat ne peut pas etre la page accrochee: il est deja la moitie gauche,
+     et se partager avec soi-meme n'a pas de sens. Le bouton est donc inerte
+     quand on est sur le chat, et il le dit par son opacite.
+     ------------------------------------------------------------------------ */
+  var _splitPage = null;
+
+  function splitPage() { return _splitPage; }
+
+  function splitBasculer() {
+    if (_splitPage) { splitFermer(); return; }
+    var p = currentPage;
+    if (!p || p === 'chat' || p === 'login') return;
+    _splitPage = p;
+    go('chat');                       // le chat prend la main a gauche
+    var autre = document.getElementById('page-' + p);
+    if (autre) autre.classList.add('active');
+    document.body.classList.add('lr-split');
+    _splitBarre();
+    _splitMajBouton();
+  }
+
+  function splitFermer() {
+    var p = _splitPage;
+    _splitPage = null;
+    document.body.classList.remove('lr-split');
+    var b = document.getElementById('lrSplitBarre');
+    if (b && b.parentNode) b.parentNode.removeChild(b);
+    var autre = p ? document.getElementById('page-' + p) : null;
+    if (autre && currentPage !== p) autre.classList.remove('active');
+    _splitMajBouton();
+  }
+
+  /* Le separateur, pose ENTRE les deux volets, donc juste apres le chat: son
+     ordre dans le conteneur est ce qui le place, aucune position absolue. */
+  function _splitBarre() {
+    if (document.getElementById('lrSplitBarre')) return;
+    var chat = document.getElementById('page-chat');
+    if (!chat || !chat.parentNode) return;
+    var b = document.createElement('div');
+    b.id = 'lrSplitBarre';
+    b.setAttribute('role', 'separator');
+    chat.parentNode.insertBefore(b, chat.nextSibling);
+    b.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      b.setPointerCapture(e.pointerId);
+      b.classList.add('attrape');
+      var vertical = window.innerWidth <= 720;
+      var cont = chat.parentNode.getBoundingClientRect();
+      function bouger(ev) {
+        var pc = vertical
+          ? ((ev.clientY - cont.top) / cont.height) * 100
+          : ((ev.clientX - cont.left) / cont.width) * 100;
+        pc = Math.min(85, Math.max(15, pc));
+        document.documentElement.style.setProperty('--lr-split', pc.toFixed(1) + '%');
+      }
+      function lacher() {
+        b.classList.remove('attrape');
+        document.removeEventListener('pointermove', bouger);
+        document.removeEventListener('pointerup', lacher);
+      }
+      document.addEventListener('pointermove', bouger);
+      document.addEventListener('pointerup', lacher);
+    });
+  }
+
+  function _splitMajBouton() {
+    var el = document.getElementById('sbSplitLabel');
+    if (!el) return;
+    var possible = _splitPage || (currentPage && currentPage !== 'chat' && currentPage !== 'login');
+    el.style.opacity = possible ? (_splitPage ? '1' : '.55') : '.18';
+    el.style.color = _splitPage ? 'var(--amber)' : '';
+    el.title = LaRuche.i18n
+      ? LaRuche.i18n.t(_splitPage ? 'shell.splitFermer' : (possible ? 'shell.splitOuvrir' : 'shell.splitImpossible'))
+      : '';
+  }
+
   function go(route) {
     var parts = String(route == null ? '' : route).split('/');
     var page = parts[0];
     var sub = parts.slice(1).join('/');
     if(pages.indexOf(page) < 0) { page = 'chat'; sub = ''; }
+    // Le partage tient deux pages a l'ecran. Aller sur l'une des deux ne doit
+    // donc rien defaire; aller AILLEURS le referme, sinon on se retrouverait
+    // avec une troisieme page invisible mais toujours marquee active.
+    if (_splitPage) {
+      if (page === _splitPage) { _hash(page, sub); _sub(page, sub); return; }
+      if (page !== 'chat' && page !== 'login') splitFermer();
+    }
     // Auth guard: redirect to login if not authenticated (except login page itself)
     if(page !== 'login' && !LaRuche.Auth.isAuthenticated()) { page = 'login'; sub = ''; }
     // Already here: no repaint, but a sub-route still has to be honoured, otherwise
@@ -1093,6 +1183,12 @@ LaRuche.Router = (function(){
       LaRuche.Mesh.repositionWindows();
       requestAnimationFrame(function(){ LaRuche.Mesh.repositionWindows(); }); // after the new page reflows
     }
+    // Le partage garde son volet droit visible: `go` vient de tout masquer.
+    if (_splitPage) {
+      var garde = document.getElementById('page-' + _splitPage);
+      if (garde) garde.classList.add('active');
+    }
+    _splitMajBouton();
     // update hash without triggering hashchange
     _hash(page, sub);
   }
@@ -1108,7 +1204,8 @@ LaRuche.Router = (function(){
     go(location.hash.replace('#','')||'chat');
   }
 
-  return { go:go, register:register, init:init, current:function(){return currentPage;} };
+  return { go:go, register:register, init:init, current:function(){return currentPage;},
+           splitBasculer:splitBasculer, splitFermer:splitFermer, splitPage:splitPage };
 })();
 
 /* ── Header ────────────────────────────────────────────────────── */

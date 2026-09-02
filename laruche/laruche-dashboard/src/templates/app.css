@@ -3393,3 +3393,51 @@ body.lr-dock-ouvert .app-shell, body.lr-dock-ouvert .page { padding-right: var(-
 @media (max-width: 720px) {
   body.lr-dock-ouvert .app-shell, body.lr-dock-ouvert .page { padding-right: 0; padding-bottom: var(--lr-dock-hauteur, 0px); }
 }
+
+/* ==========================================================================
+   LE PARTAGE: le chat a gauche, une autre page a cote.
+
+   Consulter sa memoire ou ses capacites en lisant la conversation qui les
+   emploie demandait jusqu'ici de faire l'aller-retour, et de perdre a chaque
+   fois l'endroit ou l'on en etait. Les pages sont deja soeurs dans un meme
+   conteneur: il suffit de le passer en ligne et d'en laisser deux visibles.
+
+   La barre du haut et celle du bas sont HORS de ce conteneur. Elles restent
+   donc pleine largeur sans qu'on ait rien a faire, ce qui est le bon
+   comportement: elles s'appliquent aux deux volets a la fois.
+   ========================================================================== */
+body.lr-split .page-container { flex-direction: row; }
+body.lr-split .page.active { flex: 1 1 0; min-width: 0; }
+body.lr-split #page-chat.active { flex: 0 0 var(--lr-split, 50%); }
+
+#lrSplitBarre {
+  flex: 0 0 5px; cursor: col-resize; background: var(--border);
+  transition: background var(--transition-fast, .15s);
+}
+#lrSplitBarre:hover, #lrSplitBarre.attrape { background: var(--amber); }
+
+/* Sous 720 pixels, cote a cote ne montre plus rien: on empile, le chat au
+   dessus, la page accrochee en dessous. */
+@media (max-width: 720px) {
+  body.lr-split .page-container { flex-direction: column; }
+  body.lr-split #page-chat.active { flex: 0 0 var(--lr-split, 50%); }
+  #lrSplitBarre { flex-basis: 5px; cursor: row-resize; }
+}
+
+/* Une icone remplacee occupe la place de celle qu'elle remplace, sans la faire
+   bouger: c'est le conteneur qui donne la taille, et le SVG s'y inscrit.
+   `currentColor` est ce qui la fait suivre le theme sans la reecrire. */
+.lr-icone-perso { display: inline-flex; align-items: center; justify-content: center; }
+.lr-icone-perso > svg, .lr-icone-perso > img {
+  width: 1.2em; height: 1.2em; display: block; object-fit: contain;
+}
+.lr-icone-perso > svg { fill: currentColor; }
+#statusHoneycomb.lr-icone-perso > svg, .swarm-wrap.lr-icone-perso > svg {
+  width: 100%; height: 100%;
+}
+/* L'apercu dans le panneau: un carre neutre, pour juger la forme et non le fond. */
+.lr-icone-apercu {
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px; color: var(--amber); flex-shrink: 0;
+}
+.lr-icone-apercu > svg, .lr-icone-apercu > img { width: 18px; height: 18px; fill: currentColor; }

@@ -279,6 +279,56 @@
     d.style.backgroundSize = fond.cadrage || 'cover';
   }
 
+  /* Les icones remplacables, par EMPLACEMENT nomme.
+
+     La page compte une cinquantaine de SVG en ligne, et le reste de
+     l'application autant: les offrir un par un donnerait une liste que personne
+     ne parcourt, ou l'on chercherait le chevron d'un repli entre deux fleches de
+     pagination. Ce qu'on reconnait, ce sont les marques: les six onglets, la
+     ruche, l'essaim, la couronne. Douze emplacements nommes couvrent donc ce que
+     l'oeil identifie, et chacun vise un element stable par un selecteur.
+
+     Une icone posee est un SVG lave par le serveur, comme le logo. Elle herite de
+     `currentColor`, donc elle suit l'accent du theme sans etre reecrite. */
+  var ICONES = [
+    { cle: 'nav-chat', fr: 'Onglet Chat', en: 'Chat tab', sel: '.header-nav a[data-page="chat"] .tab-icon' },
+    { cle: 'nav-memoire', fr: 'Onglet Mémoire', en: 'Memory tab', sel: '.header-nav a[data-page="memory"] .tab-icon' },
+    { cle: 'nav-missions', fr: 'Onglet Missions', en: 'Missions tab', sel: '.header-nav a[data-page="automations"] .tab-icon' },
+    { cle: 'nav-capacites', fr: 'Onglet Capacités', en: 'Capabilities tab', sel: '.header-nav a[data-page="capabilities"] .tab-icon' },
+    { cle: 'nav-tableau', fr: 'Onglet Tableau de bord', en: 'Dashboard tab', sel: '.header-nav a[data-page="dashboard"] .tab-icon' },
+    { cle: 'nav-reglages', fr: 'Onglet Paramètres', en: 'Settings tab', sel: '.header-nav a[data-page="settings"] .tab-icon' },
+    { cle: 'ruche', fr: 'La ruche animée (en haut à gauche)', en: 'The animated hive (top left)', sel: '#statusHoneycomb' },
+    { cle: 'essaim', fr: "L'essaim animé (accueil et connexion)", en: 'The animated swarm (welcome and login)', sel: '.swarm-wrap' },
+    { cle: 'reine', fr: 'LaReine (barre du bas)', en: 'LaReine (bottom bar)', sel: '#sbReineLabel' },
+    { cle: 'muet', fr: 'Le muet (barre du bas)', en: 'Mute (bottom bar)', sel: '#sbMuteLabel' },
+    { cle: 'partage', fr: 'Le partage (barre du bas)', en: 'Split (bottom bar)', sel: '#sbSplitLabel' },
+    { cle: 'feed', fr: "Le flux d'activité", en: 'Activity feed', sel: '#feedToggleBtn' }
+  ];
+
+  /* Ce que contenait chaque emplacement avant qu'on y touche.
+
+     Sans cette memoire, retirer une icone personnalisee laissait un trou: on sait
+     poser, on ne saurait pas revenir. La capture se fait au premier remplacement,
+     donc sur le contenu d'origine, et jamais sur celui d'un theme precedent. */
+  var _iconesOrigine = {};
+
+  function peindreIcones(icones) {
+    icones = icones || {};
+    ICONES.forEach(function (it) {
+      var cible = document.querySelector(it.sel);
+      if (!cible) return;
+      if (!(it.cle in _iconesOrigine)) _iconesOrigine[it.cle] = cible.innerHTML;
+      var v = icones[it.cle];
+      if (v && String(v).trim()) {
+        cible.innerHTML = String(v);
+        cible.classList.add('lr-icone-perso');
+      } else {
+        cible.innerHTML = _iconesOrigine[it.cle];
+        cible.classList.remove('lr-icone-perso');
+      }
+    });
+  }
+
   /* ----------------------------------------------------------------------
      La marque: le nom et le logo en haut a gauche.
 
@@ -325,9 +375,9 @@
   }
 
   function habillageDe(id) {
-    if (!estPerso(id)) return { marque: {}, fond: {} };
+    if (!estPerso(id)) return { marque: {}, fond: {}, icones: {} };
     var t = persoParId(id) || {};
-    return { marque: t.marque || {}, fond: t.fond || {} };
+    return { marque: t.marque || {}, fond: t.fond || {}, icones: t.icones || {} };
   }
 
   /* Peindre. Un integre pose l'attribut et retire toute valeur en ligne; un
@@ -347,6 +397,7 @@
       });
       peindreFond(br.fond || {});
       peindreMarque(br.marque || {});
+      peindreIcones(br.icones || {});
       return;
     }
     if (estPerso(id)) {
@@ -369,6 +420,7 @@
     var h = habillageDe(id);
     peindreFond(h.fond);
     peindreMarque(h.marque);
+    peindreIcones(h.icones);
     try {
       if (estPerso(id)) localStorage.setItem(CLE_HABILLAGE, JSON.stringify(h));
       else localStorage.removeItem(CLE_HABILLAGE);
@@ -384,6 +436,13 @@
     clearTimeout(apercu.minuteur);
     etat.actif = id;
     peindre(id);
+    /* Le theme a change: que tout ce qui l'affiche se remette a jour.
+       Le menu de la barre du haut et les vignettes de l'onglet Apparence
+       montraient chacun leur propre idee du theme actif, celle du moment ou ils
+       avaient ete dessines. Choisir dans l'un laissait donc l'autre en arriere. */
+    try {
+      document.dispatchEvent(new CustomEvent('laruche:theme', { detail: { actif: id } }));
+    } catch (e) {}
     if (opts.sansEnregistrer) return;
     try { localStorage.setItem(CLE_ACTIF, id); } catch (e) {}
     fetch('/api/themes/actif', {
@@ -463,17 +522,14 @@
      vit dans la feuille de style de l'application, le reecrire demanderait de
      reinstaller pour revenir en arriere. Le garder intact rend au contraire la
      remise a zero gratuite, il suffit de le reselectionner. */
-  async function dupliquer(nom, jetons, marque, fond) {
+  async function dupliquer(nom, jetons, marque, fond, icones) {
     var parent = etat.actif;
     var base = jetons ? Object.assign({}, jetons) : baseCourante();
-    var r = await fetch('/api/themes', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: null, nom: nom, jetons: jetons || baseCourante(),
-        marque: marque || {}, fond: fond || {},
-        parent: estPerso(parent) ? clePerso(parent) : parent, base: base
-      })
-    }).then(function (x) { return x.json(); });
+    var r = await envoyer({
+      id: null, nom: nom, jetons: jetons || baseCourante(),
+      marque: marque || {}, fond: fond || {}, icones: icones || {},
+      parent: estPerso(parent) ? clePerso(parent) : parent, base: base
+    });
     if (r && r.status === 'ok') {
       await charger();
       etat.brouillon = null;
@@ -482,14 +538,31 @@
     return r;
   }
 
-  async function enregistrer(nom, jetons, id, marque, fond) {
-    var r = await fetch('/api/themes', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: id || null, nom: nom, jetons: jetons,
-        marque: marque || {}, fond: fond || {}
-      })
-    }).then(function (x) { return x.json(); });
+  /* Un echec RENVOIE un echec, il ne le jette pas.
+     Un corps trop lourd revenait en 413 sans JSON: `x.json()` levait, la promesse
+     etait rejetee, et l'appelant qui affichait "enregistrement..." n'etait jamais
+     rappele. Le panneau restait donc bloque sur ce mot, en repetant que rien
+     n'etait enregistre, ce qui etait vrai et invisible a la fois. */
+  async function envoyer(corps) {
+    try {
+      var rep = await fetch('/api/themes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(corps)
+      });
+      if (!rep.ok) {
+        return { status: 'error', error: rep.status === 413 ? 'theme trop lourd' : ('HTTP ' + rep.status) };
+      }
+      return await rep.json();
+    } catch (e) {
+      return { status: 'error', error: String((e && e.message) || e) };
+    }
+  }
+
+  async function enregistrer(nom, jetons, id, marque, fond, icones) {
+    var r = await envoyer({
+      id: id || null, nom: nom, jetons: jetons,
+      marque: marque || {}, fond: fond || {}, icones: icones || {}
+    });
     if (r && r.status === 'ok') {
       await charger();
       appliquer('perso:' + r.theme.id);
@@ -552,6 +625,7 @@
     PILES: PILES, PILES_MONO: PILES_MONO, descripteur: descripteur,
     resoudreCouleur: resoudreCouleur, versHex: versHex,
     composerCouleur: composerCouleur, tripletRgb: tripletRgb,
+    ICONES: ICONES, peindreIcones: peindreIcones,
     peindreFond: peindreFond, peindreMarque: peindreMarque,
     habillageDe: habillageDe, dupliquer: dupliquer, baseCourante: baseCourante,
     definirBrouillon: definirBrouillon, brouillonCourant: brouillonCourant,

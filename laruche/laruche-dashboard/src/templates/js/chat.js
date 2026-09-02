@@ -226,6 +226,8 @@ LaRuche.i18n.add({
      d'appels passes a chercher de quel projet on parlait. Une suggestion qui
      oblige a poser une question ne suggere rien.
      Une par pilier: les skills, le web, la surveillance, la memoire. */
+  'chat.supprEchouee':          {fr:'Suppression impossible.',  en:'Could not delete.'},
+  'chat.supprInterdite':        {fr:"Cette conversation ne vous appartient pas.", en:'This conversation is not yours.'},
   'chat.suggestion1':           {fr:'Presente-toi : que sais-tu faire, concretement ?', en:'Introduce yourself: what can you actually do?'},
   'chat.suggestion2':           {fr:"Cherche sur le web les nouveautes IA de la semaine, avec tes sources", en:"Search the web for this week's AI news, with your sources"},
   'chat.suggestion3':           {fr:'Previens-moi si un fichier arrive sur mon bureau', en:'Warn me if a file lands on my desktop'},
@@ -2600,9 +2602,18 @@ LaRuche.Chat = (function(){
   }
 
   function deleteSession(id) {
-    fetch('/api/sessions/'+id,{method:'DELETE'}).then(function(){
+    // Un echec se DIT. La liste se rechargeait dans tous les cas, si bien qu'un
+    // refus du serveur se lisait comme un clic sans effet: la conversation
+    // reapparaissait au meme endroit et rien n'expliquait pourquoi.
+    fetch('/api/sessions/'+id,{method:'DELETE'}).then(function(r){
+      if(!r.ok){
+        LaRuche.Toast.show(LaRuche.i18n.t(r.status === 403 ? 'chat.supprInterdite' : 'chat.supprEchouee'), 'err');
+        return;
+      }
       if(id===sessionId) newSession(); else loadSessions();
       refreshHistoryOverlay();
+    }).catch(function(){
+      LaRuche.Toast.show(LaRuche.i18n.t('chat.supprEchouee'), 'err');
     });
   }
 

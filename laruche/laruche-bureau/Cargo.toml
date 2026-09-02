@@ -19,6 +19,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# Lire le theme actif dans le foyer avant d'ouvrir la fenetre, pour que l'ecran
+# d'attente s'affiche deja aux couleurs de l'utilisateur. Tauri l'embarque de
+# toute facon: la dependance ne coute rien de plus a la compilation.
+serde_json = { workspace = true }
 # Decouverte mDNS seule: MielListener ecoute sans annoncer, donc une coque sans
 # noeud peut lister les ruches du reseau. C'est ce qui permet un client pur - et
 # c'est le meme mecanisme qu'utilisera une application mobile.

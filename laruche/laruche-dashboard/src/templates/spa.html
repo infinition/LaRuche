@@ -668,6 +668,12 @@
   <div class="sb-model-wrap" style="margin-left:8px">
     <span id="sbMuteLabel" title="Muet" style="cursor:pointer;font-size:13px;line-height:1;opacity:.55" onclick="LaRuche.Voice.toggleMute()">&#128266;</span>
   </div>
+  <!-- Le partage: la page en cours passe a cote du chat plutot que de le
+       remplacer. Il ne peut pas s'appliquer au chat lui-meme, qui est la page
+       maitresse: la partager avec elle-meme ne veut rien dire. -->
+  <div class="sb-model-wrap" style="margin-left:8px">
+    <span id="sbSplitLabel" style="cursor:pointer;font-size:13px;line-height:1;opacity:.55" onclick="LaRuche.Router.splitBasculer()">&#9707;</span>
+  </div>
   <div class="sb-model-wrap" id="sbTtsWrap" style="margin-left:8px;display:none">
     <span id="sbTtsLabel" title="Voice (TTS)" style="cursor:pointer;font-size:13px;line-height:1;opacity:.6" onclick="LaRuche.Voice.toggleTtsDrop(event)">&#128266;</span>
     <div class="sb-model-drop" id="sbTtsDrop"></div>

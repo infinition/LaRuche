@@ -196,7 +196,18 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/onboarding", get(local_api::api_onboarding))
         .route("/api/cwd", get(local_api::api_get_cwd).post(local_api::api_set_cwd))
         .route("/api/fs/dirs", get(local_api::api_fs_dirs))
-        .route("/api/themes", get(themes_api::api_themes_list).post(themes_api::api_themes_save))
+        // Un theme porte son image de fond, encodee dans le JSON: la limite de
+        // corps par defaut d'axum, deux mebioctets, la refusait en silence. Le
+        // navigateur recevait un 413 sans corps JSON, la promesse echouait, et le
+        // panneau restait sur "enregistrement..." pour toujours. Le plafond reel
+        // du contenu est verifie dans `themes_api`, celui-ci lui laisse la place.
+        .route(
+            "/api/themes",
+            get(themes_api::api_themes_list).post(
+                post(themes_api::api_themes_save)
+                    .layer(axum::extract::DefaultBodyLimit::max(12 * 1024 * 1024)),
+            ),
+        )
         .route("/api/themes/actif", get(themes_api::api_theme_actif_get).post(themes_api::api_theme_actif_set))
         .route("/api/themes/:id", axum::routing::delete(themes_api::api_themes_delete))
         .route("/api/media/local", get(local_api::api_media_local))

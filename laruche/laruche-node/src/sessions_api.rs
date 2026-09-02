@@ -41,21 +41,42 @@ pub(crate) async fn api_delete_session(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> StatusCode {
     let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
-    if let Ok(uuid) = Uuid::parse_str(&id) {
-        let mut sessions = state.essaim_sessions.write().await;
-        // Check ownership before deleting
-        if let Some(session) = sessions.get(&uuid) {
-            if session.user_id.is_some() && session.user_id != caller {
-                warn!(session_id = %uuid, "Unauthorized session delete attempt");
-                return StatusCode::FORBIDDEN;
-            }
-        }
-        if sessions.remove(&uuid).is_some() {
-            let path = std::path::PathBuf::from("sessions").join(format!("{}.json", uuid));
-            let _ = std::fs::remove_file(path);
-            info!(session_id = %uuid, "Session deleted");
-            return StatusCode::OK;
-        }
+    let Ok(uuid) = Uuid::parse_str(&id) else {
+        return StatusCode::NOT_FOUND;
+    };
+    let mut sessions = state.essaim_sessions.write().await;
+    let chemin = std::path::PathBuf::from("sessions").join(format!("{uuid}.json"));
+
+    // A qui appartient-elle? La carte en memoire repond quand elle la connait; le
+    // FICHIER repond dans le cas qui nous occupe, celui d'une conversation
+    // presente sur le disque et absente de la memoire. Ne pas savoir lire le
+    // fichier ne protege personne: il est illisible, donc il n'a plus de
+    // proprietaire a defendre.
+    let proprietaire = match sessions.get(&uuid) {
+        Some(s) => s.user_id,
+        None => std::fs::read_to_string(&chemin)
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .and_then(|v| v.get("user_id").and_then(|u| u.as_str()).map(str::to_string))
+            .and_then(|u| Uuid::parse_str(&u).ok()),
+    };
+    if proprietaire.is_some() && proprietaire != caller {
+        warn!(session_id = %uuid, "Unauthorized session delete attempt");
+        return StatusCode::FORBIDDEN;
+    }
+
+    // Le disque ET la memoire, chacun independamment.
+    //
+    // La suppression ne retirait que l'entree en memoire, et ne touchait au
+    // fichier QUE si cette entree existait. Une conversation fantome, listee
+    // parce que son fichier est la mais absente de la carte, renvoyait donc 404
+    // et restait sur le disque: on cliquait sur la croix, la liste se
+    // rechargeait, la conversation revenait. Indestructible, et sans un mot.
+    let en_memoire = sessions.remove(&uuid).is_some();
+    let sur_disque = std::fs::remove_file(&chemin).is_ok();
+    if en_memoire || sur_disque {
+        info!(session_id = %uuid, en_memoire, sur_disque, "Session deleted");
+        return StatusCode::OK;
     }
     StatusCode::NOT_FOUND
 }
