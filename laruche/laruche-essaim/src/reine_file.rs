@@ -183,6 +183,30 @@ pub fn transition_desactivation(statut: Statut) -> Statut {
 /// Guards recurring producers (the 6h dream pass) against flooding the backlog
 /// with the same suggestion on every run. Terminal statuses do not block a
 /// re-proposal: a rejected or expired suggestion may legitimately come back.
+/// Is this EXACT proposal already waiting? Same type, same target, same text.
+///
+/// [`deja_en_file`] keys on the target alone, which is right for the hygiene pass (one
+/// suggestion per node at a time) and wrong for the curateur: two genuinely different
+/// facts about `people.fabien` both deserve a review. The text is what separates a
+/// second opinion from a repeat.
+///
+/// The curateur had no guard at all and re-proposed its findings on every run. Observed
+/// 2026-09-02: "L'utilisateur s'appelle Fabien." queued three times, at 13:13, 17:37 and
+/// 17:38, a fact already sitting active in the node.
+pub fn deja_propose(
+    props: &[Proposition],
+    type_: TypeProposition,
+    cible: &str,
+    contenu: &str,
+) -> bool {
+    props.iter().any(|p| {
+        p.type_ == type_
+            && p.statut.actionnable()
+            && p.cible.as_deref() == Some(cible)
+            && p.raison.trim() == contenu.trim()
+    })
+}
+
 pub fn deja_en_file(props: &[Proposition], type_: TypeProposition, cible: &str) -> bool {
     props
         .iter()
@@ -227,6 +251,65 @@ mod tests {
             classifier_risque(TypeProposition::MemoireHygiene, false),
             Risque::Critique
         );
+    }
+
+    #[test]
+    fn le_curateur_ne_reproposes_pas_le_meme_fait() {
+        let mut p = prop(TypeProposition::MemoireMaj, false);
+        p.cible = Some("people.fabien".into());
+        p.raison = "L'utilisateur s'appelle Fabien.".into();
+        let file = vec![p.clone()];
+
+        // Mot pour mot, deja en attente: on ne rajoute pas une ligne identique.
+        assert!(deja_propose(
+            &file,
+            TypeProposition::MemoireMaj,
+            "people.fabien",
+            "L'utilisateur s'appelle Fabien."
+        ));
+        // Les espaces de bord ne font pas un fait different.
+        assert!(deja_propose(
+            &file,
+            TypeProposition::MemoireMaj,
+            "people.fabien",
+            "  L'utilisateur s'appelle Fabien.  "
+        ));
+        // Un AUTRE fait sur le meme noeud reste proposable: c'est toute la difference
+        // avec `deja_en_file`, qui ne regarde que la cible.
+        assert!(!deja_propose(
+            &file,
+            TypeProposition::MemoireMaj,
+            "people.fabien",
+            "Fabien habite a Cannes."
+        ));
+        // Autre noeud, autre type: rien a voir.
+        assert!(!deja_propose(
+            &file,
+            TypeProposition::MemoireMaj,
+            "people.autre",
+            "L'utilisateur s'appelle Fabien."
+        ));
+        assert!(!deja_propose(
+            &file,
+            TypeProposition::MemoireAjout,
+            "people.fabien",
+            "L'utilisateur s'appelle Fabien."
+        ));
+    }
+
+    #[test]
+    fn une_proposition_tranchee_ne_bloque_plus_la_suivante() {
+        // Rejetee hier, la meme suggestion peut legitimement revenir aujourd'hui.
+        let mut p = prop(TypeProposition::MemoireMaj, false);
+        p.cible = Some("people.fabien".into());
+        p.raison = "L'utilisateur s'appelle Fabien.".into();
+        p.statut = Statut::Rejete;
+        assert!(!deja_propose(
+            &[p],
+            TypeProposition::MemoireMaj,
+            "people.fabien",
+            "L'utilisateur s'appelle Fabien."
+        ));
     }
 
     #[test]

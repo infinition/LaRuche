@@ -149,22 +149,38 @@ pub async fn proposer_memoire(
         return false;
     }
     let cible = item.node_id.clone();
-    // Does the target already hold items? Update vs add (for display + risk class).
-    let existe = memoire
+    // The node's CURRENT items, read once: they answer two questions at a time, whether
+    // this is an update or an addition, and whether the fact is already known.
+    let items = memoire
         .read_node(&cible)
         .await
         .ok()
-        .and_then(|n| {
-            n.get("items")
-                .and_then(|i| i.as_array())
-                .map(|a| !a.is_empty())
-        })
-        .unwrap_or(false);
+        .and_then(|n| n.get("items").and_then(|i| i.as_array()).cloned())
+        .unwrap_or_default();
+
+    // ALREADY KNOWN: the exact text is active in the target node. There is nothing to
+    // review, and asking anyway trains the user to approve without reading.
+    if items.iter().any(|it| {
+        it.get("content")
+            .and_then(|c| c.as_str())
+            .is_some_and(|c| c.trim() == item.content.trim())
+    }) {
+        return false;
+    }
+
+    let existe = !items.is_empty();
     let type_ = if existe {
         TypeProposition::MemoireMaj
     } else {
         TypeProposition::MemoireAjout
     };
+
+    // ALREADY QUEUED: the curateur runs after every mission and rediscovers the same
+    // things. Without this it stacked identical rows, and a queue that repeats itself
+    // stops being read.
+    if crate::reine_file::deja_propose(&charger(), type_, &cible, &item.content) {
+        return false;
+    }
     let risque = classifier_risque(type_, false);
     let confiance = item
         .confidence
