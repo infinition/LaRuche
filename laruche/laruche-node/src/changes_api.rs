@@ -110,9 +110,26 @@ async fn reconcilier_skills_orphelines(
                     .any(|it| it["content"].as_str().is_some_and(|c| c.contains("type: skill")))
             })
             .unwrap_or(false);
-        if a_document && !supprimee_du_disque(&node, &id, sur_disque) {
+        let du_disque_disparu = supprimee_du_disque(&node, &id, sur_disque);
+        if a_document && !du_disque_disparu {
             continue;
         }
+        // Dire QUELLE regle supprime, et sur quel skill.
+        //
+        // Le compte seul ("swept count=37") ne permet pas de distinguer les deux
+        // regles, et elles n'ont pas du tout la meme gravite: une coquille sans
+        // document est un dechet, un skill present sur le disque qui se fait balayer
+        // est une perte. Trente-neuf skills synchronises puis trente-sept balayes au
+        // meme demarrage, ce n'est pas du menage, et la corbeille le montre: le meme
+        // `arxiv` supprime et recree a chaque lancement, une copie horodatee par
+        // passage.
+        tracing::warn!(
+            skill = %id,
+            sans_document = !a_document,
+            absent_du_disque = du_disque_disparu,
+            skills_vus_sur_disque = sur_disque.len(),
+            "skill balaye du catalogue"
+        );
         // delete_node reparents to `orphans.*`, so remove that residue too.
         //
         // L'adresse du residu se LIT dans la reponse, elle ne se devine pas. Elle
