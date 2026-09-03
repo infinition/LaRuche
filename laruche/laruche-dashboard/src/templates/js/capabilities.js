@@ -1,4 +1,18 @@
 LaRuche.i18n.add({
+  'capabilities.livresTitre':     {fr:'Capacites livrees a decider',
+                                   en:'Shipped capabilities awaiting a decision'},
+  'capabilities.livresAide':      {fr:"Ces fichiers livres avec LaRuche different de ce que vous avez sur le disque, ou en sont absents. Rien n'est change sans vous.",
+                                   en:'These files shipped with LaRuche differ from what is on disk, or are missing from it. Nothing changes without you.'},
+  'capabilities.livresManquant':  {fr:'efface',                    en:'deleted'},
+  'capabilities.livresDifferent': {fr:'modifie',                   en:'modified'},
+  'capabilities.livresComparer':  {fr:'Comparer',                  en:'Compare'},
+  'capabilities.livresAppliquer': {fr:'Prendre la version livree', en:'Take the shipped version'},
+  'capabilities.livresIgnorer':   {fr:'Garder la mienne',          en:'Keep mine'},
+  'capabilities.livresVotre':     {fr:'Sur votre disque',          en:'On your disk'},
+  'capabilities.livresLivree':    {fr:'Version livree',            en:'Shipped version'},
+  'capabilities.livresAbsent':    {fr:'(absent du disque)',        en:'(absent from disk)'},
+  'capabilities.livresFait':      {fr:'Fait',                      en:'Done'},
+
   'capabilities.view':          { fr:'Voir',              en:'View' },
   'capabilities.delete':        { fr:'Suppr',             en:'Del' },
   'capabilities.edit':          { fr:'Editer',            en:'Edit' },
@@ -119,7 +133,103 @@ LaRuche.Capabilities = (function(){
       render();
     });
   }
-  function enter(){ render(); }
+  function enter(){ render(); rendreLivres(); }
+
+  /* Ce que la mise a jour n'a PAS ose toucher.
+
+     Le noeud decide seul dans deux cas: une capacite effacee reste morte, une
+     capacite modifiee reste la sienne. C'est le bon choix par defaut, mais pris
+     en silence il devient un secret: on ne sait ni qu'une nouveaute existe, ni
+     que la version livree a change sous une modification faite il y a trois
+     mois. Les quatre routes existaient depuis le debut, aucune vue ne les
+     appelait.
+
+     Rien n'est decide ici a la place de l'utilisateur: on montre, il choisit, et
+     une entree qu'il laisse de cote reste affichee tant qu'il n'a pas tranche. */
+  var _livres = [];
+
+  async function rendreLivres(){
+    var hote = document.getElementById('capLivres');
+    if(!hote) return;
+    try{
+      var d = await fetch(LaRuche.API.base+'/api/skills/livres', {credentials:'include'})
+        .then(function(r){ return r.ok ? r.json() : null; });
+      _livres = (d && d.entrees) || [];
+    }catch(e){ _livres = []; }
+    if(!_livres.length){ hote.innerHTML = ''; return; }
+
+    var esc = LaRuche.Utils.esc;
+    var t = LaRuche.i18n.t;
+    hote.innerHTML =
+      '<div class="settings-card" style="border-color:var(--amber);margin-bottom:12px">'+
+        '<div class="settings-card-title">'+t('capabilities.livresTitre')+' ('+_livres.length+')</div>'+
+        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('capabilities.livresAide')+'</p>'+
+        _livres.map(function(e){
+          var manquant = e.etat === 'manquant';
+          var c = esc(e.chemin);
+          return '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--border)">'+
+            '<span class="etat-pastille'+(manquant?'':' on')+'" style="cursor:default">'+
+              '<span class="etat-point"></span>'+
+              t(manquant ? 'capabilities.livresManquant' : 'capabilities.livresDifferent')+'</span>'+
+            '<code style="flex:1;min-width:150px;font-size:11.5px;color:var(--text-dim)">'+c+'</code>'+
+            (manquant ? '' :
+              '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px" '+
+                'onclick="LaRuche.Capabilities.voirLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresComparer')+'</button>')+
+            '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px" '+
+              'onclick="LaRuche.Capabilities.appliquerLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresAppliquer')+'</button>'+
+            '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px;color:var(--text-muted)" '+
+              'onclick="LaRuche.Capabilities.ignorerLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresIgnorer')+'</button>'+
+          '</div>';
+        }).join('')+
+      '</div>';
+  }
+
+  /* La comparaison, en clair. Un bouton « appliquer » sans montrer ce qu'il
+     remplace demande une confiance qu'on n'a aucune raison d'accorder. */
+  async function voirLivre(chemin){
+    var d = await fetch(LaRuche.API.base+'/api/skills/livres/contenu?chemin='+encodeURIComponent(chemin),
+      {credentials:'include'}).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+    if(!d || d.error){ if(LaRuche.Toast) LaRuche.Toast.show((d && d.error) || 'erreur','err'); return; }
+    var esc = LaRuche.Utils.esc, t = LaRuche.i18n.t;
+    var volet = function(titre, couleur, texte){
+      return '<div style="flex:1;min-width:250px">'+
+        '<div style="font-size:11px;color:'+couleur+';margin-bottom:4px">'+titre+'</div>'+
+        '<pre style="max-height:50vh;overflow:auto;background:var(--bg-input);padding:9px;'+
+          'border-radius:6px;font-size:11px;white-space:pre-wrap;margin:0">'+esc(texte)+'</pre></div>';
+    };
+    var ov = document.createElement('div');
+    ov.className = 'lr-modal-overlay';
+    ov.onclick = function(ev){ if(ev.target === ov) ov.remove(); };
+    ov.innerHTML = '<div class="lr-modal" role="dialog" aria-modal="true" style="max-width:920px;width:92vw">'+
+      '<div class="lr-modal-title">'+esc(chemin)+'</div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+        volet(t('capabilities.livresVotre'), 'var(--text-dim)',
+              d.actuel == null ? t('capabilities.livresAbsent') : d.actuel)+
+        volet(t('capabilities.livresLivree'), 'var(--amber)', d.livre || '')+
+      '</div>'+
+      '<div class="lr-modal-actions">'+
+        '<button class="cwd-btn" style="opacity:1" id="livreFermer">'+t('common.close')+'</button>'+
+      '</div></div>';
+    document.body.appendChild(ov);
+    var f = ov.querySelector('#livreFermer');
+    if(f) f.onclick = function(){ ov.remove(); };
+  }
+
+  async function _livreAction(route, chemin){
+    try{
+      var r = await fetch(LaRuche.API.base+'/api/skills/livres/'+route, {
+        method:'POST', credentials:'include',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ chemin: chemin })
+      }).then(function(x){ return x.json(); });
+      if(r && r.status === 'ok'){
+        if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('capabilities.livresFait'), 'ok');
+      } else if(LaRuche.Toast){ LaRuche.Toast.show((r && r.error) || 'erreur', 'err'); }
+    }catch(e){ if(LaRuche.Toast) LaRuche.Toast.show('erreur', 'err'); }
+    rendreLivres();
+  }
+  function appliquerLivre(chemin){ return _livreAction('appliquer', chemin); }
+  function ignorerLivre(chemin){ return _livreAction('ignorer', chemin); }
   function leave(){}
   function refresh(){ render(); }
 
@@ -324,7 +434,8 @@ LaRuche.Capabilities = (function(){
     // Actions on top, then the search, then the count: what one CAN do before what one
     // is looking at. The row is a single flex container, so the buttons keep one rhythm
     // whatever the active family shows.
-    el.innerHTML = '<div class="lr-actions">'+extraActions+'</div>' + searchBar +
+    el.innerHTML = '<div id="capLivres"></div>' +
+      '<div class="lr-actions">'+extraActions+'</div>' + searchBar +
       '<div style="margin-bottom:10px">'+
         '<span style="color:var(--text-dim);font-size:12px">'+filtered.length+' '+LaRuche.i18n.t('capabilities.capacities')+(currentFamily==='all'?LaRuche.i18n.t('capabilities.nativeImmutable'):'')+'</span>'+
       '</div>'+
@@ -477,6 +588,7 @@ LaRuche.Capabilities = (function(){
   function ensureSwitchStyle(){}
 
   return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp, showFamily:showFamily,
+    rendreLivres:rendreLivres, voirLivre:voirLivre, appliquerLivre:appliquerLivre, ignorerLivre:ignorerLivre,
     toggleMcp:toggleMcp, saveMcpModal:saveMcpModal, closeMcpModal:fermerMcpModal,
     majTransport:majTransport };
 })();

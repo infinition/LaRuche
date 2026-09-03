@@ -962,6 +962,53 @@ impl WatchersRegistry {
         })
     }
 
+    /// Evaluer UNE vigie tout de suite, sans rien changer a son etat.
+    ///
+    /// Une vigie ne se verifiait qu'en attendant son intervalle: une regle mal
+    /// ecrite se decouvrait le lendemain, et une vigie muette ne disait pas si
+    /// elle etait cassee ou si sa condition n'etait simplement pas remplie.
+    ///
+    /// Ce test est volontairement SANS EFFET DE BORD. Il n'avance ni les lignes
+    /// connues, ni l'etat de reference, ni la date du dernier tir, et il ne
+    /// notifie pas. La raison est simple: consommer l'observation pour repondre
+    /// « oui, ca marche » ferait manquer a la vigie le vrai evenement suivant,
+    /// et un test qui abime ce qu'il mesure ne mesure plus rien.
+    ///
+    /// L'intervalle et le delai de garde sont ignores: ce sont des cadences, pas
+    /// des conditions, et c'est justement pour ne pas les attendre qu'on teste.
+    /// La reponse porte donc sur ce que la vigie VOIT maintenant.
+    pub async fn tester(&self, id: &Uuid) -> Option<(bool, String)> {
+        let watcher = self.watchers.get(id)?;
+        let now = Utc::now();
+        // Le meme instantane des verdicts que le balayage, pour qu'une regle de
+        // correlation reponde ici comme elle repondrait la-bas.
+        let etats: std::collections::HashMap<String, EtatWatcher> = self
+            .watchers
+            .values()
+            .filter_map(|w| {
+                w.verdict_depuis.map(|depuis| {
+                    (
+                        w.name.clone(),
+                        EtatWatcher { vrai: w.dernier_verdict.unwrap_or(false), depuis },
+                    )
+                })
+            })
+            .collect();
+        match evaluate_watcher(watcher, now).await {
+            Ok((transition, _new_state, desc, obs)) => {
+                let feu = match &watcher.regles {
+                    Some(regles) => matches!(
+                        regles.evaluer_avec(&obs, &chrono::Local::now(), &etats),
+                        Verdict::Vrai | Verdict::BesoinLlm(_)
+                    ),
+                    None => transition,
+                };
+                Some((feu, desc))
+            }
+            Err(e) => Some((false, format!("erreur: {e}"))),
+        }
+    }
+
     pub fn set_active(&mut self, id: &Uuid, active: bool) -> bool {
         if let Some(w) = self.watchers.get_mut(id) {
             w.active = active;

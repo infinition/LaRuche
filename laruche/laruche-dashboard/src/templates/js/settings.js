@@ -267,6 +267,13 @@ LaRuche.i18n.add({
   'settings.kanbanResultLabel':  {fr:'Résultat',         en:'Result'},
   'settings.kanbanDeplaceEchoue': {fr:"Le deplacement n'a pas ete enregistre.", en:'The move was not saved.'},
   'settings.kanbanNonConnecte':   {fr:'Session expiree: reconnectez-vous pour deplacer une carte.', en:'Session expired: sign in again to move a card.'},
+  'settings.vigieTester':       {fr:'Tester',                  en:'Test'},
+  'settings.vigieTesterAide':   {fr:"Evaluer cette vigie tout de suite, sans attendre son intervalle. Elle se declenche pour de vrai si sa condition est remplie.",
+                                 en:'Evaluate this watcher right now, without waiting for its interval. It fires for real if its condition holds.'},
+  'settings.vigieTestVide':     {fr:'Rien a signaler: sa condition n\'est pas remplie.',
+                                 en:'Nothing to report: its condition does not hold.'},
+  'settings.vigieTestFeu':      {fr:'Declenchee',                 en:'Fired'},
+  'settings.vigieTestEchoue':   {fr:"Le test n'a pas abouti.",    en:'The test did not complete.'},
   'settings.policeAucune':      {fr:'Aucune',                  en:'None'},
   'settings.feedPosTitle':      {fr:'Position du flux',        en:'Feed position'},
   'settings.feedPosHint':       {fr:"Ou le flux d'activite se pose quand un panneau est detache a droite.",
@@ -3777,6 +3784,13 @@ LaRuche.Settings = (function(){
       '<span class="wcard-type">'+esc(w.watcher_type||'')+'</span>'+
       (w.sustained?'<span class="wcard-sust" title="'+t('settings.wfSustained')+'">⟳</span>':'')+
       pastille(w.active !== false, w.id, 'watcher')+
+      // Tester tout de suite. Une vigie ne se verifiait qu'en attendant son
+      // intervalle, et une vigie muette ne disait pas si elle etait cassee ou si
+      // sa condition n'etait simplement pas remplie.
+      '<button type="button" class="cwd-btn" style="opacity:1;font-size:10.5px;padding:2px 8px;flex:none" '+
+        'title="'+esc(t('settings.vigieTesterAide'))+'" '+
+        'onclick="event.stopPropagation();LaRuche.Settings.testerVigie(\''+w.id+'\')">'+
+        t('settings.vigieTester')+'</button>'+
       // Le prochain passage, en clair. `last_run` plus l'intervalle: tant qu'elle
       // n'a jamais tourne, on annonce le premier passage comme imminent plutot
       // que de laisser un blanc.
@@ -3922,6 +3936,32 @@ LaRuche.Settings = (function(){
   /* Activer ou suspendre, pour une vigie comme pour un cron. Les deux passent par
      le meme geste et le meme mot: c'est la meme idee, il n'y a pas de raison que
      l'utilisateur apprenne deux fois. */
+  /* Tester une vigie a la demande.
+
+     Le serveur evalue SANS effet de bord: il n'avance ni les lignes connues, ni
+     l'etat de reference, et il ne notifie pas. On apprend donc si la condition
+     est remplie maintenant, sans faire manquer a la vigie le vrai evenement
+     suivant. Le detail est affiche tel quel: c'est ce que la vigie voit, et
+     c'est ce qui permet de corriger une regle fausse. */
+  async function testerVigie(id){
+    try{
+      var r = await fetch(LaRuche.API.base+'/api/watchers/'+encodeURIComponent(id)+'/test',
+        { method:'POST', credentials:'include' }).then(function(x){ return x.json(); });
+      if(!r || r.status !== 'ok'){
+        LaRuche.Toast.show((r && r.error) || LaRuche.i18n.t('settings.vigieTestEchoue'), 'err');
+        return;
+      }
+      var d = (r.description || '').trim();
+      if(r.declenche){
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.vigieTestFeu')+(d ? ' : '+d : ''), 'ok');
+      } else {
+        LaRuche.Toast.show(d || LaRuche.i18n.t('settings.vigieTestVide'), 'info');
+      }
+    }catch(e){
+      LaRuche.Toast.show(LaRuche.i18n.t('settings.vigieTestEchoue'), 'err');
+    }
+  }
+
   async function basculerEtat(quoi, id, actif){
     var url = quoi === 'cron' ? '/api/cron/' + id : '/api/watchers/' + id;
     var methode = quoi === 'cron' ? 'PUT' : 'PATCH';
@@ -5776,7 +5816,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, basculerEtat:basculerEtat, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab, dock:dock, fermerDock:fermerDock,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, basculerEtat:basculerEtat, testerVigie:testerVigie, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab, dock:dock, fermerDock:fermerDock,
     loadGeneral:loadGeneral, loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, lancerCronTask:lancerCronTask, visionReessayer:visionReessayer, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 

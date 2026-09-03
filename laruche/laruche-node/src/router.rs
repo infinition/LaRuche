@@ -371,6 +371,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             "/api/watchers/:id",
             axum::routing::patch(watchers_api::api_update_watcher).delete(watchers_api::api_delete_watcher),
         )
+        .route("/api/watchers/:id/test", post(watchers_api::api_test_watcher))
         .route("/api/channels/known", get(kanban_api::api_channels_known))
         .route(
             "/api/kanban/default_channel",

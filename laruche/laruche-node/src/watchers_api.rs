@@ -1,7 +1,7 @@
 //! Watcher endpoints (list, create, update, delete file/event watchers) - split out of main.rs.
 
 use crate::*;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::response::Json;
 use axum::http::StatusCode;
 use std::sync::Arc;
@@ -207,4 +207,25 @@ pub(crate) async fn api_delete_watcher(
         }
     }
     StatusCode::NOT_FOUND
+}
+
+/// POST /api/watchers/:id/test - evaluer une vigie tout de suite.
+///
+/// Sans effet de bord: la vigie n'avance pas son etat et ne notifie pas. La
+/// reponse dit ce qu'elle voit et si sa regle est remplie, ce qui suffit a
+/// distinguer « ma regle est fausse » de « il ne s'est rien passe ».
+pub(crate) async fn api_test_watcher(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    let Ok(uuid) = Uuid::parse_str(&id) else {
+        return Json(serde_json::json!({ "status": "error", "error": "identifiant invalide" }));
+    };
+    let registry = state.watchers.read().await;
+    match registry.tester(&uuid).await {
+        Some((feu, description)) => Json(serde_json::json!({
+            "status": "ok", "declenche": feu, "description": description
+        })),
+        None => Json(serde_json::json!({ "status": "error", "error": "vigie introuvable" })),
+    }
 }
