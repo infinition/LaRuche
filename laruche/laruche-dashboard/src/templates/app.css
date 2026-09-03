@@ -3273,14 +3273,24 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 }
 /* La table reste visible pendant qu'on lit: elle sert de reperage permanent, et
    remonter la chercher a chaque tour rendait le suivi penible. */
+/* La table DEFILE avec le debat, et c'est pour cela qu'elle n'a pas de fond.
+
+   Elle etait collante en haut, ce qui obligeait a lui peindre un fond opaque:
+   sans lui, le debat serait passe a travers les visages. Ce fond est la dalle
+   sombre qu'on voyait en travers de la page, et sous un fond d'ecran elle
+   devient une plaque posee au milieu de l'image.
+
+   On ne peut pas avoir les deux: une barre qui reste sur place doit cacher ce
+   qui passe dessous. Entre garder l'equipe sous les yeux en permanence et ne pas
+   couper la page en deux, c'est la seconde qui compte: l'equipe se consulte au
+   debut d'un tour, elle ne se relit pas a chaque ligne. */
 .tr-table {
-  position:sticky; top:0; z-index:2; padding:6px 0 10px;
-  background:var(--bg); border-bottom:1px solid var(--border);
+  position:static; padding:6px 0 10px;
+  background:none; border-bottom:none;
 }
 @media (max-width:640px){
   /* Sur telephone la table prend trop de hauteur en collant: elle defile avec le
-     reste plutot que de manger la moitie de l'ecran. */
-  .tr-table { position:static; border-bottom:none; }
+     reste plutot que de manger la moitie de l'ecran. */
   .tr-place { width:70px; padding:6px 4px; }
   .tr-avatar { font-size:34px; }
 }
@@ -3840,16 +3850,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--amber); }
 .tr-pool-ligne .tr-prof { flex:0 1 170px; min-width:110px; }
 .tr-av-vide { opacity:.45; font-size:14px; }
 
-/* La barre de la table ronde est COLLANTE: elle peint un fond opaque pour que
-   les places restent lisibles pendant que le debat defile dessous. C'est juste
-   sans fond d'ecran, et c'est une dalle noire avec. Sous une image, elle devient
-   un voile: on lit encore les cartes, et le fond continue derriere. */
-html[data-fond-app="1"] .tr-table,
-html[data-fond-partage="1"] body.lr-split .page.active:not(#page-chat) .tr-table {
-  background: rgba(var(--bg-rgb), .55);
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-}
 html[data-fond-app="1"] .table-ronde { background: transparent; }
 
 /* La pastille d'etat: un seul geste pour suspendre ou relancer, visible sans
@@ -3922,7 +3922,6 @@ html[data-verre="1"] .profile-modal,
 html[data-verre="1"] .stats-card,
 html[data-verre="1"] .infer-panel,
 html[data-verre="1"] .log-strip,
-html[data-verre="1"] .tr-place,
 html[data-verre="1"] .kb-col,
 html[data-verre="1"] .suggested-prompt,
 html[data-verre="1"] .message.assistant,
@@ -3939,8 +3938,7 @@ html[data-verre="1"] .cc-act {
    plaque de verre, et il ne coute qu'une bordure. */
 html[data-verre="1"] .settings-card,
 html[data-verre="1"] .lr-modal,
-html[data-verre="1"] .panel,
-html[data-verre="1"] .tr-place {
+html[data-verre="1"] .panel {
   border-top-color: var(--verre-bord);
   box-shadow: inset 0 1px 0 var(--verre-bord), 0 4px 24px rgba(0,0,0,.18);
 }
@@ -4099,7 +4097,7 @@ html[data-verre="1"] .tl-detail,
 html[data-verre="1"] .tl-inv-head,
 html[data-verre="1"] .tl-piste,
 html[data-verre="1"] .tr-bloc,
-html[data-verre="1"] .tr-place,
+
 html[data-verre="1"] .tr-role,
 html[data-verre="1"] .tr-strat,,
 html[data-verre="1"] .user-dropdown,
