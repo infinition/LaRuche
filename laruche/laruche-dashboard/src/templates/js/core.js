@@ -1086,11 +1086,14 @@ LaRuche.Router = (function(){
     document.body.classList.add('lr-split');
     _splitBarre();
     _splitMajBouton();
+    // Quelle page on partage, pour la retrouver au demarrage.
+    try{ localStorage.setItem('laruche_split_page', p); }catch(e){}
   }
 
   function splitFermer() {
     var p = _splitPage;
     _splitPage = null;
+    try{ localStorage.removeItem('laruche_split_page'); }catch(e){}
     document.body.classList.remove('lr-split');
     var b = document.getElementById('lrSplitBarre');
     if (b && b.parentNode) b.parentNode.removeChild(b);
@@ -1126,6 +1129,11 @@ LaRuche.Router = (function(){
         b.classList.remove('attrape');
         document.removeEventListener('pointermove', bouger);
         document.removeEventListener('pointerup', lacher);
+        // La proportion choisie survit au redemarrage.
+        try{
+          var v = document.documentElement.style.getPropertyValue('--lr-split');
+          if(v) localStorage.setItem('laruche_split_ratio', v.trim());
+        }catch(e){}
       }
       document.addEventListener('pointermove', bouger);
       document.addEventListener('pointerup', lacher);
@@ -1214,6 +1222,20 @@ LaRuche.Router = (function(){
     window.addEventListener('hashchange', function(){ go(location.hash.replace('#','')||'chat'); });
     // Navigate to initial page
     go(location.hash.replace('#','')||'chat');
+    // Se refaire son ecran: la proportion d'abord (une variable, sans risque),
+    // puis le partage lui-meme une fois que tout est en place. On ne restaure pas
+    // un partage sur le chat ou l'ecran de connexion: l'un est deja la moitie
+    // gauche, l'autre n'a pas de second volet.
+    try{
+      var ratio = localStorage.getItem('laruche_split_ratio');
+      if(ratio) document.documentElement.style.setProperty('--lr-split', ratio);
+      var sp = localStorage.getItem('laruche_split_page');
+      if(sp && sp !== 'chat' && sp !== 'login' && document.getElementById('page-' + sp)){
+        setTimeout(function(){
+          if(!_splitPage){ currentPage = sp; splitBasculer(); }
+        }, 0);
+      }
+    }catch(e){}
   }
 
   return { go:go, register:register, init:init, current:function(){return currentPage;},

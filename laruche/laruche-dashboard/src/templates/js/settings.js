@@ -772,6 +772,12 @@ LaRuche.Settings = (function(){
       layout.insertBefore(sw, host);
       sw.querySelector('input').addEventListener('input', function(){ _applySearch(this.value); });
     }
+    // Rouvrir le panneau detache la ou il etait. Differe d'un tour: les sections
+    // doivent etre pretes, et le reste du demarrage ne doit pas attendre l'ecran.
+    try{
+      var tabMem = localStorage.getItem('laruche_dock');
+      if(tabMem) setTimeout(function(){ dock(tabMem); }, 0);
+    }catch(e){}
   }
 
   // Filter the rendered cards/rows by case-insensitive label text. Empty query
@@ -903,6 +909,12 @@ LaRuche.Settings = (function(){
       };
       _brancherPoignee(d);
       document.body.classList.add('lr-dock-ouvert');
+      // Taille memorisee, s'il y en a une: on se refait son ecran une fois, il
+      // revient tel quel aux demarrages suivants.
+      try{
+        var tw = localStorage.getItem('laruche_dock_taille');
+        if(tw) d.style.flexBasis = tw;
+      }catch(e){}
     }
     _dockTab = tab;
     document.getElementById('lrDockTitre').textContent = _dockTitre(tab);
@@ -979,6 +991,9 @@ LaRuche.Settings = (function(){
         p.releasePointerCapture(e.pointerId);
         document.removeEventListener('pointermove', bouger);
         document.removeEventListener('pointerup', lacher);
+        // La taille choisie survit au redemarrage: c'est la moitie du « se faire
+        // son ecran », l'autre etant de rouvrir le panneau la ou il etait.
+        try{ if(d.style.flexBasis) localStorage.setItem('laruche_dock_taille', d.style.flexBasis); }catch(e2){}
       }
       document.addEventListener('pointermove', bouger);
       document.addEventListener('pointerup', lacher);

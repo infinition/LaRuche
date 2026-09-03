@@ -4529,6 +4529,13 @@ body.lr-dock-ouvert:not(.feed-docked):not(.feed-au-bord) .mesh-windows {
   border-top: 1px solid var(--border);
   box-shadow: 0 -6px 18px rgba(0,0,0,.18);
 }
+/* Le conteneur qui defile a un rembourrage en bas, qui donne de l'air aux autres
+   onglets. Une barre `sticky bottom:0` se cale sur le bord INTERIEUR de ce
+   rembourrage, laissant justement sa hauteur en noir sous elle. On l'annule, mais
+   seulement quand la barre est la: l'air en bas des autres onglets reste. */
+.settings-content:has(.theme-barre),
+.lr-dock-corps:has(.theme-barre),
+.settings-tab-canvas:has(.theme-barre) { padding-bottom: 0; }
 html[data-verre="1"] .theme-barre {
   background-color: rgba(var(--bg-panel-rgb), var(--verre-opacite));
   backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
