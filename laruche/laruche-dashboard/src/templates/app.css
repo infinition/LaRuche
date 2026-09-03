@@ -1862,7 +1862,23 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 .history-item .hi-btn.del:hover { border-color:var(--red); color:var(--red); }
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
 .settings-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
-.settings-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
+/* Les cartes des reglages RESPIRENT.
+
+   Elles n'avaient aucune marge et leur conteneur aucun ecart: elles se
+   touchaient donc bord a bord, et deux bordures collees se lisent comme un seul
+   trait epais, ce qui fait d'une pile de cartes un bloc unique. Sous le verre,
+   ou chaque carte porte son propre voile, l'effet est pire: les voiles se
+   superposent sur la ligne de contact.
+
+   La marge est sur la carte plutot qu'un ecart sur le conteneur: elles ne sont
+   pas toutes rendues dans le meme parent, et une regle posee sur chacun d'eux
+   serait a refaire au prochain onglet ajoute. */
+.settings-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px;
+  margin-bottom:12px;
+}
+.settings-card:last-child { margin-bottom:0; }
 .settings-card-title { font-size:12px; font-weight:600; color:var(--amber); margin-bottom:8px; }
 .provider-card-title { display:flex; align-items:center; gap:8px; min-width:0; }
 .provider-subtitle { color:var(--text-dim); font-size:10px; font-weight:normal; }
@@ -4372,4 +4388,58 @@ html[data-marque-brute="1"] .hex-core {
   --amber-dim: #b8860b;
   --amber-rgb: 245,166,35;
   --amber-glow: rgba(245,166,35,0.13);
+}
+
+/* Le volet de navigation des reglages est une SURFACE, malgre son absence de fond.
+
+   Il n'a qu'une bordure a droite: pas de fond, donc rien que l'extraction puisse
+   voir, et rien qui arrete l'image derriere lui. Sur un fond d'ecran, la colonne
+   des rubriques devenait une bande d'image nette collee au bord gauche, avec du
+   texte pose dessus. C'est un volet, au meme titre que celui des conversations
+   ou celui de la memoire: il prend la meme teinte et le meme flou qu'eux. */
+html[data-verre="1"] .settings-nav-vertical {
+  background-color: rgba(var(--bg-panel-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+}
+
+/* Les volets LATERAUX prennent la teinte des panneaux, pas celle des cartes.
+
+   Ils etaient ramasses avec les cartes par la regle generale, donc peints avec
+   `--bg-card`. Ce n'est pas une nuance gratuite: un volet encadre le contenu, il
+   doit se distinguer de ce qu'il contient, et lui donner la meme teinte que les
+   cartes qu'il porte efface cette limite. Cette regle vient apres, donc elle
+   l'emporte, et elle garantit au passage que leur flou n'a pas ete eteint en
+   chemin par une regle plus generale. */
+html[data-verre="1"] .mem2-side,
+html[data-verre="1"] .mis-side {
+  background-color: rgba(var(--bg-panel-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+}
+
+/* Les surfaces qui ne peignent RIEN, et que l'extraction ne pouvait pas voir.
+
+   La liste du verre est generee en cherchant, dans cette feuille, les regles qui
+   peignent un fond. C'est une bonne heuristique et elle a une faille exacte: un
+   element qui se contente d'une bordure et d'un rembourrage est invisible pour
+   elle, alors que c'est bel et bien une surface a l'ecran. Sur un fond d'ecran,
+   chacun devenait une bande d'image nette avec du texte pose dessus.
+
+   Ils sont nommes ici un par un, parce qu'il n'existe aucun signe dans la
+   feuille qui permette de les deviner. */
+html[data-verre="1"] .settings-tabs-bar,
+html[data-verre="1"] .console-panel,
+html[data-verre="1"] .dash-mob-panel {
+  background-color: rgba(var(--bg-panel-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+}
+
+/* L'arborescence est DANS le volet, qui porte deja sa teinte: lui en donner une
+   seconde empilerait deux voiles et assombrirait la colonne sans rien y gagner.
+   Elle ne prend donc que le flou, pour le cas ou elle deborde du volet. */
+html[data-verre="1"] .mem2-tree {
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
 }
