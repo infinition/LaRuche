@@ -2067,8 +2067,11 @@ LaRuche.Settings = (function(){
       '<input type="color" data-jeton="'+j.cle+'" value="'+hex+'" '+
         'style="width:30px;height:24px;padding:0;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer">'+
       etiquette+
-      '<input type="range" data-jeton-alpha="'+j.cle+'" min="0" max="1" step="0.01" value="'+a+'" '+
-        'title="opacité" style="width:82px;accent-color:var(--amber)">'+
+      // Un jeton peut refuser l'opacite: elle n'a de sens que s'il y a quelque
+      // chose dessous. Ce n'est pas le cas du fond de la racine.
+      (j.sansAlpha ? '<span style="width:82px"></span>'
+        : '<input type="range" data-jeton-alpha="'+j.cle+'" min="0" max="1" step="0.01" value="'+a+'" '+
+          'title="opacité" style="width:82px;accent-color:var(--amber)">')+
       champ+'</div>';
   }
 

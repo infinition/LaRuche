@@ -3412,7 +3412,19 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
    Il faut alors que `body` cesse de peindre le sien, sinon il la recouvre: la
    couleur de base reste portee par `html`, qui est dessous.
    ========================================================================== */
-html { background: var(--bg); }
+/* La racine peint TOUJOURS, meme si le jeton est transparent.
+
+   Derriere `html` il n'y a pas de page, il y a la toile de l'HOTE: le blanc par
+   defaut d'un navigateur, la couleur de fenetre d'une application. Une alpha sur
+   `--bg` ne revele donc rien qui appartienne au logiciel, elle laisse voir
+   l'endroit ou il tourne. Un theme dont le fond etait a alpha zero s'affichait
+   ainsi pale dans un navigateur et sombre dans la fenetre de bureau, cote a
+   cote, sans que rien dans le theme ne l'explique.
+
+   On peint depuis les composantes, donc la meme couleur sans son alpha. `--bg`
+   n'est pas touche: partout ailleurs, sur un panneau ou une carte, la
+   transparence a un sens, puisqu'il y a quelque chose dessous. */
+html { background-color: rgb(var(--bg-rgb)); }
 
 #lr-fond {
   position: fixed; inset: 0; z-index: -1; pointer-events: none;

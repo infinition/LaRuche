@@ -380,7 +380,27 @@ fn textes_attente(foyer: &std::path::Path) -> serde_json::Value {
 /// Le fond de fenetre, en composantes, pour que Tauri peigne deja la bonne
 /// couleur avant le premier octet de HTML.
 fn composantes(hex: &str) -> (u8, u8, u8) {
-    let h = hex.trim().trim_start_matches('#');
+    // Un jeton de theme n'est pas toujours un hexa: des qu'on touche a son
+    // opacite, l'interface l'ecrit `rgba(250,247,242,0)`. Cette fonction ne
+    // savait lire que la premiere forme et retombait sur son gris sombre, ce qui
+    // donnait une fenetre sombre pour un theme clair.
+    let t = hex.trim();
+    if let Some(dedans) = t
+        .strip_prefix("rgba(")
+        .or_else(|| t.strip_prefix("rgb("))
+        .and_then(|x| x.strip_suffix(')'))
+    {
+        let n: Vec<u8> = dedans
+            .split(',')
+            .take(3)
+            .filter_map(|c| c.trim().parse::<f32>().ok())
+            .map(|v| v.clamp(0.0, 255.0) as u8)
+            .collect();
+        if n.len() == 3 {
+            return (n[0], n[1], n[2]);
+        }
+    }
+    let h = t.trim_start_matches('#');
     if h.len() == 6 {
         if let (Ok(r), Ok(v), Ok(b)) = (
             u8::from_str_radix(&h[0..2], 16),

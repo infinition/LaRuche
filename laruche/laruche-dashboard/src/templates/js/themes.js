@@ -34,7 +34,12 @@
   var GROUPES = [
     {
       id: 'fond', titre: { fr: 'Fonds', en: 'Backgrounds' }, jetons: [
-        { cle: '--bg', fr: 'Fond général', en: 'Base background' },
+        /* Pas d'opacite sur celui-la: derriere la racine il n'y a pas de page,
+           il y a la toile de l'HOTE. Rendre ce fond transparent ne revelait donc
+           rien qui appartienne au logiciel, cela laissait voir le blanc du
+           navigateur ou la couleur de fenetre de l'application, et le meme theme
+           s'affichait pale d'un cote et sombre de l'autre. */
+        { cle: '--bg', fr: 'Fond général', en: 'Base background', sansAlpha: true },
         { cle: '--bg-panel', fr: 'Panneaux', en: 'Panels' },
         { cle: '--bg-card', fr: 'Cartes', en: 'Cards' },
         { cle: '--bg-input', fr: 'Champs de saisie', en: 'Inputs' },
