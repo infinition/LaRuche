@@ -306,86 +306,6 @@
     return d;
   }
 
-  /* L'image de fond, floutee UNE FOIS pour toutes.
-
-     Le flou passait par un `filter` CSS pose sur la couche plein ecran. Un filtre
-     est vivant: le navigateur le recalcule chaque fois qu'il doit repeindre cette
-     couche, et changer de page en declenche un, puisque les pages sont montrees
-     et cachees par `display`. On voyait donc le flou se poser a chaque
-     navigation, sur toute la surface de la fenetre, ce qui est le plus grand
-     element de la page.
-
-     Le meme resultat s'obtient une seule fois, en dessinant l'image floutee dans
-     un canevas dont on garde l'URL. C'est une image ordinaire ensuite: elle se
-     repeint au prix d'une image, pas d'un filtre.
-
-     Le cache est indexe par (image, rayon): changer le curseur refait le calcul,
-     revenir a une valeur deja vue le retrouve. En cas d'echec, une image d'une
-     autre origine salit le canevas et interdit sa lecture, on retombe sur le
-     filtre CSS: le rendu est le meme, seul le cout revient. */
-  var _fondCache = {};
-  /* Le dernier fond peint, garde pour pouvoir le repeindre sans le rechercher.
-     Le rayon de flou est desormais cuit dans l'image: bouger son curseur doit
-     donc refaire l'image, alors qu'avant il suffisait que la variable CSS change. */
-  var _dernierFond = null;
-
-  function rafraichirFond() { if (_dernierFond) peindreFond(_dernierFond); }
-
-  /* La fenetre change de taille: l'image est retaillee, donc son flou aussi. On
-     la refait, une fois la souris relachee. Le palier absorbe le glissement
-     continu; ce delai absorbe le reste. */
-  var _minuteurTaille = null;
-  if (typeof window !== 'undefined') {
-    window.addEventListener('resize', function () {
-      clearTimeout(_minuteurTaille);
-      _minuteurTaille = setTimeout(rafraichirFond, 250);
-    });
-  }
-
-  /* Le palier de largeur, pour ne pas refabriquer l'image a chaque pixel.
-
-     Le flou est cuit dans l'image, donc en pixels D'IMAGE. Etiree par `cover`
-     jusqu'a la fenetre, elle emporte son flou avec elle: la meme image dans une
-     fenetre deux fois plus large donne un flou deux fois plus large. On refait
-     donc l'image quand la fenetre change de taille, mais par paliers de 200 px:
-     l'oeil ne distingue pas un rayon a 3 % pres, et faire ce calcul a chaque
-     evenement de redimensionnement couterait plus cher que le probleme. */
-  function palier() {
-    var l = Math.max(window.innerWidth || 1280, 640);
-    return Math.min(2400, Math.ceil(l / 200) * 200);
-  }
-
-  function fondFloute(src, rayon, quand) {
-    var cible = palier();
-    var cle = rayon + '|' + cible + '|' + src;
-    if (_fondCache[cle]) { quand(_fondCache[cle]); return; }
-    var img = new Image();
-    img.onload = function () {
-      try {
-        // On dessine a la taille ou l'image sera VUE, pour que le rayon cuit soit
-        // celui qu'on a demande une fois `cover` applique.
-        var ech = cible / Math.max(img.width, 1);
-        var l = Math.max(1, Math.round(img.width * ech));
-        var h = Math.max(1, Math.round(img.height * ech));
-        // Le flou mange les bords: on dessine plus grand que le cadre et on
-        // recadre au centre, sinon l'image s'entoure d'un halo transparent.
-        var marge = Math.ceil(rayon * 2);
-        var c = document.createElement('canvas');
-        c.width = l; c.height = h;
-        var ctx = c.getContext('2d');
-        ctx.filter = 'blur(' + rayon + 'px)';
-        ctx.drawImage(img, -marge, -marge, l + marge * 2, h + marge * 2);
-        var url = c.toDataURL('image/jpeg', 0.86);
-        _fondCache[cle] = url;
-        quand(url);
-      } catch (e) {
-        quand(null);                     // canevas sali: on laisse le filtre CSS
-      }
-    };
-    img.onerror = function () { quand(null); };
-    img.src = src;
-  }
-
   function peindreFond(fond) {
     var r = document.documentElement;
     fond = fond || {};
@@ -394,65 +314,13 @@
       if (fond.image && zones[z.cle]) r.setAttribute('data-fond-' + z.cle, '1');
       else r.removeAttribute('data-fond-' + z.cle);
     });
-    _dernierFond = fond;
     if (!document.body) return;          // pre-peinture: la couche viendra apres
     var d = couche();
-    if (!fond.image) {
-      // Sans image, il n'y a rien a peindre en fond fixe: les panneaux
-      // reprennent le `backdrop-filter`, qui reste la seule facon de flouter ce
-      // qui est reellement dessous.
-      r.removeAttribute('data-fond-verre');
-      d.style.display = 'none'; d.style.backgroundImage = ''; return;
-    }
+    if (!fond.image) { d.style.display = 'none'; d.style.backgroundImage = ''; return; }
     d.style.display = '';
+    d.style.backgroundImage = 'url("' + String(fond.image).replace(/"/g, '%22') + '")';
     d.style.opacity = String(fond.opacite === undefined ? 0.35 : fond.opacite);
     d.style.backgroundSize = fond.cadrage || 'cover';
-
-    var poser = function (src) {
-      d.style.backgroundImage = 'url("' + String(src).replace(/"/g, '%22') + '")';
-    };
-    /* La MATIERE du verre, preparee ici plutot que demandee au navigateur.
-
-       Les panneaux floutaient par `backdrop-filter`, qui oblige le navigateur a
-       photographier ce qui se trouve derriere chaque surface, dans une passe de
-       composition a part. Cette photographie se refait a chaque fois que la
-       surface reapparait, et changer de page les fait toutes reapparaitre: on
-       voyait le verre se former, panneau par panneau.
-
-       L'image de fond est fixe et ne defile pas. Ce qui se trouve derriere un
-       panneau, c'est donc exactement l'image, au meme cadrage. On la floute une
-       fois au rayon des panneaux, et chaque surface la peint elle-meme en fond
-       fixe: le resultat est le meme pixel pour pixel, sans passe de composition
-       et sans rien a reconstruire.
-
-       Le voile reproduit l'opacite de la couche de fond. Une image posee a 35 %
-       sur la couleur de base donne le meme resultat qu'une couleur de base a
-       65 % posee SUR l'image: c'est la meme addition, ecrite dans l'autre sens,
-       et un fond CSS ne sait faire que celle-la. */
-    var opac = fond.opacite === undefined ? 0.35 : fond.opacite;
-    var rayonVerre = parseFloat(getComputedStyle(r).getPropertyValue('--verre-flou')) || 0;
-    if (rayonVerre > 0) {
-      r.style.setProperty('--fond-voile', String(1 - opac));
-      fondFloute(fond.image, rayonVerre, function (u) {
-        if (!u) { r.removeAttribute('data-fond-verre'); return; }
-        r.style.setProperty('--fond-floue', 'url("' + u + '")');
-        r.setAttribute('data-fond-verre', '1');
-      });
-    } else {
-      r.removeAttribute('data-fond-verre');
-    }
-
-    var rayon = parseFloat(getComputedStyle(r).getPropertyValue('--fond-flou')) || 0;
-    if (rayon <= 0) { d.style.filter = 'none'; poser(fond.image); return; }
-    // On pose l'image nette tout de suite, la version floutee remplace des
-    // qu'elle est prete: mieux vaut une image nette pendant deux images que rien.
-    poser(fond.image);
-    d.style.filter = 'blur(' + rayon + 'px)';
-    fondFloute(fond.image, rayon, function (url) {
-      if (!url) return;                  // echec: le filtre CSS reste en place
-      d.style.filter = 'none';
-      poser(url);
-    });
   }
 
   /* Les icones remplacables, par EMPLACEMENT nomme.
@@ -1053,8 +921,6 @@
     peindrePolices: peindrePolices, policesDe: policesDe,
     ajouterIcones: ajouterIcones,
     peindreFond: peindreFond, peindreMarque: peindreMarque,
-    // Repeindre le fond tel qu'il est, apres un changement de rayon de flou.
-    rafraichirFond: rafraichirFond,
     habillageDe: habillageDe, dupliquer: dupliquer, baseCourante: baseCourante,
     exporter: exporter, importer: importer,
     definirBrouillon: definirBrouillon, brouillonCourant: brouillonCourant,

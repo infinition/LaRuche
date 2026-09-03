@@ -2351,10 +2351,6 @@ LaRuche.Settings = (function(){
       document.documentElement.style.setProperty(cle, valeur);
       var txt = el.querySelector('[data-jeton-txt="'+cle+'"]');
       if(txt && txt.value !== valeur) txt.value = valeur;
-      // Les deux flous sont cuits DANS une image, une fois, plutot que recalcules
-      // par le navigateur a chaque repeinte. Changer un rayon ne suffit donc plus
-      // a changer ce qu'on voit: il faut refaire l'image.
-      if((cle === '--fond-flou' || cle === '--verre-flou') && T && T.rafraichirFond) T.rafraichirFond();
       declarer();
     }
     function couleurDe(cle){
@@ -2380,7 +2376,6 @@ LaRuche.Settings = (function(){
         var cle = inp.dataset.jetonTxt;
         _themeBrouillon[cle] = inp.value;
         document.documentElement.style.setProperty(cle, inp.value);
-        if((cle === '--fond-flou' || cle === '--verre-flou') && T && T.rafraichirFond) T.rafraichirFond();
         declarer();
         var pip = el.querySelector('[data-jeton="'+cle+'"]');
         if(pip){
