@@ -2440,12 +2440,15 @@ fn depouiller_reaction(
     let Some(r) = crate::reactions::trouver(&cle) else {
         return;
     };
-    *texte = propre;
     // Persisted so the emoji survives a reload; without this it lived only in the
-    // event and vanished from the user's bubble on every refresh.
+    // event and vanished from the user's bubble on every refresh. On nettoie AUSSI
+    // le message deja stocke: le texte diffuse perdait bien son `/haha`, mais la
+    // copie poussee dans la session le gardait, et le rechargement la relisait.
     if let Some(s) = session {
         s.definir_reaction_agent(r.emoji);
+        s.nettoyer_dernier_assistant(&propre);
     }
+    *texte = propre;
     // KEY then display emoji. The web chat shows the emoji; a channel such as Telegram
     // needs the key, because it sends its OWN emoji for that reaction from a closed list
     // that does not contain all of ours.

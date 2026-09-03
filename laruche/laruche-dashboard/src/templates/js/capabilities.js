@@ -1073,6 +1073,10 @@ LaRuche.Feed = (function(){
     var ov = document.getElementById('feedDrawerOverlay');
     if(!ov) return;
     open = true;
+    // Ouvert reste ouvert au redemarrage: c'est la moitie de « se faire son
+    // ecran ». L'epinglage et la position etaient deja retenus, mais un feed
+    // ferme au reveil les rendait invisibles.
+    try{ localStorage.setItem('lr_feed_ouvert', '1'); }catch(e){}
     ov.classList.add('open');
     var btn = document.getElementById('feedToggleBtn');
     if(btn) btn.classList.add('active');
@@ -1083,6 +1087,7 @@ LaRuche.Feed = (function(){
     var ov = document.getElementById('feedDrawerOverlay');
     if(!ov) return;
     open = false;
+    try{ localStorage.setItem('lr_feed_ouvert', '0'); }catch(e){}
     ov.classList.remove('open');
     var btn = document.getElementById('feedToggleBtn');
     if(btn) btn.classList.remove('active');
@@ -1102,6 +1107,11 @@ LaRuche.Feed = (function(){
   function init(){
     try{ anchored = localStorage.getItem('lr_feed_anchored')==='1'; }catch(e){}
     appliquerPosition();
+    // Rouvrir le feed s'il etait ouvert. Differe d'un tour: epingle, il s'insere
+    // comme colonne du conteneur des pages, qui doit d'abord exister.
+    var etaitOuvert = false;
+    try{ etaitOuvert = localStorage.getItem('lr_feed_ouvert') === '1'; }catch(e){}
+    if(etaitOuvert) setTimeout(function(){ if(!open) openDrawer(); }, 0);
     loadFilters();
     loadFiltersOpen();
     applyAnchorUI();

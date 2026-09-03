@@ -2900,9 +2900,11 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
    user can leave on an answer. Off by default, see `reactions_agent`. */
 .message-row.user .agent-reaction-chip,
 .message-row.steer .agent-reaction-chip {
-  margin-top:5px; margin-left:auto; padding:2px 8px;
+  /* Meme taille que la reaction de l'utilisateur (.reaction-chip): les deux sont
+     des reactions, rien ne justifie que celle de l'agent soit deux fois plus petite. */
+  margin-top:5px; margin-left:auto; padding:3px 12px;
   display:inline-flex; align-items:center; width:fit-content;
-  font-size:13px; line-height:1.5;
+  font-size:26px; line-height:1.2;
   border:1px solid var(--border); border-radius:999px;
   background:var(--bg-card);
 }

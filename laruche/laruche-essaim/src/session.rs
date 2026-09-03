@@ -227,6 +227,26 @@ impl Session {
         true
     }
 
+    /// Remplace le texte du dernier message assistant par sa version nettoyee.
+    ///
+    /// La reaction etait retiree du texte DIFFUSE (l'evenement Done), mais le
+    /// message avait deja ete pousse dans la session avec son `/haha` en tete. Au
+    /// rechargement on relisait donc la commande brute au lieu de voir l'emoji sur
+    /// la bulle. On nettoie ici la copie stockee, pour que le disque porte le meme
+    /// texte que ce qui a ete montre.
+    pub fn nettoyer_dernier_assistant(&mut self, texte: &str) -> bool {
+        if let Some(Message::Assistant(t)) = self
+            .messages
+            .iter_mut()
+            .rev()
+            .find(|m| matches!(m, Message::Assistant(_)))
+        {
+            *t = texte.to_string();
+            return true;
+        }
+        false
+    }
+
     /// The reaction on the LAST assistant message, if the user left one.
     ///
     /// This is the only one that steers the next turn. An older reaction has already
