@@ -3560,9 +3560,22 @@ html[data-fond-bas="1"] .status-bar { background: transparent; }
    les onglets s'appuient sur des identifiants uniques dans la page. Ouvrir un
    autre onglet remplace donc le contenu du dock.
    ========================================================================== */
+/* Le panneau detache est une COLONNE du conteneur des pages.
+
+   Il etait fixe, ancre aux bords de la FENETRE, ce qui posait deux problemes a
+   la suite. Il recouvrait l'en-tete et la barre d'etat, les deux reperes
+   permanents de l'application. Et pour ne pas ecraser le contenu il fallait lui
+   reserver sa place a la main, par un rembourrage sur la coquille, puis decaler
+   un a un tous les elements ancres a droite qui ignoraient ce rembourrage.
+
+   Le partage d'ecran, lui, n'a jamais eu ce probleme, et pour une raison simple:
+   il vit DANS le conteneur des pages, qui se trouve deja entre les deux barres.
+   Le panneau y vit desormais aussi. Il n'y a plus rien a mesurer, plus rien a
+   reserver, plus rien a decaler: c'est une colonne a cote des autres, et la mise
+   en page s'occupe du reste. */
 .lr-dock {
-  position: fixed; top: 0; right: 0; bottom: 0;
-  width: clamp(320px, 34vw, 560px);
+  flex: 0 0 clamp(320px, 34vw, 560px);
+  min-width: 0;
   display: flex; flex-direction: column;
   background: var(--bg-panel); border-left: 1px solid var(--border);
   box-shadow: -12px 0 40px rgba(0, 0, 0, .35);
@@ -3602,9 +3615,14 @@ html[data-fond-bas="1"] .status-bar { background: transparent; }
 }
 
 /* La place laissee au dock, pour que l'application ne passe pas dessous. */
-body.lr-dock-ouvert .app-shell, body.lr-dock-ouvert .page { padding-right: var(--lr-dock-largeur, 0px); }
+body.lr-dock-ouvert .page-container { flex-direction: row; }
+body.lr-dock-ouvert .page.active { flex: 1 1 0; min-width: 0; }
 @media (max-width: 720px) {
-  body.lr-dock-ouvert .app-shell, body.lr-dock-ouvert .page { padding-right: 0; padding-bottom: var(--lr-dock-hauteur, 0px); }
+  /* Sur petit ecran, le panneau passe SOUS le contenu plutot qu'a cote: la
+     largeur ne suffit pas pour deux colonnes lisibles. Meme bascule que le
+     partage d'ecran, au meme endroit. */
+  body.lr-dock-ouvert .page-container { flex-direction: column; }
+  body.lr-dock-ouvert .lr-dock { flex: 0 0 45%; }
 }
 
 /* ==========================================================================

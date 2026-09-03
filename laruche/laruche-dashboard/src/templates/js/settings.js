@@ -880,7 +880,14 @@ LaRuche.Settings = (function(){
           '<button class="lr-dock-btn" id="lrDockClose" title="'+LaRuche.i18n.t('common.close')+'">&times;</button>'+
         '</div>'+
         '<div class="lr-dock-corps" id="lrDockCorps"></div>';
-      document.body.appendChild(d);
+      /* DANS le conteneur des pages, et non sur le corps du document.
+
+         Pose sur le corps, il flottait au-dessus de tout et il fallait lui
+         reserver sa place a la main. Pose ici, il est une colonne a cote des
+         pages, entre l'en-tete et la barre d'etat, et la mise en page s'en
+         occupe seule. C'est exactement ce que fait le partage d'ecran. */
+      var conteneur = document.querySelector('.page-container') || document.body;
+      conteneur.appendChild(d);
       document.getElementById('lrDockClose').onclick = fermerDock;
       document.getElementById('lrDockPage').onclick = function(){
         var t = _dockTab; fermerDock(); ouvrirSection(t);
@@ -909,6 +916,8 @@ LaRuche.Settings = (function(){
     document.body.classList.remove('lr-dock-ouvert');
     document.documentElement.style.removeProperty('--lr-dock-largeur');
     document.documentElement.style.removeProperty('--lr-dock-hauteur');
+    document.documentElement.style.removeProperty('--lr-dock-haut');
+    document.documentElement.style.removeProperty('--lr-dock-bas');
     var ancien = _dockTab;
     _dockTab = null;
     try { localStorage.removeItem('laruche_dock'); } catch(e){}
@@ -922,6 +931,16 @@ LaRuche.Settings = (function(){
     var r = d.getBoundingClientRect();
     document.documentElement.style.setProperty('--lr-dock-largeur', Math.round(r.width) + 'px');
     document.documentElement.style.setProperty('--lr-dock-hauteur', Math.round(r.height) + 'px');
+    /* Les deux barres permanentes, mesurees et non supposees. L'en-tete change de
+       hauteur avec la largeur de la fenetre, et la barre d'etat se masque sur
+       certains ecrans: une valeur ecrite en dur serait fausse la moitie du temps. */
+    var ht = document.querySelector('.header');
+    var bs = document.querySelector('.status-bar');
+    var hh = ht ? Math.round(ht.getBoundingClientRect().height) : 0;
+    var hb = (bs && getComputedStyle(bs).display !== 'none')
+      ? Math.round(bs.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty('--lr-dock-haut', hh + 'px');
+    document.documentElement.style.setProperty('--lr-dock-bas', hb + 'px');
   }
 
   /* Redimensionnement a la poignee. `pointer` plutot que `mouse`: le meme code

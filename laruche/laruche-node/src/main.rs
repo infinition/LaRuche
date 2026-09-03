@@ -1094,6 +1094,14 @@ async fn main() -> Result<()> {
             registry: essaim_registry.clone(),
         },
     ));
+    // Son equivalent pour le MCP: `mcp_add` ecrit dans la config, il ne connecte
+    // rien. Sans cet outil, un agent qui vient d'ajouter un serveur n'a aucun
+    // moyen d'en rendre les outils joignables, et conclut qu'il faut redemarrer.
+    essaim_registry.enregistrer(Box::new(
+        laruche_essaim::abeilles::reload_mcp::ReloadMcpTool {
+            registry: essaim_registry.clone(),
+        },
+    ));
     // SELF-IMPROVEMENT tools (forge): skill_file_*, plugin_*, mcp_*. The main registry
     // is passed so plugin_create/delete reload in the right place.
     laruche_essaim::abeilles::enregistrer_forge(&essaim_registry, essaim_registry.clone());

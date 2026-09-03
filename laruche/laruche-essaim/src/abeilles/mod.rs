@@ -42,6 +42,7 @@ pub mod mixture;
 pub mod plan_mode;
 pub mod read_extract;
 pub mod recherche_fichiers;
+pub mod reload_mcp;
 pub mod reload_plugins;
 pub mod research_mode;
 pub mod run_script;
