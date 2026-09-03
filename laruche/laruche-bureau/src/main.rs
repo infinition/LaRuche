@@ -264,7 +264,7 @@ fn palette_attente(foyer: &std::path::Path) -> (String, String, String, String) 
         ("foret", ("#0a0f0d", "#ecfdf5", "#6ee7b7", "#9ca3af")),
         ("nuit", ("#000000", "#fafafa", "#fbbf24", "#a1a1aa")),
         ("papier", ("#faf7f2", "#1c1917", "#b45309", "#57534e")),
-        ("verre", ("#0b0d12", "#eef1f6", "#e9b872", "#9aa4b4")),
+        ("nature", ("#0a0f0d", "#ecfdf5", "#39f3a9", "#86a99b")),
     ];
     let actif = std::fs::read_to_string(foyer.join("themes").join("actif.txt"))
         .unwrap_or_default()

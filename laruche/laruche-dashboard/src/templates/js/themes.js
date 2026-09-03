@@ -197,7 +197,7 @@
     { id: 'foret', nom: { fr: 'Forêt', en: 'Forest' }, fond: '#0a0f0d', point: '#6ee7b7' },
     { id: 'nuit', nom: { fr: 'Nuit', en: 'Night' }, fond: '#000000', point: '#fbbf24' },
     { id: 'papier', nom: { fr: 'Papier', en: 'Paper' }, fond: '#faf7f2', point: '#b45309' },
-    { id: 'verre', nom: { fr: 'Verre', en: 'Glass' }, fond: '#0b0d12', point: '#e9b872' }
+    { id: 'nature', nom: { fr: 'Nature', en: 'Nature' }, fond: '#0a0f0d', point: '#39f3a9' }
   ];
 
   /* Le BROUILLON: ce qui est en cours d'edition pour le theme actif.
@@ -311,21 +311,48 @@
     return d;
   }
 
+  /* L'image de fond d'un theme LIVRE, declaree dans la feuille de style.
+
+     Un fond pose par l'utilisateur vit dans son habillage, en data URL. Un theme
+     livre n'a pas d'habillage: le sien est donc declare en variable CSS, sur la
+     regle du theme, et voyage avec lui. Choisir le theme suffit alors a retrouver
+     son image, sans avoir a la reposer a la main. */
+  function fondDuTheme() {
+    var st = getComputedStyle(document.documentElement);
+    var img = (st.getPropertyValue('--fond-image') || '').trim();
+    if (!img || img === 'none') return null;
+    return {
+      css: img,                                 // deja sous la forme url("...")
+      opacite: parseFloat(st.getPropertyValue('--fond-opacite')) || 0.35,
+      cadrage: (st.getPropertyValue('--fond-cadrage') || '').trim() || 'cover'
+    };
+  }
+
   function peindreFond(fond) {
     var r = document.documentElement;
     fond = fond || {};
     var zones = fond.zones || {};
+    // Le theme livre couvre la zone principale; un fond pose a la main garde ses
+    // propres zones.
+    var duTheme = fond.image ? null : fondDuTheme();
     ZONES.forEach(function (z) {
-      if (fond.image && zones[z.cle]) r.setAttribute('data-fond-' + z.cle, '1');
+      var actif = fond.image ? !!zones[z.cle] : (duTheme && z.cle === 'app');
+      if (actif) r.setAttribute('data-fond-' + z.cle, '1');
       else r.removeAttribute('data-fond-' + z.cle);
     });
     if (!document.body) return;          // pre-peinture: la couche viendra apres
     var d = couche();
-    if (!fond.image) { d.style.display = 'none'; d.style.backgroundImage = ''; return; }
+    if (!fond.image && !duTheme) { d.style.display = 'none'; d.style.backgroundImage = ''; return; }
     d.style.display = '';
-    d.style.backgroundImage = 'url("' + String(fond.image).replace(/"/g, '%22') + '")';
-    d.style.opacity = String(fond.opacite === undefined ? 0.35 : fond.opacite);
-    d.style.backgroundSize = fond.cadrage || 'cover';
+    if (fond.image) {
+      d.style.backgroundImage = 'url("' + String(fond.image).replace(/"/g, '%22') + '")';
+      d.style.opacity = String(fond.opacite === undefined ? 0.35 : fond.opacite);
+      d.style.backgroundSize = fond.cadrage || 'cover';
+    } else {
+      d.style.backgroundImage = duTheme.css;
+      d.style.opacity = String(duTheme.opacite);
+      d.style.backgroundSize = duTheme.cadrage;
+    }
   }
 
   /* Les icones remplacables, par EMPLACEMENT nomme.
