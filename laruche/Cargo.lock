@@ -3365,7 +3365,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-bureau"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "dirs 5.0.1",
  "miel-protocol",
@@ -3377,7 +3377,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-butinage"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3392,7 +3392,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-cli"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3415,7 +3415,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-client"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "chrono",
  "miel-protocol",
@@ -3430,7 +3430,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-compaction"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -3439,11 +3439,11 @@ dependencies = [
 
 [[package]]
 name = "laruche-dashboard"
-version = "1.5.0"
+version = "1.6.0"
 
 [[package]]
 name = "laruche-essaim"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3485,7 +3485,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-evals"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3499,7 +3499,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-events"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -3508,7 +3508,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-icones"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "ico 0.3.0",
  "image",
@@ -3520,7 +3520,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-kanban"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "chrono",
  "serde",
@@ -3532,7 +3532,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-memoire"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3547,7 +3547,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-node"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3594,7 +3594,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-permissions"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -3603,7 +3603,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-skills"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "laruche-memoire",
@@ -3614,7 +3614,7 @@ dependencies = [
 
 [[package]]
 name = "laruche-watchers"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "chrono",

@@ -301,12 +301,23 @@ jobs:
           unzip -l laruche-extension-chrome.zip | tail -3
           unzip -l laruche-extension-chrome-store.zip | tail -3
 
+      # Le paquet a charger soi-meme est un LIVRABLE: il part dans la release.
       - uses: actions/upload-artifact@v4
         with:
           name: laruche-extension-chrome
-          path: |
-            laruche-extension-chrome.zip
-            laruche-extension-chrome-store.zip
+          path: laruche-extension-chrome.zip
+          if-no-files-found: error
+
+      # Celui du Chrome Web Store n'en est pas un: il sert a SOUMETTRE, une fois,
+      # depuis un compte developpeur. Attache a la release il n'aurait servi qu'a
+      # faire hesiter entre deux archives sans dire laquelle installer. Il reste
+      # telechargeable depuis l'execution du workflow, ou on va le chercher le jour
+      # de la soumission. Son nom ne commence pas par `laruche-`: c'est ce qui le
+      # tient hors du filet du job de publication, plus bas.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: interne-chrome-store
+          path: laruche-extension-chrome-store.zip
           if-no-files-found: error
 
   release:
@@ -316,6 +327,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+          # Seuls les LIVRABLES. Les artefacts de service, comme le paquet de
+          # soumission au Chrome Web Store, portent un autre prefixe et restent
+          # dans l'execution du workflow.
+          pattern: laruche-*
           merge-multiple: true
 
       - name: List assets
@@ -326,7 +341,7 @@ jobs:
           # etait sortie avec quatre assets sur huit sans que rien ne le signale.
           n=$(find dist -type f | wc -l)
           echo "fichiers a attacher: $n"
-          [ "$n" -ge 13 ] || { echo "trop peu d'assets: attendu au moins 13"; exit 1; }
+          [ "$n" -ge 12 ] || { echo "trop peu d'assets: attendu au moins 12"; exit 1; }
 
       - uses: softprops/action-gh-release@v2
         with:

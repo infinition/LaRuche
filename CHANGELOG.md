@@ -1,5 +1,93 @@
 # Changelog
 
+## [1.6.0] - 2026-09-03
+
+Une version d'apparence, au sens propre. Le theme n'etait plus une palette mais
+une trentaine de reglages epars, et la moitie des surfaces y echappaient encore:
+un fond ecrit en dur ici, une couleur semantique repeinte la, un dessin pris pour
+un panneau. Tout ce qui se voit suit desormais le theme, et le theme suit la
+ruche plutot que le navigateur.
+
+L'autre fil de cette serie est plus discret: plusieurs decisions correctes se
+prenaient en silence. Une vigie qui se declenchait sans laisser de trace, un
+delai de garde qui perdait des evenements au lieu de les differer, un fournisseur
+annonce injoignable alors qu'il refusait simplement une cle. Le symptome pointait
+chaque fois ailleurs que la cause.
+
+### Ajoute
+
+- **Le verre**, avec deux flous distincts: celui de l'image de fond et celui des
+  panneaux. Les melanger obligeait a choisir entre une image lisible et des
+  surfaces qui ont de la matiere. Les messages ont leurs propres reglages, parce
+  qu'un message se lit longuement la ou un panneau se regarde peu.
+- **Nature**, un theme livre qui porte sa propre image de fond, encodee dans le
+  binaire. Les autres themes ne supposent aucun fond; celui-ci est concu avec le
+  sien, et choisir le theme suffit a le retrouver entier, hors ligne compris.
+- **L'agencement de l'ecran persiste**: le panneau detache se rouvre sur son
+  onglet et a sa largeur, le partage garde sa page et la proportion de son
+  separateur, le feed retrouve son etat, sa position et son epinglage.
+- **Le feed epingle devient une colonne**, au meme titre que le panneau detache:
+  il descend sous l'en-tete au lieu de monter par-dessus, et un reglage decide
+  s'il se pose avant le panneau ou a l'extreme droite.
+- **`reload_mcp`**: un agent qui vient d'enregistrer un serveur MCP peut le
+  connecter sans redemarrer. Il n'existait que `reload_plugins`, qui recharge un
+  tout autre dossier sans dire non, et l'agent en concluait qu'il fallait
+  redemarrer, ce qu'il ne peut pas faire.
+- **Un reglage pour garder les couleurs d'origine** du logo et des animations. Un
+  theme repeint tout ce qui puise dans son accent, y compris la marque, alors
+  qu'une marque est justement ce qui ne doit pas changer avec le decor.
+- **Le declenchement d'une vigie laisse une trace** dans le flux, quel que soit le
+  canal qui emporte la notification.
+
+### Corrige
+
+- **Un delai de garde qui perdait des evenements.** Une vigie de type commande
+  observe 900 secondes de silence apres un tir. Applique a une regle qui ne peut
+  etre vraie qu'au moment d'une transition, ce delai ne protege de rien: il
+  faisait taire des evenements DISTINCTS. Pire, l'observation etait consommee
+  pendant le silence, donc l'evenement n'etait pas differe mais perdu. Un arbre de
+  regles sait maintenant dire s'il est evenementiel, et ce que le delai fait taire
+  n'est plus consomme.
+- **Un fournisseur annonce injoignable alors qu'il repondait.** Le controle
+  sondait `/v1/models` sans la cle, recevait un 401 et traduisait tout echec en
+  panne de reseau. On etait envoye corriger une adresse qui etait juste, pendant
+  que la conversation fonctionnait.
+- **La ruche parlait deux langues a la fois.** Le choix vivait dans un cookie, et
+  la fenetre de l'application et un navigateur ouvert a cote ont chacun le leur.
+  Le foyer fait foi desormais, et l'ecran de demarrage suit la langue reglee.
+- **Le fond de la racine laissait voir l'hote.** Derriere la racine il n'y a pas
+  de page mais la toile du navigateur ou de la fenetre: une opacite sur le fond
+  general ne revelait donc rien du logiciel, et le meme theme s'affichait pale
+  d'un cote et sombre de l'autre.
+- **La couleur des panneaux se recopiait elle-meme** d'un theme a l'autre. Sous le
+  verre, la couleur derive de sa propre composante, et la composante etait
+  recalculee en relisant cette couleur: la valeur du theme precedent survivait
+  jusqu'au rechargement.
+- **Le verre repeignait les couleurs qui portent un sens.** Cinquante-trois
+  elements peignent une couleur semantique, l'ambre d'un avertissement, le rouge
+  d'une erreur, le bleu d'un acteur. Repeints en gris de panneau avec leur texte
+  inchange, ils devenaient des pastilles vides.
+- **Les dessins ne sont pas des surfaces.** Une abeille, la ruche qui pulse,
+  l'essaim: le verre leur repeignait le fond, ce qui abime le dessin, et floutait
+  derriere eux, ce qui posait un disque sombre autour de l'essaim.
+- **Le feed ferme volait les clics du panneau detache.** Ferme, il se cache par une
+  translation hors ecran; le decaler pour ne pas s'ouvrir par-dessus le panneau le
+  sortait de sa cachette, et sa boite fantome interceptait tout.
+- **La reaction de l'agent survit au rechargement.** Le marqueur etait retire du
+  texte diffuse mais la copie stockee le gardait, et l'emoji ne revenait jamais
+  sur la bulle.
+- **Une empreinte persistee ne se calcule plus avec un algorithme non specifie**,
+  dont le resultat peut changer d'une version de Rust a l'autre.
+- **La recherche en memoire ne rend plus du bruit**, et deux formulaires cessent
+  d'effacer ce qu'ils editent.
+
+### Change
+
+- La release ne porte plus qu'une archive pour l'extension Chrome, celle qu'on
+  charge soi-meme. Le paquet de soumission au Chrome Web Store reste produit et
+  verifie, mais hors de la release: deux archives cote a cote ne faisaient
+  qu'hesiter sur celle a installer.
+
 ## [1.5.0] - 2026-09-01
 
 Une version qui rend visible ce qui se decidait en silence. Trois pannes de
