@@ -186,6 +186,7 @@ fn icones_sur(v: &serde_json::Value) -> Result<serde_json::Value, String> {
 /// - champ ABSENT: on garde ce qui est sur le disque, rien n'a change;
 /// - champ VIDE: on efface, l'utilisateur a retire l'image;
 /// - champ RENSEIGNE: on valide et on remplace.
+///
 /// Les polices importees, validees avant d'entrer dans un fichier de theme.
 ///
 /// Elles voyagent encodees dans le theme, donc dans un fichier qui se partage. Le

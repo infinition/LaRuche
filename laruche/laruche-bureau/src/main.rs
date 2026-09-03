@@ -257,8 +257,13 @@ fn resoudre() -> (tauri::Url, Option<Child>) {
 /// un ecran qui affiche un logo, un titre et une ligne de detail: la duplication
 /// est bornee, et elle est le prix d'un demarrage qui ne clignote pas.
 fn palette_attente(foyer: &std::path::Path) -> (String, String, String, String) {
-    const DEFAUT: (&str, &str, &str, &str) = ("#0f0f10", "#e8e8ea", "#f5a623", "#8b8b92");
-    const INTEGRES: &[(&str, (&str, &str, &str, &str))] = &[
+    /// Les quatre couleurs qu'un ecran d'attente a besoin de connaitre: le fond,
+    /// le texte, l'accent et le texte attenue. Nommees plutot qu'ecrites en clair
+    /// a chaque ligne: le quadruplet revenait six fois, et clippy refusait a juste
+    /// titre un type dont on ne devine plus ce que chaque place designe.
+    type Palette = (&'static str, &'static str, &'static str, &'static str);
+    const DEFAUT: Palette = ("#0f0f10", "#e8e8ea", "#f5a623", "#8b8b92");
+    const INTEGRES: &[(&str, Palette)] = &[
         ("defaut", DEFAUT),
         ("ardoise", ("#0b0d10", "#f1f5f9", "#7dd3fc", "#94a3b8")),
         ("foret", ("#0a0f0d", "#ecfdf5", "#6ee7b7", "#9ca3af")),

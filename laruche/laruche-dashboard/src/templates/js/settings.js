@@ -267,6 +267,7 @@ LaRuche.i18n.add({
   'settings.kanbanResultLabel':  {fr:'Résultat',         en:'Result'},
   'settings.kanbanDeplaceEchoue': {fr:"Le deplacement n'a pas ete enregistre.", en:'The move was not saved.'},
   'settings.kanbanNonConnecte':   {fr:'Session expiree: reconnectez-vous pour deplacer une carte.', en:'Session expired: sign in again to move a card.'},
+  'settings.policeAucune':      {fr:'Aucune',                  en:'None'},
   'settings.feedPosTitle':      {fr:'Position du flux',        en:'Feed position'},
   'settings.feedPosHint':       {fr:"Ou le flux d'activite se pose quand un panneau est detache a droite.",
                                  en:'Where the activity feed sits when a panel is detached on the right.'},
@@ -2098,7 +2099,10 @@ LaRuche.Settings = (function(){
       // Les polices importees d'abord: on vient de les ajouter, on les cherche.
       var piles = (_policesBrouillon || []).map(function(p){ return { nom: p.nom, v: '"'+p.nom+'"' }; })
         .concat(j.mono ? T.PILES_MONO : T.PILES);
-      var opts = '<option value="">—</option>'+piles.map(function(p){
+      // « Aucune », en toutes lettres et traduit. C'etait un tiret cadratin, que le
+      // controle de style du depot refuse, et qui ne disait de toute facon rien a
+      // qui ne connait pas la convention.
+      var opts = '<option value="">'+t('settings.policeAucune')+'</option>'+piles.map(function(p){
         return '<option value="'+esc(p.v)+'"'+(p.v===valeur.trim()?' selected':'')+'>'+esc(p.nom)+'</option>';
       }).join('');
       return '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
