@@ -4481,14 +4481,25 @@ html[data-verre="1"] .mem2-tree {
 
    Le panneau vit dans le flux, a droite; le feed est fixe, ancre au bord droit
    de la fenetre. Sans decalage il se poserait exactement sur le panneau. On le
-   pousse donc de la largeur du panneau. Le mode ANCRE en est exclu: il reserve
-   deja sa place par un rembourrage du corps, et cumuler les deux le pousserait
-   deux fois. */
-body.lr-dock-ouvert:not(.feed-docked) .feed-drawer,
-body.lr-dock-ouvert:not(.feed-docked) .feed-drawer-overlay,
+   pousse donc de la largeur du panneau, MAIS seulement quand il est OUVERT.
+
+   Ferme, le feed se cache par une translation de 105 % vers la droite, hors de
+   l'ecran. Le decaler vers la gauche le sortait de sa cachette: il restait pose,
+   invisible et translucide, par-dessus le panneau, et interceptait tout, y
+   compris les clics sur le contenu du panneau. Il n'est donc decale qu'a
+   l'ouverture, et rendu inerte tant qu'il est ferme (regle suivante). Le mode
+   ANCRE est exclu du decalage: il reserve deja sa place par un rembourrage du
+   corps, cumuler les deux le pousserait deux fois. */
+body.lr-dock-ouvert:not(.feed-docked) .feed-drawer-overlay.open,
+body.lr-dock-ouvert:not(.feed-docked) .feed-drawer-overlay.open .feed-drawer,
 body.lr-dock-ouvert:not(.feed-docked) .mesh-windows {
   right: var(--lr-dock-largeur, 0px);
 }
+
+/* Un feed ferme ne capte rien. Il est hors ecran par sa translation, mais un
+   element translate garde sa surface d'interaction la ou le layout le place: sans
+   ceci, sa boite ancree pouvait recouvrir ce qui est dessous et voler les clics. */
+.feed-drawer-overlay:not(.open) .feed-drawer { pointer-events: none; }
 
 @media (max-width: 900px) {
   /* En feuille du bas, le decalage se fait en hauteur et le bord change de cote. */
