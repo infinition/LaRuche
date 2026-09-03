@@ -4306,3 +4306,17 @@ html[data-verre="1"] .message.error {
 
    Leurs selecteurs sont absents des listes generees. Ce commentaire est la pour
    que le prochain qui les regenere sache que ce vide est voulu. */
+
+/* Les places de la table ronde reprennent le verre.
+
+   Elles en etaient sorties le temps d'un essai ou elles devaient devenir
+   invisibles. Les cadres sont restes, donc le flou aussi: une carte qui porte un
+   contour et un fond EST une surface, et sans flou son fond laisse passer
+   l'image nette, ce qui la rend illisible sur une photo chargee. Son voile
+   propre, a deux pour cent, est trop leger pour tenir seul; il est remplace par
+   celui du verre. */
+html[data-verre="1"] .tr-place {
+  background-color: rgba(var(--bg-card-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+}
