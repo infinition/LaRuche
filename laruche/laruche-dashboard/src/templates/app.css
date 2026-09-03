@@ -312,10 +312,14 @@ body {
   transition: padding-right .26s cubic-bezier(.22,.61,.36,1);
 }
 /* Feed docked and open: shrink content so it is not hidden */
-body.feed-docked { padding-right: 360px; }
+/* Le feed epingle ne pousse plus le corps par un rembourrage: il est devenu une
+   colonne du flux (voir plus bas), qui prend sa place toute seule. L'ancien
+   rembourrage padait aussi l'en-tete, laissant un vide en haut a droite des que
+   le feed cessait d'y monter. */
+body.feed-docked { padding-right: 0; }
 /* But the status-bar stays FULL WIDTH (the drawer stops at bottom:28px, above it):
    cancel the offset with a negative margin. */
-body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s cubic-bezier(.22,.61,.36,1); }
+/* La barre d'etat n'a plus a compenser un rembourrage qui n'existe plus. */
 .status-bar { flex-shrink:0; min-height:28px; display:flex; align-items:center; justify-content:flex-start; gap:8px; padding:0 max(10px,var(--safe-right)) var(--safe-bottom) max(10px,var(--safe-left)); background:var(--bg-panel); border-top:1px solid var(--border); font-size:11px; color:var(--text-dim); box-sizing:border-box; }
 .status-bar select { background:transparent; border:none; color:var(--amber); font-size:11px; font-weight:500; cursor:pointer; outline:none; }
 .status-bar select:hover { color:var(--amber); text-decoration:underline; }
@@ -4529,4 +4533,40 @@ html[data-verre="1"] .theme-barre {
   background-color: rgba(var(--bg-panel-rgb), var(--verre-opacite));
   backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
   -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+}
+
+/* ==========================================================================
+   LE FEED EPINGLE: UNE COLONNE, PAS UN TIROIR.
+
+   Epingle, le feed n'est plus un tiroir flottant mais une colonne du conteneur
+   des pages, au meme titre que le panneau detache. Il descend donc sous
+   l'en-tete et s'arrete a la barre d'etat, et l'ordre avec le panneau se decide
+   par un simple `order` flex, sans mesurer aucune largeur. Le voile qui
+   l'entourait en tiroir n'a plus de role: il se replie a rien. */
+body.feed-docked .page-container { flex-direction: row; }
+body.feed-docked .page.active { flex: 1 1 0; min-width: 0; }
+
+body.feed-docked #feedDrawerOverlay {
+  position: static; inset: auto; background: none;
+  display: contents;
+}
+body.feed-docked #feedDrawer {
+  position: static; transform: none;
+  flex: 0 0 clamp(300px, 24vw, 420px); min-width: 0; max-width: none;
+  top: auto; bottom: auto; right: auto; left: auto;
+  height: auto; z-index: auto;
+  border-left: 1px solid var(--border);
+  transition: none;
+}
+/* Les pages restent a gauche (order 0). Le panneau detache au milieu, le feed de
+   part et d'autre selon le reglage: avant le panneau, ou a l'extreme droite. */
+body.feed-docked .lr-dock { order: 2; }
+body.feed-docked:not(.feed-au-bord) #feedDrawer { order: 1; }
+body.feed-docked.feed-au-bord #feedDrawer { order: 3; }
+
+@media (max-width: 720px) {
+  /* En petit ecran, colonne verticale: le feed epingle passe en bas comme le
+     panneau, plutot que de couper la largeur en deux. */
+  body.feed-docked .page-container { flex-direction: column; }
+  body.feed-docked #feedDrawer { flex-basis: 45%; border-left: none; border-top: 1px solid var(--border); }
 }

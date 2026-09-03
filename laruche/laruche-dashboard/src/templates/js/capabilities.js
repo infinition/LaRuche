@@ -1041,10 +1041,23 @@ LaRuche.Feed = (function(){
   function applyAnchorUI(){
     var btn = document.getElementById('feedAnchorBtn');
     var ov = document.getElementById('feedDrawerOverlay');
+    var fd = document.getElementById('feedDrawer');
     if(btn) btn.classList.toggle('active', anchored);
     if(ov) ov.classList.toggle('anchored', anchored && open);
     // docked mode: push the content (only when anchored AND open)
-    document.body.classList.toggle('feed-docked', anchored && open);
+    var colonne = anchored && open;
+    document.body.classList.toggle('feed-docked', colonne);
+    /* Epingle, le feed devient une COLONNE du conteneur des pages, exactement
+       comme le panneau detache: il descend donc sous l'en-tete et s'arrete a la
+       barre d'etat, au lieu de monter par-dessus tout en tiroir. On DEPLACE son
+       noeud, plutot que de le simuler par des marges: un flex `order` decide
+       ensuite s'il se met avant ou apres le panneau, sans calcul de largeur. Hors
+       epinglage il retourne dans son voile, ou il reprend son role de tiroir. */
+    var pc = document.querySelector('.page-container');
+    if(fd){
+      if(colonne && pc){ if(fd.parentElement !== pc) pc.appendChild(fd); }
+      else if(ov && fd.parentElement !== ov){ ov.appendChild(fd); }
+    }
     if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows();
     /* Docking takes 360px off the header while the WINDOW keeps its width, so no media
      * query fires and the header tabs have to be re-measured. The ResizeObserver would
