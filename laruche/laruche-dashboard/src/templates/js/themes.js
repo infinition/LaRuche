@@ -611,19 +611,38 @@
 
   function deriverComposantes() {
     var r = document.documentElement;
+
+    /* On coupe la BOUCLE avant de lire.
+
+       Sous le verre, `--bg-card` est redefini comme
+       `rgba(var(--bg-card-rgb), opacite)`: la couleur derive alors de sa propre
+       composante. Relire cette couleur pour en reextraire la composante revenait
+       donc a se recopier soi-meme, et la valeur du theme precedent survivait
+       indefiniment. En passant de Papier a Nature, les panneaux restaient blancs
+       jusqu'au rechargement, seul moment ou le style en ligne disparaissait.
+
+       Deux gestes suffisent, et dans cet ordre: eteindre le verre, qui retire la
+       redefinition circulaire, et retirer les composantes posees au tour
+       precedent, qui masqueraient celles que le theme declare lui-meme. La
+       lecture qui suit voit alors la vraie couleur du theme. Tout se joue dans le
+       meme tour de boucle, donc rien ne clignote a l'ecran. */
+    r.removeAttribute('data-verre');
+    COMPOSANTES.forEach(function (paire) { r.style.removeProperty(paire[1]); });
+
     var st = getComputedStyle(r);
-    /* Le verre s'allume tout seul, a partir de son propre reglage. Une case a
-       cocher de plus dirait la meme chose que « flou a zero », et permettrait de
-       les contredire: verre coche, flou nul. */
-    var flou = parseFloat(st.getPropertyValue('--verre-flou')) || 0;
-    if (flou > 0) r.setAttribute('data-verre', '1');
-    else r.removeAttribute('data-verre');
     COMPOSANTES.forEach(function (paire) {
       var v = (st.getPropertyValue(paire[0]) || '').trim();
       if (!v) return;
       var c = resoudreCouleur(v);
       if (c) r.style.setProperty(paire[1], c.r + ',' + c.v + ',' + c.b);
     });
+
+    /* Le verre s'allume tout seul, a partir de son propre reglage. Une case a
+       cocher de plus dirait la meme chose que « flou a zero », et permettrait de
+       les contredire: verre coche, flou nul. Rallume APRES les composantes, pour
+       qu'il s'applique sur les bonnes. */
+    var flou = parseFloat(st.getPropertyValue('--verre-flou')) || 0;
+    if (flou > 0) r.setAttribute('data-verre', '1');
   }
 
   function peindre(id) {
