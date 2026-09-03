@@ -3569,6 +3569,7 @@ dependencies = [
  "laruche-watchers",
  "local-ip-address",
  "miel-protocol",
+ "mime_guess",
  "open",
  "qrcode",
  "rand 0.8.5",

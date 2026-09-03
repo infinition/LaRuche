@@ -53,6 +53,7 @@ laruche-watchers.workspace = true
 laruche-kanban = { path = "../laruche-kanban" }
 zip.workspace = true
 semver = "1"
+mime_guess = "2"
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = "0.19"

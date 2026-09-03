@@ -220,6 +220,10 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/addons/:id", get(addons::api::get_one))
         .route("/api/addons/:id/enable", post(addons::api::enable))
         .route("/api/addons/:id/disable", post(addons::api::disable))
+        .route(
+            "/addons-assets/:id/:version/*path",
+            get(addons::assets::serve),
+        )
         .route("/api/media/local", get(local_api::api_media_local))
         .route(
             "/api/config/channels",

@@ -244,6 +244,15 @@ pub(crate) enum RegistryMutationError {
     Persistence(String),
 }
 
+#[derive(Debug)]
+pub(crate) enum AssetLookupError {
+    NotFound,
+    Disabled,
+    InvalidPath,
+    TooLarge,
+    Io(String),
+}
+
 fn snapshot(id: &str, record: &AddonRecord) -> AddonSnapshot {
     let state = if record.error.is_some() {
         if record.manifest.is_some() {
@@ -265,6 +274,75 @@ fn snapshot(id: &str, record: &AddonRecord) -> AddonSnapshot {
         manifest: record.manifest.clone(),
         error: record.error.clone(),
     }
+}
+
+impl AddonRegistry {
+    /// Resolve a UI asset from an enabled, exact package version.
+    ///
+    /// The returned path has been canonicalized and checked beneath the package's
+    /// `ui` directory. Callers must still open the path without following a swapped
+    /// link; packages are immutable after installation, and the asset handler also
+    /// checks metadata immediately before reading.
+    pub(crate) fn resolve_ui_asset(
+        &self,
+        id: &str,
+        version: &str,
+        relative: &str,
+    ) -> Result<PathBuf, AssetLookupError> {
+        let record = self.records.get(id).ok_or(AssetLookupError::NotFound)?;
+        if !record.enabled || record.error.is_some() {
+            return Err(AssetLookupError::Disabled);
+        }
+        if record.active_version != version {
+            return Err(AssetLookupError::NotFound);
+        }
+        validate_asset_request_path(relative)?;
+
+        let ui_root = self.root.join("packages").join(id).join(version).join("ui");
+        let canonical_root =
+            fs::canonicalize(&ui_root).map_err(|error| AssetLookupError::Io(error.to_string()))?;
+        let candidate = ui_root.join(relative);
+        let metadata = fs::symlink_metadata(&candidate).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                AssetLookupError::NotFound
+            } else {
+                AssetLookupError::Io(error.to_string())
+            }
+        })?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err(AssetLookupError::InvalidPath);
+        }
+        const MAX_UI_ASSET_BYTES: u64 = 32 * 1024 * 1024;
+        if metadata.len() > MAX_UI_ASSET_BYTES {
+            return Err(AssetLookupError::TooLarge);
+        }
+        let canonical = fs::canonicalize(&candidate)
+            .map_err(|error| AssetLookupError::Io(error.to_string()))?;
+        if !canonical.starts_with(&canonical_root) {
+            return Err(AssetLookupError::InvalidPath);
+        }
+        Ok(canonical)
+    }
+}
+
+fn validate_asset_request_path(relative: &str) -> Result<(), AssetLookupError> {
+    if relative.is_empty()
+        || relative.len() > 500
+        || relative.contains('\\')
+        || relative.contains(':')
+        || relative.chars().any(char::is_control)
+    {
+        return Err(AssetLookupError::InvalidPath);
+    }
+    let path = Path::new(relative);
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|part| !matches!(part, std::path::Component::Normal(_)))
+    {
+        return Err(AssetLookupError::InvalidPath);
+    }
+    Ok(())
 }
 
 fn load_stored_registry(root: &Path, diagnostics: &mut Vec<AddonDiagnostic>) -> StoredRegistry {
@@ -582,6 +660,47 @@ mod tests {
         let addon = reloaded.get("dev.laruche.test").unwrap();
         assert!(!addon.enabled);
         assert!(matches!(addon.state, AddonLifecycleState::Missing));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn assets_require_an_enabled_exact_version() {
+        let root = temporary_root();
+        write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
+        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        assert!(matches!(
+            registry.resolve_ui_asset("dev.laruche.test", "1.0.0", "index.html"),
+            Err(AssetLookupError::Disabled)
+        ));
+        registry.set_enabled("dev.laruche.test", true).unwrap();
+        assert!(registry
+            .resolve_ui_asset("dev.laruche.test", "1.0.0", "index.html")
+            .unwrap()
+            .ends_with("index.html"));
+        assert!(matches!(
+            registry.resolve_ui_asset("dev.laruche.test", "2.0.0", "index.html"),
+            Err(AssetLookupError::NotFound)
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn asset_paths_cannot_escape_the_ui_directory() {
+        let root = temporary_root();
+        write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
+        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        registry.set_enabled("dev.laruche.test", true).unwrap();
+        for path in [
+            "../addon.json",
+            "assets\\secret",
+            "C:/boot.ini",
+            "./index.html",
+        ] {
+            assert!(matches!(
+                registry.resolve_ui_asset("dev.laruche.test", "1.0.0", path),
+                Err(AssetLookupError::InvalidPath)
+            ));
+        }
         let _ = fs::remove_dir_all(root);
     }
 }

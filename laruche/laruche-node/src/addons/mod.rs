@@ -7,6 +7,7 @@
 //! package lookup later.
 
 pub(crate) mod api;
+pub(crate) mod assets;
 mod model;
 mod registry;
 
