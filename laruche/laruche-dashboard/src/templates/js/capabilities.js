@@ -133,7 +133,7 @@ LaRuche.Capabilities = (function(){
       render();
     });
   }
-  function enter(){ render(); rendreLivres(); }
+  function enter(){ render(); }
 
   /* Ce que la mise a jour n'a PAS ose toucher.
 
@@ -441,6 +441,13 @@ LaRuche.Capabilities = (function(){
       '</div>'+
       (filtered.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+head+'<tbody>'+body+'</tbody></table></div>'
                        : '<div style="text-align:center;color:var(--text-muted);padding:30px">'+LaRuche.i18n.t('capabilities.emptyFilter')+'</div>');
+
+    // Le bandeau des capacites livrees se remplit ICI, apres l'ecriture du
+    // contenu: `render` reecrit tout, y compris l'hote du bandeau, et le remplir
+    // en parallele revenait a le voir efface une fois sur deux. Volontairement
+    // sans `await`: c'est une information de plus, elle ne doit pas retarder
+    // l'affichage de la liste.
+    rendreLivres();
 
     // Restore focus + cursor in the search field after re-render
     if(searchTerm){

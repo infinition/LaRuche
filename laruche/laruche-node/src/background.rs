@@ -676,6 +676,166 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
 }
 
 // Background: Watchers task checker (every 10 seconds)
+/// Traiter UN declenchement de vigie: notifier, agir, ou lancer l'agent.
+///
+/// Extrait de la boucle du dispatcher pour que le bouton « Tester » emprunte
+/// exactement le meme chemin que le balayage automatique. Deux chemins
+/// paralleles auraient fini par diverger, et c'est precisement ce qu'un bouton
+/// de test ne doit pas faire: il doit prouver ce qui se passera vraiment, pas
+/// ce qui s'en approche.
+pub(crate) async fn traiter_declenchement(
+    watcher_state: &Arc<AppState>,
+    d: laruche_watchers::Declenchement,
+) {
+            let (watcher_id, prompt, context) = (d.id, d.prompt, d.contexte);
+            let current_model = get_llm_default(watcher_state).await;
+            let (w_profile, w_model, w_channel, w_name) = {
+                let reg = watcher_state.watchers.read().await;
+                reg.list()
+                    .into_iter()
+                    .find(|w| w.id == watcher_id)
+                    .map(|w| (w.profile_id.clone(), w.model.clone(), w.channel.clone(), w.name.clone()))
+                    .unwrap_or((None, None, None, String::new()))
+            };
+            let mut config = watcher_state.essaim_config.read().await.clone();
+            if let Some(pid) = w_profile {
+                profiles_api::appliquer_profil(watcher_state, &mut config, &pid, w_model.as_deref()).await;
+            } else {
+                config.model = current_model.clone();
+            }
+
+            // LLM gate, two sources: the residual llm_check question of a
+            // compiled-rules watcher (deterministic prefix already passed), or
+            // the legacy free-text condition. One tiny call with the current
+            // datetime in hand. Fail-open: an unusable gate must not silence
+            // an alert.
+            let question_gate: Option<String> = d
+                .question_llm
+                .clone()
+                .or_else(|| if d.semantique { Some(d.condition.clone()) } else { None });
+            if let Some(q) = question_gate {
+                if !condition_satisfaite(&config, &q, &context).await {
+                    info!(watcher_id = %watcher_id, "Watcher event rejected by the condition gate");
+                    return;
+                }
+            }
+
+            // A fire leaves a trace in LaRuche itself, whatever channel carries
+            // the message away. Without this the feed only ever recorded the
+            // CREATION of a watcher: one that had fired three times looked, from
+            // the interface, exactly like one that had never fired at all, and the
+            // only proof of it lived in a Telegram thread. Recorded here, above the
+            // match, so that a fourth action cannot be added that forgets it.
+            if !matches!(d.action, laruche_watchers::Action::Aucune) {
+                laruche_essaim::feed_journal::record(
+                    if w_name.is_empty() { "watcher" } else { &w_name },
+                    "watcher",
+                    "fired",
+                    preview_text(&context, 160),
+                    chrono::Utc::now(),
+                );
+            }
+
+            // Two of the three actions never touch a model. A fire used to cost a
+            // full agentic mission whatever the job was: a whole turn, paid and
+            // slow, to write "the file is gone", which it could also get wrong.
+            match &d.action {
+                laruche_watchers::Action::Notifier => {
+                    let livr = match &w_channel {
+                        Some(c) => Some(c.clone()),
+                        None => watcher_state.essaim_config.read().await.home_channel.clone(),
+                    };
+                    if let Some(ch) = livr {
+                        missions_api::livrer_telegram(&ch, &format!("🔔 {context}")).await;
+                    }
+                    log_activite_riche(
+                        watcher_state, "info", "watcher",
+                        format!("Watcher notified: {}", preview_text(&context, 60)),
+                        None, Some(preview_text(&context, 500)), None, None,
+                    )
+                    .await;
+                    return;
+                }
+                laruche_watchers::Action::Commande { commande } => {
+                    // A watcher that ACTS: the lamp came on after midnight, turn it
+                    // off. Same platform split as the command watcher, and the same
+                    // refusal list, which lives in the watcher crate.
+                    let sortie = executer_action_commande(commande).await;
+                    let livr = match &w_channel {
+                        Some(c) => Some(c.clone()),
+                        None => watcher_state.essaim_config.read().await.home_channel.clone(),
+                    };
+                    if let Some(ch) = livr {
+                        missions_api::livrer_telegram(
+                            &ch,
+                            &format!("⚙️ {context}\n\n{}", preview_text(&sortie, 500)),
+                        )
+                        .await;
+                    }
+                    log_activite_riche(
+                        watcher_state, "info", "watcher",
+                        format!("Watcher action: {}", preview_text(commande, 60)),
+                        Some(commande.clone()), Some(preview_text(&sortie, 2000)), None, None,
+                    )
+                    .await;
+                    return;
+                }
+                // A pure sensor. Its verdict was already published before we got
+                // here, which is the only thing it exists for.
+                laruche_watchers::Action::Aucune => return,
+                laruche_watchers::Action::Agent => {}
+            }
+
+            info!(watcher_id = %watcher_id, "Executing watcher task");
+            let _ = watcher_state.events.write().await.emit(
+                laruche_events::EventKind::WatcherFired,
+                "watcher_dispatcher",
+                serde_json::json!({ "watcher_id": watcher_id, "prompt": prompt, "context": context })
+            );
+            let sessions_dir = std::path::Path::new("sessions");
+            let mut session = Session::new_with_path(&current_model, sessions_dir);
+            let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
+
+            let full_prompt = format!("[CONTEXT: {}]\n\n{}", context, prompt);
+            let _garde = ouvrir_travail(
+                watcher_state,
+                "watcher",
+                if w_name.is_empty() { "watcher" } else { &w_name },
+                &config,
+                w_channel.clone(),
+            );
+            let result = boucle_react_memoire(
+                &full_prompt,
+                &mut session,
+                &watcher_state.essaim_registry,
+                &config,
+                &tx,
+                watcher_state.memoire.clone(),
+            )
+            .await;
+
+            // Delivery: watcher channel → home channel.
+            let livr_channel = match w_channel {
+                Some(c) => Some(c),
+                None => watcher_state.essaim_config.read().await.home_channel.clone(),
+            };
+            if let (Some(ch), Ok(res)) = (livr_channel, &result) {
+                missions_api::livrer_telegram(&ch, &format!("🔔 Watcher triggered\n\n{}", res)).await;
+            }
+
+            log_activite_riche(
+                watcher_state,
+                if result.is_ok() { "info" } else { "error" },
+                "watcher",
+                format!("Watcher task: {}", preview_text(&prompt, 60)),
+                Some(full_prompt),
+                result.ok().map(|r| preview_text(&r, 4000)),
+                Some(config.model.clone()),
+                None,
+            )
+            .await;
+}
+
 pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
     let watcher_state = state.clone();
     tokio::spawn(async move {
@@ -687,153 +847,7 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                 registry.check_triggered_watchers().await
             };
             for d in triggered {
-                let (watcher_id, prompt, context) = (d.id, d.prompt, d.contexte);
-                let current_model = get_llm_default(&watcher_state).await;
-                let (w_profile, w_model, w_channel, w_name) = {
-                    let reg = watcher_state.watchers.read().await;
-                    reg.list()
-                        .into_iter()
-                        .find(|w| w.id == watcher_id)
-                        .map(|w| (w.profile_id.clone(), w.model.clone(), w.channel.clone(), w.name.clone()))
-                        .unwrap_or((None, None, None, String::new()))
-                };
-                let mut config = watcher_state.essaim_config.read().await.clone();
-                if let Some(pid) = w_profile {
-                    profiles_api::appliquer_profil(&watcher_state, &mut config, &pid, w_model.as_deref()).await;
-                } else {
-                    config.model = current_model.clone();
-                }
-
-                // LLM gate, two sources: the residual llm_check question of a
-                // compiled-rules watcher (deterministic prefix already passed), or
-                // the legacy free-text condition. One tiny call with the current
-                // datetime in hand. Fail-open: an unusable gate must not silence
-                // an alert.
-                let question_gate: Option<String> = d
-                    .question_llm
-                    .clone()
-                    .or_else(|| if d.semantique { Some(d.condition.clone()) } else { None });
-                if let Some(q) = question_gate {
-                    if !condition_satisfaite(&config, &q, &context).await {
-                        info!(watcher_id = %watcher_id, "Watcher event rejected by the condition gate");
-                        continue;
-                    }
-                }
-
-                // A fire leaves a trace in LaRuche itself, whatever channel carries
-                // the message away. Without this the feed only ever recorded the
-                // CREATION of a watcher: one that had fired three times looked, from
-                // the interface, exactly like one that had never fired at all, and the
-                // only proof of it lived in a Telegram thread. Recorded here, above the
-                // match, so that a fourth action cannot be added that forgets it.
-                if !matches!(d.action, laruche_watchers::Action::Aucune) {
-                    laruche_essaim::feed_journal::record(
-                        if w_name.is_empty() { "watcher" } else { &w_name },
-                        "watcher",
-                        "fired",
-                        preview_text(&context, 160),
-                        chrono::Utc::now(),
-                    );
-                }
-
-                // Two of the three actions never touch a model. A fire used to cost a
-                // full agentic mission whatever the job was: a whole turn, paid and
-                // slow, to write "the file is gone", which it could also get wrong.
-                match &d.action {
-                    laruche_watchers::Action::Notifier => {
-                        let livr = match &w_channel {
-                            Some(c) => Some(c.clone()),
-                            None => watcher_state.essaim_config.read().await.home_channel.clone(),
-                        };
-                        if let Some(ch) = livr {
-                            missions_api::livrer_telegram(&ch, &format!("🔔 {context}")).await;
-                        }
-                        log_activite_riche(
-                            &watcher_state, "info", "watcher",
-                            format!("Watcher notified: {}", preview_text(&context, 60)),
-                            None, Some(preview_text(&context, 500)), None, None,
-                        )
-                        .await;
-                        continue;
-                    }
-                    laruche_watchers::Action::Commande { commande } => {
-                        // A watcher that ACTS: the lamp came on after midnight, turn it
-                        // off. Same platform split as the command watcher, and the same
-                        // refusal list, which lives in the watcher crate.
-                        let sortie = executer_action_commande(commande).await;
-                        let livr = match &w_channel {
-                            Some(c) => Some(c.clone()),
-                            None => watcher_state.essaim_config.read().await.home_channel.clone(),
-                        };
-                        if let Some(ch) = livr {
-                            missions_api::livrer_telegram(
-                                &ch,
-                                &format!("⚙️ {context}\n\n{}", preview_text(&sortie, 500)),
-                            )
-                            .await;
-                        }
-                        log_activite_riche(
-                            &watcher_state, "info", "watcher",
-                            format!("Watcher action: {}", preview_text(commande, 60)),
-                            Some(commande.clone()), Some(preview_text(&sortie, 2000)), None, None,
-                        )
-                        .await;
-                        continue;
-                    }
-                    // A pure sensor. Its verdict was already published before we got
-                    // here, which is the only thing it exists for.
-                    laruche_watchers::Action::Aucune => continue,
-                    laruche_watchers::Action::Agent => {}
-                }
-
-                info!(watcher_id = %watcher_id, "Executing watcher task");
-                let _ = watcher_state.events.write().await.emit(
-                    laruche_events::EventKind::WatcherFired,
-                    "watcher_dispatcher",
-                    serde_json::json!({ "watcher_id": watcher_id, "prompt": prompt, "context": context })
-                );
-                let sessions_dir = std::path::Path::new("sessions");
-                let mut session = Session::new_with_path(&current_model, sessions_dir);
-                let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
-
-                let full_prompt = format!("[CONTEXT: {}]\n\n{}", context, prompt);
-                let _garde = ouvrir_travail(
-                    &watcher_state,
-                    "watcher",
-                    if w_name.is_empty() { "watcher" } else { &w_name },
-                    &config,
-                    w_channel.clone(),
-                );
-                let result = boucle_react_memoire(
-                    &full_prompt,
-                    &mut session,
-                    &watcher_state.essaim_registry,
-                    &config,
-                    &tx,
-                    watcher_state.memoire.clone(),
-                )
-                .await;
-
-                // Delivery: watcher channel → home channel.
-                let livr_channel = match w_channel {
-                    Some(c) => Some(c),
-                    None => watcher_state.essaim_config.read().await.home_channel.clone(),
-                };
-                if let (Some(ch), Ok(res)) = (livr_channel, &result) {
-                    missions_api::livrer_telegram(&ch, &format!("🔔 Watcher triggered\n\n{}", res)).await;
-                }
-
-                log_activite_riche(
-                    &watcher_state,
-                    if result.is_ok() { "info" } else { "error" },
-                    "watcher",
-                    format!("Watcher task: {}", preview_text(&prompt, 60)),
-                    Some(full_prompt),
-                    result.ok().map(|r| preview_text(&r, 4000)),
-                    Some(config.model.clone()),
-                    None,
-                )
-                .await;
+                traiter_declenchement(&watcher_state, d).await;
             }
         }
     });

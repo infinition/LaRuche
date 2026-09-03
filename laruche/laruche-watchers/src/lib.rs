@@ -962,23 +962,26 @@ impl WatchersRegistry {
         })
     }
 
-    /// Evaluer UNE vigie tout de suite, sans rien changer a son etat.
+    /// Declencher UNE vigie tout de suite, comme si son intervalle venait
+    /// d'echoir.
     ///
-    /// Une vigie ne se verifiait qu'en attendant son intervalle: une regle mal
-    /// ecrite se decouvrait le lendemain, et une vigie muette ne disait pas si
-    /// elle etait cassee ou si sa condition n'etait simplement pas remplie.
+    /// Une vigie ne se verifiait qu'en attendant son tour: une regle mal ecrite
+    /// se decouvrait le lendemain, et une vigie muette ne disait pas si elle
+    /// etait cassee ou si sa condition n'etait simplement pas remplie.
     ///
-    /// Ce test est volontairement SANS EFFET DE BORD. Il n'avance ni les lignes
-    /// connues, ni l'etat de reference, ni la date du dernier tir, et il ne
-    /// notifie pas. La raison est simple: consommer l'observation pour repondre
-    /// « oui, ca marche » ferait manquer a la vigie le vrai evenement suivant,
-    /// et un test qui abime ce qu'il mesure ne mesure plus rien.
+    /// C'est un VRAI passage, pas une simulation. L'observation est consommee,
+    /// l'etat de reference avance, le compteur monte, et le declenchement rendu
+    /// part ensuite dans le meme dispatcher que les autres: notification
+    /// comprise. Un bouton de test doit prouver ce qui se passera vraiment, et
+    /// une version qui s'arreterait juste avant la notification laisserait
+    /// justement dans le doute la moitie qu'on veut verifier.
     ///
-    /// L'intervalle et le delai de garde sont ignores: ce sont des cadences, pas
-    /// des conditions, et c'est justement pour ne pas les attendre qu'on teste.
-    /// La reponse porte donc sur ce que la vigie VOIT maintenant.
-    pub async fn tester(&self, id: &Uuid) -> Option<(bool, String)> {
-        let watcher = self.watchers.get(id)?;
+    /// Deux garde-fous sont neanmoins leves: l'intervalle et le delai de garde.
+    /// Ce sont des cadences, pas des conditions, et c'est precisement pour ne
+    /// pas les attendre qu'on appuie sur le bouton. Le reste, l'etat de
+    /// reference et la regle, decide comme d'habitude: une vigie dont la
+    /// condition n'est pas remplie ne se declenche pas, meme sur demande.
+    pub async fn tester(&mut self, id: &Uuid) -> Option<Declenchement> {
         let now = Utc::now();
         // Le meme instantane des verdicts que le balayage, pour qu'une regle de
         // correlation reponde ici comme elle repondrait la-bas.
@@ -994,19 +997,108 @@ impl WatchersRegistry {
                 })
             })
             .collect();
-        match evaluate_watcher(watcher, now).await {
-            Ok((transition, _new_state, desc, obs)) => {
-                let feu = match &watcher.regles {
-                    Some(regles) => matches!(
-                        regles.evaluer_avec(&obs, &chrono::Local::now(), &etats),
-                        Verdict::Vrai | Verdict::BesoinLlm(_)
-                    ),
-                    None => transition,
-                };
-                Some((feu, desc))
+
+        let watcher = self.watchers.get(id)?;
+        let resultat = evaluate_watcher(watcher, now).await;
+        let watcher = self.watchers.get(id)?;
+
+        let (transition, new_state, desc, obs) = match resultat {
+            Ok(v) => v,
+            Err(e) => {
+                let n = watcher.echecs_consecutifs.saturating_add(1);
+                if let Some(w) = self.watchers.get_mut(id) {
+                    w.echecs_consecutifs = n;
+                }
+                let _ = self.save();
+                tracing::warn!(watcher = %id, error = %e, "test de vigie: evaluation echouee");
+                return None;
             }
-            Err(e) => Some((false, format!("erreur: {e}"))),
+        };
+
+        let baseline = watcher.last_state.is_some();
+        let mut feu = false;
+        let mut question_llm: Option<String> = None;
+        let verdict_publie = match &watcher.regles {
+            Some(regles) => matches!(
+                regles.evaluer_avec(&obs, &chrono::Local::now(), &etats),
+                Verdict::Vrai | Verdict::BesoinLlm(_)
+            ),
+            None => transition,
+        };
+        // `pret` vaut toujours vrai ici: le delai de garde est justement ce
+        // qu'on court-circuite. La baseline, elle, reste exigee: sans etat de
+        // reference il n'y a pas de transition a constater, seulement un premier
+        // regard.
+        if let Some(regles) = &watcher.regles {
+            if baseline {
+                match regles.evaluer_avec(&obs, &chrono::Local::now(), &etats) {
+                    Verdict::Vrai => feu = true,
+                    Verdict::BesoinLlm(q) => {
+                        feu = true;
+                        question_llm = Some(q);
+                    }
+                    Verdict::Faux => {}
+                }
+            }
+        } else {
+            let soutenu = watcher.sustained
+                && baseline
+                && !watcher.condition.trim().is_empty()
+                && !desc.is_empty();
+            feu = transition || soutenu;
         }
+
+        let declenchement = if feu {
+            let contexte_regles = watcher
+                .regles
+                .as_ref()
+                .map(|r| format!(" [rules: {}]", r.resume()))
+                .unwrap_or_default();
+            Some(Declenchement {
+                action: watcher.action.clone(),
+                id: watcher.id,
+                name: watcher.name.clone(),
+                prompt: watcher.prompt.clone(),
+                contexte: format!(
+                    "Watcher '{}' ({:?}) on '{}': {}{}",
+                    watcher.name, watcher.watcher_type, watcher.target, desc, contexte_regles
+                ),
+                condition: watcher.condition.clone(),
+                semantique: watcher.regles.is_none()
+                    && !watcher.condition.trim().is_empty()
+                    && watcher.watcher_type != WatcherType::Log,
+                question_llm,
+            })
+        } else {
+            None
+        };
+
+        // Les memes mises a jour d'etat que le balayage. Un test qui n'avancerait
+        // pas l'etat annoncerait deux fois le meme evenement: une fois ici, une
+        // fois au passage suivant.
+        let lignes = obs.lignes_courantes.clone();
+        if let Some(w) = self.watchers.get_mut(id) {
+            if declenchement.is_some() {
+                w.last_run = Some(now);
+                w.run_count += 1;
+            }
+            if new_state != w.last_state {
+                w.last_state = new_state;
+            }
+            if !lignes.is_empty() || w.lignes_vues.is_some() {
+                w.lignes_vues = Some(lignes);
+            }
+            w.echecs_consecutifs = 0;
+            if w.dernier_verdict != Some(verdict_publie) {
+                w.dernier_verdict = Some(verdict_publie);
+                w.verdict_depuis = Some(now);
+            } else if w.verdict_depuis.is_none() {
+                w.verdict_depuis = Some(now);
+            }
+        }
+        self.derniers_polls.insert(*id, now);
+        let _ = self.save();
+        declenchement
     }
 
     pub fn set_active(&mut self, id: &Uuid, active: bool) -> bool {
