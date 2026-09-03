@@ -215,6 +215,11 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/themes/actif", get(themes_api::api_theme_actif_get).post(themes_api::api_theme_actif_set))
         .route("/api/themes/:id", axum::routing::delete(themes_api::api_themes_delete))
+        .route("/api/addons", get(addons::api::list))
+        .route("/api/addons/rescan", post(addons::api::rescan))
+        .route("/api/addons/:id", get(addons::api::get_one))
+        .route("/api/addons/:id/enable", post(addons::api::enable))
+        .route("/api/addons/:id/disable", post(addons::api::disable))
         .route("/api/media/local", get(local_api::api_media_local))
         .route(
             "/api/config/channels",

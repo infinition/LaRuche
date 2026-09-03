@@ -74,6 +74,7 @@ mod helpers;
 mod router;
 mod background;
 mod okf_git;
+mod addons;
 
 pub(crate) use state::*;
 pub(crate) use helpers::*;
@@ -1419,6 +1420,14 @@ async fn main() -> Result<()> {
     };
     let credential_pool = Arc::new(RwLock::new(pool_data));
 
+    let addons = match addons::AddonRegistry::load(std::path::PathBuf::from("addons")) {
+        Ok(registry) => registry,
+        Err(error) => {
+            warn!(error = %error, "addon registry could not be loaded; starting empty");
+            addons::AddonRegistry::empty(std::path::PathBuf::from("addons"))
+        }
+    };
+
     let state = Arc::new(AppState {
         manifest: RwLock::new(manifest),
         auth: RwLock::new(ProximityAuth::new()),
@@ -1465,6 +1474,7 @@ async fn main() -> Result<()> {
         last_activity: RwLock::new(std::time::Instant::now()),
         travaux: Arc::new(std::sync::RwLock::new(HashMap::new())),
         mcp_verrou: Arc::new(std::sync::Mutex::new(Default::default())),
+        addons: Arc::new(RwLock::new(addons)),
     });
 
     // Published once, right after construction. The tool registry is built long before
