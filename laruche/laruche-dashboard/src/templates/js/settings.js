@@ -953,12 +953,16 @@ LaRuche.Settings = (function(){
       p.setPointerCapture(e.pointerId);
       var vertical = window.innerWidth <= 720;
       function bouger(ev){
+        /* Le panneau est un element flex, pas un bloc fixe: c'est son flex-basis
+           qui decide de sa taille, `width` et `height` sont ignores tant que le
+           basis existe. La poignee agissait donc sur des proprietes sans effet,
+           et rien ne bougeait. */
         if(vertical){
-          var h = Math.min(window.innerHeight * 0.92, Math.max(160, window.innerHeight - ev.clientY));
-          d.style.height = h + 'px';
+          var h = Math.min(window.innerHeight * 0.85, Math.max(160, window.innerHeight - ev.clientY));
+          d.style.flexBasis = h + 'px';
         } else {
           var w = Math.min(window.innerWidth * 0.8, Math.max(280, window.innerWidth - ev.clientX));
-          d.style.width = w + 'px';
+          d.style.flexBasis = w + 'px';
         }
         _majLargeurDock();
       }
