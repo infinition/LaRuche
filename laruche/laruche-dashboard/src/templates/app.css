@@ -4443,3 +4443,29 @@ html[data-verre="1"] .mem2-tree {
   backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
   -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
 }
+
+/* Le panneau detache est une COLONNE, pas un tiroir pose par-dessus.
+
+   Il reservait deja sa place, la coquille et les pages recevant un rembourrage a
+   droite de sa largeur. Mais tout ce qui est ancre au bord droit de la FENETRE
+   l'ignorait, puisque ces elements ne sont pas dans le flux: le tiroir du feed et
+   son voile passaient dessous, et l'ombre portee de douze pixels acheva de le
+   faire lire comme un panneau flottant qu'on a pose sur le travail.
+
+   Ils se decalent donc de la meme largeur, et l'ombre disparait au profit d'une
+   simple bordure. Rien ne bouge dans la mise en page: c'est la meme reservation
+   qu'avant, etendue a ce qui lui echappait. */
+body.lr-dock-ouvert .feed-drawer,
+body.lr-dock-ouvert .feed-drawer-overlay,
+body.lr-dock-ouvert .mesh-windows {
+  right: var(--lr-dock-largeur, 0px);
+}
+.lr-dock { box-shadow: none; }
+
+@media (max-width: 900px) {
+  /* En feuille du bas, le decalage se fait en hauteur et le bord change de cote. */
+  body.lr-dock-ouvert .feed-drawer,
+  body.lr-dock-ouvert .feed-drawer-overlay,
+  body.lr-dock-ouvert .mesh-windows { right: 0; }
+  body.lr-dock-ouvert .feed-drawer { bottom: var(--lr-dock-hauteur, 28px); }
+}
