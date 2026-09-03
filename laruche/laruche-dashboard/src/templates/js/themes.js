@@ -197,7 +197,7 @@
     { id: 'foret', nom: { fr: 'Forêt', en: 'Forest' }, fond: '#0a0f0d', point: '#6ee7b7' },
     { id: 'nuit', nom: { fr: 'Nuit', en: 'Night' }, fond: '#000000', point: '#fbbf24' },
     { id: 'papier', nom: { fr: 'Papier', en: 'Paper' }, fond: '#faf7f2', point: '#b45309' },
-    { id: 'verre', nom: { fr: 'Verre', en: 'Glass' }, fond: '#0d1014', point: '#e2b04a' }
+    { id: 'verre', nom: { fr: 'Verre', en: 'Glass' }, fond: '#0b0d12', point: '#e9b872' }
   ];
 
   /* Le BROUILLON: ce qui est en cours d'edition pour le theme actif.

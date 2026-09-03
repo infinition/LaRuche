@@ -51,8 +51,6 @@
      demande. */
   --msg-flou: var(--verre-flou);
   --msg-opacite: var(--verre-opacite);
-  --anim-flou: var(--verre-flou);
-  --anim-opacite: var(--verre-opacite);
   --border-light: #3a3a3e;
   --text: #fafafa;
   --text-dim: #a1a1aa;
@@ -225,47 +223,50 @@ html[data-theme="foret"] {
   --border-rgb: 30,43,38;
 }
 
-/* Verre: le seul theme livre qui suppose une image de fond.
+/* Verre: du verre FUME, et c'est la seule facon que ce soit lisible.
 
-   Les autres peignent des surfaces opaques et se lisent sur n'importe quoi.
-   Celui-ci part de l'inverse: des surfaces claires et tres translucides, un flou
-   qui fait la matiere, et un texte assez contraste pour rester lisible par
-   dessus. L'opacite est volontairement plus haute que ce qu'on voit d'habitude
-   dans ce style, 0.55 et non 0.15: en dessous, une photo chargee passe a travers
-   le texte, et un verre elegant qu'on ne peut pas lire n'est pas elegant.
+   La premiere version teintait les surfaces en clair, un blanc bleute a 55 %.
+   Sur un fond sombre, cela ne donne pas du verre: cela donne un gris laiteux,
+   plat, qui se salit encore en s'empilant panneau sur panneau. Le verre teinte
+   clair suppose un fond clair derriere; ce n'est pas le cas ici.
 
-   Le flou des panneaux est ce qui rend le fond lisible, donc il est ici la
-   valeur de depart et non une option: sans lui, ce theme n'a pas de sens. */
+   Une plaque de verre fume est plus SOMBRE que ce qu'elle couvre, et ce qui la
+   revele est son bord: un lisere clair, un pixel, qui capte la lumiere. Le texte
+   reste alors clair sur du sombre, donc lisible quelle que soit l'image
+   derriere, et la matiere vient du flou et du bord, pas de la teinte.
+
+   Le flou est la valeur de depart et non une option: sans lui, ce theme n'a pas
+   de sens. */
 html[data-theme="verre"] {
-  --amber: #e2b04a;
-  --amber-light: #f2d68f;
-  --amber-dim: #a97c1e;
-  --amber-glow: rgba(226,176,74,0.16);
-  --bg: #0d1014;
-  --bg-panel: rgba(232,236,244,0.10);
-  --bg-card: rgba(232,236,244,0.14);
-  --bg-input: rgba(10,12,16,0.42);
-  --bg-hover: rgba(232,236,244,0.10);
-  --border: rgba(255,255,255,0.16);
-  --border-light: rgba(255,255,255,0.28);
-  --text: #f4f6fa;
-  --text-dim: #c3cad6;
-  --text-mid: #a4adbc;
-  --text-muted: #7f8899;
-  --amber-rgb: 226,176,74;
+  --amber: #e9b872;
+  --amber-light: #f6dcae;
+  --amber-dim: #b3823a;
+  --amber-glow: rgba(233,184,114,0.14);
+  --bg: #0b0d12;
+  --bg-panel: rgba(18,21,28,0.55);
+  --bg-card: rgba(26,30,39,0.55);
+  --bg-input: rgba(8,10,14,0.55);
+  --bg-hover: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.13);
+  --border-light: rgba(255,255,255,0.24);
+  --text: #eef1f6;
+  --text-dim: #b6bfcd;
+  --text-mid: #9aa4b4;
+  --text-muted: #737d8d;
+  --amber-rgb: 233,184,114;
   --red-rgb: 248,113,113;
   --green-rgb: 52,211,153;
   --blue-rgb: 125,178,255;
   --purple-rgb: 192,132,252;
   --cyan-rgb: 103,222,238;
   --border-rgb: 255,255,255;
-  --bg-rgb: 13,16,20;
-  --bg-panel-rgb: 232,236,244;
-  --bg-card-rgb: 232,236,244;
+  --bg-rgb: 11,13,18;
+  --bg-panel-rgb: 18,21,28;
+  --bg-card-rgb: 26,30,39;
   /* La matiere du theme, pas une option qu'on ajoute apres. */
-  --verre-flou: 18px;
+  --verre-flou: 20px;
   --verre-opacite: 0.55;
-  --verre-bord: rgba(255,255,255,0.22);
+  --verre-bord: rgba(255,255,255,0.26);
   --fond-flou: 0px;
 }
 
@@ -3987,12 +3988,12 @@ html[data-verre="1"] .admin-user,
 html[data-verre="1"] .agent-header-block,
 html[data-verre="1"] .approval-args,
 html[data-verre="1"] .attachment-preview,
-html[data-verre="1"] .avatar.assistant-avatar,
+
 html[data-verre="1"] .b-tts,
-html[data-verre="1"] .bee--body,
-html[data-verre="1"] .bee--head,
-html[data-verre="1"] .bee--head-antennas,
-html[data-verre="1"] .bee--wings,
+
+
+
+
 html[data-verre="1"] .cc-act,
 html[data-verre="1"] .cc-act,
 html[data-verre="1"] .cc-diff,
@@ -4151,8 +4152,8 @@ html[data-verre="1"] .feed-av-peer,
 html[data-verre="1"] .feed-av-user,
 html[data-verre="1"] .feed-drawer-head,
 html[data-verre="1"] .feed-next,
-html[data-verre="1"] .hex-core,
-html[data-verre="1"] .hex-shell,
+
+
 html[data-verre="1"] .hk,
 html[data-verre="1"] .kb-col-n,
 html[data-verre="1"] .mcp-avert,
@@ -4170,7 +4171,7 @@ html[data-verre="1"] .message.steer,
 html[data-verre="1"] .message.tool,
 html[data-verre="1"] .model-host,
 html[data-verre="1"] .plan-completed,
-html[data-verre="1"] .profile-modal-avatar,
+
 html[data-verre="1"] .provider-runtime-note,
 html[data-verre="1"] .reconnect-banner,
 html[data-verre="1"] .reine-analyse,
@@ -4182,7 +4183,7 @@ html[data-verre="1"] .timeout-warning,
 html[data-verre="1"] .tr-avertit,
 html[data-verre="1"] .tr-question,
 html[data-verre="1"] .tr-verdict,
-html[data-verre="1"] .user-avatar,
+
 html[data-verre="1"] .voicemode-orb {
   backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
   -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
@@ -4217,8 +4218,6 @@ html[data-verre="1"] .mis-list,
 html[data-verre="1"] .console-layout,
 html[data-verre="1"] .console-body,
 html[data-verre="1"] .tb-body,
-html[data-verre="1"] .swarm-wrap,
-html[data-verre="1"] .bee--body,
 html[data-verre="1"] .drop-zone,
 html[data-verre="1"] .tl-inv-cartes {
   backdrop-filter: none;
@@ -4297,10 +4296,15 @@ html[data-verre="1"] .message.error {
   -webkit-backdrop-filter: blur(var(--msg-flou)) saturate(1.3);
 }
 
-html[data-verre="1"] .swarm-wrap,
-html[data-verre="1"] .bee--body,
-html[data-verre="1"] .hex-shell,
-html[data-verre="1"] .honeycomb-loader {
-  backdrop-filter: blur(var(--anim-flou)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--anim-flou)) saturate(1.3);
-}
+/* Les DESSINS ne sont pas des surfaces, et ne prennent donc pas de verre.
+
+   Une abeille, la ruche qui pulse, l'essaim de la page d'accueil: ce sont des
+   dessins, faits de morceaux qui portent chacun leur couleur, un corps jaune,
+   des ailes grises, des antennes. L'extraction cherchait ce qui peint un fond et
+   porte une forme, ce qui les decrit exactement. Le verre leur repeignait donc
+   le fond, ce qui abime le dessin, et floutait derriere eux, ce qui posait un
+   disque sombre autour de l'essaim et une bande sous les abeilles. Il n'y a rien
+   a flouter derriere un trait.
+
+   Leurs selecteurs sont absents des listes generees. Ce commentaire est la pour
+   que le prochain qui les regenere sache que ce vide est voulu. */
