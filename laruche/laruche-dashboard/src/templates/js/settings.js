@@ -267,6 +267,15 @@ LaRuche.i18n.add({
   'settings.kanbanResultLabel':  {fr:'Résultat',         en:'Result'},
   'settings.kanbanDeplaceEchoue': {fr:"Le deplacement n'a pas ete enregistre.", en:'The move was not saved.'},
   'settings.kanbanNonConnecte':   {fr:'Session expiree: reconnectez-vous pour deplacer une carte.', en:'Session expired: sign in again to move a card.'},
+  'settings.feedPosTitle':      {fr:'Position du flux',        en:'Feed position'},
+  'settings.feedPosHint':       {fr:"Ou le flux d'activite se pose quand un panneau est detache a droite.",
+                                 en:'Where the activity feed sits when a panel is detached on the right.'},
+  'settings.feedPosChat':       {fr:'Avant le panneau',        en:'Before the panel'},
+  'settings.feedPosChatDesc':   {fr:'Contre la zone de travail, a gauche du panneau detache.',
+                                 en:'Against the work area, to the left of the detached panel.'},
+  'settings.feedPosFenetre':    {fr:'Au bord de la fenetre',   en:'At the window edge'},
+  'settings.feedPosFenetreDesc':{fr:"Toujours a l'extreme droite, par-dessus le panneau detache.",
+                                 en:'Always at the far right, over the detached panel.'},
   'settings.brandKeepColours':  {fr:"Garder les couleurs d'origine du logo et des animations",
                                  en:'Keep the original colours of the logo and animations'},
   'settings.etatActif':         {fr:'actif',                  en:'running'},
@@ -2181,6 +2190,23 @@ LaRuche.Settings = (function(){
         '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.themeHint')+'</p>'+
         '<div id="themeVignettes" style="display:flex;gap:9px;flex-wrap:wrap">'+vignettes+'</div>'+
       '</div>'+
+      (function(){
+        var pos = (LaRuche.Feed && LaRuche.Feed.positionFeed) ? LaRuche.Feed.positionFeed() : 'chat';
+        function opt(val, titre, desc){
+          return '<label style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border:1px solid '+
+            (pos===val?'var(--amber)':'var(--border)')+';border-radius:var(--radius-btn);cursor:pointer;flex:1;min-width:0" '+
+            'data-feedpos-opt="'+val+'">'+
+            '<input type="radio" name="feedpos" value="'+val+'"'+(pos===val?' checked':'')+' style="accent-color:var(--amber);margin-top:2px">'+
+            '<span style="min-width:0"><span style="display:block;font-size:12.5px;color:var(--text)">'+titre+'</span>'+
+            '<span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">'+desc+'</span></span></label>';
+        }
+        return '<div class="settings-card"><div class="settings-card-title">'+t('settings.feedPosTitle')+'</div>'+
+          '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('settings.feedPosHint')+'</p>'+
+          '<div style="display:flex;gap:9px;flex-wrap:wrap" id="feedPosChoix">'+
+            opt('chat', t('settings.feedPosChat'), t('settings.feedPosChatDesc'))+
+            opt('fenetre', t('settings.feedPosFenetre'), t('settings.feedPosFenetreDesc'))+
+          '</div></div>';
+      })()+
       _apercuMarkdown()+
 
       '<div class="settings-card"><div class="settings-card-title">'+t('settings.brandTitle')+'</div>'+
@@ -2277,19 +2303,27 @@ LaRuche.Settings = (function(){
           '<span>'+(perso?'&#10003;':'&#9888;')+'</span><span>'+
           (perso?t('settings.themeAutoSaved'):t('settings.themeBuiltinHint'))+'</span></div>'+
         champs+
-        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">'+
-          '<input id="themeNom" class="form-input" placeholder="'+esc(t('settings.themeName'))+'" value="'+esc(nomActuel)+'" style="flex:1;min-width:170px">'+
-          (perso
-            ? '<button class="cwd-btn" id="themeRenommer" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeRename')+'</button>'
-            : '<button class="send-btn" id="themeSave"><span>'+t('settings.themeSaveAs')+'</span></button>')+
-          '<button class="cwd-btn" id="themeDup" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeDuplicate')+'</button>'+
-          (perso?'<button class="cwd-btn" id="themeDel" style="opacity:1;font-size:12px;padding:7px 11px;color:var(--red)">'+t('settings.themeDelete')+'</button>':'')+
-          '<button class="cwd-btn" id="themeReset" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeRevert')+'</button>'+
-          '<button class="cwd-btn" id="themeExport" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeExport')+'</button>'+
-          '<button class="cwd-btn" id="themeImport" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeImport')+'</button>'+
-          '<input type="file" id="themeFichier" accept=".json,application/json" style="display:none">'+
-          '<span id="themeEtat" style="font-size:11.5px;color:var(--text-muted)"></span>'+
-        '</div>'+
+      '</div>'+
+      /* La barre du theme, COLLEE en bas du panneau.
+
+         Le nom, l'enregistrement, la duplication, l'import et l'export sont les
+         gestes qu'on repete en reglant un theme, et ils vivaient tout en bas
+         d'une longue page: il fallait derouler jusqu'au fond apres chaque essai
+         de couleur. Sticky, ils restent sous la main pendant qu'on travaille les
+         reglages au-dessus. Dernier enfant du panneau, donc au bas de la zone qui
+         defile, aussi bien dans la page des reglages que dans le panneau detache. */
+      '<div class="theme-barre">'+
+        '<input id="themeNom" class="form-input" placeholder="'+esc(t('settings.themeName'))+'" value="'+esc(nomActuel)+'" style="flex:1;min-width:150px">'+
+        (perso
+          ? '<button class="cwd-btn" id="themeRenommer" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeRename')+'</button>'
+          : '<button class="send-btn" id="themeSave"><span>'+t('settings.themeSaveAs')+'</span></button>')+
+        '<button class="cwd-btn" id="themeDup" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeDuplicate')+'</button>'+
+        (perso?'<button class="cwd-btn" id="themeDel" style="opacity:1;font-size:12px;padding:7px 11px;color:var(--red)">'+t('settings.themeDelete')+'</button>':'')+
+        '<button class="cwd-btn" id="themeReset" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeRevert')+'</button>'+
+        '<button class="cwd-btn" id="themeExport" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeExport')+'</button>'+
+        '<button class="cwd-btn" id="themeImport" style="opacity:1;font-size:12px;padding:7px 11px">'+t('settings.themeImport')+'</button>'+
+        '<input type="file" id="themeFichier" accept=".json,application/json" style="display:none">'+
+        '<span id="themeEtat" style="font-size:11.5px;color:var(--text-muted)"></span>'+
       '</div>';
 
     /* Pas d'apercu au survol ICI.
@@ -2463,6 +2497,20 @@ LaRuche.Settings = (function(){
     _initEnCours = true;
     majEtat(perso ? t('settings.themeSavedOk') : t('settings.themeUnsaved'));
     rendreMarque();
+    // Position du feed: prend effet tout de suite, et se voit si un panneau est
+    // deja detache. C'est une preference d'affichage locale, pas une propriete du
+    // theme: elle ne part pas dans l'export et ne touche a rien d'enregistre.
+    var fpc = el.querySelector('#feedPosChoix');
+    if(fpc && LaRuche.Feed && LaRuche.Feed.definirPosition){
+      fpc.addEventListener('change', function(e){
+        if(e.target && e.target.name === 'feedpos'){
+          LaRuche.Feed.definirPosition(e.target.value);
+          el.querySelectorAll('[data-feedpos-opt]').forEach(function(l){
+            l.style.borderColor = (l.getAttribute('data-feedpos-opt') === e.target.value) ? 'var(--amber)' : 'var(--border)';
+          });
+        }
+      });
+    }
     var mn = document.getElementById('marqueNom');
     if(mn) mn.oninput = function(){ _marqueBrouillon.nom = mn.value; rendreMarque(); };
     var mc = document.getElementById('marqueChoisir'), mf = document.getElementById('marqueFichier');

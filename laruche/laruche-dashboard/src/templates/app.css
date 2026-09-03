@@ -4490,9 +4490,9 @@ html[data-verre="1"] .mem2-tree {
    l'ouverture, et rendu inerte tant qu'il est ferme (regle suivante). Le mode
    ANCRE est exclu du decalage: il reserve deja sa place par un rembourrage du
    corps, cumuler les deux le pousserait deux fois. */
-body.lr-dock-ouvert:not(.feed-docked) .feed-drawer-overlay.open,
-body.lr-dock-ouvert:not(.feed-docked) .feed-drawer-overlay.open .feed-drawer,
-body.lr-dock-ouvert:not(.feed-docked) .mesh-windows {
+body.lr-dock-ouvert:not(.feed-docked):not(.feed-au-bord) .feed-drawer-overlay.open,
+body.lr-dock-ouvert:not(.feed-docked):not(.feed-au-bord) .feed-drawer-overlay.open .feed-drawer,
+body.lr-dock-ouvert:not(.feed-docked):not(.feed-au-bord) .mesh-windows {
   right: var(--lr-dock-largeur, 0px);
 }
 
@@ -4507,4 +4507,26 @@ body.lr-dock-ouvert:not(.feed-docked) .mesh-windows {
   body.lr-dock-ouvert .feed-drawer-overlay,
   body.lr-dock-ouvert .mesh-windows { right: 0; }
   body.lr-dock-ouvert .feed-drawer { bottom: var(--lr-dock-hauteur, 28px); }
+}
+
+/* La barre du theme, collee au bas du panneau des reglages.
+
+   Elle est le dernier enfant du contenu qui defile, donc `sticky bottom:0` la
+   maintient au bas de la zone visible tant qu'on est dans l'onglet Apparence,
+   que ce soit dans la page des reglages ou dans le panneau detache. Un fond
+   opaque et un trait au-dessus la detachent du contenu qui glisse dessous, et une
+   marge negative annule le rembourrage du conteneur pour qu'elle aille d'un bord
+   a l'autre. */
+.theme-barre {
+  position: sticky; bottom: 0; z-index: 6;
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin: 12px -16px 0; padding: 10px 16px calc(10px + var(--safe-bottom));
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 18px rgba(0,0,0,.18);
+}
+html[data-verre="1"] .theme-barre {
+  background-color: rgba(var(--bg-panel-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.4);
 }

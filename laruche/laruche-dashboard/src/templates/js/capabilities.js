@@ -627,6 +627,26 @@ LaRuche.Feed = (function(){
   var filters = { memory:true, agent:true, cron:true, mission:true, watcher:true, kanban:true, reine:true, canaux:true, mcp:true, user:true, laruche:true };
   var KINDS_CANAUX = { telegram:1, discord:1, slack:1, whatsapp:1, voice:1 };
 
+  /* Ou le feed se pose quand un panneau est detache a droite.
+
+     Deux ecoles, et aucune n'est meilleure dans l'absolu. « Avant le panneau »
+     garde le feed contre la zone de travail, a gauche du panneau, et le laisse
+     lire les deux cote a cote. « Au bord de la fenetre » garde le feed toujours
+     au meme endroit, l'extreme droite, quitte a couvrir le panneau: on le trouve
+     alors sans le chercher, toujours sous la meme main. C'est un gout, donc un
+     reglage. */
+  function positionFeed(){
+    try{ return localStorage.getItem('lr_feed_position') === 'fenetre' ? 'fenetre' : 'chat'; }
+    catch(e){ return 'chat'; }
+  }
+  function appliquerPosition(){
+    document.body.classList.toggle('feed-au-bord', positionFeed() === 'fenetre');
+  }
+  function definirPosition(v){
+    try{ localStorage.setItem('lr_feed_position', v === 'fenetre' ? 'fenetre' : 'chat'); }catch(e){}
+    appliquerPosition();
+  }
+
   function loadFilters(){
     try{
       var raw = localStorage.getItem('lr_feed_filters');
@@ -1068,6 +1088,7 @@ LaRuche.Feed = (function(){
 
   function init(){
     try{ anchored = localStorage.getItem('lr_feed_anchored')==='1'; }catch(e){}
+    appliquerPosition();
     loadFilters();
     loadFiltersOpen();
     applyAnchorUI();
@@ -1128,7 +1149,7 @@ LaRuche.Feed = (function(){
     setTimeout(poll, 1500); // fetch the response quickly
   }
 
-  return { init:init, toggle:toggle, open:openDrawer, close:closeDrawer, toggleAnchor:toggleAnchor, ask:ask, viderFlux:viderFlux, revoirTout:revoirToutLeFlux };
+  return { init:init, toggle:toggle, open:openDrawer, close:closeDrawer, toggleAnchor:toggleAnchor, ask:ask, viderFlux:viderFlux, revoirTout:revoirToutLeFlux, positionFeed:positionFeed, definirPosition:definirPosition };
 })();
 
 // ========================= Mesh messaging (Phase 4) =========================
