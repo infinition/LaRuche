@@ -120,7 +120,11 @@
         { cle: '--fond-flou', fr: 'Flou de l’image de fond', en: 'Background image blur', type: 'taille', min: 0, max: 40, pas: 1, unite: 'px' },
         { cle: '--verre-flou', fr: 'Flou des panneaux', en: 'Panel blur', type: 'taille', min: 0, max: 30, pas: 1, unite: 'px' },
         { cle: '--verre-opacite', fr: 'Opacité des panneaux', en: 'Panel opacity', type: 'taille', min: 0.15, max: 1, pas: 0.01, unite: '' },
-        { cle: '--verre-bord', fr: 'Reflet du bord', en: 'Edge highlight' }
+        { cle: '--verre-bord', fr: 'Reflet du bord', en: 'Edge highlight' },
+        { cle: '--msg-flou', fr: 'Flou des messages', en: 'Message blur', type: 'taille', min: 0, max: 30, pas: 1, unite: 'px' },
+        { cle: '--msg-opacite', fr: 'Opacité des messages', en: 'Message opacity', type: 'taille', min: 0.05, max: 1, pas: 0.01, unite: '' },
+        { cle: '--anim-flou', fr: 'Flou des animations', en: 'Animation blur', type: 'taille', min: 0, max: 30, pas: 1, unite: 'px' },
+        { cle: '--anim-opacite', fr: 'Opacité des animations', en: 'Animation opacity', type: 'taille', min: 0.05, max: 1, pas: 0.01, unite: '' }
       ]
     },
     {
@@ -192,7 +196,8 @@
     { id: 'ardoise', nom: { fr: 'Ardoise', en: 'Slate' }, fond: '#0b0d10', point: '#7dd3fc' },
     { id: 'foret', nom: { fr: 'Forêt', en: 'Forest' }, fond: '#0a0f0d', point: '#6ee7b7' },
     { id: 'nuit', nom: { fr: 'Nuit', en: 'Night' }, fond: '#000000', point: '#fbbf24' },
-    { id: 'papier', nom: { fr: 'Papier', en: 'Paper' }, fond: '#faf7f2', point: '#b45309' }
+    { id: 'papier', nom: { fr: 'Papier', en: 'Paper' }, fond: '#faf7f2', point: '#b45309' },
+    { id: 'verre', nom: { fr: 'Verre', en: 'Glass' }, fond: '#0d1014', point: '#e2b04a' }
   ];
 
   /* Le BROUILLON: ce qui est en cours d'edition pour le theme actif.

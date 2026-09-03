@@ -40,6 +40,19 @@
   --verre-flou: 0px;
   --verre-opacite: 0.72;
   --verre-bord: rgba(255,255,255,0.08);
+
+  /* Les MESSAGES et les ANIMATIONS ont leurs propres reglages.
+
+     Un panneau encadre, on le regarde peu; un message se lit, longuement, et une
+     animation bouge. Le meme voile ne leur va donc pas: ce qui rend un panneau
+     elegant rend un paragraphe penible, et une bete qui vole derriere du verre
+     n'a plus de raison de voler. Ils partent de la valeur des panneaux, donc
+     rien ne change tant qu'on n'y touche pas, et s'en detachent des qu'on le
+     demande. */
+  --msg-flou: var(--verre-flou);
+  --msg-opacite: var(--verre-opacite);
+  --anim-flou: var(--verre-flou);
+  --anim-opacite: var(--verre-opacite);
   --border-light: #3a3a3e;
   --text: #fafafa;
   --text-dim: #a1a1aa;
@@ -210,6 +223,50 @@ html[data-theme="foret"] {
   --purple-rgb: 192,132,252;
   --cyan-rgb: 34,211,238;
   --border-rgb: 30,43,38;
+}
+
+/* Verre: le seul theme livre qui suppose une image de fond.
+
+   Les autres peignent des surfaces opaques et se lisent sur n'importe quoi.
+   Celui-ci part de l'inverse: des surfaces claires et tres translucides, un flou
+   qui fait la matiere, et un texte assez contraste pour rester lisible par
+   dessus. L'opacite est volontairement plus haute que ce qu'on voit d'habitude
+   dans ce style, 0.55 et non 0.15: en dessous, une photo chargee passe a travers
+   le texte, et un verre elegant qu'on ne peut pas lire n'est pas elegant.
+
+   Le flou des panneaux est ce qui rend le fond lisible, donc il est ici la
+   valeur de depart et non une option: sans lui, ce theme n'a pas de sens. */
+html[data-theme="verre"] {
+  --amber: #e2b04a;
+  --amber-light: #f2d68f;
+  --amber-dim: #a97c1e;
+  --amber-glow: rgba(226,176,74,0.16);
+  --bg: #0d1014;
+  --bg-panel: rgba(232,236,244,0.10);
+  --bg-card: rgba(232,236,244,0.14);
+  --bg-input: rgba(10,12,16,0.42);
+  --bg-hover: rgba(232,236,244,0.10);
+  --border: rgba(255,255,255,0.16);
+  --border-light: rgba(255,255,255,0.28);
+  --text: #f4f6fa;
+  --text-dim: #c3cad6;
+  --text-mid: #a4adbc;
+  --text-muted: #7f8899;
+  --amber-rgb: 226,176,74;
+  --red-rgb: 248,113,113;
+  --green-rgb: 52,211,153;
+  --blue-rgb: 125,178,255;
+  --purple-rgb: 192,132,252;
+  --cyan-rgb: 103,222,238;
+  --border-rgb: 255,255,255;
+  --bg-rgb: 13,16,20;
+  --bg-panel-rgb: 232,236,244;
+  --bg-card-rgb: 232,236,244;
+  /* La matiere du theme, pas une option qu'on ajoute apres. */
+  --verre-flou: 18px;
+  --verre-opacite: 0.55;
+  --verre-bord: rgba(255,255,255,0.22);
+  --fond-flou: 0px;
 }
 
 /* Nuit: contraste eleve, noir franc. Pensé pour un ecran lu de loin ou dans le
@@ -3887,13 +3944,13 @@ html[data-verre="1"] .tr-place {
   box-shadow: inset 0 1px 0 var(--verre-bord), 0 4px 24px rgba(0,0,0,.18);
 }
 
-/* La barre collante de la table ronde a deja son voile: sous le verre, elle
-   prend le meme, sinon elle serait la seule surface opaque de la page. */
-html[data-verre="1"] .tr-table {
-  background: rgba(var(--bg-rgb), var(--verre-opacite));
-  backdrop-filter: blur(var(--verre-flou));
-  -webkit-backdrop-filter: blur(var(--verre-flou));
-}
+/* La table ronde n'a PAS de bande derriere son equipe.
+
+   `.tr-table` n'est qu'une colonne flex, sans fond a elle: la regle qui lui en
+   posait un partait d'une observation fausse, et peignait donc un rectangle
+   opaque en travers du fond d'ecran, la ou il n'y avait rien a couvrir. Ce sont
+   les places elles-memes, `.tr-place`, qui sont des surfaces; l'espace entre
+   elles appartient a l'image. */
 
 /* Ce qui se pose SUR le verre reste opaque, sinon il disparait dedans. */
 html[data-verre="1"] input,
@@ -4043,8 +4100,7 @@ html[data-verre="1"] .tl-piste,
 html[data-verre="1"] .tr-bloc,
 html[data-verre="1"] .tr-place,
 html[data-verre="1"] .tr-role,
-html[data-verre="1"] .tr-strat,
-html[data-verre="1"] .tr-table,
+html[data-verre="1"] .tr-strat,,
 html[data-verre="1"] .user-dropdown,
 html[data-verre="1"] .user-logout,
 html[data-verre="1"] .voicemode-close,
@@ -4208,391 +4264,43 @@ html[data-verre="1"] .settings-content table {
   border-radius: 8px;
 }
 
-/* ==========================================================================
-   UNE SEULE PASSE DE FLOU PAR ENDROIT DE L'ECRAN.
+/* Pas de suppression des flous imbriques.
 
-   Un `backdrop-filter` fait flouter au navigateur tout ce qui se trouve
-   DERRIERE l'element, dans une passe de composition a part. Une carte posee
-   dans un panneau deja floute ne montre donc rien de plus, puisque son arriere
-   plan est deja le resultat du flou du panneau: elle refloute une image floue,
-   pour le prix d'une passe entiere, et il y en avait jusqu'a trois empilees au
-   meme endroit.
+   Une regle eteignait le flou de toute surface de verre contenue dans une autre,
+   pour epargner des passes de composition. Elle etait juste en theorie et fausse
+   en pratique: un conteneur qui peint un fond n'est pas forcement une surface
+   qu'on VOIT. `.settings-content` en est une, et toutes les cartes de la page
+   des reglages perdaient donc leur flou au profit d'un parent que personne ne
+   percoit comme une plaque de verre. Le meme piege existait pour la memoire, les
+   missions et le kanban.
 
-   Le premier `:is()` ne liste que les surfaces qui FLOUTENT reellement. Les
-   enveloppes en sont exclues: elles ne floutent pas, donc une carte posee dedans
-   n'a rien au-dessus d'elle a qui ceder son flou. Les avoir laissees la
-   eteignait le flou des cartes au profit d'un parent qui n'en avait aucun, et
-   des pages entieres, la memoire, les missions, le kanban, restaient nettes.
+   Chaque surface floute donc pour elle-meme. C'est un peu plus de travail pour
+   le navigateur, et c'est ce qu'on voit qui decide. */
+
+/* Les messages et les animations suivent LEURS reglages.
 
-   `:is()` prend la specificite de son argument le plus fort, donc cette regle
-   l'emporte sur celles generees plus haut sans avoir a les reecrire. */
-html[data-verre="1"] :is(
-  #capContent,
-  #consoleOut,
-  .acc-etat,
-  .actions-tray,
-  .admin-user,
-  .agent-header-block,
-  .approval-args,
-  .approval-dialog,
-  .attachment-preview,
-  .avatar.assistant-avatar,
-  .b-agent,
-  .b-audio,
-  .b-code,
-  .b-embed,
-  .b-image,
-  .b-llm,
-  .b-rag,
-  .b-tts,
-  .b-vlm,
-  .bee--head,
-  .bee--head-antennas,
-  .bee--wings,
-  .cb-wrap,
-  .cc-act,
-  .cc-diff,
-  .cc-plan,
-  .chat-ctx-bar,
-  .chat-ctx-fill,
-  .chat-ctx-gauge,
-  .chat-jump,
-  .chat-onglet,
-  .chat-sidebar,
-  .code-toolbar,
-  .codex-auth-inline,
-  .console-panel,
-  .console-toolbar,
-  .dash-card,
-  .dash-panel,
-  .feed-actor.actor-laruche,
-  .feed-actor.actor-peer,
-  .feed-actor.actor-user,
-  .feed-ask-send,
-  .feed-av-laruche,
-  .feed-av-peer,
-  .feed-av-user,
-  .feed-drawer,
-  .feed-drawer-head,
-  .feed-filters,
-  .feed-item,
-  .feed-md,
-  .feed-next,
-  .feed-row,
-  .fn-retour,
-  .gantt-detail,
-  .gantt-gutter,
-  .gantt-head,
-  .gantt-scroll,
-  .header,
-  .help-bulle,
-  .help-lien,
-  .help-version,
-  .hex-core,
-  .hex-shell,
-  .history-close,
-  .history-overlay,
-  .history-panel,
-  .hk,
-  .honey-wave,
-  .infer-panel,
-  .infer-result,
-  .kb-carte,
-  .kb-cible,
-  .kb-col,
-  .kb-col-n,
-  .log-popover,
-  .log-popover-close,
-  .log-strip,
-  .login-card,
-  .lr-art-win,
-  .lr-dock,
-  .lr-modal,
-  .lr-modal-ov,
-  .lr-slider,
-  .lr-slider:before,
-  .mcp-avert,
-  .mcp-outil,
-  .mem-prop-count,
-  .mem-proposals,
-  .mem2-count,
-  .mem2-iact,
-  .mem2-item,
-  .mem2-item-bar,
-  .mem2-md,
-  .mem2-protnote,
-  .mem2-side,
-  .mem2-suggest-item,
-  .mem2-tree,
-  .mem2-wikilink,
-  .mesh-inbox,
-  .mesh-ligne,
-  .mesh-msg.in,
-  .mesh-peer-etiq,
-  .mesh-unread,
-  .mesh-win,
-  .mesh-win-close,
-  .mesh-win-head,
-  .mesh-win-min,
-  .mesh-win-send,
-  .message-row.assistant,
-  .message.assistant,
-  .message.error,
-  .message.steer,
-  .message.tool,
-  .mis-act,
-  .mis-card,
-  .mis-dossier-bar,
-  .mis-side,
-  .model-host,
-  .n-detail,
-  .panel,
-  .percent,
-  .plan-completed,
-  .plan-mission,
-  .pop-content,
-  .profile-modal,
-  .profile-modal-avatar,
-  .profile-modal-overlay,
-  .provider-favicon,
-  .provider-runtime-note,
-  .reaction-picker,
-  .reaction-trigger,
-  .reconnect-banner,
-  .reine-analyse,
-  .reine-appel-apply,
-  .reine-appel-card,
-  .reine-thinking,
-  .reine-verdict,
-  .settings-card,
-  .settings-content,
-  .shard-section,
-  .shine,
-  .sidebar-close,
-  .sidebar-controls,
-  .sidebar-outils-poignee,
-  .stats-card,
-  .stats-close,
-  .stats-reset-zoom,
-  .status-bar,
-  .suggested-prompt,
-  .tb-stinger,
-  .tb-wing1,
-  .tb-wing2,
-  .tb9-antenna-l,
-  .tb9-antenna-r,
-  .timeout-warning,
-  .tl-card,
-  .tl-detail,
-  .tl-gutter,
-  .tl-inv-head,
-  .tl-piste,
-  .tl-wrap,
-  .tr-avertit,
-  .tr-bloc,
-  .tr-place,
-  .tr-question,
-  .tr-role,
-  .tr-strat,
-  .tr-table,
-  .tr-verdict,
-  .user-avatar,
-  .user-dropdown,
-  .user-logout,
-  .voicemode-close,
-  .voicemode-orb,
-  .wcard,
-  .wnode
-) :is(
-  #capContent,
-  #consoleOut,
-  .acc-etat,
-  .actions-tray,
-  .admin-user,
-  .agent-header-block,
-  .approval-args,
-  .approval-dialog,
-  .attachment-preview,
-  .avatar.assistant-avatar,
-  .b-agent,
-  .b-audio,
-  .b-code,
-  .b-embed,
-  .b-image,
-  .b-llm,
-  .b-rag,
-  .b-tts,
-  .b-vlm,
-  .bee--body,
-  .bee--head,
-  .bee--head-antennas,
-  .bee--wings,
-  .cb-wrap,
-  .cc-act,
-  .cc-diff,
-  .cc-plan,
-  .chat-ctx-bar,
-  .chat-ctx-fill,
-  .chat-ctx-gauge,
-  .chat-jump,
-  .chat-onglet,
-  .chat-sidebar,
-  .code-toolbar,
-  .codex-auth-inline,
-  .console-body,
-  .console-layout,
-  .console-panel,
-  .console-toolbar,
-  .dash-card,
-  .dash-panel,
-  .drop-zone,
-  .feed-actor.actor-laruche,
-  .feed-actor.actor-peer,
-  .feed-actor.actor-user,
-  .feed-ask-send,
-  .feed-av-laruche,
-  .feed-av-peer,
-  .feed-av-user,
-  .feed-drawer,
-  .feed-drawer-head,
-  .feed-filters,
-  .feed-item,
-  .feed-md,
-  .feed-next,
-  .feed-row,
-  .fn-retour,
-  .gantt-detail,
-  .gantt-gutter,
-  .gantt-head,
-  .gantt-scroll,
-  .header,
-  .help-bulle,
-  .help-lien,
-  .help-version,
-  .hex-core,
-  .hex-shell,
-  .history-close,
-  .history-overlay,
-  .history-panel,
-  .hk,
-  .honey-wave,
-  .infer-panel,
-  .infer-result,
-  .kb-carte,
-  .kb-cible,
-  .kb-col,
-  .kb-col-n,
-  .log-popover,
-  .log-popover-close,
-  .log-strip,
-  .login-card,
-  .lr-art-win,
-  .lr-dock,
-  .lr-modal,
-  .lr-modal-ov,
-  .lr-slider,
-  .lr-slider:before,
-  .mcp-avert,
-  .mcp-outil,
-  .mem-prop-count,
-  .mem-proposals,
-  .mem2-body,
-  .mem2-count,
-  .mem2-iact,
-  .mem2-item,
-  .mem2-item-bar,
-  .mem2-main,
-  .mem2-md,
-  .mem2-protnote,
-  .mem2-side,
-  .mem2-suggest-item,
-  .mem2-tree,
-  .mem2-wikilink,
-  .mesh-inbox,
-  .mesh-ligne,
-  .mesh-msg.in,
-  .mesh-peer-etiq,
-  .mesh-unread,
-  .mesh-win,
-  .mesh-win-close,
-  .mesh-win-head,
-  .mesh-win-min,
-  .mesh-win-send,
-  .message-row.assistant,
-  .message.assistant,
-  .message.error,
-  .message.steer,
-  .message.tool,
-  .mis-act,
-  .mis-card,
-  .mis-dossier-bar,
-  .mis-layout,
-  .mis-list,
-  .mis-main,
-  .mis-side,
-  .model-host,
-  .n-detail,
-  .panel,
-  .percent,
-  .plan-completed,
-  .plan-mission,
-  .pop-content,
-  .profile-modal,
-  .profile-modal-avatar,
-  .profile-modal-overlay,
-  .provider-favicon,
-  .provider-runtime-note,
-  .reaction-picker,
-  .reaction-trigger,
-  .reconnect-banner,
-  .reine-analyse,
-  .reine-appel-apply,
-  .reine-appel-card,
-  .reine-thinking,
-  .reine-verdict,
-  .settings-card,
-  .settings-content,
-  .shard-section,
-  .shine,
-  .sidebar-close,
-  .sidebar-controls,
-  .sidebar-outils-poignee,
-  .stats-card,
-  .stats-close,
-  .stats-reset-zoom,
-  .status-bar,
-  .suggested-prompt,
-  .swarm-wrap,
-  .tb-body,
-  .tb-stinger,
-  .tb-wing1,
-  .tb-wing2,
-  .tb9-antenna-l,
-  .tb9-antenna-r,
-  .timeout-warning,
-  .tl-card,
-  .tl-detail,
-  .tl-gutter,
-  .tl-inv-cartes,
-  .tl-inv-head,
-  .tl-piste,
-  .tl-wrap,
-  .tr-avertit,
-  .tr-bloc,
-  .tr-place,
-  .tr-question,
-  .tr-role,
-  .tr-strat,
-  .tr-table,
-  .tr-verdict,
-  .user-avatar,
-  .user-dropdown,
-  .user-logout,
-  .voicemode-close,
-  .voicemode-orb,
-  .wcard,
-  .wnode
-) {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+   Cette regle vient apres celles du verre, donc elle l'emporte sans avoir a les
+   reecrire. Les bulles qui portent une couleur d'accent, celles de
+   l'utilisateur, gardent leur fond: c'est une identite, pas une matiere. Elles
+   prennent seulement le flou. */
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .message.tool {
+  background-color: rgba(var(--bg-card-rgb), var(--msg-opacite));
+  backdrop-filter: blur(var(--msg-flou)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--msg-flou)) saturate(1.3);
+}
+
+html[data-verre="1"] .message.user,
+html[data-verre="1"] .message.steer,
+html[data-verre="1"] .message.error {
+  backdrop-filter: blur(var(--msg-flou)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--msg-flou)) saturate(1.3);
+}
+
+html[data-verre="1"] .swarm-wrap,
+html[data-verre="1"] .bee--body,
+html[data-verre="1"] .hex-shell,
+html[data-verre="1"] .honeycomb-loader {
+  backdrop-filter: blur(var(--anim-flou)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--anim-flou)) saturate(1.3);
 }
