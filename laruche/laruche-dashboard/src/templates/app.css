@@ -23,6 +23,13 @@
   --purple-rgb: 168,85,247;
   --cyan-rgb: 6,182,212;
   --border-rgb: 42,42,46;
+  /* Les composantes des couleurs de fond, pour deux usages ou l'alpha nuit.
+
+     Le premier est la racine: derriere elle il n'y a pas de page, il y a la toile
+     de l'hote. Le second est le TEXTE pose sur un aplat d'accent, une bulle de
+     message, un avatar, un badge: il veut « la couleur du fond », c'est-a-dire
+     celle qui tranche avec l'accent, et un texte a alpha zero ne se voit pas.
+     Les dix-sept endroits concernes peignent donc depuis les composantes. */
   --bg-rgb: 9,9,11;
   --bg-panel-rgb: 17,17,19;
   --bg-card-rgb: 24,24,27;
@@ -377,7 +384,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .honeycomb-loader.hc-static .hexagon { animation:none !important; }
 /* Avatars and type badge in the Feed. */
 .feed-av { width:30px; height:30px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
-.feed-av-user { background:var(--amber); color:var(--bg); border-radius:50%; font-size:14px; font-weight:700; }
+.feed-av-user { background:var(--amber); color:rgb(var(--bg-rgb)); border-radius:50%; font-size:14px; font-weight:700; }
 /* LaRuche wears the same round bubble as the user: the honeycomb is CENTRED and scaled
    to fit inside it, instead of being pinned top-left where the circle cropped it. */
 .feed-av-laruche {
@@ -484,7 +491,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .feed-ask { display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); flex-shrink:0; }
 .feed-ask textarea { flex:1; resize:none; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:7px 10px; font-size:13px; font-family:inherit; max-height:120px; }
 .feed-ask textarea:focus { outline:none; border-color:var(--amber); }
-.feed-ask-send { flex-shrink:0; width:36px; border:none; border-radius:var(--radius); background:var(--amber); color:var(--bg); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.feed-ask-send { flex-shrink:0; width:36px; border:none; border-radius:var(--radius); background:var(--amber); color:rgb(var(--bg-rgb)); cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .feed-ask-send:hover { opacity:.85; }
 .feed-pending { opacity:.85; }
 .feed-pending-tag { color:var(--amber); font-style:italic; font-size:11px; }
@@ -495,7 +502,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .profile-modal-overlay.open { display:flex; }
 .profile-modal { width:min(560px,94vw); background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-card); box-shadow:0 12px 40px rgba(0,0,0,.5); padding:16px 18px; }
 .profile-modal-head { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
-.profile-modal-avatar { width:34px; height:34px; border-radius:50%; background:var(--amber); color:var(--bg); display:flex; align-items:center; justify-content:center; font-weight:700; }
+.profile-modal-avatar { width:34px; height:34px; border-radius:50%; background:var(--amber); color:rgb(var(--bg-rgb)); display:flex; align-items:center; justify-content:center; font-weight:700; }
 .profile-modal-name { font-weight:600; font-size:16px; flex:1; }
 .profile-modal-hint { color:var(--text-dim); font-size:12px; margin:2px 0 10px; }
 .profile-modal textarea { width:100%; resize:vertical; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; font-size:14px; font-family:inherit; line-height:1.5; }
@@ -528,11 +535,11 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .mesh-win-body { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
 .mesh-msg { max-width:80%; padding:6px 10px; border-radius:var(--radius-card); font-size:13px; line-height:1.4; word-wrap:break-word; white-space:pre-wrap; }
 .mesh-msg.in { align-self:flex-start; background:var(--bg-input); border:1px solid var(--border); border-bottom-left-radius:4px; }
-.mesh-msg.out { align-self:flex-end; background:var(--amber); color:var(--bg); border-bottom-right-radius:4px; }
+.mesh-msg.out { align-self:flex-end; background:var(--amber); color:rgb(var(--bg-rgb)); border-bottom-right-radius:4px; }
 .mesh-win-input { display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); }
 .mesh-win-input textarea { flex:1; resize:none; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:6px 9px; font-size:13px; font-family:inherit; max-height:90px; }
 .mesh-win-input textarea:focus { outline:none; border-color:var(--amber); }
-.mesh-win-send { flex-shrink:0; width:34px; border:none; border-radius:var(--radius); background:var(--amber); color:var(--bg); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.mesh-win-send { flex-shrink:0; width:34px; border:none; border-radius:var(--radius); background:var(--amber); color:rgb(var(--bg-rgb)); cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .mesh-win-send:hover { opacity:.85; }
 @media (max-width:560px){ .mesh-win { width:94vw; } .mesh-windows { right:3vw; } }
 .swarm-wrap { width:260px; height:260px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:radial-gradient(circle, rgba(255, 205, 45, 0.08), transparent 56%), radial-gradient(circle, rgba(var(--amber-rgb), 0.04), transparent 72%); filter:drop-shadow(0 0 20px rgba(255, 195, 30, 0.18)); pointer-events:none; }
@@ -938,7 +945,7 @@ body.nav-en-bas .mobile-tabs { display:flex; }
   font-size:14px; flex-shrink:0; margin-top:2px;
 }
 /* The user's thumbnail is often a photo: it reads at 150% of the base avatar box. */
-.avatar.user-avatar { width:72px; height:72px; background:var(--amber); color:var(--bg); font-weight:700; font-size:20px; }
+.avatar.user-avatar { width:72px; height:72px; background:var(--amber); color:rgb(var(--bg-rgb)); font-weight:700; font-size:20px; }
 .avatar.assistant-avatar { background:transparent; border:none; overflow:visible; width:52px; height:48px; }
 
 /* ── CSS Bee Avatar (faithful SCSS→CSS conversion, 1vw≈3px, eyes +20%) ── */
@@ -1038,9 +1045,9 @@ body.nav-en-bas .mobile-tabs { display:flex; }
   line-height:1.6; font-size:14px; word-wrap:break-word;
   white-space:pre-wrap; position:relative;
 }
-.message.user { background:var(--amber); color:var(--bg); border-bottom-right-radius:4px; }
-.message.user a, .message.steer a { color:var(--bg); font-weight:700; text-decoration:underline; text-underline-offset:2px; }
-.message.steer { background:var(--amber); color:var(--bg); border-bottom-right-radius:4px; border: 2px dashed rgba(0,0,0,0.2); font-style: italic; }
+.message.user { background:var(--amber); color:rgb(var(--bg-rgb)); border-bottom-right-radius:4px; }
+.message.user a, .message.steer a { color:rgb(var(--bg-rgb)); font-weight:700; text-decoration:underline; text-underline-offset:2px; }
+.message.steer { background:var(--amber); color:rgb(var(--bg-rgb)); border-bottom-right-radius:4px; border: 2px dashed rgba(0,0,0,0.2); font-style: italic; }
 .message.assistant { background:var(--bg-card); border:1px solid var(--border); border-bottom-left-radius:4px; }
 /* Reasoning metadata: hidden by default, revealed with the message actions. */
 .assistant-segment-label { margin:0; color:var(--text-dim); font:10px var(--mono); opacity:0; max-height:0; overflow:hidden; transition:max-height .15s ease, opacity .15s ease; }
@@ -1255,7 +1262,7 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 .cwd-btn:hover { opacity: 1; color: var(--amber); }
 .send-btn {
   background:var(--amber); border:none; border-radius:var(--radius);
-  color:var(--bg); font-weight:600; font-size:14px; padding:0 18px;
+  color:rgb(var(--bg-rgb)); font-weight:600; font-size:14px; padding:0 18px;
   cursor:pointer; flex-shrink:0; height:44px; transition:all var(--transition-fast);
 }
 .send-btn:hover { opacity:.85; transform:scale(1.02); }
@@ -2325,7 +2332,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   padding:2px 6px; border-radius:var(--radius-xs); line-height:1.6;
   border:1px solid var(--border); color:var(--text-muted);
 }
-.fn-carte--prochain .fn-rang { border-color:var(--amber); color:var(--bg); background:var(--amber); font-weight:700; }
+.fn-carte--prochain .fn-rang { border-color:var(--amber); color:rgb(var(--bg-rgb)); background:var(--amber); font-weight:700; }
 .fn-corps { min-width:0; flex:1; }
 .fn-nom { color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .fn-quand { font-size:11px; }
@@ -2338,7 +2345,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   font-size:12px; line-height:1; padding:0;
   animation:fnEntree .2s both;
 }
-.fn-retour:hover { background:var(--amber); color:var(--bg); }
+.fn-retour:hover { background:var(--amber); color:rgb(var(--bg-rgb)); }
 .fn-retour[hidden] { display:none; }
 @media (prefers-reduced-motion:reduce) {
   .fn-carte, .fn-retour { animation:none; }
@@ -2899,7 +2906,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   object-fit:cover; display:inline-flex; align-items:center; justify-content:center;
   border:1px solid var(--border);
 }
-.admin-av-txt { background:var(--amber); color:var(--bg); font-weight:700; font-size:14px; border-color:transparent; }
+.admin-av-txt { background:var(--amber); color:rgb(var(--bg-rgb)); font-weight:700; font-size:14px; border-color:transparent; }
 .admin-av-super { box-shadow:0 0 0 2px var(--bg), 0 0 0 3px var(--amber); }
 .admin-user-id { display:flex; flex-direction:column; gap:3px; flex:1; min-width:0; }
 .admin-user-name { font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -2909,7 +2916,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   border:1px solid var(--border); color:var(--text-dim);
 }
 .admin-badge-on { border-color:var(--amber); color:var(--amber); }
-.admin-badge-super { border-color:var(--amber); color:var(--bg); background:var(--amber); font-weight:700; }
+.admin-badge-super { border-color:var(--amber); color:rgb(var(--bg-rgb)); background:var(--amber); font-weight:700; }
 .admin-badge-warn { border-color:var(--red); color:var(--red); }
 
 /* ── MCP: the tools an external client can actually reach ── */
@@ -2932,7 +2939,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .mem2-suggest-item:hover { background:rgba(var(--amber-rgb),0.20); }
 .mem2-suggest-item span { font-weight:400; font-family:inherit; color:var(--text-muted); }
 /* The submit button says what it will actually do. */
-.mem2-btn-primary.is-ask { background:var(--amber); color:var(--bg); }
+.mem2-btn-primary.is-ask { background:var(--amber); color:rgb(var(--bg-rgb)); }
 
 /* ── Timeline / Gantt: the full inventory under the chart ──
    The chart can only draw what has a cron expression, so on-demand missions and
@@ -2997,7 +3004,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
    cliquer sur un nom qui ne repondra pas. */
 .mesh-peer--sourd { opacity:.6; }
 .mesh-peer-etiq {
-  font-size:9px; color:var(--bg); background:var(--text-muted);
+  font-size:9px; color:rgb(var(--bg-rgb)); background:var(--text-muted);
   padding:1px 5px; border-radius:var(--radius-btn); vertical-align:middle; margin-left:4px;
 }
 .mesh-avertissement {
@@ -3385,7 +3392,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   border-bottom: 1px solid var(--border); text-align: center;
 }
 .kb-col-n {
-  font-size: 10px; font-weight: 700; color: var(--bg);
+  font-size: 10px; font-weight: 700; color: rgb(var(--bg-rgb));
   background: var(--amber); border-radius:var(--radius); padding: 1px 6px;
 }
 .kb-col-corps {
