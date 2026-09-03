@@ -509,13 +509,15 @@ LaRuche.Router.register('login', LaRuche.Auth);
       this.alpha = 0.55 + Math.random() * 0.45;
       this.phase = Math.random() * Math.PI * 2;
       this.speed = 0.006 + Math.random() * 0.008;
-      // L'essaim prend ses teintes au THEME. Elles etaient ecrites en dur, donc
-      // la page de connexion restait doree sur un theme ardoise ou papier, seule
-      // surface de l'application a ne pas suivre le reglage de l'utilisateur.
-      var T = (window.LaRuche && LaRuche.Themes) || null;
-      var vif = T ? T.tripletRgb(getComputedStyle(document.documentElement).getPropertyValue('--amber'), '255, 205, 40') : '255, 205, 40';
-      var pale = T ? T.tripletRgb(getComputedStyle(document.documentElement).getPropertyValue('--amber-light'), '255, 235, 125') : '255, 235, 125';
-      this.color = Math.random() > 0.25 ? vif : pale;
+      /* La particule retient sa NUANCE, pas sa couleur.
+
+         Elle figeait ici la valeur lue dans le theme, une fois pour toutes, a sa
+         creation. Changer de theme, ou demander a la marque de garder ses
+         couleurs d'origine, ne repeignait donc rien: l'essaim gardait la teinte
+         qu'il avait au chargement de la page. Elle est resolue a chaque image, et
+         lue SUR l'essaim, ce qui permet de lui donner ses propres couleurs sans
+         toucher au reste. */
+      this.vive = Math.random() > 0.25;
     }
     update(t) {
       const orbit = 48 + Math.sin(t * 0.018 + this.phase) * 18;
@@ -534,17 +536,36 @@ LaRuche.Router.register('login', LaRuche.Auth);
       const r = this.size * pulse;
       ctx.beginPath();
       ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${this.color}, ${this.alpha})`;
+      const teinte = this.vive ? _teintes.vif : _teintes.pale;
+      ctx.fillStyle = `rgba(${teinte}, ${this.alpha})`;
       ctx.shadowBlur = 10;
-      ctx.shadowColor = `rgba(${this.color}, 0.65)`;
+      ctx.shadowColor = `rgba(${teinte}, 0.65)`;
       ctx.fill();
       ctx.shadowBlur = 0;
     }
   }
   for (let i = 0; i < MAX_PARTICLES; i++) particles.push(new Particle());
+
+  /* Les teintes de l'essaim, lues SUR l'essaim.
+
+     Elles etaient lues sur la racine du document. Le reglage « garder les
+     couleurs d'origine » redefinit l'ambre sur l'essaim lui-meme, pour ne pas
+     toucher au reste de la page: une lecture faite sur la racine passe donc a
+     cote, et l'essaim restait vert dans un theme vert. */
+  var _teintes = { vif: '255, 205, 40', pale: '255, 235, 125' };
+  function _lireTeintes() {
+    var T = (window.LaRuche && LaRuche.Themes) || null;
+    if (!T) return;
+    var cible = document.querySelector('.swarm-wrap') || document.documentElement;
+    var st = getComputedStyle(cible);
+    _teintes.vif = T.tripletRgb(st.getPropertyValue('--amber'), '255, 205, 40');
+    _teintes.pale = T.tripletRgb(st.getPropertyValue('--amber-light'), '255, 235, 125');
+  }
+
   let t = 0;
   function animate() {
     t++;
+    _lireTeintes();
     const canvases = document.querySelectorAll('.swarm-canvas');
     if (canvases.length > 0) {
       particles.forEach(p => p.update(t));
@@ -561,8 +582,7 @@ LaRuche.Router.register('login', LaRuche.Auth);
         const ctx = canvas.ctx;
         ctx.clearRect(0, 0, SIZE, SIZE);
         const gradient = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, 95);
-        var TH = (window.LaRuche && LaRuche.Themes) || null;
-        var halo = TH ? TH.tripletRgb(getComputedStyle(document.documentElement).getPropertyValue('--amber'), '255, 200, 30') : '255, 200, 30';
+        var halo = _teintes.vif;
         gradient.addColorStop(0, "rgba(" + halo + ", 0.08)");
         gradient.addColorStop(0.55, "rgba(" + halo + ", 0.025)");
         gradient.addColorStop(1, "rgba(" + halo + ", 0)");

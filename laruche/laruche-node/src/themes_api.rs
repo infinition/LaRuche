@@ -257,8 +257,14 @@ fn habillage_sur(
     let taille = m["taille"].as_i64().unwrap_or(0);
     let taille = if taille == 0 { 0 } else { taille.clamp(18, 96) };
     let masquer = m["masquerNom"].as_bool().unwrap_or(false);
-    let marque =
-        serde_json::json!({ "nom": nom, "logo": logo, "taille": taille, "masquerNom": masquer });
+    // La marque suit-elle le theme, ou garde-t-elle ses couleurs? L'objet est
+    // reconstruit champ par champ ici, donc un reglage absent de cette liste est
+    // perdu au premier enregistrement, sans erreur et sans trace.
+    let couleurs_origine = m["couleursOrigine"].as_bool().unwrap_or(false);
+    let marque = serde_json::json!({
+        "nom": nom, "logo": logo, "taille": taille,
+        "masquerNom": masquer, "couleursOrigine": couleurs_origine
+    });
 
     let f = &body["fond"];
     let image = match f.get("image") {

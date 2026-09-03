@@ -3951,11 +3951,37 @@ html[data-verre="1"] .panel {
    les places elles-memes, `.tr-place`, qui sont des surfaces; l'espace entre
    elles appartient a l'image. */
 
-/* Ce qui se pose SUR le verre reste opaque, sinon il disparait dedans. */
+/* Les CHAMPS prennent le flou, mais gardent leur propre teinte.
+
+   Ils en etaient exclus par prudence: un champ pose SUR le verre doit se voir,
+   et le rendre transparent l'aurait fait disparaitre dedans. Mais c'est la
+   TRANSPARENCE qui les efface, pas le flou. En leur refusant les deux, on
+   laissait des rectangles nets au milieu de panneaux flous, ce qui se remarque
+   plus qu'un defaut de lisibilite.
+
+   Ils floutent donc comme le reste et conservent le fond qui leur est propre.
+   Seule la liste DEROULEE d'un menu reste opaque, plus haut: elle est peinte par
+   le systeme, qui abandonne la teinte plutot que de composer une couche
+   translucide. */
 html[data-verre="1"] input,
 html[data-verre="1"] textarea,
 html[data-verre="1"] select,
-html[data-verre="1"] .etat-pastille { backdrop-filter: none; }
+html[data-verre="1"] .tr-select,
+html[data-verre="1"] .etat-pastille {
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.2);
+}
+
+/* Le champ d'ajout de la memoire est une surface, malgre son bord pointille.
+
+   Il ne peignait aucun fond, seulement une bordure en tirets: l'extraction, qui
+   cherche ce qui PEINT, ne pouvait pas le voir. Sur un fond d'ecran il restait
+   donc un cadre vide pose sur l'image, avec du texte dedans et rien derriere. */
+html[data-verre="1"] .mem2-add {
+  background-color: rgba(var(--bg-card-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+}
 
 /* ==========================================================================
    LE VERRE, PARTOUT.
@@ -4319,4 +4345,31 @@ html[data-verre="1"] .tr-place {
   background-color: rgba(var(--bg-card-rgb), var(--verre-opacite));
   backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
   -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+}
+
+/* Les MARQUES peuvent garder leurs couleurs d'origine.
+
+   Le logo et la ruche animee tirent leur couleur de `--amber`, comme tout le
+   reste: c'est ce qui fait qu'ils suivent le theme sans qu'on les reecrive.
+   C'est le bon defaut, et c'est aussi ce qui rend une ruche verte dans un theme
+   vert, alors qu'une marque est justement ce qu'on ne veut pas voir changer.
+
+   Plutot que de reecrire chaque dessin, on redefinit le jeton SUR EUX. Tout ce
+   qu'ils contiennent y puise, donc l'ambre d'origine revient d'un coup, sans
+   toucher a une seule regle de dessin, et sans rien changer au reste de la page.
+
+   L'ambre est celle du theme livre par defaut: c'est la couleur de LaRuche, pas
+   une valeur inventee pour l'occasion. */
+html[data-marque-brute="1"] .lr-logo,
+html[data-marque-brute="1"] #statusHoneycomb,
+html[data-marque-brute="1"] .honeycomb-loader,
+html[data-marque-brute="1"] .swarm-wrap,
+html[data-marque-brute="1"] .bee,
+html[data-marque-brute="1"] .hex-shell,
+html[data-marque-brute="1"] .hex-core {
+  --amber: #f5a623;
+  --amber-light: #fbbf24;
+  --amber-dim: #b8860b;
+  --amber-rgb: 245,166,35;
+  --amber-glow: rgba(245,166,35,0.13);
 }

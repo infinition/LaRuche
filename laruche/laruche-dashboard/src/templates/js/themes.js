@@ -472,6 +472,12 @@
        et un logo long n'occupent pas la meme place, et c'est une propriete de
        l'image qu'on pose, pas du theme qui l'entoure. */
     var r0 = document.documentElement;
+    /* Le logo et les animations suivent-ils le theme, ou gardent-ils leurs
+       couleurs? Un theme repeint tout ce qui puise dans son accent, y compris la
+       marque, et c'est presque toujours ce qu'on veut. Presque: une marque est
+       justement ce qui ne doit pas changer de couleur avec le decor. */
+    if (marque.couleursOrigine) r0.setAttribute('data-marque-brute', '1');
+    else r0.removeAttribute('data-marque-brute');
     if (marque.taille) r0.style.setProperty('--lr-logo-taille', marque.taille + 'px');
     else r0.style.removeProperty('--lr-logo-taille');
     var nom = document.querySelector('.header-brand');

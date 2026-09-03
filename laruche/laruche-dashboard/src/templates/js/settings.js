@@ -267,6 +267,8 @@ LaRuche.i18n.add({
   'settings.kanbanResultLabel':  {fr:'Résultat',         en:'Result'},
   'settings.kanbanDeplaceEchoue': {fr:"Le deplacement n'a pas ete enregistre.", en:'The move was not saved.'},
   'settings.kanbanNonConnecte':   {fr:'Session expiree: reconnectez-vous pour deplacer une carte.', en:'Session expired: sign in again to move a card.'},
+  'settings.brandKeepColours':  {fr:"Garder les couleurs d'origine du logo et des animations",
+                                 en:'Keep the original colours of the logo and animations'},
   'settings.etatActif':         {fr:'actif',                  en:'running'},
   'settings.etatPause':         {fr:'en pause',               en:'paused'},
   'settings.etatActifAide':     {fr:'Suspendre, sans supprimer', en:'Pause, without deleting'},
@@ -2170,6 +2172,11 @@ LaRuche.Settings = (function(){
           '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">'+
             '<input type="checkbox" id="marqueAfficherNom"'+(_marqueBrouillon.masquerNom?'':' checked')+' style="accent-color:var(--amber)">'+
           '</label></div>'+
+        '<div style="display:flex;align-items:center;gap:9px;padding:3px 0">'+
+          '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandKeepColours')+'</span>'+
+          '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">'+
+            '<input type="checkbox" id="marqueCouleursOrigine"'+(_marqueBrouillon.couleursOrigine?' checked':'')+' style="accent-color:var(--amber)">'+
+          '</label></div>'+
         '<div style="display:flex;align-items:center;gap:9px;padding:6px 0;flex-wrap:wrap">'+
           '<span style="flex:1;min-width:140px;font-size:12.5px;color:var(--text-dim)">'+t('settings.brandLogo')+'</span>'+
           '<span id="marqueApercu" class="lr-logo" style="width:34px;height:34px;border:1px solid var(--border);border-radius:6px"></span>'+
@@ -2334,7 +2341,8 @@ LaRuche.Settings = (function(){
           if(k !== 'image' || _sale.fond) fond[k] = _fondBrouillon[k];
         });
         var marque = { nom: _marqueBrouillon.nom || '', taille: _marqueBrouillon.taille || 0,
-                       masquerNom: !!_marqueBrouillon.masquerNom };
+                       masquerNom: !!_marqueBrouillon.masquerNom,
+                       couleursOrigine: !!_marqueBrouillon.couleursOrigine };
         if(_sale.logo) marque.logo = _marqueBrouillon.logo || '';
         var r = await T.enregistrer(nom.trim()||nomActuel, _themeBrouillon,
                                     actif.slice('perso:'.length), marque, fond,
@@ -2459,6 +2467,8 @@ LaRuche.Settings = (function(){
 
     var man = document.getElementById('marqueAfficherNom');
     if(man) man.onchange = function(){ _marqueBrouillon.masquerNom = !man.checked; rendreMarque(); };
+    var mco = el.querySelector('#marqueCouleursOrigine');
+    if(mco) mco.onchange = function(){ _marqueBrouillon.couleursOrigine = mco.checked; rendreMarque(); };
 
     var mt = document.getElementById('marqueTaille');
     if(mt) mt.oninput = function(){
