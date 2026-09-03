@@ -98,8 +98,16 @@ pub async fn api_lang_set(Json(body): Json<serde_json::Value>) -> impl IntoRespo
 }
 
 fn ui_lang(headers: &HeaderMap) -> &'static str {
-    // Le cookie d'abord: c'est le choix de CE navigateur, et il doit primer sur le
-    // reglage general quand on ouvre l'interface depuis un autre appareil.
+    /* Le FOYER fait foi, le cookie ne sert que de secours.
+
+       C'etait l'inverse, et la ruche parlait alors deux langues a la fois: la
+       fenetre de l'application et un navigateur ouvert a cote ont chacun leur
+       pot a cookies, donc chacun gardait le sien. Changer la langue d'un cote ne
+       se voyait pas de l'autre, et rien ne disait pourquoi.
+
+       C'est une ruche, avec un reglage de langue. Le cookie ne reste utile que
+       pour une ruche qui n'a jamais eu ce fichier, ou l'ancien choix vaut mieux
+       qu'un francais impose. */
     let depuis_cookie = headers
         .get(header::COOKIE)
         .and_then(|v| v.to_str().ok())
@@ -109,8 +117,8 @@ fn ui_lang(headers: &HeaderMap) -> &'static str {
                 .find_map(|kv| kv.strip_prefix("laruche_lang="))
         })
         .map(|s| s.to_string());
-    let code = depuis_cookie
-        .or_else(langue_du_foyer)
+    let code = langue_du_foyer()
+        .or(depuis_cookie)
         .unwrap_or_else(|| "fr".to_string());
     let code = code.as_str();
     if code == "en" {

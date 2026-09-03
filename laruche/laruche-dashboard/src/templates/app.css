@@ -4195,16 +4195,20 @@ html[data-verre="1"] .settings-content table {
    Un `backdrop-filter` fait flouter au navigateur tout ce qui se trouve
    DERRIERE l'element, dans une passe de composition a part. Une carte posee
    dans un panneau deja floute ne montre donc rien de plus, puisque son arriere
-   plan est deja le resultat du flou du panneau: elle refloute une image floue.
-   Elle coute pourtant sa passe entiere, et il y en avait jusqu'a trois
-   empilees au meme endroit. C'est ce qu'on voyait s'installer par etapes en
-   changeant de page.
+   plan est deja le resultat du flou du panneau: elle refloute une image floue,
+   pour le prix d'une passe entiere, et il y en avait jusqu'a trois empilees au
+   meme endroit.
 
-   Cette regle eteint le flou de toute surface de verre contenue dans une autre.
-   `:is()` prend la specificite de son argument le plus fort, donc elle l'emporte
-   sur les regles generees plus haut sans avoir a les reecrire. Le rendu est le
-   meme, a une passe au lieu de trois. */
+   Le premier `:is()` ne liste que les surfaces qui FLOUTENT reellement. Les
+   enveloppes en sont exclues: elles ne floutent pas, donc une carte posee dedans
+   n'a rien au-dessus d'elle a qui ceder son flou. Les avoir laissees la
+   eteignait le flou des cartes au profit d'un parent qui n'en avait aucun, et
+   des pages entieres, la memoire, les missions, le kanban, restaient nettes.
+
+   `:is()` prend la specificite de son argument le plus fort, donc cette regle
+   l'emporte sur celles generees plus haut sans avoir a les reecrire. */
 html[data-verre="1"] :is(
+  #capContent,
   #consoleOut,
   .acc-etat,
   .actions-tray,
@@ -4223,7 +4227,6 @@ html[data-verre="1"] :is(
   .b-rag,
   .b-tts,
   .b-vlm,
-  .bee--body,
   .bee--head,
   .bee--head-antennas,
   .bee--wings,
@@ -4239,13 +4242,10 @@ html[data-verre="1"] :is(
   .chat-sidebar,
   .code-toolbar,
   .codex-auth-inline,
-  .console-body,
-  .console-layout,
   .console-panel,
   .console-toolbar,
   .dash-card,
   .dash-panel,
-  .drop-zone,
   .feed-actor.actor-laruche,
   .feed-actor.actor-peer,
   .feed-actor.actor-user,
@@ -4296,12 +4296,10 @@ html[data-verre="1"] :is(
   .mcp-outil,
   .mem-prop-count,
   .mem-proposals,
-  .mem2-body,
   .mem2-count,
   .mem2-iact,
   .mem2-item,
   .mem2-item-bar,
-  .mem2-main,
   .mem2-md,
   .mem2-protnote,
   .mem2-side,
@@ -4326,9 +4324,6 @@ html[data-verre="1"] :is(
   .mis-act,
   .mis-card,
   .mis-dossier-bar,
-  .mis-layout,
-  .mis-list,
-  .mis-main,
   .mis-side,
   .model-host,
   .n-detail,
@@ -4351,6 +4346,7 @@ html[data-verre="1"] :is(
   .reine-thinking,
   .reine-verdict,
   .settings-card,
+  .settings-content,
   .shard-section,
   .shine,
   .sidebar-close,
@@ -4361,8 +4357,6 @@ html[data-verre="1"] :is(
   .stats-reset-zoom,
   .status-bar,
   .suggested-prompt,
-  .swarm-wrap,
-  .tb-body,
   .tb-stinger,
   .tb-wing1,
   .tb-wing2,
@@ -4372,7 +4366,6 @@ html[data-verre="1"] :is(
   .tl-card,
   .tl-detail,
   .tl-gutter,
-  .tl-inv-cartes,
   .tl-inv-head,
   .tl-piste,
   .tl-wrap,
@@ -4392,6 +4385,7 @@ html[data-verre="1"] :is(
   .wcard,
   .wnode
 ) :is(
+  #capContent,
   #consoleOut,
   .acc-etat,
   .actions-tray,
@@ -4538,6 +4532,7 @@ html[data-verre="1"] :is(
   .reine-thinking,
   .reine-verdict,
   .settings-card,
+  .settings-content,
   .shard-section,
   .shine,
   .sidebar-close,
@@ -4597,8 +4592,7 @@ html[data-verre="1"] :is(
    fixe, elle ne defile pas: ce qui se trouve derriere un panneau EST l'image, au
    meme cadrage. Le script la floute une fois au rayon des panneaux et la donne
    ici; chaque surface la peint en fond fixe. Meme resultat, pixel pour pixel,
-   sans passe de composition et sans rien a reconstruire: le verre est deja la au
-   premier affichage.
+   sans passe de composition et sans rien a reconstruire.
 
    Trois couches, de bas en haut: l'image floutee, un voile de la couleur de base
    qui reproduit l'opacite du fond d'ecran, puis la teinte du panneau. Les
@@ -4794,8 +4788,7 @@ html[data-verre="1"][data-fond-verre="1"] .user-logout,
 html[data-verre="1"][data-fond-verre="1"] .voicemode-close,
 html[data-verre="1"][data-fond-verre="1"] .voicemode-orb,
 html[data-verre="1"][data-fond-verre="1"] .wcard,
-html[data-verre="1"][data-fond-verre="1"] .wnode,
-html[data-verre="1"][data-fond-verre="1"] :is( {
+html[data-verre="1"][data-fond-verre="1"] .wnode {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -4915,6 +4908,31 @@ html[data-verre="1"][data-fond-verre="1"] .wnode {
   background-color: rgb(var(--bg-rgb));
   background-image:
     linear-gradient(rgba(var(--bg-card-rgb), var(--verre-opacite)), rgba(var(--bg-card-rgb), var(--verre-opacite))),
+    linear-gradient(rgba(var(--bg-rgb), var(--fond-voile, 0.65)), rgba(var(--bg-rgb), var(--fond-voile, 0.65))),
+    var(--fond-floue, none);
+  background-attachment: fixed;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* Les surfaces de PANNEAU gardent leur teinte a elles dans le verre du fond.
+
+   L'entete, les volets, la barre d'etat et le tiroir encadrent le contenu, ils ne
+   sont pas du contenu: ils ont leur propre teinte, `--bg-panel`, et la regle
+   precedente ne connait que celle des cartes. Sans cette regle ils perdaient le
+   verre entierement, puisque leur `backdrop-filter` venait d'etre eteint sans
+   que rien ne le remplace: le volet des conversations redevenait une surface
+   plate au milieu de panneaux en verre. */
+html[data-verre="1"][data-fond-verre="1"] .header,
+html[data-verre="1"][data-fond-verre="1"] .chat-sidebar,
+html[data-verre="1"][data-fond-verre="1"] .status-bar,
+html[data-verre="1"][data-fond-verre="1"] .feed-drawer,
+html[data-verre="1"][data-fond-verre="1"] .lr-dock,
+html[data-verre="1"][data-fond-verre="1"] .console-panel {
+  background-color: rgb(var(--bg-rgb));
+  background-image:
+    linear-gradient(rgba(var(--bg-panel-rgb), var(--verre-opacite)), rgba(var(--bg-panel-rgb), var(--verre-opacite))),
     linear-gradient(rgba(var(--bg-rgb), var(--fond-voile, 0.65)), rgba(var(--bg-rgb), var(--fond-voile, 0.65))),
     var(--fond-floue, none);
   background-attachment: fixed;
