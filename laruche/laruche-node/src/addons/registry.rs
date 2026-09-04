@@ -177,6 +177,43 @@ impl AddonRegistry {
         self.records.get(id).map(|record| snapshot(id, record))
     }
 
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Select a freshly installed version, always disabled. An update may ask
+    /// for broader permissions than the previous release, so installation must
+    /// never silently keep executable authority.
+    pub(crate) fn adopt_installed(
+        &mut self,
+        manifest: AddonManifest,
+    ) -> Result<AddonSnapshot, RegistryMutationError> {
+        let id = manifest.id.clone();
+        let previous = self.records.get(&id).cloned();
+        self.records.insert(
+            id.clone(),
+            AddonRecord {
+                active_version: manifest.version.clone(),
+                enabled: false,
+                installed_at: Utc::now().to_rfc3339(),
+                manifest: Some(manifest),
+                error: None,
+            },
+        );
+        if let Err(error) = self.persist() {
+            match previous {
+                Some(record) => {
+                    self.records.insert(id.clone(), record);
+                }
+                None => {
+                    self.records.remove(&id);
+                }
+            }
+            return Err(RegistryMutationError::Persistence(error));
+        }
+        Ok(self.get(&id).expect("installed addon is present"))
+    }
+
     pub(crate) fn set_enabled(
         &mut self,
         id: &str,
@@ -460,7 +497,7 @@ fn safe_directory(entry: &fs::DirEntry, root: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn load_manifest(path: &Path, root: &Path) -> Result<AddonManifest, String> {
+pub(super) fn load_manifest(path: &Path, root: &Path) -> Result<AddonManifest, String> {
     let metadata = fs::symlink_metadata(path)
         .map_err(|error| format!("cannot inspect addon.json: {error}"))?;
     if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > 256 * 1024 {
@@ -476,7 +513,7 @@ fn load_manifest(path: &Path, root: &Path) -> Result<AddonManifest, String> {
     AddonManifest::parse_and_validate(&input)
 }
 
-fn validate_referenced_files(
+pub(super) fn validate_referenced_files(
     manifest: &AddonManifest,
     package: &Path,
     packages_root: &Path,
@@ -610,6 +647,31 @@ mod tests {
         registry.set_enabled("dev.laruche.test", true).unwrap();
         let reloaded = AddonRegistry::load(root.clone()).unwrap();
         assert!(reloaded.get("dev.laruche.test").unwrap().enabled);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn adopting_an_update_selects_it_disabled_and_persists_the_choice() {
+        let root = temporary_root();
+        write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
+        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        registry.set_enabled("dev.laruche.test", true).unwrap();
+
+        write_package(&root, "dev.laruche.test", "2.0.0", "ui/index.html");
+        let packages_root = fs::canonicalize(root.join("packages")).unwrap();
+        let manifest = load_manifest(
+            &root.join("packages/dev.laruche.test/2.0.0/addon.json"),
+            &packages_root,
+        )
+        .unwrap();
+        let installed = registry.adopt_installed(manifest).unwrap();
+        assert_eq!(installed.active_version, "2.0.0");
+        assert!(!installed.enabled);
+
+        let reloaded = AddonRegistry::load(root.clone()).unwrap();
+        let persisted = reloaded.get("dev.laruche.test").unwrap();
+        assert_eq!(persisted.active_version, "2.0.0");
+        assert!(!persisted.enabled);
         let _ = fs::remove_dir_all(root);
     }
 

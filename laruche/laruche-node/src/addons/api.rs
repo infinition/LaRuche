@@ -1,5 +1,7 @@
+use super::installer::{self, InstallError};
 use super::{AddonDiagnostic, AddonSnapshot, RegistryMutationError};
 use crate::{auth_user, log_activite, AppState};
+use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Json;
@@ -82,6 +84,51 @@ pub(crate) async fn rescan(
     Ok(Json(response))
 }
 
+pub(crate) async fn install(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Json<AddonSnapshot>, ApiError> {
+    require_admin_or_fresh(&state, &headers).await?;
+    let root = state.addons.read().await.root().to_path_buf();
+    let installed = tokio::task::spawn_blocking(move || installer::install(&root, body.to_vec()))
+        .await
+        .map_err(|error| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "addon_install_task_failed",
+                &error.to_string(),
+            )
+        })?
+        .map_err(map_install_error)?;
+    let id = installed.manifest.id.clone();
+    let version = installed.manifest.version.clone();
+    let path = installed.path.clone();
+    let snapshot = match state
+        .addons
+        .write()
+        .await
+        .adopt_installed(installed.manifest)
+    {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            tokio::task::spawn_blocking(move || installer::rollback(&path))
+                .await
+                .ok();
+            return Err(map_mutation_error(error));
+        }
+    };
+    log_activite(
+        &state,
+        "info",
+        "addons",
+        format!("Addon {id} version {version} installed (disabled)"),
+        auth_user::extract_user_from_headers(&headers, &state.cookie_secret),
+    )
+    .await;
+    Ok(Json(snapshot))
+}
+
 async fn set_enabled(
     state: Arc<AppState>,
     headers: HeaderMap,
@@ -133,6 +180,29 @@ fn map_mutation_error(error: RegistryMutationError) -> ApiError {
         RegistryMutationError::Persistence(message) => api_error(
             StatusCode::INTERNAL_SERVER_ERROR,
             "registry_persistence_failed",
+            &message,
+        ),
+    }
+}
+
+fn map_install_error(error: InstallError) -> ApiError {
+    match error {
+        InstallError::Invalid(message) => {
+            api_error(StatusCode::BAD_REQUEST, "addon_package_invalid", &message)
+        }
+        InstallError::TooLarge(message) => api_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "addon_package_too_large",
+            &message,
+        ),
+        InstallError::AlreadyInstalled => api_error(
+            StatusCode::CONFLICT,
+            "addon_version_exists",
+            "This addon version is already installed",
+        ),
+        InstallError::Io(message) => api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "addon_install_io_failed",
             &message,
         ),
     }

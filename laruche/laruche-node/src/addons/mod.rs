@@ -8,6 +8,7 @@
 
 pub(crate) mod api;
 pub(crate) mod assets;
+mod installer;
 mod model;
 mod registry;
 

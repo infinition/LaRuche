@@ -66,7 +66,6 @@ async fn auth_guard(
     )
         .into_response()
 }
-
 /// Builds the full HTTP router: every route plus the CORS and auth-guard layers.
 /// Moved verbatim from main.rs: the route set, the guard and its allowlists are
 /// security sensitive and must stay strictly identical.
@@ -216,6 +215,11 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/themes/actif", get(themes_api::api_theme_actif_get).post(themes_api::api_theme_actif_set))
         .route("/api/themes/:id", axum::routing::delete(themes_api::api_themes_delete))
         .route("/api/addons", get(addons::api::list))
+        .route(
+            "/api/addons/install",
+            post(addons::api::install)
+                .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024)),
+        )
         .route("/api/addons/rescan", post(addons::api::rescan))
         .route("/api/addons/:id", get(addons::api::get_one))
         .route("/api/addons/:id/enable", post(addons::api::enable))
