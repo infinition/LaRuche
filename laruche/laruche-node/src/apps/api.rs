@@ -1,6 +1,6 @@
 use super::installer::{self, InstallError};
 use super::permissions::{self, GrantError};
-use super::{AddonDiagnostic, AddonSnapshot, RegistryMutationError};
+use super::{AppDiagnostic, AppSnapshot, RegistryMutationError};
 use crate::{auth_user, log_activite, AppState};
 use axum::body::Bytes;
 use axum::extract::{Path, State};
@@ -11,9 +11,9 @@ use std::sync::Arc;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct AddonListResponse {
-    addons: Vec<AddonSnapshot>,
-    diagnostics: Vec<AddonDiagnostic>,
+pub(crate) struct AppListResponse {
+    apps: Vec<AppSnapshot>,
+    diagnostics: Vec<AppDiagnostic>,
 }
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
@@ -32,10 +32,10 @@ pub(crate) async fn permission_catalog() -> Json<serde_json::Value> {
     }))
 }
 
-pub(crate) async fn list(State(state): State<Arc<AppState>>) -> Json<AddonListResponse> {
-    let registry = state.addons.read().await;
-    Json(AddonListResponse {
-        addons: registry.list(),
+pub(crate) async fn list(State(state): State<Arc<AppState>>) -> Json<AppListResponse> {
+    let registry = state.apps.read().await;
+    Json(AppListResponse {
+        apps: registry.list(),
         diagnostics: registry.diagnostics().to_vec(),
     })
 }
@@ -43,14 +43,14 @@ pub(crate) async fn list(State(state): State<Arc<AppState>>) -> Json<AddonListRe
 pub(crate) async fn get_one(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<AddonSnapshot>, ApiError> {
+) -> Result<Json<AppSnapshot>, ApiError> {
     state
-        .addons
+        .apps
         .read()
         .await
         .get(&id)
         .map(Json)
-        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "addon_not_found", "Addon not found"))
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "app_not_found", "App not found"))
 }
 
 pub(crate) async fn enable(
@@ -58,7 +58,7 @@ pub(crate) async fn enable(
     headers: HeaderMap,
     Path(id): Path<String>,
     body: Option<Json<EnableRequest>>,
-) -> Result<Json<AddonSnapshot>, ApiError> {
+) -> Result<Json<AppSnapshot>, ApiError> {
     set_enabled(
         state,
         headers,
@@ -73,17 +73,17 @@ pub(crate) async fn disable(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<String>,
-) -> Result<Json<AddonSnapshot>, ApiError> {
+) -> Result<Json<AppSnapshot>, ApiError> {
     set_enabled(state, headers, id, false, None).await
 }
 
 pub(crate) async fn rescan(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<AddonListResponse>, ApiError> {
+) -> Result<Json<AppListResponse>, ApiError> {
     require_admin_or_fresh(&state, &headers).await?;
     let response = {
-        let mut registry = state.addons.write().await;
+        let mut registry = state.apps.write().await;
         registry.rescan().map_err(|error| {
             api_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -91,16 +91,16 @@ pub(crate) async fn rescan(
                 &error,
             )
         })?;
-        AddonListResponse {
-            addons: registry.list(),
+        AppListResponse {
+            apps: registry.list(),
             diagnostics: registry.diagnostics().to_vec(),
         }
     };
     log_activite(
         &state,
         "info",
-        "addons",
-        "Addon packages rescanned".into(),
+        "apps",
+        "App packages rescanned".into(),
         auth_user::extract_user_from_headers(&headers, &state.cookie_secret),
     )
     .await;
@@ -111,15 +111,15 @@ pub(crate) async fn install(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     body: Bytes,
-) -> Result<Json<AddonSnapshot>, ApiError> {
+) -> Result<Json<AppSnapshot>, ApiError> {
     require_admin_or_fresh(&state, &headers).await?;
-    let root = state.addons.read().await.root().to_path_buf();
+    let root = state.apps.read().await.root().to_path_buf();
     let installed = tokio::task::spawn_blocking(move || installer::install(&root, body.to_vec()))
         .await
         .map_err(|error| {
             api_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "addon_install_task_failed",
+                "app_install_task_failed",
                 &error.to_string(),
             )
         })?
@@ -128,7 +128,7 @@ pub(crate) async fn install(
     let version = installed.manifest.version.clone();
     let path = installed.path.clone();
     let snapshot = match state
-        .addons
+        .apps
         .write()
         .await
         .adopt_installed(installed.manifest)
@@ -144,8 +144,8 @@ pub(crate) async fn install(
     log_activite(
         &state,
         "info",
-        "addons",
-        format!("Addon {id} version {version} installed (disabled)"),
+        "apps",
+        format!("App {id} version {version} installed (disabled)"),
         auth_user::extract_user_from_headers(&headers, &state.cookie_secret),
     )
     .await;
@@ -158,19 +158,19 @@ async fn set_enabled(
     id: String,
     enabled: bool,
     requested_permissions: Option<Vec<String>>,
-) -> Result<Json<AddonSnapshot>, ApiError> {
+) -> Result<Json<AppSnapshot>, ApiError> {
     require_admin_or_fresh(&state, &headers).await?;
     let snapshot = {
-        let mut registry = state.addons.write().await;
+        let mut registry = state.apps.write().await;
         let granted_permissions = if enabled {
             let current = registry.get(&id).ok_or_else(|| {
-                api_error(StatusCode::NOT_FOUND, "addon_not_found", "Addon not found")
+                api_error(StatusCode::NOT_FOUND, "app_not_found", "App not found")
             })?;
             let manifest = current.manifest.as_ref().ok_or_else(|| {
                 api_error(
                     StatusCode::CONFLICT,
-                    "addon_broken",
-                    "Addon package is invalid",
+                    "app_broken",
+                    "App package is invalid",
                 )
             })?;
             let requested =
@@ -187,9 +187,9 @@ async fn set_enabled(
     log_activite(
         &state,
         "info",
-        "addons",
+        "apps",
         format!(
-            "Addon {id} {}",
+            "App {id} {}",
             if enabled { "enabled" } else { "disabled" }
         ),
         actor,
@@ -213,7 +213,7 @@ fn map_grant_error(error: GrantError) -> ApiError {
         GrantError::Undeclared(permission) => api_error(
             StatusCode::BAD_REQUEST,
             "permission_not_declared",
-            &format!("Permission is not declared by the addon: {permission}"),
+            &format!("Permission is not declared by the app: {permission}"),
         ),
         GrantError::Unavailable(permission) => api_error(
             StatusCode::CONFLICT,
@@ -238,10 +238,10 @@ async fn require_admin_or_fresh(state: &AppState, headers: &HeaderMap) -> Result
 fn map_mutation_error(error: RegistryMutationError) -> ApiError {
     match error {
         RegistryMutationError::NotFound => {
-            api_error(StatusCode::NOT_FOUND, "addon_not_found", "Addon not found")
+            api_error(StatusCode::NOT_FOUND, "app_not_found", "App not found")
         }
         RegistryMutationError::Broken(message) => {
-            api_error(StatusCode::CONFLICT, "addon_broken", &message)
+            api_error(StatusCode::CONFLICT, "app_broken", &message)
         }
         RegistryMutationError::Persistence(message) => api_error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -254,21 +254,21 @@ fn map_mutation_error(error: RegistryMutationError) -> ApiError {
 fn map_install_error(error: InstallError) -> ApiError {
     match error {
         InstallError::Invalid(message) => {
-            api_error(StatusCode::BAD_REQUEST, "addon_package_invalid", &message)
+            api_error(StatusCode::BAD_REQUEST, "app_package_invalid", &message)
         }
         InstallError::TooLarge(message) => api_error(
             StatusCode::PAYLOAD_TOO_LARGE,
-            "addon_package_too_large",
+            "app_package_too_large",
             &message,
         ),
         InstallError::AlreadyInstalled => api_error(
             StatusCode::CONFLICT,
-            "addon_version_exists",
-            "This addon version is already installed",
+            "app_version_exists",
+            "This app version is already installed",
         ),
         InstallError::Io(message) => api_error(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "addon_install_io_failed",
+            "app_install_io_failed",
             &message,
         ),
     }

@@ -441,7 +441,7 @@ pub(crate) struct AppState {
     /// The registry owns lifecycle metadata only. UI assets and future backends are
     /// resolved from the immutable versioned package directory, never from a path
     /// supplied by a browser request.
-    pub(crate) addons: Arc<RwLock<crate::addons::AddonRegistry>>,
+    pub(crate) apps: Arc<RwLock<crate::apps::AppRegistry>>,
 }
 
 /// One job in flight: who is working, with which model, toward which channel.

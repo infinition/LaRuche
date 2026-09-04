@@ -74,7 +74,7 @@ mod helpers;
 mod router;
 mod background;
 mod okf_git;
-mod addons;
+mod apps;
 
 pub(crate) use state::*;
 pub(crate) use helpers::*;
@@ -1420,11 +1420,21 @@ async fn main() -> Result<()> {
     };
     let credential_pool = Arc::new(RwLock::new(pool_data));
 
-    let addons = match addons::AddonRegistry::load(std::path::PathBuf::from("addons")) {
+    let apps_root = std::path::PathBuf::from("apps");
+    let legacy_apps_root = std::path::PathBuf::from("addons");
+    if !apps_root.exists() && legacy_apps_root.is_dir() {
+        match std::fs::rename(&legacy_apps_root, &apps_root) {
+            Ok(()) => info!("migrated legacy addons data directory to apps"),
+            Err(error) => {
+                warn!(error = %error, "legacy addons data directory could not be migrated")
+            }
+        }
+    }
+    let apps = match apps::AppRegistry::load(apps_root.clone()) {
         Ok(registry) => registry,
         Err(error) => {
-            warn!(error = %error, "addon registry could not be loaded; starting empty");
-            addons::AddonRegistry::empty(std::path::PathBuf::from("addons"))
+            warn!(error = %error, "app registry could not be loaded; starting empty");
+            apps::AppRegistry::empty(apps_root)
         }
     };
 
@@ -1474,7 +1484,7 @@ async fn main() -> Result<()> {
         last_activity: RwLock::new(std::time::Instant::now()),
         travaux: Arc::new(std::sync::RwLock::new(HashMap::new())),
         mcp_verrou: Arc::new(std::sync::Mutex::new(Default::default())),
-        addons: Arc::new(RwLock::new(addons)),
+        apps: Arc::new(RwLock::new(apps)),
     });
 
     // Published once, right after construction. The tool registry is built long before

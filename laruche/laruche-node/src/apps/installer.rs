@@ -1,5 +1,5 @@
 use super::registry::{load_manifest, validate_referenced_files};
-use super::AddonManifest;
+use super::AppManifest;
 use std::collections::HashSet;
 use std::fs::{self, OpenOptions};
 use std::io::{Cursor, Read, Write};
@@ -21,7 +21,7 @@ pub(crate) enum InstallError {
 }
 
 pub(crate) struct InstalledPackage {
-    pub(crate) manifest: AddonManifest,
+    pub(crate) manifest: AppManifest,
     pub(crate) path: PathBuf,
 }
 
@@ -43,7 +43,14 @@ pub(crate) fn install(root: &Path, archive: Vec<u8>) -> Result<InstalledPackage,
     extract_archive(&archive, &staging)?;
 
     let canonical_staging_root = fs::canonicalize(&staging_root).map_err(io_error)?;
-    let manifest = load_manifest(&staging.join("addon.json"), &canonical_staging_root)
+    let canonical_manifest = staging.join("app.json");
+    let legacy_manifest = staging.join("addon.json");
+    let manifest_path = if canonical_manifest.exists() {
+        canonical_manifest
+    } else {
+        legacy_manifest
+    };
+    let manifest = load_manifest(&manifest_path, &canonical_staging_root)
         .map_err(InstallError::Invalid)?;
     validate_referenced_files(&manifest, &staging, &canonical_staging_root)
         .map_err(InstallError::Invalid)?;
@@ -201,7 +208,7 @@ mod tests {
     use zip::ZipWriter;
 
     fn root() -> PathBuf {
-        std::env::temp_dir().join(format!("laruche-addon-install-{}", Uuid::new_v4()))
+        std::env::temp_dir().join(format!("laruche-app-install-{}", Uuid::new_v4()))
     }
 
     fn package(entries: &[(&str, &str)]) -> Vec<u8> {
@@ -218,7 +225,7 @@ mod tests {
 
     fn manifest(version: &str) -> String {
         format!(
-            r#"{{"apiVersion":1,"id":"dev.laruche.test","name":"Test","version":"{version}","description":"Test addon","publisher":{{"name":"LaRuche"}},"ui":{{"views":[{{"id":"main","title":"Main","entry":"ui/index.html"}}]}}}}"#
+            r#"{{"apiVersion":1,"id":"dev.laruche.test","name":"Test","version":"{version}","description":"Test app","publisher":{{"name":"LaRuche"}},"ui":{{"views":[{{"id":"main","title":"Main","entry":"ui/index.html"}}]}}}}"#
         )
     }
 
@@ -226,13 +233,26 @@ mod tests {
     fn installs_a_valid_package_at_its_identity_path() {
         let root = root();
         let bytes = package(&[
-            ("addon.json", &manifest("1.2.3")),
+            ("app.json", &manifest("1.2.3")),
             ("ui/index.html", "<!doctype html>"),
         ]);
         let installed = install(&root, bytes).unwrap();
         assert_eq!(installed.manifest.id, "dev.laruche.test");
         assert!(installed.path.ends_with("dev.laruche.test/1.2.3"));
         assert!(installed.path.join("ui/index.html").is_file());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn accepts_a_legacy_addon_manifest() {
+        let root = root();
+        let bytes = package(&[
+            ("addon.json", &manifest("1.2.3")),
+            ("ui/index.html", "<!doctype html>"),
+        ]);
+        let installed = install(&root, bytes).unwrap();
+        assert_eq!(installed.manifest.id, "dev.laruche.test");
+        assert!(installed.path.join("addon.json").is_file());
         let _ = fs::remove_dir_all(root);
     }
 
@@ -254,7 +274,7 @@ mod tests {
     fn refuses_overwriting_an_installed_version() {
         let root = root();
         let entries = [
-            ("addon.json", manifest("1.0.0")),
+            ("app.json", manifest("1.0.0")),
             ("ui/index.html", "ok".into()),
         ];
         let refs: Vec<(&str, &str)> = entries

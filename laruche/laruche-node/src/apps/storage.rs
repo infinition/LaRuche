@@ -1,4 +1,4 @@
-use super::AddonSnapshot;
+use super::AppSnapshot;
 use crate::{auth_user, log_activite, AppState};
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -54,19 +54,19 @@ pub(crate) async fn handle(
 ) -> Result<Json<Value>, ApiError> {
     let user_id = authenticated_user(&state, &headers).await?;
     let root = {
-        let registry = state.addons.read().await;
-        let addon = registry.get(&id).ok_or_else(|| {
-            api_error(StatusCode::NOT_FOUND, "addon_not_found", "Addon not found")
+        let registry = state.apps.read().await;
+        let app = registry.get(&id).ok_or_else(|| {
+            api_error(StatusCode::NOT_FOUND, "app_not_found", "App not found")
         })?;
-        authorize(&addon)?;
+        authorize(&app)?;
         registry.root().to_path_buf()
     };
     let operation = operation_name(&request);
-    let addon_id = id.clone();
-    let response = tokio::task::spawn_blocking(move || execute(&root, user_id, &addon_id, request))
+    let app_id = id.clone();
+    let response = tokio::task::spawn_blocking(move || execute(&root, user_id, &app_id, request))
         .await
         .map_err(|error| {
-            tracing::warn!(error = %error, "addon private storage task failed");
+            tracing::warn!(error = %error, "app private storage task failed");
             api_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "storage_task_failed",
@@ -79,8 +79,8 @@ pub(crate) async fn handle(
         log_activite(
             &state,
             "info",
-            "addons",
-            format!("Addon {id} private storage {operation}"),
+            "apps",
+            format!("App {id} private storage {operation}"),
             Some(user_id),
         )
         .await;
@@ -108,15 +108,15 @@ async fn authenticated_user(state: &AppState, headers: &HeaderMap) -> Result<Uui
     }
 }
 
-fn authorize(addon: &AddonSnapshot) -> Result<(), ApiError> {
-    if !addon.enabled {
+fn authorize(app: &AppSnapshot) -> Result<(), ApiError> {
+    if !app.enabled {
         return Err(api_error(
             StatusCode::CONFLICT,
-            "addon_disabled",
-            "Addon is disabled",
+            "app_disabled",
+            "App is disabled",
         ));
     }
-    let granted = addon
+    let granted = app
         .granted_permissions
         .iter()
         .any(|item| item == CAPABILITY);
@@ -142,14 +142,14 @@ fn operation_name(request: &StorageRequest) -> &'static str {
 fn execute(
     root: &FsPath,
     user_id: Uuid,
-    addon_id: &str,
+    app_id: &str,
     request: StorageRequest,
 ) -> Result<Value, StorageError> {
     validate_request(&request)?;
     let _guard = storage_lock()
         .lock()
         .map_err(|_| StorageError::Io("private storage lock is poisoned".into()))?;
-    let directory = storage_directory(root, user_id, addon_id)?;
+    let directory = storage_directory(root, user_id, app_id)?;
     let target = directory.join("storage.json");
     let mut values = read_values(&target)?;
     match request {
@@ -195,12 +195,12 @@ fn validate_request(request: &StorageRequest) -> Result<(), StorageError> {
 fn storage_directory(
     root: &FsPath,
     user_id: Uuid,
-    addon_id: &str,
+    app_id: &str,
 ) -> Result<PathBuf, StorageError> {
     let data_root = root.join("data");
     fs::create_dir_all(&data_root).map_err(io_error)?;
     let canonical_root = fs::canonicalize(&data_root).map_err(io_error)?;
-    let directory = data_root.join(user_id.to_string()).join(addon_id);
+    let directory = data_root.join(user_id.to_string()).join(app_id);
     fs::create_dir_all(&directory).map_err(io_error)?;
     let canonical_directory = fs::canonicalize(&directory).map_err(io_error)?;
     if !canonical_directory.starts_with(&canonical_root) {
@@ -350,7 +350,7 @@ fn persist_values(path: &FsPath, values: &Map<String, Value>) -> Result<(), Stor
     }
     if backup.exists() {
         if let Err(error) = fs::remove_file(backup) {
-            tracing::warn!(error = %error, "addon private storage backup cleanup failed");
+            tracing::warn!(error = %error, "app private storage backup cleanup failed");
         }
     }
     Ok(())
@@ -374,7 +374,7 @@ fn map_storage_error(error: StorageError) -> ApiError {
             api_error(StatusCode::PAYLOAD_TOO_LARGE, "quota_exceeded", &message)
         }
         StorageError::Io(message) => {
-            tracing::warn!(error = %message, "addon private storage failed");
+            tracing::warn!(error = %message, "app private storage failed");
             api_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "storage_unavailable",
@@ -396,7 +396,7 @@ mod tests {
     use super::*;
 
     fn root() -> PathBuf {
-        std::env::temp_dir().join(format!("laruche-addon-storage-{}", Uuid::new_v4()))
+        std::env::temp_dir().join(format!("laruche-app-storage-{}", Uuid::new_v4()))
     }
 
     fn request(root: &FsPath, user: Uuid, op: StorageRequest) -> Value {
@@ -440,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn values_are_isolated_by_addon() {
+    fn values_are_isolated_by_app() {
         let root = root();
         let user = Uuid::new_v4();
         execute(

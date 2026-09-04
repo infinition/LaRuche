@@ -26,7 +26,7 @@ const ICON_SVG: &str = include_str!("../../laruche-dashboard/src/templates/icon.
 const ICON_PNG_192: &[u8] = include_bytes!("../../laruche-dashboard/src/templates/icones/icon-192.png");
 const ICON_PNG_512: &[u8] = include_bytes!("../../laruche-dashboard/src/templates/icones/icon-512.png");
 const SW_JS: &str = include_str!("../../laruche-dashboard/src/templates/sw.js");
-const ADDON_SDK_JS: &str = include_str!("../../laruche-dashboard/src/templates/js/addon-sdk.js");
+const APP_SDK_JS: &str = include_str!("../../laruche-dashboard/src/templates/js/app-sdk.js");
 // app.js is split into modules under `templates/js/` (one i18n agent per module). The node
 // CONCATENATES them at compile time in dependency ORDER: one `/app.js` served, one binary.
 const APP_JS: &str = concat!(
@@ -52,7 +52,7 @@ const APP_JS: &str = concat!(
     "\n",
     include_str!("../../laruche-dashboard/src/templates/js/capabilities.js"),
     "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/addons.js"),
+    include_str!("../../laruche-dashboard/src/templates/js/apps.js"),
     "\n",
     // After chat.js: it decorates rows chat.js creates, and calls back into LaRuche.Chat.
     include_str!("../../laruche-dashboard/src/templates/js/reactions.js"),
@@ -240,10 +240,10 @@ pub async fn app_js() -> impl IntoResponse {
     )
 }
 
-/// Public runtime loaded inside an opaque addon iframe. It only knows how to
+/// Public runtime loaded inside an opaque app iframe. It only knows how to
 /// accept the private MessagePort transferred by the trusted SPA host; it has
 /// no cookie, API credential or direct network capability.
-pub async fn addon_sdk_js() -> impl IntoResponse {
+pub async fn app_sdk_js() -> impl IntoResponse {
     (
         StatusCode::OK,
         [
@@ -261,7 +261,7 @@ pub async fn addon_sdk_js() -> impl IntoResponse {
             ),
             (header::REFERRER_POLICY, "no-referrer"),
         ],
-        ADDON_SDK_JS,
+        APP_SDK_JS,
     )
 }
 

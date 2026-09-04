@@ -80,7 +80,8 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/icones/icon-192.png", get(web::icon_png_192))
         .route("/icones/icon-512.png", get(web::icon_png_512))
         .route("/sw.js", get(web::service_worker))
-        .route("/addons-runtime/v1.js", get(web::addon_sdk_js))
+        .route("/apps-runtime/v1.js", get(web::app_sdk_js))
+        .route("/addons-runtime/v1.js", get(web::app_sdk_js))
         .route("/lang/:file", get(web::lang_file))
         .route("/api/status", get(swarm_api::get_status))
         .route(
@@ -215,28 +216,53 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/themes/actif", get(themes_api::api_theme_actif_get).post(themes_api::api_theme_actif_set))
         .route("/api/themes/:id", axum::routing::delete(themes_api::api_themes_delete))
-        .route("/api/addons", get(addons::api::list))
+        .route("/api/apps", get(apps::api::list))
+        .route(
+            "/api/apps/permissions",
+            get(apps::api::permission_catalog),
+        )
+        .route(
+            "/api/apps/:id/storage",
+            post(apps::storage::handle)
+                .layer(axum::extract::DefaultBodyLimit::max(128 * 1024)),
+        )
+        .route(
+            "/api/apps/install",
+            post(apps::api::install)
+                .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024)),
+        )
+        .route("/api/apps/rescan", post(apps::api::rescan))
+        .route("/api/apps/:id", get(apps::api::get_one))
+        .route("/api/apps/:id/enable", post(apps::api::enable))
+        .route("/api/apps/:id/disable", post(apps::api::disable))
+        .route(
+            "/apps-assets/:id/:version/*path",
+            get(apps::assets::serve),
+        )
+        // Compatibility aliases for packages and clients created before Apps
+        // became the canonical product name.
+        .route("/api/addons", get(apps::api::list))
         .route(
             "/api/addons/permissions",
-            get(addons::api::permission_catalog),
+            get(apps::api::permission_catalog),
         )
         .route(
             "/api/addons/:id/storage",
-            post(addons::storage::handle)
+            post(apps::storage::handle)
                 .layer(axum::extract::DefaultBodyLimit::max(128 * 1024)),
         )
         .route(
             "/api/addons/install",
-            post(addons::api::install)
+            post(apps::api::install)
                 .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024)),
         )
-        .route("/api/addons/rescan", post(addons::api::rescan))
-        .route("/api/addons/:id", get(addons::api::get_one))
-        .route("/api/addons/:id/enable", post(addons::api::enable))
-        .route("/api/addons/:id/disable", post(addons::api::disable))
+        .route("/api/addons/rescan", post(apps::api::rescan))
+        .route("/api/addons/:id", get(apps::api::get_one))
+        .route("/api/addons/:id/enable", post(apps::api::enable))
+        .route("/api/addons/:id/disable", post(apps::api::disable))
         .route(
             "/addons-assets/:id/:version/*path",
-            get(addons::assets::serve),
+            get(apps::assets::serve),
         )
         .route("/api/media/local", get(local_api::api_media_local))
         .route(

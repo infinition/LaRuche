@@ -1,4 +1,4 @@
-use super::{AddonManifest, BackendType};
+use super::{AppManifest, BackendType};
 use chrono::Utc;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ const REGISTRY_BACKUP: &str = "registry.json.bak";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum AddonLifecycleState {
+pub(crate) enum AppLifecycleState {
     Enabled,
     InstalledDisabled,
     Broken,
@@ -23,39 +23,39 @@ pub(crate) enum AddonLifecycleState {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct AddonSnapshot {
+pub(crate) struct AppSnapshot {
     pub(crate) id: String,
     pub(crate) active_version: String,
     pub(crate) enabled: bool,
-    pub(crate) state: AddonLifecycleState,
+    pub(crate) state: AppLifecycleState,
     pub(crate) installed_at: String,
     pub(crate) granted_permissions: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) manifest: Option<AddonManifest>,
+    pub(crate) manifest: Option<AppManifest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct AddonDiagnostic {
+pub(crate) struct AppDiagnostic {
     pub(crate) path: String,
     pub(crate) error: String,
 }
 
 #[derive(Debug, Clone)]
-struct AddonRecord {
+struct AppRecord {
     active_version: String,
     enabled: bool,
     installed_at: String,
     granted_permissions: Vec<String>,
-    manifest: Option<AddonManifest>,
+    manifest: Option<AppManifest>,
     error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct StoredAddon {
+struct StoredApp {
     active_version: String,
     enabled: bool,
     installed_at: String,
@@ -67,27 +67,27 @@ struct StoredAddon {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct StoredRegistry {
     schema_version: u32,
-    #[serde(default)]
-    addons: BTreeMap<String, StoredAddon>,
+    #[serde(default, alias = "addons")]
+    apps: BTreeMap<String, StoredApp>,
 }
 
 impl Default for StoredRegistry {
     fn default() -> Self {
         Self {
             schema_version: REGISTRY_SCHEMA_VERSION,
-            addons: BTreeMap::new(),
+            apps: BTreeMap::new(),
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct AddonRegistry {
+pub(crate) struct AppRegistry {
     root: PathBuf,
-    records: BTreeMap<String, AddonRecord>,
-    diagnostics: Vec<AddonDiagnostic>,
+    records: BTreeMap<String, AppRecord>,
+    diagnostics: Vec<AppDiagnostic>,
 }
 
-impl AddonRegistry {
+impl AppRegistry {
     pub(crate) fn empty(root: PathBuf) -> Self {
         Self {
             root,
@@ -105,7 +105,7 @@ impl AddonRegistry {
         let stored = load_stored_registry(&root, &mut diagnostics);
         if stored.schema_version != REGISTRY_SCHEMA_VERSION {
             return Err(format!(
-                "unsupported addon registry schema {}",
+                "unsupported app registry schema {}",
                 stored.schema_version
             ));
         }
@@ -115,7 +115,7 @@ impl AddonRegistry {
 
         for (id, versions) in &discovered {
             let selected = stored
-                .addons
+                .apps
                 .get(id)
                 .and_then(|saved| {
                     versions
@@ -125,7 +125,7 @@ impl AddonRegistry {
                 .or_else(|| versions.last());
 
             if let Some((_, manifest)) = selected {
-                let saved = stored.addons.get(id);
+                let saved = stored.apps.get(id);
                 let granted_permissions = saved
                     .map(|item| {
                         if item.enabled && item.granted_permissions.is_empty() {
@@ -137,7 +137,7 @@ impl AddonRegistry {
                     .unwrap_or_default();
                 records.insert(
                     id.clone(),
-                    AddonRecord {
+                    AppRecord {
                         active_version: manifest.version.clone(),
                         enabled: saved.map(|item| item.enabled).unwrap_or(false),
                         installed_at: saved
@@ -151,13 +151,13 @@ impl AddonRegistry {
             }
         }
 
-        for (id, saved) in &stored.addons {
+        for (id, saved) in &stored.apps {
             if records.contains_key(id) {
                 continue;
             }
             records.insert(
                 id.clone(),
-                AddonRecord {
+                AppRecord {
                     active_version: saved.active_version.clone(),
                     enabled: false,
                     installed_at: saved.installed_at.clone(),
@@ -177,18 +177,18 @@ impl AddonRegistry {
         Ok(registry)
     }
 
-    pub(crate) fn list(&self) -> Vec<AddonSnapshot> {
+    pub(crate) fn list(&self) -> Vec<AppSnapshot> {
         self.records
             .iter()
             .map(|(id, record)| snapshot(id, record))
             .collect()
     }
 
-    pub(crate) fn diagnostics(&self) -> &[AddonDiagnostic] {
+    pub(crate) fn diagnostics(&self) -> &[AppDiagnostic] {
         &self.diagnostics
     }
 
-    pub(crate) fn get(&self, id: &str) -> Option<AddonSnapshot> {
+    pub(crate) fn get(&self, id: &str) -> Option<AppSnapshot> {
         self.records.get(id).map(|record| snapshot(id, record))
     }
 
@@ -201,13 +201,13 @@ impl AddonRegistry {
     /// never silently keep executable authority.
     pub(crate) fn adopt_installed(
         &mut self,
-        manifest: AddonManifest,
-    ) -> Result<AddonSnapshot, RegistryMutationError> {
+        manifest: AppManifest,
+    ) -> Result<AppSnapshot, RegistryMutationError> {
         let id = manifest.id.clone();
         let previous = self.records.get(&id).cloned();
         self.records.insert(
             id.clone(),
-            AddonRecord {
+            AppRecord {
                 active_version: manifest.version.clone(),
                 enabled: false,
                 installed_at: Utc::now().to_rfc3339(),
@@ -227,7 +227,7 @@ impl AddonRegistry {
             }
             return Err(RegistryMutationError::Persistence(error));
         }
-        Ok(self.get(&id).expect("installed addon is present"))
+        Ok(self.get(&id).expect("installed app is present"))
     }
 
     pub(crate) fn set_enabled(
@@ -235,7 +235,7 @@ impl AddonRegistry {
         id: &str,
         enabled: bool,
         granted_permissions: Vec<String>,
-    ) -> Result<AddonSnapshot, RegistryMutationError> {
+    ) -> Result<AppSnapshot, RegistryMutationError> {
         let record = self
             .records
             .get_mut(id)
@@ -245,7 +245,7 @@ impl AddonRegistry {
                 record
                     .error
                     .clone()
-                    .unwrap_or_else(|| "addon package is invalid".into()),
+                    .unwrap_or_else(|| "app package is invalid".into()),
             ));
         }
         let old = record.enabled;
@@ -277,13 +277,13 @@ impl AddonRegistry {
             .map_err(|error| format!("cannot create {}: {error}", self.root.display()))?;
         let stored = StoredRegistry {
             schema_version: REGISTRY_SCHEMA_VERSION,
-            addons: self
+            apps: self
                 .records
                 .iter()
                 .map(|(id, record)| {
                     (
                         id.clone(),
-                        StoredAddon {
+                        StoredApp {
                             active_version: record.active_version.clone(),
                             enabled: record.enabled && record.manifest.is_some(),
                             installed_at: record.installed_at.clone(),
@@ -294,7 +294,7 @@ impl AddonRegistry {
                 .collect(),
         };
         let bytes = serde_json::to_vec_pretty(&stored)
-            .map_err(|error| format!("cannot serialize addon registry: {error}"))?;
+            .map_err(|error| format!("cannot serialize app registry: {error}"))?;
         replace_recoverably(&self.root, &bytes)
     }
 }
@@ -315,19 +315,19 @@ pub(crate) enum AssetLookupError {
     Io(String),
 }
 
-fn snapshot(id: &str, record: &AddonRecord) -> AddonSnapshot {
+fn snapshot(id: &str, record: &AppRecord) -> AppSnapshot {
     let state = if record.error.is_some() {
         if record.manifest.is_some() {
-            AddonLifecycleState::Broken
+            AppLifecycleState::Broken
         } else {
-            AddonLifecycleState::Missing
+            AppLifecycleState::Missing
         }
     } else if record.enabled {
-        AddonLifecycleState::Enabled
+        AppLifecycleState::Enabled
     } else {
-        AddonLifecycleState::InstalledDisabled
+        AppLifecycleState::InstalledDisabled
     };
-    AddonSnapshot {
+    AppSnapshot {
         id: id.to_string(),
         active_version: record.active_version.clone(),
         enabled: record.enabled && record.error.is_none(),
@@ -339,7 +339,7 @@ fn snapshot(id: &str, record: &AddonRecord) -> AddonSnapshot {
     }
 }
 
-impl AddonRegistry {
+impl AppRegistry {
     /// Resolve a UI asset from an enabled, exact package version.
     ///
     /// The returned path has been canonicalized and checked beneath the package's
@@ -408,7 +408,7 @@ fn validate_asset_request_path(relative: &str) -> Result<(), AssetLookupError> {
     Ok(())
 }
 
-fn load_stored_registry(root: &Path, diagnostics: &mut Vec<AddonDiagnostic>) -> StoredRegistry {
+fn load_stored_registry(root: &Path, diagnostics: &mut Vec<AppDiagnostic>) -> StoredRegistry {
     let primary = root.join(REGISTRY_FILE);
     let backup = root.join(REGISTRY_BACKUP);
     for path in [&primary, &backup] {
@@ -421,7 +421,7 @@ fn load_stored_registry(root: &Path, diagnostics: &mut Vec<AddonDiagnostic>) -> 
                 serde_json::from_str::<StoredRegistry>(&input).map_err(|e| e.to_string())
             }) {
             Ok(registry) => return registry,
-            Err(error) => diagnostics.push(AddonDiagnostic {
+            Err(error) => diagnostics.push(AppDiagnostic {
                 path: path.display().to_string(),
                 error: format!("registry file ignored: {error}"),
             }),
@@ -432,17 +432,17 @@ fn load_stored_registry(root: &Path, diagnostics: &mut Vec<AddonDiagnostic>) -> 
 
 fn discover_packages(
     packages: &Path,
-    diagnostics: &mut Vec<AddonDiagnostic>,
-) -> Result<BTreeMap<String, Vec<(Version, AddonManifest)>>, String> {
+    diagnostics: &mut Vec<AppDiagnostic>,
+) -> Result<BTreeMap<String, Vec<(Version, AppManifest)>>, String> {
     let canonical_root = fs::canonicalize(packages)
         .map_err(|error| format!("cannot resolve {}: {error}", packages.display()))?;
-    let mut found: HashMap<String, Vec<(Version, AddonManifest)>> = HashMap::new();
+    let mut found: HashMap<String, Vec<(Version, AppManifest)>> = HashMap::new();
 
     let ids = fs::read_dir(packages)
         .map_err(|error| format!("cannot read {}: {error}", packages.display()))?;
     for id_entry in ids.flatten() {
         if !safe_directory(&id_entry, &canonical_root) {
-            diagnostics.push(AddonDiagnostic {
+            diagnostics.push(AppDiagnostic {
                 path: id_entry.path().display().to_string(),
                 error: "ignored: package id entry is not a safe directory".into(),
             });
@@ -451,7 +451,7 @@ fn discover_packages(
         let versions = match fs::read_dir(id_entry.path()) {
             Ok(entries) => entries,
             Err(error) => {
-                diagnostics.push(AddonDiagnostic {
+                diagnostics.push(AppDiagnostic {
                     path: id_entry.path().display().to_string(),
                     error: format!("cannot read versions: {error}"),
                 });
@@ -460,13 +460,19 @@ fn discover_packages(
         };
         for version_entry in versions.flatten() {
             if !safe_directory(&version_entry, &canonical_root) {
-                diagnostics.push(AddonDiagnostic {
+                diagnostics.push(AppDiagnostic {
                     path: version_entry.path().display().to_string(),
                     error: "ignored: version entry is not a safe directory".into(),
                 });
                 continue;
             }
-            let manifest_path = version_entry.path().join("addon.json");
+            let canonical_manifest = version_entry.path().join("app.json");
+            let legacy_manifest = version_entry.path().join("addon.json");
+            let manifest_path = if canonical_manifest.exists() {
+                canonical_manifest
+            } else {
+                legacy_manifest
+            };
             let result = load_manifest(&manifest_path, &canonical_root).and_then(|manifest| {
                 validate_referenced_files(&manifest, &version_entry.path(), &canonical_root)?;
                 let folder_id = id_entry.file_name().to_string_lossy().to_string();
@@ -494,7 +500,7 @@ fn discover_packages(
                         .or_default()
                         .push((version, manifest));
                 }
-                Err(error) => diagnostics.push(AddonDiagnostic {
+                Err(error) => diagnostics.push(AppDiagnostic {
                     path: manifest_path.display().to_string(),
                     error,
                 }),
@@ -523,24 +529,28 @@ fn safe_directory(entry: &fs::DirEntry, root: &Path) -> bool {
         .unwrap_or(false)
 }
 
-pub(super) fn load_manifest(path: &Path, root: &Path) -> Result<AddonManifest, String> {
+pub(super) fn load_manifest(path: &Path, root: &Path) -> Result<AppManifest, String> {
+    let manifest_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("app.json");
     let metadata = fs::symlink_metadata(path)
-        .map_err(|error| format!("cannot inspect addon.json: {error}"))?;
+        .map_err(|error| format!("cannot inspect {manifest_name}: {error}"))?;
     if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > 256 * 1024 {
-        return Err("addon.json is not a regular bounded file".into());
+        return Err(format!("{manifest_name} is not a regular bounded file"));
     }
-    let canonical =
-        fs::canonicalize(path).map_err(|error| format!("cannot resolve addon.json: {error}"))?;
+    let canonical = fs::canonicalize(path)
+        .map_err(|error| format!("cannot resolve {manifest_name}: {error}"))?;
     if !canonical.starts_with(root) {
-        return Err("addon.json escapes the package root".into());
+        return Err(format!("{manifest_name} escapes the package root"));
     }
     let input = fs::read_to_string(&canonical)
-        .map_err(|error| format!("cannot read addon.json: {error}"))?;
-    AddonManifest::parse_and_validate(&input)
+        .map_err(|error| format!("cannot read {manifest_name}: {error}"))?;
+    AppManifest::parse_and_validate(&input)
 }
 
 pub(super) fn validate_referenced_files(
-    manifest: &AddonManifest,
+    manifest: &AppManifest,
     package: &Path,
     packages_root: &Path,
 ) -> Result<(), String> {
@@ -551,7 +561,7 @@ pub(super) fn validate_referenced_files(
     }
 
     if let Some(icon) = &manifest.icon {
-        validate_package_file(&canonical_package, icon, 1024 * 1024, "addon icon")?;
+        validate_package_file(&canonical_package, icon, 1024 * 1024, "app icon")?;
     }
     if let Some(ui) = &manifest.ui {
         for view in &ui.views {
@@ -622,14 +632,14 @@ fn replace_recoverably(root: &Path, bytes: &[u8]) -> Result<(), String> {
     }
     if target.exists() {
         fs::rename(&target, &backup)
-            .map_err(|error| format!("cannot rotate addon registry: {error}"))?;
+            .map_err(|error| format!("cannot rotate app registry: {error}"))?;
     }
     if let Err(error) = fs::rename(&temporary, &target) {
         if backup.exists() && !target.exists() {
             let _ = fs::rename(&backup, &target);
         }
         let _ = fs::remove_file(&temporary);
-        return Err(format!("cannot activate new addon registry: {error}"));
+        return Err(format!("cannot activate new app registry: {error}"));
     }
     Ok(())
 }
@@ -639,7 +649,7 @@ mod tests {
     use super::*;
 
     fn temporary_root() -> PathBuf {
-        std::env::temp_dir().join(format!("laruche-addons-test-{}", Uuid::new_v4()))
+        std::env::temp_dir().join(format!("laruche-apps-test-{}", Uuid::new_v4()))
     }
 
     fn write_package(root: &Path, id: &str, version: &str, entry: &str) {
@@ -647,7 +657,7 @@ mod tests {
         fs::create_dir_all(package.join("ui")).unwrap();
         fs::write(package.join("ui/index.html"), "<!doctype html>").unwrap();
         fs::write(
-            package.join("addon.json"),
+            package.join("app.json"),
             format!(
                 r#"{{
                   "apiVersion": 1,
@@ -668,12 +678,12 @@ mod tests {
     fn discovers_and_persists_enable_state() {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
-        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        let mut registry = AppRegistry::load(root.clone()).unwrap();
         assert!(!registry.get("dev.laruche.test").unwrap().enabled);
         registry
             .set_enabled("dev.laruche.test", true, Vec::new())
             .unwrap();
-        let reloaded = AddonRegistry::load(root.clone()).unwrap();
+        let reloaded = AppRegistry::load(root.clone()).unwrap();
         assert!(reloaded.get("dev.laruche.test").unwrap().enabled);
         let _ = fs::remove_dir_all(root);
     }
@@ -682,18 +692,18 @@ mod tests {
     fn persists_grants_and_revokes_them_when_disabled() {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
-        let manifest_path = root.join("packages/dev.laruche.test/1.0.0/addon.json");
+        let manifest_path = root.join("packages/dev.laruche.test/1.0.0/app.json");
         let manifest = fs::read_to_string(&manifest_path).unwrap().replace(
             r#""required": [], "optional": []"#,
             r#""required": ["storage.private"], "optional": []"#,
         );
         fs::write(manifest_path, manifest).unwrap();
 
-        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        let mut registry = AppRegistry::load(root.clone()).unwrap();
         registry
             .set_enabled("dev.laruche.test", true, vec!["storage.private".into()])
             .unwrap();
-        let mut reloaded = AddonRegistry::load(root.clone()).unwrap();
+        let mut reloaded = AppRegistry::load(root.clone()).unwrap();
         assert_eq!(
             reloaded
                 .get("dev.laruche.test")
@@ -704,7 +714,7 @@ mod tests {
         reloaded
             .set_enabled("dev.laruche.test", false, Vec::new())
             .unwrap();
-        assert!(AddonRegistry::load(root.clone())
+        assert!(AppRegistry::load(root.clone())
             .unwrap()
             .get("dev.laruche.test")
             .unwrap()
@@ -717,7 +727,7 @@ mod tests {
     fn migrates_implicit_required_grants_from_the_old_registry() {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
-        let manifest_path = root.join("packages/dev.laruche.test/1.0.0/addon.json");
+        let manifest_path = root.join("packages/dev.laruche.test/1.0.0/app.json");
         let manifest = fs::read_to_string(&manifest_path).unwrap().replace(
             r#""required": [], "optional": []"#,
             r#""required": ["storage.private"], "optional": []"#,
@@ -738,11 +748,26 @@ mod tests {
         )
         .unwrap();
 
-        let addon = AddonRegistry::load(root.clone())
+        let app = AppRegistry::load(root.clone())
             .unwrap()
             .get("dev.laruche.test")
             .unwrap();
-        assert_eq!(addon.granted_permissions, vec!["storage.private"]);
+        assert_eq!(app.granted_permissions, vec!["storage.private"]);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn discovers_a_legacy_addon_manifest() {
+        let root = temporary_root();
+        write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
+        let package = root.join("packages/dev.laruche.test/1.0.0");
+        fs::rename(package.join("app.json"), package.join("addon.json")).unwrap();
+
+        let app = AppRegistry::load(root.clone())
+            .unwrap()
+            .get("dev.laruche.test")
+            .unwrap();
+        assert_eq!(app.active_version, "1.0.0");
         let _ = fs::remove_dir_all(root);
     }
 
@@ -750,7 +775,7 @@ mod tests {
     fn adopting_an_update_selects_it_disabled_and_persists_the_choice() {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
-        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        let mut registry = AppRegistry::load(root.clone()).unwrap();
         registry
             .set_enabled("dev.laruche.test", true, Vec::new())
             .unwrap();
@@ -758,7 +783,7 @@ mod tests {
         write_package(&root, "dev.laruche.test", "2.0.0", "ui/index.html");
         let packages_root = fs::canonicalize(root.join("packages")).unwrap();
         let manifest = load_manifest(
-            &root.join("packages/dev.laruche.test/2.0.0/addon.json"),
+            &root.join("packages/dev.laruche.test/2.0.0/app.json"),
             &packages_root,
         )
         .unwrap();
@@ -766,7 +791,7 @@ mod tests {
         assert_eq!(installed.active_version, "2.0.0");
         assert!(!installed.enabled);
 
-        let reloaded = AddonRegistry::load(root.clone()).unwrap();
+        let reloaded = AppRegistry::load(root.clone()).unwrap();
         let persisted = reloaded.get("dev.laruche.test").unwrap();
         assert_eq!(persisted.active_version, "2.0.0");
         assert!(!persisted.enabled);
@@ -778,7 +803,7 @@ mod tests {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.2.0", "ui/index.html");
         write_package(&root, "dev.laruche.test", "1.10.0", "ui/index.html");
-        let registry = AddonRegistry::load(root.clone()).unwrap();
+        let registry = AppRegistry::load(root.clone()).unwrap();
         assert_eq!(
             registry.get("dev.laruche.test").unwrap().active_version,
             "1.10.0"
@@ -790,7 +815,7 @@ mod tests {
     fn reports_an_invalid_package_without_registering_it() {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "../outside.html");
-        let registry = AddonRegistry::load(root.clone()).unwrap();
+        let registry = AppRegistry::load(root.clone()).unwrap();
         assert!(registry.list().is_empty());
         assert_eq!(registry.diagnostics().len(), 1);
         let _ = fs::remove_dir_all(root);
@@ -801,7 +826,7 @@ mod tests {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
         fs::remove_file(root.join("packages/dev.laruche.test/1.0.0/ui/index.html")).unwrap();
-        let registry = AddonRegistry::load(root.clone()).unwrap();
+        let registry = AppRegistry::load(root.clone()).unwrap();
         assert!(registry.list().is_empty());
         assert!(registry.diagnostics()[0]
             .error
@@ -813,15 +838,15 @@ mod tests {
     fn a_missing_active_package_is_visible_but_disabled() {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
-        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        let mut registry = AppRegistry::load(root.clone()).unwrap();
         registry
             .set_enabled("dev.laruche.test", true, Vec::new())
             .unwrap();
         fs::remove_dir_all(root.join("packages/dev.laruche.test/1.0.0")).unwrap();
-        let reloaded = AddonRegistry::load(root.clone()).unwrap();
-        let addon = reloaded.get("dev.laruche.test").unwrap();
-        assert!(!addon.enabled);
-        assert!(matches!(addon.state, AddonLifecycleState::Missing));
+        let reloaded = AppRegistry::load(root.clone()).unwrap();
+        let app = reloaded.get("dev.laruche.test").unwrap();
+        assert!(!app.enabled);
+        assert!(matches!(app.state, AppLifecycleState::Missing));
         let _ = fs::remove_dir_all(root);
     }
 
@@ -829,7 +854,7 @@ mod tests {
     fn assets_require_an_enabled_exact_version() {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
-        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        let mut registry = AppRegistry::load(root.clone()).unwrap();
         assert!(matches!(
             registry.resolve_ui_asset("dev.laruche.test", "1.0.0", "index.html"),
             Err(AssetLookupError::Disabled)
@@ -852,12 +877,12 @@ mod tests {
     fn asset_paths_cannot_escape_the_ui_directory() {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
-        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        let mut registry = AppRegistry::load(root.clone()).unwrap();
         registry
             .set_enabled("dev.laruche.test", true, Vec::new())
             .unwrap();
         for path in [
-            "../addon.json",
+            "../app.json",
             "assets\\secret",
             "C:/boot.ini",
             "./index.html",

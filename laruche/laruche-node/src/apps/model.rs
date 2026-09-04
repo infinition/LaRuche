@@ -2,11 +2,11 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path};
 
-pub(crate) const ADDON_API_VERSION: u32 = 1;
+pub(crate) const APP_API_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct AddonManifest {
+pub(crate) struct AppManifest {
     pub(crate) api_version: u32,
     pub(crate) id: String,
     pub(crate) name: String,
@@ -22,11 +22,11 @@ pub(crate) struct AddonManifest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) compatibility: Option<Compatibility>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) ui: Option<AddonUi>,
+    pub(crate) ui: Option<AppUi>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) backend: Option<AddonBackend>,
+    pub(crate) backend: Option<AppBackend>,
     #[serde(default)]
-    pub(crate) permissions: AddonPermissions,
+    pub(crate) permissions: AppPermissions,
     #[serde(default)]
     pub(crate) contributes: Contributions,
 }
@@ -52,13 +52,13 @@ pub(crate) struct Compatibility {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct AddonUi {
-    pub(crate) views: Vec<AddonView>,
+pub(crate) struct AppUi {
+    pub(crate) views: Vec<AppView>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct AddonView {
+pub(crate) struct AppView {
     pub(crate) id: String,
     pub(crate) title: String,
     pub(crate) entry: String,
@@ -90,7 +90,7 @@ pub(crate) enum BackendType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct AddonBackend {
+pub(crate) struct AppBackend {
     #[serde(rename = "type")]
     pub(crate) kind: BackendType,
     pub(crate) command: String,
@@ -114,7 +114,7 @@ pub(crate) enum RestartPolicy {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct AddonPermissions {
+pub(crate) struct AppPermissions {
     #[serde(default)]
     pub(crate) required: Vec<String>,
     #[serde(default)]
@@ -144,32 +144,32 @@ fn default_shutdown_timeout() -> u64 {
     5_000
 }
 
-impl AddonManifest {
+impl AppManifest {
     pub(crate) fn parse_and_validate(input: &str) -> Result<Self, String> {
         const MAX_MANIFEST_BYTES: usize = 256 * 1024;
         if input.len() > MAX_MANIFEST_BYTES {
             return Err("manifest exceeds 256 KiB".into());
         }
         let manifest: Self =
-            serde_json::from_str(input).map_err(|error| format!("invalid addon.json: {error}"))?;
+            serde_json::from_str(input).map_err(|error| format!("invalid app.json: {error}"))?;
         manifest.validate()?;
         Ok(manifest)
     }
 
     pub(crate) fn validate(&self) -> Result<(), String> {
-        if self.api_version != ADDON_API_VERSION {
+        if self.api_version != APP_API_VERSION {
             return Err(format!(
-                "unsupported apiVersion {} (expected {ADDON_API_VERSION})",
+                "unsupported apiVersion {} (expected {APP_API_VERSION})",
                 self.api_version
             ));
         }
-        validate_addon_id(&self.id)?;
+        validate_app_id(&self.id)?;
         Version::parse(&self.version).map_err(|error| format!("invalid version: {error}"))?;
         validate_text("name", &self.name, 1, 80)?;
         validate_text("description", &self.description, 1, 500)?;
         validate_text("publisher.name", &self.publisher.name, 1, 100)?;
         if self.ui.is_none() && self.backend.is_none() {
-            return Err("an addon needs at least a UI or a backend".into());
+            return Err("an app needs at least a UI or a backend".into());
         }
         if let Some(icon) = &self.icon {
             validate_package_path("icon", icon)?;
@@ -230,7 +230,7 @@ fn validate_text(field: &str, value: &str, min: usize, max: usize) -> Result<(),
     Ok(())
 }
 
-fn validate_addon_id(id: &str) -> Result<(), String> {
+fn validate_app_id(id: &str) -> Result<(), String> {
     if id.len() < 3
         || id.len() > 128
         || !id.contains('.')
@@ -281,7 +281,7 @@ fn validate_package_path(field: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_permissions(permissions: &AddonPermissions) -> Result<(), String> {
+fn validate_permissions(permissions: &AppPermissions) -> Result<(), String> {
     let all = permissions.required.iter().chain(&permissions.optional);
     let mut unique = std::collections::HashSet::new();
     for permission in all {
@@ -333,7 +333,7 @@ mod tests {
               "id": "dev.laruche.test",
               "name": "Test",
               "version": "1.2.3",
-              "description": "A test addon",
+              "description": "A test app",
               "publisher": {{"name": "LaRuche"}},
               "ui": {{"views": [{{"id": "main", "title": "Main", "entry": "{entry}"}}]}},
               "permissions": {{"required": ["storage.private"], "optional": []}}
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn parses_a_valid_manifest() {
-        let parsed = AddonManifest::parse_and_validate(&manifest("ui/index.html")).unwrap();
+        let parsed = AppManifest::parse_and_validate(&manifest("ui/index.html")).unwrap();
         assert_eq!(parsed.id, "dev.laruche.test");
         assert!(parsed.ui.unwrap().views[0].detachable);
     }
@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn rejects_path_traversal() {
         let error =
-            AddonManifest::parse_and_validate(&manifest("ui/../../secrets.json")).unwrap_err();
+            AppManifest::parse_and_validate(&manifest("ui/../../secrets.json")).unwrap_err();
         assert!(error.contains("safe package path"), "{error}");
     }
 
@@ -361,14 +361,14 @@ mod tests {
             "\"name\": \"Test\"",
             "\"name\": \"Test\", \"surprise\": true",
         );
-        assert!(AddonManifest::parse_and_validate(&input).is_err());
+        assert!(AppManifest::parse_and_validate(&input).is_err());
     }
 
     #[test]
     fn rejects_duplicate_permissions() {
         let input = manifest("ui/index.html")
             .replace("\"optional\": []", "\"optional\": [\"storage.private\"]");
-        assert!(AddonManifest::parse_and_validate(&input)
+        assert!(AppManifest::parse_and_validate(&input)
             .unwrap_err()
             .contains("duplicate permission"));
     }

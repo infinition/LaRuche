@@ -1,4 +1,4 @@
-/* LaRuche Addon SDK v1
+/* LaRuche App SDK v1
  *
  * This file runs inside an untrusted, opaque-origin iframe. It never receives
  * cookies or a generic HTTP client. The host transfers one private MessagePort
@@ -7,7 +7,7 @@
  */
 (function(global){
   'use strict';
-  if(global.LaRucheAddon) return;
+  if(global.LaRucheApp) return;
 
   var port=null;
   var context=null;
@@ -16,11 +16,11 @@
   var readyResolve, readyReject;
   var readyPromise=new Promise(function(resolve,reject){ readyResolve=resolve; readyReject=reject; });
   var initTimer=setTimeout(function(){
-    if(!port) readyReject(new Error('LaRuche addon bridge unavailable'));
+    if(!port) readyReject(new Error('LaRuche app bridge unavailable'));
   },5000);
 
   function bridgeError(input){
-    var error=new Error((input&&input.message)||'LaRuche addon bridge error');
+    var error=new Error((input&&input.message)||'LaRuche app bridge error');
     error.code=(input&&input.code)||'internal_error';
     error.retryable=!!(input&&input.retryable);
     return error;
@@ -36,7 +36,7 @@
     if(!message || message.v!==1 || typeof message.kind!=='string') return;
     if(message.kind==='host.welcome'){
       context=Object.freeze(message.context||{});
-      send({v:1,kind:'addon.ready',sessionId:context.sessionId});
+      send({v:1,kind:'app.ready',sessionId:context.sessionId});
       readyResolve(context);
       return;
     }
@@ -61,9 +61,9 @@
     port.start();
     send({
       v:1,
-      kind:'addon.hello',
+      kind:'app.hello',
       nonce:message.nonce,
-      addonId:message.addonId,
+      appId:message.appId,
       viewId:message.viewId,
       apiVersion:1,
       sdkVersion:'1.0.0'
@@ -86,7 +86,7 @@
   }
 
   global.addEventListener('message',onInit);
-  global.LaRucheAddon=Object.freeze({
+  var api=Object.freeze({
     version:'1.0.0',
     ready:function(){ return readyPromise; },
     call:call,
@@ -103,4 +103,7 @@
       close:function(){ return call('ui.close',{}); }
     })
   });
+  global.LaRucheApp=api;
+  // Compatibility for packages authored before the product name became Apps.
+  global.LaRucheAddon=api;
 })(window);

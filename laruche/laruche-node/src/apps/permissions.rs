@@ -1,4 +1,4 @@
-use super::AddonManifest;
+use super::AppManifest;
 use serde::Serialize;
 use std::collections::BTreeSet;
 
@@ -26,8 +26,8 @@ pub(crate) fn catalog() -> Vec<PermissionDescriptor> {
         PermissionDescriptor {
             id: "storage.private",
             risk: "low",
-            title_fr: "Stockage privé de l'addon",
-            title_en: "Private addon storage",
+            title_fr: "Stockage privé de l'app",
+            title_en: "Private app storage",
         },
         PermissionDescriptor {
             id: "ui.locale.read",
@@ -52,7 +52,7 @@ pub(crate) fn is_available(permission: &str) -> bool {
 }
 
 pub(crate) fn validate_grants(
-    manifest: &AddonManifest,
+    manifest: &AppManifest,
     requested: Vec<String>,
 ) -> Result<Vec<String>, GrantError> {
     for permission in &manifest.permissions.required {
@@ -88,12 +88,12 @@ pub(crate) fn validate_grants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::addons::AddonManifest;
+    use crate::apps::AppManifest;
 
-    fn manifest(required: &[&str], optional: &[&str]) -> AddonManifest {
+    fn manifest(required: &[&str], optional: &[&str]) -> AppManifest {
         let required = serde_json::to_string(required).unwrap();
         let optional = serde_json::to_string(optional).unwrap();
-        AddonManifest::parse_and_validate(&format!(
+        AppManifest::parse_and_validate(&format!(
             r#"{{
               "apiVersion": 1,
               "id": "dev.laruche.test",

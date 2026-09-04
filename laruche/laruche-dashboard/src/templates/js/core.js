@@ -1046,7 +1046,7 @@ LaRuche.Auth = (function(){
 /* ── Router ────────────────────────────────────────────────────── */
 LaRuche.Router = (function(){
   var currentPage = null;
-  var pages = ['chat','dashboard','memory','missions','automations','capabilities','addons','settings','console','login'];
+  var pages = ['chat','dashboard','memory','missions','automations','capabilities','apps','settings','console','login'];
   var modules = {};
 
   // A route may name a place INSIDE a page: '#settings/providers'. The router splits
@@ -1155,6 +1155,7 @@ LaRuche.Router = (function(){
     var parts = String(route == null ? '' : route).split('/');
     var page = parts[0];
     var sub = parts.slice(1).join('/');
+    if(page === 'addons') page = 'apps';
     if(pages.indexOf(page) < 0) { page = 'chat'; sub = ''; }
     // Le partage tient deux pages a l'ecran. Aller sur l'une des deux ne doit
     // donc rien defaire; aller AILLEURS le referme, sinon on se retrouverait
@@ -1230,6 +1231,7 @@ LaRuche.Router = (function(){
       var ratio = localStorage.getItem('laruche_split_ratio');
       if(ratio) document.documentElement.style.setProperty('--lr-split', ratio);
       var sp = localStorage.getItem('laruche_split_page');
+      if(sp === 'addons') sp = 'apps';
       if(sp && sp !== 'chat' && sp !== 'login' && document.getElementById('page-' + sp)){
         setTimeout(function(){
           if(!_splitPage){ currentPage = sp; splitBasculer(); }

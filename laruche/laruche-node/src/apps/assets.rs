@@ -11,7 +11,7 @@ pub(crate) async fn serve(
     Path((id, version, path)): Path<(String, String, String)>,
 ) -> Response<Body> {
     let resolved = {
-        let registry = state.addons.read().await;
+        let registry = state.apps.read().await;
         registry.resolve_ui_asset(&id, &version, &path)
     };
     let resolved = match resolved {
@@ -76,7 +76,7 @@ pub(crate) async fn serve(
 }
 
 /// A sandbox without `allow-same-origin` gives the document an opaque origin.
-/// Consequently CSP's `'self'` cannot load even the addon's own JS/CSS. Name the
+/// Consequently CSP's `'self'` cannot load even the app's own JS/CSS. Name the
 /// exact package URL instead: scripts may come from this id/version only, while
 /// `connect-src 'none'` keeps LaRuche APIs and the network unreachable.
 fn html_policy(host: Option<&HeaderValue>, id: &str, version: &str) -> Option<HeaderValue> {
@@ -89,10 +89,10 @@ fn html_policy(host: Option<&HeaderValue>, id: &str, version: &str) -> Option<He
     {
         return None;
     }
-    let http = format!("http://{host}/addons-assets/{id}/{version}/");
-    let https = format!("https://{host}/addons-assets/{id}/{version}/");
-    let runtime_http = format!("http://{host}/addons-runtime/v1.js");
-    let runtime_https = format!("https://{host}/addons-runtime/v1.js");
+    let http = format!("http://{host}/apps-assets/{id}/{version}/");
+    let https = format!("https://{host}/apps-assets/{id}/{version}/");
+    let runtime_http = format!("http://{host}/apps-runtime/v1.js");
+    let runtime_https = format!("https://{host}/apps-runtime/v1.js");
     let policy = format!(
         "default-src 'none'; script-src {http} {https} {runtime_http} {runtime_https}; style-src {http} {https} 'unsafe-inline'; img-src {http} {https} data: blob:; font-src {http} {https}; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://{host} https://{host}"
     );
@@ -102,7 +102,7 @@ fn html_policy(host: Option<&HeaderValue>, id: &str, version: &str) -> Option<He
 fn lookup_error(error: AssetLookupError) -> Response<Body> {
     match error {
         AssetLookupError::Io(message) => {
-            tracing::warn!(error = %message, "addon asset lookup failed");
+            tracing::warn!(error = %message, "app asset lookup failed");
             not_found()
         }
         AssetLookupError::NotFound
@@ -118,7 +118,7 @@ fn not_found() -> Response<Body> {
         .header(header::CACHE_CONTROL, "no-store")
         .header("x-content-type-options", "nosniff")
         .body(Body::empty())
-        .expect("static addon asset error response")
+        .expect("static app asset error response")
 }
 
 #[cfg(test)]
@@ -138,8 +138,8 @@ mod tests {
         assert!(policy.contains("object-src 'none'"));
         assert!(policy.contains("frame-ancestors http://localhost:8419"));
         assert!(policy
-            .contains("script-src http://localhost:8419/addons-assets/dev.laruche.test/1.2.3/"));
-        assert!(policy.contains("http://localhost:8419/addons-runtime/v1.js"));
+            .contains("script-src http://localhost:8419/apps-assets/dev.laruche.test/1.2.3/"));
+        assert!(policy.contains("http://localhost:8419/apps-runtime/v1.js"));
         assert!(!policy.contains("unsafe-eval"));
         assert!(!policy.contains("script-src *"));
     }
