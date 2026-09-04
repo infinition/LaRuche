@@ -35,6 +35,8 @@ LaRuche.i18n.add({
   'addons.noViews':         {fr:'Aucune application activée.', en:'No enabled application.'},
   'addons.isolated':        {fr:'Vue isolée — aucun accès à LaRuche sans permission', en:'Isolated view — no LaRuche access without permission'},
   'addons.popupBlocked':    {fr:'La fenêtre a été bloquée par le navigateur.', en:'The browser blocked the window.'},
+  'addons.detachFailed':    {fr:'La vue détachée n’a pas pu se connecter.', en:'The detached view could not connect.'},
+  'addons.detachLimit':     {fr:'Ferme une vue détachée avant d’en ouvrir une autre.', en:'Close a detached view before opening another one.'},
   'addons.diagnostics':     {fr:'Diagnostics de découverte', en:'Discovery diagnostics'},
   'addons.permissions':     {fr:'Permissions', en:'Permissions'},
   'addons.adminOnly':       {fr:'Seul un administrateur peut changer cet état.', en:'Only an administrator can change this state.'}
@@ -51,6 +53,11 @@ LaRuche.Addons = (function(){
   var activeBridge = null;
   var supportedCapabilities = ['storage.private','ui.theme.read','ui.locale.read'];
   var bridgeMaxBytes = 64 * 1024;
+  var detachedBridges = new Set();
+  var detachedSweep = null;
+  var maxDetachedViews = 8;
+  var lifecycleBound = false;
+  var pendingDetached = 0;
 
   function t(key, vars){ return LaRuche.i18n.t(key, vars); }
   function esc(value){ return LaRuche.Utils.esc(value == null ? '' : value); }
@@ -92,15 +99,48 @@ LaRuche.Addons = (function(){
     return manifestPermissions(addon,'required').filter(function(permission){ return supportedCapabilities.indexOf(permission)!==-1; });
   }
 
-  function revokeBridge(){
-    var bridge=activeBridge; activeBridge=null;
+  function bridgeIsLive(bridge){
+    return activeBridge===bridge || detachedBridges.has(bridge);
+  }
+
+  function stopDetachedSweep(){
+    if(detachedSweep && !detachedBridges.size){ clearInterval(detachedSweep); detachedSweep=null; }
+  }
+
+  function revokeBridge(target,closePopup){
+    var bridge=target||activeBridge;
     if(!bridge) return;
+    if(activeBridge===bridge) activeBridge=null;
+    detachedBridges.delete(bridge);
     clearTimeout(bridge.timer);
     try{ bridge.port.onmessage=null; bridge.port.close(); }catch(error){}
+    if(closePopup!==false && bridge.popup && !bridge.popup.closed){ try{ bridge.popup.close(); }catch(error){} }
+    stopDetachedSweep();
+  }
+
+  function revokeDetachedBridges(){
+    Array.from(detachedBridges).forEach(function(bridge){ revokeBridge(bridge,true); });
+  }
+
+  function ensureDetachedSweep(){
+    if(detachedSweep) return;
+    detachedSweep=setInterval(function(){
+      Array.from(detachedBridges).forEach(function(bridge){
+        if(!bridge.popup || bridge.popup.closed) revokeBridge(bridge,false);
+      });
+    },1000);
+  }
+
+  function reconcileDetachedBridges(data){
+    var records=data&&Array.isArray(data.addons)?data.addons:[];
+    Array.from(detachedBridges).forEach(function(bridge){
+      var current=records.find(function(addon){ return addon.id===bridge.addon.id; });
+      if(!current || !current.enabled || current.activeVersion!==bridge.addon.activeVersion) revokeBridge(bridge,true);
+    });
   }
 
   function bridgeReply(bridge,id,ok,result,error){
-    if(activeBridge!==bridge) return;
+    if(!bridgeIsLive(bridge)) return;
     var response={v:1,kind:'response',id:id,ok:ok};
     if(ok) response.result=result==null?{}:result;
     else response.error={code:error.code||'internal_error',message:error.message||'Host request failed',retryable:!!error.retryable};
@@ -109,6 +149,14 @@ LaRuche.Addons = (function(){
 
   function requireCapability(bridge,capability){
     if(bridge.capabilities.indexOf(capability)===-1) throw bridgeFailure('permission_denied','Capability not granted');
+  }
+
+  function paintBridgeTitle(bridge){
+    var display=bridge.title+(bridge.dirty?' •':'');
+    if(bridge.titleNode) bridge.titleNode.textContent=display;
+    if(bridge.popup && !bridge.popup.closed){
+      try{ bridge.popup.document.title=display; }catch(error){}
+    }
   }
 
   function backendStorage(bridge,method,params){
@@ -143,25 +191,27 @@ LaRuche.Addons = (function(){
     if(method==='ui.setTitle'){
       var title=params&&params.title;
       if(typeof title!=='string' || !title.trim() || title.length>80 || /[\u0000-\u001f\u007f]/.test(title)) throw bridgeFailure('validation_failed','Title is invalid');
-      bridge.title=title.trim(); bridge.titleNode.textContent=bridge.title+(bridge.dirty?' •':''); return {};
+      bridge.title=title.trim(); paintBridgeTitle(bridge); return {};
     }
     if(method==='ui.setDirty'){
-      bridge.dirty=!!(params&&params.dirty); bridge.titleNode.textContent=bridge.title+(bridge.dirty?' •':''); return {};
+      bridge.dirty=!!(params&&params.dirty); paintBridgeTitle(bridge); return {};
     }
     if(method==='ui.requestDetach'){
       if(bridge.view.detachable===false) throw bridgeFailure('permission_denied','This view cannot be detached');
+      if(bridge.popup) throw bridgeFailure('conflict','View is already detached');
       detachActive(); return {};
     }
     if(method==='ui.close'){
+      if(bridge.popup){ revokeBridge(bridge,true); return {}; }
       LaRuche.Router.go('addons/overview'); return {};
     }
     throw bridgeFailure('not_found','Unknown addon bridge method');
   }
 
   function onBridgeMessage(bridge,message){
-    if(activeBridge!==bridge || !bridgeMessageIsSafe(message) || message.v!==1) return;
+    if(!bridgeIsLive(bridge) || !bridgeMessageIsSafe(message) || message.v!==1) return;
     if(!bridge.hello){
-      if(message.kind!=='addon.hello' || message.nonce!==bridge.nonce || message.addonId!==bridge.addon.id || message.viewId!==bridge.view.id || message.apiVersion!==1){ revokeBridge(); return; }
+      if(message.kind!=='addon.hello' || message.nonce!==bridge.nonce || message.addonId!==bridge.addon.id || message.viewId!==bridge.view.id || message.apiVersion!==1){ revokeBridge(bridge,true); return; }
       bridge.hello=true;
       var context={
         sessionId:bridge.sessionId,
@@ -192,18 +242,31 @@ LaRuche.Addons = (function(){
       .finally(function(){ bridge.pending.delete(message.id); });
   }
 
+  function startBridge(addon,view,title,titleNode,popup,deliver){
+    if(!window.MessageChannel || !window.crypto || !crypto.getRandomValues) return null;
+    var channel=new MessageChannel();
+    var bridge={addon:addon,view:view,titleNode:titleNode||null,title:title,dirty:false,popup:popup||null,port:channel.port1,nonce:randomToken(),sessionId:randomToken(),capabilities:bridgeCapabilities(addon),hello:false,ready:false,pending:new Set(),requests:[],timer:null};
+    if(popup) detachedBridges.add(bridge);
+    else { revokeBridge(); activeBridge=bridge; }
+    bridge.port.onmessage=function(event){ onBridgeMessage(bridge,event.data); };
+    bridge.port.onmessageerror=function(){ revokeBridge(bridge,true); };
+    bridge.port.start();
+    bridge.timer=setTimeout(function(){ if(bridgeIsLive(bridge) && !bridge.ready) revokeBridge(bridge,true); },5000);
+    try{
+      deliver({v:1,kind:'laruche.host.init',nonce:bridge.nonce,addonId:addon.id,viewId:view.id},channel.port2);
+    }catch(error){
+      revokeBridge(bridge,true);
+      return null;
+    }
+    return bridge;
+  }
+
   function connectBridge(frame,addon,view,titleNode){
     frame.addEventListener('load',function(){
-      revokeBridge();
-      if(!frame.contentWindow || !window.MessageChannel || !window.crypto || !crypto.getRandomValues) return;
-      var channel=new MessageChannel();
-      var bridge={addon:addon,view:view,frame:frame,titleNode:titleNode,title:titleNode.textContent,dirty:false,port:channel.port1,nonce:randomToken(),sessionId:randomToken(),capabilities:bridgeCapabilities(addon),hello:false,ready:false,pending:new Set(),requests:[],timer:null};
-      activeBridge=bridge;
-      bridge.port.onmessage=function(event){ onBridgeMessage(bridge,event.data); };
-      bridge.port.onmessageerror=function(){ revokeBridge(); };
-      bridge.port.start();
-      bridge.timer=setTimeout(function(){ if(activeBridge===bridge && !bridge.ready) revokeBridge(); },5000);
-      frame.contentWindow.postMessage({v:1,kind:'laruche.host.init',nonce:bridge.nonce,addonId:addon.id,viewId:view.id},'*',[channel.port2]);
+      if(!frame.contentWindow) return;
+      startBridge(addon,view,titleNode.textContent,titleNode,null,function(init,port){
+        frame.contentWindow.postMessage(init,'*',[port]);
+      });
     });
   }
 
@@ -226,6 +289,10 @@ LaRuche.Addons = (function(){
 
   function init(){
     ensureNavigation();
+    if(!lifecycleBound){
+      lifecycleBound=true;
+      window.addEventListener('beforeunload',revokeDetachedBridges);
+    }
     var install = document.getElementById('addonsInstall');
     var packageInput = document.getElementById('addonsPackageInput');
     var refresh = document.getElementById('addonsRefresh');
@@ -269,6 +336,7 @@ LaRuche.Addons = (function(){
       .then(function(response){ if(!response.ok) throw new Error('HTTP '+response.status); return response.json(); })
       .then(function(data){
         if(serial !== requestSerial) return;
+        reconcileDetachedBridges(data);
         catalogue = data || {addons:[], diagnostics:[]};
         renderRail();
         applyRoute(pendingRoute || 'overview');
@@ -440,6 +508,7 @@ LaRuche.Addons = (function(){
       .then(function(response){ if(!response.ok) throw new Error(); return response.json(); })
       .then(function(updated){
         catalogue.addons[index]=updated;
+        if(!updated.enabled) reconcileDetachedBridges(catalogue);
         renderRail(); showOverview();
         LaRuche.Toast.show(updated.enabled?t('addons.enabled'):t('addons.disabled'),'ok');
       })
@@ -478,20 +547,56 @@ LaRuche.Addons = (function(){
     if(button) button.hidden=!visible;
   }
 
+  function forgetDetachedUrl(url){
+    try{ URL.revokeObjectURL(url); }catch(error){}
+    detachedUrls=detachedUrls.filter(function(item){ return item!==url; });
+  }
+
+  function detachedHost(title,src,token){
+    var script="(function(){'use strict';var token='"+token+"',upstream=window.opener,frame=null,init=null,port=null;function forward(){if(!frame||!init||!port)return;frame.contentWindow.postMessage(init,'*',[port]);init=null;port=null;window.removeEventListener('message',receive);try{window.opener=null;}catch(error){}upstream=null;}function receive(event){var message=event.data;if(event.source!==upstream||!message||message.v!==1||message.kind!=='laruche.detached.connect'||message.token!==token||!message.init||event.ports.length!==1)return;init=message.init;port=event.ports[0];forward();}window.__larucheAddonFrameReady=function(target){frame=target;forward();};window.addEventListener('message',receive);if(upstream)upstream.postMessage({v:1,kind:'laruche.detached.ready',token:token},'*');else window.close();})();";
+    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; frame-src \'self\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'"><title>'+title+'</title><style>html,body,iframe{width:100%;height:100%;margin:0;border:0;background:#101014}body{overflow:hidden}</style><script>'+script+'</script></head><body><iframe title="'+title+'" src="'+src+'" sandbox="allow-scripts allow-forms allow-downloads" referrerpolicy="no-referrer" allow="clipboard-read \'none\'; clipboard-write \'none\'; camera \'none\'; microphone \'none\'; geolocation \'none\'" onload="window.__larucheAddonFrameReady(this)"></iframe></body></html>';
+  }
+
   function detachActive(){
     if(!active || active.view.detachable===false) return;
-    var title=esc((active.addon.manifest.name||active.addon.id)+' — '+active.view.title);
-    var src=esc(active.url);
-    var host='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+title+'</title><style>html,body,iframe{width:100%;height:100%;margin:0;border:0;background:#101014}body{overflow:hidden}</style></head><body><iframe title="'+title+'" src="'+src+'" sandbox="allow-scripts allow-forms allow-downloads" referrerpolicy="no-referrer" allow="clipboard-read \'none\'; clipboard-write \'none\'; camera \'none\'; microphone \'none\'; geolocation \'none\'"></iframe></body></html>';
+    if(detachedBridges.size+pendingDetached>=maxDetachedViews){ LaRuche.Toast.show(t('addons.detachLimit'),'err'); return; }
+    var item=active;
+    var title=esc((item.addon.manifest.name||item.addon.id)+' — '+item.view.title);
+    var src=esc(item.url);
+    var token=randomToken();
+    var host=detachedHost(title,src,token);
     var url=URL.createObjectURL(new Blob([host],{type:'text/html'}));
     detachedUrls.push(url);
-    // The top-level blob contains only this trusted host document; untrusted code
-    // remains in the opaque sandbox below it. Clear `opener` immediately, while
-    // retaining a real return value so a blocked popup can be reported.
-    var popup=window.open(url,'_blank','popup,width=1100,height=760');
-    if(popup) popup.opener=null;
-    else LaRuche.Toast.show(t('addons.popupBlocked'),'err');
-    setTimeout(function(){ URL.revokeObjectURL(url); detachedUrls=detachedUrls.filter(function(item){return item!==url;}); },60000);
+    pendingDetached+=1;
+    var popup=null;
+    var finished=false;
+    var timer=null;
+    function cleanup(revokeUrl){
+      window.removeEventListener('message',onReady);
+      clearTimeout(timer);
+      pendingDetached=Math.max(0,pendingDetached-1);
+      if(revokeUrl) forgetDetachedUrl(url);
+    }
+    function fail(){
+      if(finished) return; finished=true; cleanup(true);
+      if(popup && !popup.closed) try{ popup.close(); }catch(error){}
+      LaRuche.Toast.show(t('addons.detachFailed'),'err');
+    }
+    function onReady(event){
+      var message=event.data;
+      if(finished || !popup || event.source!==popup || !message || message.v!==1 || message.kind!=='laruche.detached.ready' || message.token!==token) return;
+      finished=true; cleanup(false);
+      setTimeout(function(){ forgetDetachedUrl(url); },60000);
+      var detached=startBridge(item.addon,item.view,(item.addon.manifest.name||item.addon.id)+' — '+item.view.title,null,popup,function(init,port){
+        popup.postMessage({v:1,kind:'laruche.detached.connect',token:token,init:init},'*',[port]);
+      });
+      if(!detached){ try{ popup.close(); }catch(error){} LaRuche.Toast.show(t('addons.detachFailed'),'err'); return; }
+      ensureDetachedSweep();
+    }
+    window.addEventListener('message',onReady);
+    popup=window.open(url,'_blank','popup,width=1100,height=760');
+    if(!popup){ finished=true; cleanup(true); LaRuche.Toast.show(t('addons.popupBlocked'),'err'); return; }
+    timer=setTimeout(fail,5000);
   }
 
   function leave(){ revokeBridge(); }
