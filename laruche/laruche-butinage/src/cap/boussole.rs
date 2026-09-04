@@ -159,6 +159,17 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
         // there are tool calls*, never because of an "unfinished plan".
         // Only a few BOUNDED rails (weak models) may relaunch.
         Issue::TexteSeul(t) => {
+            // Rail 0: a truncated turn dominated by the model repeating the same
+            // phrase over itself is not a legitimate cutoff that a "continue where
+            // you stopped" nudge can fix - it would just keep rambling. Land
+            // cleanly with a clear reason instead of burning the relance budget
+            // on a loop that was never going to produce new content.
+            if t.tronquee && boucle_de_repetition(&t.texte) {
+                return Decision::Poser(FinDeVol::BoucleSterile(
+                    "the model's own output looped on a repeated phrase instead of finishing"
+                        .to_string(),
+                ));
+            }
             // Rail 1: truncated output (finish_reason=length), exact resume (standard).
             if t.tronquee && ctx.relance_dispo() {
                 return Decision::Relancer(nudge::REPRISE_TRONQUEE.to_string());
@@ -196,6 +207,37 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
             Decision::Poser(FinDeVol::Accomplie)
         }
     }
+}
+
+/// True when a truncated text is dominated by verbatim repetition rather than
+/// genuinely running out of room: a model stuck echoing the same phrase is
+/// not going to produce new content just because it is told to continue.
+///
+/// Tests candidate periods directly (character `i` compared to character
+/// `i + periode`) rather than fixed-offset windows: a phrase repeating on
+/// its own length is not necessarily aligned with an arbitrary window
+/// boundary, so the period has to be searched for, not assumed.
+fn boucle_de_repetition(texte: &str) -> bool {
+    const PERIODE_MIN: usize = 20;
+    const PERIODE_MAX: usize = 220;
+    const COUVERTURE_MIN: f64 = 0.5;
+
+    let caracteres: Vec<char> = texte.chars().collect();
+    let n = caracteres.len();
+    if n < PERIODE_MIN * 4 {
+        return false; // too short to judge either way
+    }
+    let plafond = PERIODE_MAX.min(n / 3);
+    (PERIODE_MIN..=plafond).any(|periode| {
+        let comparables = n - periode;
+        if comparables == 0 {
+            return false;
+        }
+        let identiques = (0..comparables)
+            .filter(|&i| caracteres[i] == caracteres[i + periode])
+            .count();
+        (identiques as f64 / comparables as f64) >= COUVERTURE_MIN
+    })
 }
 
 #[cfg(test)]
@@ -365,6 +407,37 @@ mod tests {
         assert!(matches!(cap(&c, texte(t.clone())), Decision::Relancer(_)));
         c.auto_continue = 3; // == relance_max, yield control
         assert_eq!(cap(&c, texte(t)), Decision::Poser(FinDeVol::Accomplie));
+    }
+
+    #[test]
+    fn boucle_de_repetition_detecte_une_phrase_qui_se_mord_la_queue() {
+        let phrase = "je dois relancer avec un script compact de scroll et de collecte ";
+        let texte = phrase.repeat(20);
+        assert!(boucle_de_repetition(&texte));
+        // Normal prose of comparable length: no dominant repeated window.
+        let prose = "L'utilisateur veut extraire toutes ses publications enregistrées \
+            dans un CSV complet, alors je fais défiler la page jusqu'en bas puis je \
+            collecte chaque lien un par un avant d'écrire le fichier final proprement \
+            avec les légendes et les liens associés pour chaque publication trouvée."
+            .repeat(3);
+        assert!(!boucle_de_repetition(&prose));
+    }
+
+    #[test]
+    fn troncature_en_boucle_atterrit_au_lieu_de_relancer() {
+        // A truncated turn whose text loops on itself lands cleanly (Rail 0)
+        // instead of consuming the relance budget on Rail 1.
+        let c = ctx();
+        let mut t = base_texte();
+        t.tronquee = true;
+        t.texte = "je recommence toujours la même analyse ".repeat(30);
+        assert_eq!(
+            cap(&c, texte(t)),
+            Decision::Poser(FinDeVol::BoucleSterile(
+                "the model's own output looped on a repeated phrase instead of finishing"
+                    .to_string()
+            ))
+        );
     }
 
     #[test]

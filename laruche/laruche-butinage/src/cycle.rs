@@ -835,6 +835,23 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
         appels.retain(|a| a.nom != "clarify");
     }
 
+    // A tool call whose arguments failed to parse as JSON, and were not simply
+    // empty, is a genuine truncation or malformation signal whatever
+    // finish_reason claims: a relay can report a normal end of turn while it
+    // actually cut the response in the middle of a tool-call's own
+    // arguments. Route it through the malformed-tool-call rail instead of
+    // executing a call with silently null arguments.
+    if !appels.is_empty() && appels.iter().any(|a| a.args.is_null()) {
+        return Issue::TexteSeul(TexteSeul {
+            texte: reponse.texte.clone(),
+            fin_native: Some(reponse.stop),
+            plan_inacheve: carnet.itineraire.a_des_ouvertes(),
+            malforme: true,
+            tronquee: matches!(reponse.stop, StopReason::Longueur),
+            vide: false,
+        });
+    }
+
     if !appels.is_empty() {
         return Issue::Outils(appels);
     }
@@ -1541,6 +1558,27 @@ It is Sunday.".into()),
             assert!(t.malforme, "stop=Outils with zero calls is a strong malformed signal");
         } else {
             panic!("expected TexteSeul");
+        }
+    }
+
+    #[test]
+    fn appel_aux_arguments_illisibles_est_malforme_pas_execute() {
+        // args=Null signals a tool call whose JSON failed to parse (not a
+        // legitimate zero-argument call, which is always "{}"): a provider can
+        // report a normal finish while it actually cut the response in the
+        // middle of a tool-call's own arguments. Must never reach Issue::Outils
+        // as if the call were valid.
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        let rep = ReponseModele {
+            texte: String::new(),
+            stop: StopReason::Outils,
+            appels: vec![Appel::nouveau("file_write", serde_json::Value::Null)],
+            usage: None,
+            ..Default::default()
+        };
+        match analyser(&rep, &mut carnet, ProfilModele::NatifOutils) {
+            Issue::TexteSeul(t) => assert!(t.malforme),
+            autre => panic!("expected TexteSeul(malforme), got {autre:?}"),
         }
     }
 }
