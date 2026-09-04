@@ -39,6 +39,9 @@ LaRuche.i18n.add({
   'addons.detachLimit':     {fr:'Ferme une vue détachée avant d’en ouvrir une autre.', en:'Close a detached view before opening another one.'},
   'addons.diagnostics':     {fr:'Diagnostics de découverte', en:'Discovery diagnostics'},
   'addons.permissions':     {fr:'Permissions', en:'Permissions'},
+  'addons.required':        {fr:'requise', en:'required'},
+  'addons.optional':        {fr:'optionnelle', en:'optional'},
+  'addons.unavailable':     {fr:'indisponible', en:'unavailable'},
   'addons.adminOnly':       {fr:'Seul un administrateur peut changer cet état.', en:'Only an administrator can change this state.'}
 });
 
@@ -92,11 +95,24 @@ LaRuche.Addons = (function(){
     return permissions&&Array.isArray(permissions[kind])?permissions[kind].slice():[];
   }
 
+  function permissionMarkup(addon,index){
+    var granted=addon&&Array.isArray(addon.grantedPermissions)?addon.grantedPermissions:[];
+    var rows=[];
+    manifestPermissions(addon,'required').forEach(function(permission){
+      var available=supportedCapabilities.indexOf(permission)!==-1;
+      rows.push('<div class="addons-permission '+(available?'':'unavailable')+'"><span>'+(granted.indexOf(permission)!==-1?'✓':'●')+'</span><code>'+esc(permission)+'</code><small>'+esc(available?t('addons.required'):t('addons.unavailable'))+'</small></div>');
+    });
+    manifestPermissions(addon,'optional').forEach(function(permission){
+      var available=supportedCapabilities.indexOf(permission)!==-1;
+      var checked=granted.indexOf(permission)!==-1;
+      rows.push('<label class="addons-permission '+(available?'':'unavailable')+'"><input type="checkbox" data-addon-permission="'+index+'" value="'+esc(permission)+'" '+(checked?'checked ':'')+((addon.enabled||!available)?'disabled ':'')+'><code>'+esc(permission)+'</code><small>'+esc(available?t('addons.optional'):t('addons.unavailable'))+'</small></label>');
+    });
+    return rows.join('');
+  }
+
   function bridgeCapabilities(addon){
-    // Until the durable grants ledger lands, enabling an addon is the explicit
-    // grant for the small, low-risk v1 host set. Optional permissions remain
-    // denied and every future backend capability must be checked again in Rust.
-    return manifestPermissions(addon,'required').filter(function(permission){ return supportedCapabilities.indexOf(permission)!==-1; });
+    var granted=addon&&Array.isArray(addon.grantedPermissions)?addon.grantedPermissions:[];
+    return granted.filter(function(permission){ return supportedCapabilities.indexOf(permission)!==-1; });
   }
 
   function bridgeIsLive(bridge){
@@ -484,7 +500,7 @@ LaRuche.Addons = (function(){
         var permissions=manifestPermissions(addon,'required').concat(manifestPermissions(addon,'optional'));
         html+='<article class="addons-card"><div class="addons-card-top"><div class="addons-card-icon">'+esc(initial(name))+'</div><div class="addons-card-copy"><div class="addons-card-name">'+esc(name)+'</div><div class="addons-card-meta">'+esc(addon.id)+' · '+esc(addon.activeVersion||'')+'</div></div></div>'+
           '<div class="addons-card-desc">'+esc(manifest.description||'')+'</div>'+
-          (permissions.length?'<div class="addons-card-permissions"><strong>'+esc(t('addons.permissions'))+'</strong> '+permissions.map(esc).join(' · ')+'</div>':'')+
+          (permissions.length?'<div class="addons-card-permissions"><strong>'+esc(t('addons.permissions'))+'</strong>'+permissionMarkup(addon,index)+'</div>':'')+
           '<div class="addons-card-foot"><span class="addons-state '+state+'"><span class="addons-state-dot"></span>'+esc(label)+'</span>'+
           '<button type="button" class="addons-btn" data-addon-toggle="'+index+'" '+(disabled?'disabled title="'+esc(addon.error||t('addons.adminOnly'))+'"':'')+'>'+esc(action)+'</button></div>'+
           (addon.error?'<div class="addons-error">'+esc(addon.error)+'</div>':'')+'</article>';
@@ -504,15 +520,27 @@ LaRuche.Addons = (function(){
   function toggleAddon(index){
     var addon=addons()[index]; if(!addon || addon.error || !isAdmin()) return;
     var action=addon.enabled?'disable':'enable';
-    fetch(LaRuche.API.base+'/api/addons/'+encodeURIComponent(addon.id)+'/'+action,{method:'POST',credentials:'include'})
-      .then(function(response){ if(!response.ok) throw new Error(); return response.json(); })
+    var options={method:'POST',credentials:'include'};
+    if(action==='enable'){
+      var granted=manifestPermissions(addon,'required');
+      document.querySelectorAll('[data-addon-permission="'+index+'"]:checked').forEach(function(input){ granted.push(input.value); });
+      options.headers={'Content-Type':'application/json'};
+      options.body=JSON.stringify({grantedPermissions:granted});
+    }
+    fetch(LaRuche.API.base+'/api/addons/'+encodeURIComponent(addon.id)+'/'+action,options)
+      .then(function(response){
+        return response.json().catch(function(){ return null; }).then(function(payload){
+          if(!response.ok) throw new Error(payload&&payload.error&&payload.error.message||t('addons.changeFailed'));
+          return payload;
+        });
+      })
       .then(function(updated){
         catalogue.addons[index]=updated;
         if(!updated.enabled) reconcileDetachedBridges(catalogue);
         renderRail(); showOverview();
         LaRuche.Toast.show(updated.enabled?t('addons.enabled'):t('addons.disabled'),'ok');
       })
-      .catch(function(){ LaRuche.Toast.show(t('addons.changeFailed'),'err'); });
+      .catch(function(error){ LaRuche.Toast.show(error.message||t('addons.changeFailed'),'err'); });
   }
 
   function assetUrl(addon, view){

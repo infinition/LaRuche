@@ -10,6 +10,7 @@ pub(crate) mod api;
 pub(crate) mod assets;
 mod installer;
 mod model;
+pub(crate) mod permissions;
 mod registry;
 pub(crate) mod storage;
 

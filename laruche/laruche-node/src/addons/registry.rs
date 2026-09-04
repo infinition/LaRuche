@@ -29,6 +29,7 @@ pub(crate) struct AddonSnapshot {
     pub(crate) enabled: bool,
     pub(crate) state: AddonLifecycleState,
     pub(crate) installed_at: String,
+    pub(crate) granted_permissions: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) manifest: Option<AddonManifest>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -47,6 +48,7 @@ struct AddonRecord {
     active_version: String,
     enabled: bool,
     installed_at: String,
+    granted_permissions: Vec<String>,
     manifest: Option<AddonManifest>,
     error: Option<String>,
 }
@@ -57,6 +59,8 @@ struct StoredAddon {
     active_version: String,
     enabled: bool,
     installed_at: String,
+    #[serde(default)]
+    granted_permissions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +126,15 @@ impl AddonRegistry {
 
             if let Some((_, manifest)) = selected {
                 let saved = stored.addons.get(id);
+                let granted_permissions = saved
+                    .map(|item| {
+                        if item.enabled && item.granted_permissions.is_empty() {
+                            manifest.permissions.required.clone()
+                        } else {
+                            item.granted_permissions.clone()
+                        }
+                    })
+                    .unwrap_or_default();
                 records.insert(
                     id.clone(),
                     AddonRecord {
@@ -130,6 +143,7 @@ impl AddonRegistry {
                         installed_at: saved
                             .map(|item| item.installed_at.clone())
                             .unwrap_or_else(|| Utc::now().to_rfc3339()),
+                        granted_permissions,
                         manifest: Some(manifest.clone()),
                         error: None,
                     },
@@ -147,6 +161,7 @@ impl AddonRegistry {
                     active_version: saved.active_version.clone(),
                     enabled: false,
                     installed_at: saved.installed_at.clone(),
+                    granted_permissions: Vec::new(),
                     manifest: None,
                     error: Some("the active package is missing or invalid".into()),
                 },
@@ -196,6 +211,7 @@ impl AddonRegistry {
                 active_version: manifest.version.clone(),
                 enabled: false,
                 installed_at: Utc::now().to_rfc3339(),
+                granted_permissions: Vec::new(),
                 manifest: Some(manifest),
                 error: None,
             },
@@ -218,6 +234,7 @@ impl AddonRegistry {
         &mut self,
         id: &str,
         enabled: bool,
+        granted_permissions: Vec<String>,
     ) -> Result<AddonSnapshot, RegistryMutationError> {
         let record = self
             .records
@@ -232,10 +249,17 @@ impl AddonRegistry {
             ));
         }
         let old = record.enabled;
+        let old_permissions = record.granted_permissions.clone();
         record.enabled = enabled;
+        record.granted_permissions = if enabled {
+            granted_permissions
+        } else {
+            Vec::new()
+        };
         if let Err(error) = self.persist() {
             if let Some(record) = self.records.get_mut(id) {
                 record.enabled = old;
+                record.granted_permissions = old_permissions;
             }
             return Err(RegistryMutationError::Persistence(error));
         }
@@ -263,6 +287,7 @@ impl AddonRegistry {
                             active_version: record.active_version.clone(),
                             enabled: record.enabled && record.manifest.is_some(),
                             installed_at: record.installed_at.clone(),
+                            granted_permissions: record.granted_permissions.clone(),
                         },
                     )
                 })
@@ -308,6 +333,7 @@ fn snapshot(id: &str, record: &AddonRecord) -> AddonSnapshot {
         enabled: record.enabled && record.error.is_none(),
         state,
         installed_at: record.installed_at.clone(),
+        granted_permissions: record.granted_permissions.clone(),
         manifest: record.manifest.clone(),
         error: record.error.clone(),
     }
@@ -644,9 +670,79 @@ mod tests {
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
         let mut registry = AddonRegistry::load(root.clone()).unwrap();
         assert!(!registry.get("dev.laruche.test").unwrap().enabled);
-        registry.set_enabled("dev.laruche.test", true).unwrap();
+        registry
+            .set_enabled("dev.laruche.test", true, Vec::new())
+            .unwrap();
         let reloaded = AddonRegistry::load(root.clone()).unwrap();
         assert!(reloaded.get("dev.laruche.test").unwrap().enabled);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persists_grants_and_revokes_them_when_disabled() {
+        let root = temporary_root();
+        write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
+        let manifest_path = root.join("packages/dev.laruche.test/1.0.0/addon.json");
+        let manifest = fs::read_to_string(&manifest_path).unwrap().replace(
+            r#""required": [], "optional": []"#,
+            r#""required": ["storage.private"], "optional": []"#,
+        );
+        fs::write(manifest_path, manifest).unwrap();
+
+        let mut registry = AddonRegistry::load(root.clone()).unwrap();
+        registry
+            .set_enabled("dev.laruche.test", true, vec!["storage.private".into()])
+            .unwrap();
+        let mut reloaded = AddonRegistry::load(root.clone()).unwrap();
+        assert_eq!(
+            reloaded
+                .get("dev.laruche.test")
+                .unwrap()
+                .granted_permissions,
+            vec!["storage.private"]
+        );
+        reloaded
+            .set_enabled("dev.laruche.test", false, Vec::new())
+            .unwrap();
+        assert!(AddonRegistry::load(root.clone())
+            .unwrap()
+            .get("dev.laruche.test")
+            .unwrap()
+            .granted_permissions
+            .is_empty());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn migrates_implicit_required_grants_from_the_old_registry() {
+        let root = temporary_root();
+        write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
+        let manifest_path = root.join("packages/dev.laruche.test/1.0.0/addon.json");
+        let manifest = fs::read_to_string(&manifest_path).unwrap().replace(
+            r#""required": [], "optional": []"#,
+            r#""required": ["storage.private"], "optional": []"#,
+        );
+        fs::write(manifest_path, manifest).unwrap();
+        fs::write(
+            root.join(REGISTRY_FILE),
+            r#"{
+              "schemaVersion": 1,
+              "addons": {
+                "dev.laruche.test": {
+                  "activeVersion": "1.0.0",
+                  "enabled": true,
+                  "installedAt": "2026-01-01T00:00:00Z"
+                }
+              }
+            }"#,
+        )
+        .unwrap();
+
+        let addon = AddonRegistry::load(root.clone())
+            .unwrap()
+            .get("dev.laruche.test")
+            .unwrap();
+        assert_eq!(addon.granted_permissions, vec!["storage.private"]);
         let _ = fs::remove_dir_all(root);
     }
 
@@ -655,7 +751,9 @@ mod tests {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
         let mut registry = AddonRegistry::load(root.clone()).unwrap();
-        registry.set_enabled("dev.laruche.test", true).unwrap();
+        registry
+            .set_enabled("dev.laruche.test", true, Vec::new())
+            .unwrap();
 
         write_package(&root, "dev.laruche.test", "2.0.0", "ui/index.html");
         let packages_root = fs::canonicalize(root.join("packages")).unwrap();
@@ -716,7 +814,9 @@ mod tests {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
         let mut registry = AddonRegistry::load(root.clone()).unwrap();
-        registry.set_enabled("dev.laruche.test", true).unwrap();
+        registry
+            .set_enabled("dev.laruche.test", true, Vec::new())
+            .unwrap();
         fs::remove_dir_all(root.join("packages/dev.laruche.test/1.0.0")).unwrap();
         let reloaded = AddonRegistry::load(root.clone()).unwrap();
         let addon = reloaded.get("dev.laruche.test").unwrap();
@@ -734,7 +834,9 @@ mod tests {
             registry.resolve_ui_asset("dev.laruche.test", "1.0.0", "index.html"),
             Err(AssetLookupError::Disabled)
         ));
-        registry.set_enabled("dev.laruche.test", true).unwrap();
+        registry
+            .set_enabled("dev.laruche.test", true, Vec::new())
+            .unwrap();
         assert!(registry
             .resolve_ui_asset("dev.laruche.test", "1.0.0", "index.html")
             .unwrap()
@@ -751,7 +853,9 @@ mod tests {
         let root = temporary_root();
         write_package(&root, "dev.laruche.test", "1.0.0", "ui/index.html");
         let mut registry = AddonRegistry::load(root.clone()).unwrap();
-        registry.set_enabled("dev.laruche.test", true).unwrap();
+        registry
+            .set_enabled("dev.laruche.test", true, Vec::new())
+            .unwrap();
         for path in [
             "../addon.json",
             "assets\\secret",

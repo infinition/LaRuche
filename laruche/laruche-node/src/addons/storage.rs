@@ -116,13 +116,10 @@ fn authorize(addon: &AddonSnapshot) -> Result<(), ApiError> {
             "Addon is disabled",
         ));
     }
-    let granted = addon.manifest.as_ref().is_some_and(|manifest| {
-        manifest
-            .permissions
-            .required
-            .iter()
-            .any(|item| item == CAPABILITY)
-    });
+    let granted = addon
+        .granted_permissions
+        .iter()
+        .any(|item| item == CAPABILITY);
     if !granted {
         return Err(api_error(
             StatusCode::FORBIDDEN,

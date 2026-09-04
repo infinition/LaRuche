@@ -1,11 +1,12 @@
 use super::installer::{self, InstallError};
+use super::permissions::{self, GrantError};
 use super::{AddonDiagnostic, AddonSnapshot, RegistryMutationError};
 use crate::{auth_user, log_activite, AppState};
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 #[derive(Serialize)]
@@ -16,6 +17,20 @@ pub(crate) struct AddonListResponse {
 }
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct EnableRequest {
+    #[serde(default)]
+    granted_permissions: Vec<String>,
+}
+
+pub(crate) async fn permission_catalog() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "version": permissions::CATALOG_VERSION,
+        "permissions": permissions::catalog()
+    }))
+}
 
 pub(crate) async fn list(State(state): State<Arc<AppState>>) -> Json<AddonListResponse> {
     let registry = state.addons.read().await;
@@ -42,8 +57,16 @@ pub(crate) async fn enable(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<String>,
+    body: Option<Json<EnableRequest>>,
 ) -> Result<Json<AddonSnapshot>, ApiError> {
-    set_enabled(state, headers, id, true).await
+    set_enabled(
+        state,
+        headers,
+        id,
+        true,
+        body.map(|Json(body)| body.granted_permissions),
+    )
+    .await
 }
 
 pub(crate) async fn disable(
@@ -51,7 +74,7 @@ pub(crate) async fn disable(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<AddonSnapshot>, ApiError> {
-    set_enabled(state, headers, id, false).await
+    set_enabled(state, headers, id, false, None).await
 }
 
 pub(crate) async fn rescan(
@@ -134,14 +157,32 @@ async fn set_enabled(
     headers: HeaderMap,
     id: String,
     enabled: bool,
+    requested_permissions: Option<Vec<String>>,
 ) -> Result<Json<AddonSnapshot>, ApiError> {
     require_admin_or_fresh(&state, &headers).await?;
-    let snapshot = state
-        .addons
-        .write()
-        .await
-        .set_enabled(&id, enabled)
-        .map_err(map_mutation_error)?;
+    let snapshot = {
+        let mut registry = state.addons.write().await;
+        let granted_permissions = if enabled {
+            let current = registry.get(&id).ok_or_else(|| {
+                api_error(StatusCode::NOT_FOUND, "addon_not_found", "Addon not found")
+            })?;
+            let manifest = current.manifest.as_ref().ok_or_else(|| {
+                api_error(
+                    StatusCode::CONFLICT,
+                    "addon_broken",
+                    "Addon package is invalid",
+                )
+            })?;
+            let requested =
+                requested_permissions.unwrap_or_else(|| manifest.permissions.required.clone());
+            permissions::validate_grants(manifest, requested).map_err(map_grant_error)?
+        } else {
+            Vec::new()
+        };
+        registry
+            .set_enabled(&id, enabled, granted_permissions)
+            .map_err(map_mutation_error)?
+    };
     let actor = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
     log_activite(
         &state,
@@ -155,6 +196,31 @@ async fn set_enabled(
     )
     .await;
     Ok(Json(snapshot))
+}
+
+fn map_grant_error(error: GrantError) -> ApiError {
+    match error {
+        GrantError::RequiredUnavailable(permission) => api_error(
+            StatusCode::CONFLICT,
+            "required_permission_unavailable",
+            &format!("Required permission is not available: {permission}"),
+        ),
+        GrantError::MissingRequired(permission) => api_error(
+            StatusCode::BAD_REQUEST,
+            "required_permission_missing",
+            &format!("Required permission was not granted: {permission}"),
+        ),
+        GrantError::Undeclared(permission) => api_error(
+            StatusCode::BAD_REQUEST,
+            "permission_not_declared",
+            &format!("Permission is not declared by the addon: {permission}"),
+        ),
+        GrantError::Unavailable(permission) => api_error(
+            StatusCode::CONFLICT,
+            "permission_unavailable",
+            &format!("Permission is not available: {permission}"),
+        ),
+    }
 }
 
 async fn require_admin_or_fresh(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {

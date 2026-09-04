@@ -217,6 +217,10 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/themes/:id", axum::routing::delete(themes_api::api_themes_delete))
         .route("/api/addons", get(addons::api::list))
         .route(
+            "/api/addons/permissions",
+            get(addons::api::permission_catalog),
+        )
+        .route(
             "/api/addons/:id/storage",
             post(addons::storage::handle)
                 .layer(axum::extract::DefaultBodyLimit::max(128 * 1024)),
