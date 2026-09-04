@@ -1046,7 +1046,7 @@ LaRuche.Auth = (function(){
 /* ── Router ────────────────────────────────────────────────────── */
 LaRuche.Router = (function(){
   var currentPage = null;
-  var pages = ['chat','dashboard','memory','missions','automations','capabilities','settings','console','login'];
+  var pages = ['chat','dashboard','memory','missions','automations','capabilities','addons','settings','console','login'];
   var modules = {};
 
   // A route may name a place INSIDE a page: '#settings/providers'. The router splits

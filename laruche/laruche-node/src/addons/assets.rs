@@ -2,13 +2,12 @@ use super::AssetLookupError;
 use crate::AppState;
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{header, HeaderValue, Response, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, Response, StatusCode};
 use std::sync::Arc;
-
-const HTML_CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
 
 pub(crate) async fn serve(
     State(state): State<Arc<AppState>>,
+    request_headers: HeaderMap,
     Path((id, version, path)): Path<(String, String, String)>,
 ) -> Response<Body> {
     let resolved = {
@@ -59,19 +58,43 @@ pub(crate) async fn serve(
     );
     headers.insert(
         header::HeaderName::from_static("cross-origin-resource-policy"),
-        HeaderValue::from_static("same-origin"),
+        // The sandboxed document deliberately has an opaque origin. Its own JS,
+        // CSS, images and fonts are therefore cross-origin from the browser's
+        // point of view even though every URL stays inside this package.
+        HeaderValue::from_static("cross-origin"),
     );
     headers.insert(
         header::REFERRER_POLICY,
         HeaderValue::from_static("no-referrer"),
     );
     if is_html {
-        headers.insert(
-            header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(HTML_CSP),
-        );
+        if let Some(policy) = html_policy(request_headers.get(header::HOST), &id, &version) {
+            headers.insert(header::CONTENT_SECURITY_POLICY, policy);
+        }
     }
     response
+}
+
+/// A sandbox without `allow-same-origin` gives the document an opaque origin.
+/// Consequently CSP's `'self'` cannot load even the addon's own JS/CSS. Name the
+/// exact package URL instead: scripts may come from this id/version only, while
+/// `connect-src 'none'` keeps LaRuche APIs and the network unreachable.
+fn html_policy(host: Option<&HeaderValue>, id: &str, version: &str) -> Option<HeaderValue> {
+    let host = host?.to_str().ok()?;
+    if host.is_empty()
+        || host.len() > 255
+        || !host
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b".-:[]".contains(&byte))
+    {
+        return None;
+    }
+    let http = format!("http://{host}/addons-assets/{id}/{version}/");
+    let https = format!("https://{host}/addons-assets/{id}/{version}/");
+    let policy = format!(
+        "default-src 'none'; script-src {http} {https}; style-src {http} {https} 'unsafe-inline'; img-src {http} {https} data: blob:; font-src {http} {https}; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://{host} https://{host}"
+    );
+    HeaderValue::from_str(&policy).ok()
 }
 
 fn lookup_error(error: AssetLookupError) -> Response<Body> {
@@ -102,10 +125,30 @@ mod tests {
 
     #[test]
     fn html_policy_disallows_network_and_parent_access() {
-        assert!(HTML_CSP.contains("connect-src 'none'"));
-        assert!(HTML_CSP.contains("object-src 'none'"));
-        assert!(HTML_CSP.contains("frame-ancestors 'self'"));
-        assert!(!HTML_CSP.contains("unsafe-eval"));
+        let policy = html_policy(
+            Some(&HeaderValue::from_static("localhost:8419")),
+            "dev.laruche.test",
+            "1.2.3",
+        )
+        .unwrap();
+        let policy = policy.to_str().unwrap();
+        assert!(policy.contains("connect-src 'none'"));
+        assert!(policy.contains("object-src 'none'"));
+        assert!(policy.contains("frame-ancestors http://localhost:8419"));
+        assert!(policy
+            .contains("script-src http://localhost:8419/addons-assets/dev.laruche.test/1.2.3/"));
+        assert!(!policy.contains("unsafe-eval"));
+        assert!(!policy.contains("script-src *"));
+    }
+
+    #[test]
+    fn html_policy_rejects_a_malformed_host() {
+        assert!(html_policy(
+            Some(&HeaderValue::from_static("localhost; script-src *")),
+            "dev.laruche.test",
+            "1.2.3"
+        )
+        .is_none());
     }
 
     #[test]
