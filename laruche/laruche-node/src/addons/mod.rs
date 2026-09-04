@@ -11,6 +11,7 @@ pub(crate) mod assets;
 mod installer;
 mod model;
 mod registry;
+pub(crate) mod storage;
 
 pub(crate) use model::*;
 pub(crate) use registry::*;

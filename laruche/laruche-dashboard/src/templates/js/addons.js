@@ -107,59 +107,38 @@ LaRuche.Addons = (function(){
     bridge.port.postMessage(response);
   }
 
-  function storageBucketName(bridge){
-    var user=LaRuche.Auth&&LaRuche.Auth.getUser&&LaRuche.Auth.getUser();
-    if(!user || !user.user_id) throw bridgeFailure('authentication_required','An authenticated user is required');
-    return 'laruche:addon-storage:v1:'+encodeURIComponent(user.user_id)+':'+encodeURIComponent(bridge.addon.id);
-  }
-
-  function storageKey(params){
-    var key=params&&params.key;
-    if(typeof key!=='string' || key.length<1 || key.length>128 || !/^[A-Za-z0-9._:/-]+$/.test(key)){
-      throw bridgeFailure('validation_failed','Storage key is invalid');
-    }
-    return key;
-  }
-
-  function readStorage(bridge){
-    var raw=localStorage.getItem(storageBucketName(bridge));
-    if(!raw) return {};
-    try{
-      var parsed=JSON.parse(raw);
-      return parsed && Object.prototype.toString.call(parsed)==='[object Object]' ? parsed : {};
-    }catch(error){ return {}; }
-  }
-
   function requireCapability(bridge,capability){
     if(bridge.capabilities.indexOf(capability)===-1) throw bridgeFailure('permission_denied','Capability not granted');
   }
 
+  function backendStorage(bridge,method,params){
+    requireCapability(bridge,'storage.private');
+    var operation=method.slice('storage.'.length);
+    if(['get','set','delete','list'].indexOf(operation)===-1) throw bridgeFailure('not_found','Unknown storage method');
+    var body={op:operation};
+    if(operation==='get' || operation==='set' || operation==='delete') body.key=params&&params.key;
+    if(operation==='set') body.value=params&&params.value;
+    if(operation==='list') body.prefix=params&&Object.prototype.hasOwnProperty.call(params,'prefix')?params.prefix:'';
+    return fetch(LaRuche.API.base+'/api/addons/'+encodeURIComponent(bridge.addon.id)+'/storage',{
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    }).then(function(response){
+      return response.json().catch(function(){ return null; }).then(function(payload){
+        if(!response.ok){
+          var error=payload&&payload.error;
+          var fallback=response.status===401?'authentication_required':response.status===403?'permission_denied':response.status===404?'addon_not_found':response.status===409?'addon_disabled':response.status===413?'quota_exceeded':(response.status===400||response.status===422)?'validation_failed':'storage_unavailable';
+          throw bridgeFailure(error&&error.code||fallback,error&&error.message||'Private storage request failed',response.status>=500);
+        }
+        return payload||{};
+      });
+    }).catch(function(error){
+      if(error&&error.code) throw error;
+      throw bridgeFailure('storage_unavailable','Private storage unavailable',true);
+    });
+  }
+
   function handleBridgeRequest(bridge,method,params){
     if(method.indexOf('storage.')===0){
-      requireCapability(bridge,'storage.private');
-      var bucket=readStorage(bridge);
-      if(method==='storage.get'){
-        var getKey=storageKey(params);
-        return {value:Object.prototype.hasOwnProperty.call(bucket,getKey)?bucket[getKey]:null};
-      }
-      if(method==='storage.list'){
-        var prefix=params&&params.prefix;
-        if(typeof prefix!=='string' || prefix.length>128) throw bridgeFailure('validation_failed','Storage prefix is invalid');
-        return {keys:Object.keys(bucket).filter(function(key){ return key.indexOf(prefix)===0; }).sort()};
-      }
-      var key=storageKey(params);
-      if(method==='storage.delete') delete bucket[key];
-      else if(method==='storage.set'){
-        if(!messageIsBounded(params.value,0)) throw bridgeFailure('validation_failed','Storage value is invalid');
-        var valueBytes=JSON.stringify(params.value).length;
-        if(valueBytes>bridgeMaxBytes) throw bridgeFailure('quota_exceeded','Storage value exceeds 64 KiB');
-        if(!Object.prototype.hasOwnProperty.call(bucket,key) && Object.keys(bucket).length>=256) throw bridgeFailure('quota_exceeded','Storage key quota exceeded');
-        bucket[key]=params.value;
-      } else throw bridgeFailure('not_found','Unknown storage method');
-      var serialized=JSON.stringify(bucket);
-      if(serialized.length>1024*1024) throw bridgeFailure('quota_exceeded','Private storage exceeds 1 MiB');
-      localStorage.setItem(storageBucketName(bridge),serialized);
-      return {};
+      return backendStorage(bridge,method,params);
     }
     if(method==='ui.setTitle'){
       var title=params&&params.title;
