@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>2048</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="/apps-runtime/v1.js" defer></script>
+  <script src="./game.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="game-head">
+      <div>
+        <p class="eyebrow">LARUCHE APP</p>
+        <h1>2048</h1>
+      </div>
+      <div class="scores" aria-label="Scores">
+        <div class="score-card"><span data-i18n="score">Score</span><strong id="score">0</strong></div>
+        <div class="score-card"><span data-i18n="best">Record</span><strong id="best">0</strong></div>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <p id="instructions">Utilise les flèches, ZQSD ou glisse sur la grille.</p>
+      <div class="toolbar-actions">
+        <button id="undo" type="button" class="button secondary" disabled data-i18n="undo">Annuler</button>
+        <button id="newGame" type="button" class="button primary" data-i18n="newGame">Nouvelle partie</button>
+      </div>
+    </section>
+
+    <section class="game-wrap" aria-label="2048">
+      <div id="board" class="board" role="grid" aria-label="Grille 2048"></div>
+      <div id="overlay" class="overlay" hidden>
+        <strong id="overlayTitle"></strong>
+        <p id="overlayText"></p>
+        <div class="overlay-actions">
+          <button id="continueGame" type="button" class="button secondary" hidden data-i18n="continue">Continuer</button>
+          <button id="restartGame" type="button" class="button primary" data-i18n="restart">Rejouer</button>
+        </div>
+      </div>
+    </section>
+
+    <nav class="direction-pad" aria-label="Commandes tactiles">
+      <button type="button" data-direction="up" aria-label="Haut">↑</button>
+      <button type="button" data-direction="left" aria-label="Gauche">←</button>
+      <button type="button" data-direction="down" aria-label="Bas">↓</button>
+      <button type="button" data-direction="right" aria-label="Droite">→</button>
+    </nav>
+
+    <footer>
+      <span id="saveStatus" class="save-status">Connexion à LaRuche...</span>
+      <span id="moveCount">0 coups</span>
+    </footer>
+  </main>
+</body>
+</html>

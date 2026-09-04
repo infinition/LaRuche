@@ -67,6 +67,21 @@ LaRuche.Apps = (function(){
   function initial(value){ return String(value || '?').trim().charAt(0) || '?'; }
   function isAdmin(){ return !!(LaRuche.Auth && LaRuche.Auth.isAdmin && LaRuche.Auth.isAdmin()); }
 
+  function packageAssetUrl(app,path){
+    var entry=String(path||'');
+    if(!app || !app.activeVersion || entry.indexOf('ui/')!==0) return null;
+    var relative=entry.slice(3).split('/').map(encodeURIComponent).join('/');
+    if(!relative) return null;
+    return '/apps-assets/'+encodeURIComponent(app.id)+'/'+encodeURIComponent(app.activeVersion)+'/'+relative;
+  }
+
+  function appIconMarkup(app,view,fallback){
+    var manifest=(app&&app.manifest)||{};
+    var source=packageAssetUrl(app,(view&&view.icon)||manifest.icon);
+    if(!app || !app.enabled || !source) return esc(fallback);
+    return '<img class="apps-package-icon" src="'+esc(source)+'" alt="">';
+  }
+
   function bridgeFailure(code,message,retryable){
     var error=new Error(message); error.code=code; error.retryable=!!retryable; return error;
   }
@@ -450,16 +465,16 @@ LaRuche.Apps = (function(){
       var title=document.createElement('div'); title.className='apps-rail-title'; title.textContent=t('apps.views'); rail.appendChild(title);
       views.forEach(function(item){
         var route=encodeURIComponent(item.app.id)+'/'+encodeURIComponent(item.view.id);
-        rail.appendChild(navButton(item.view.title, item.app.manifest.name, initial(item.app.manifest.name), route, function(){ LaRuche.Router.go('apps/'+route); }));
+        rail.appendChild(navButton(item.view.title, item.app.manifest.name, appIconMarkup(item.app,item.view,initial(item.app.manifest.name)), route, function(){ LaRuche.Router.go('apps/'+route); }));
       });
     }
     paintRail();
   }
 
-  function navButton(name, appName, icon, route, onclick){
+  function navButton(name, appName, iconMarkup, route, onclick){
     var button=document.createElement('button');
     button.type='button'; button.className='apps-nav'; button.dataset.route=route;
-    button.innerHTML='<span class="apps-nav-icon">'+esc(icon)+'</span><span class="apps-nav-copy"><span class="apps-nav-name">'+esc(name)+'</span><span class="apps-nav-app">'+esc(appName)+'</span></span>';
+    button.innerHTML='<span class="apps-nav-icon">'+iconMarkup+'</span><span class="apps-nav-copy"><span class="apps-nav-name">'+esc(name)+'</span><span class="apps-nav-app">'+esc(appName)+'</span></span>';
     button.onclick=onclick;
     return button;
   }
@@ -498,7 +513,7 @@ LaRuche.Apps = (function(){
         var action=app.enabled?t('apps.disable'):t('apps.enable');
         var disabled=!!app.error || !isAdmin();
         var permissions=manifestPermissions(app,'required').concat(manifestPermissions(app,'optional'));
-        html+='<article class="apps-card"><div class="apps-card-top"><div class="apps-card-icon">'+esc(initial(name))+'</div><div class="apps-card-copy"><div class="apps-card-name">'+esc(name)+'</div><div class="apps-card-meta">'+esc(app.id)+' · '+esc(app.activeVersion||'')+'</div></div></div>'+
+        html+='<article class="apps-card"><div class="apps-card-top"><div class="apps-card-icon">'+appIconMarkup(app,null,initial(name))+'</div><div class="apps-card-copy"><div class="apps-card-name">'+esc(name)+'</div><div class="apps-card-meta">'+esc(app.id)+' · '+esc(app.activeVersion||'')+'</div></div></div>'+
           '<div class="apps-card-desc">'+esc(manifest.description||'')+'</div>'+
           (permissions.length?'<div class="apps-card-permissions"><strong>'+esc(t('apps.permissions'))+'</strong>'+permissionMarkup(app,index)+'</div>':'')+
           '<div class="apps-card-foot"><span class="apps-state '+state+'"><span class="apps-state-dot"></span>'+esc(label)+'</span>'+
@@ -544,11 +559,7 @@ LaRuche.Apps = (function(){
   }
 
   function assetUrl(app, view){
-    var entry=String(view.entry||'');
-    if(entry.indexOf('ui/')!==0) return null;
-    var relative=entry.slice(3).split('/').map(encodeURIComponent).join('/');
-    if(!relative) return null;
-    return '/apps-assets/'+encodeURIComponent(app.id)+'/'+encodeURIComponent(app.activeVersion)+'/'+relative;
+    return packageAssetUrl(app,view&&view.entry);
   }
 
   function showView(app, view){

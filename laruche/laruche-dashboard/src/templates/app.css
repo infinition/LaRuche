@@ -4615,6 +4615,7 @@ body.feed-docked .page.active { flex: 1 1 0; min-width: 0; }
 .apps-nav:hover { background:var(--bg-hover); color:var(--text); }
 .apps-nav.active { color:var(--amber); border-color:rgba(var(--amber-rgb),.28); background:rgba(var(--amber-rgb),.09); }
 .apps-nav-icon { width:26px; height:26px; flex:0 0 26px; display:grid; place-items:center; border-radius:7px; background:rgba(var(--amber-rgb),.12); color:var(--amber); font-size:12px; font-weight:800; text-transform:uppercase; }
+.apps-package-icon { display:block; width:100%; height:100%; padding:3px; box-sizing:border-box; object-fit:contain; border-radius:inherit; }
 .apps-nav-copy { min-width:0; flex:1; }
 .apps-nav-name,.apps-nav-app { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .apps-nav-name { font-size:11px; font-weight:650; }

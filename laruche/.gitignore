@@ -32,7 +32,7 @@ Thumbs.db
 /mesh-secret.json
 /credentials.json
 /mcp_servers.json
-# Scripts des serveurs MCP: le code de l'utilisateur, comme plugins/.
+# Scripts des serveurs MCP: le code de l'utilisateur, comme forged_tools/.
 # Deux exceptions livrees avec LaRuche et embarquees dans le binaire (include_dir!):
 # sans elles, mcp/ serait absent d'une copie fraiche du depot et la compilation
 # echouerait - et une ruche neuve n'aurait aucun exemple de serveur MCP.
@@ -47,8 +47,12 @@ Thumbs.db
 /kanban.json
 /missions.json
 /watchers.json
-/plugins/*
-!/plugins/example_hello/
+/forged_tools/*
+!/forged_tools/example_hello/
+# Anciens outils et Apps installées dans un foyer de développement.
+/plugins/
+/apps/
+/addons/
 /provider-profiles.json
 /channels-config.json
 /provider-config.json

@@ -41,6 +41,11 @@ tools, events and jobs. Backend supervision and agent-facing contributions are n
 the current implementation. A manifest may describe them for forward compatibility, but an
 App cannot yet expose a new agent tool through that path.
 
+The repository includes a dependency-free 2048 reference App under
+`examples/apps/2048`. It exercises installation, the isolated SDK bridge, private persistent
+storage, theme and locale context, keyboard and touch input, and detachable views. Its README
+shows how to build the installable `.laruche-app` archive without compiling LaRuche.
+
 ## Forged Tools
 
 A Forged Tool is an atomic command that the agent can call like a built-in tool. It is useful

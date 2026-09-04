@@ -9,6 +9,9 @@
 - **Plugins devient Forged Tools** pour distinguer les outils JSON appelables par
   l'agent des Apps completes. Les nouveaux outils vivent dans
   `forged_tools/<nom>/tool.json` et utilisent `{{forged_tool_dir}}`.
+- **Une App 2048 de reference** valide le SDK sans recompilation de LaRuche: package
+  installable, stockage prive, clavier, tactile, icone et vue detachable. Le catalogue
+  affiche maintenant les icones declarees par les Apps actives.
 
 ### Compatibilite
 
