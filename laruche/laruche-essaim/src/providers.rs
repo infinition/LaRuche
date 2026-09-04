@@ -1173,6 +1173,14 @@ async fn openai_chat_stream(
         let mut content_streamed = false;
         let mut reasoning_acc = String::new();
         let mut reasoning_emitted = false;
+        // Whether some chunk ever carried an explicit `finish_reason` before we hit
+        // `[DONE]`. A well-behaved OpenAI-compatible stream always stamps one on the
+        // last content-bearing chunk; some relays (observed on deepseek-v4-flash's
+        // "flash" proxy) truncate on their own output-token cap and just go straight
+        // to `[DONE]` without ever saying so. Without this flag that case defaulted
+        // to "stop" (normal end), which hid the truncation from the caller's
+        // auto-resume rail and left the turn silently cut mid-sentence/mid-code.
+        let mut finish_vu = false;
 
         loop {
             match response.chunk().await {
@@ -1214,11 +1222,22 @@ async fn openai_chat_stream(
                                 }
                                 // Finalize the accumulated tool_calls (ordered by index).
                                 let tool_calls = finaliser_tool_calls(&mut tool_call_acc);
+                                // No explicit finish_reason ever arrived before [DONE]. If
+                                // real content was streamed, that silence is the signature
+                                // of a relay that cut the response on its own cap without
+                                // saying so - report "length" so classer_stop() and the
+                                // truncation rail see it, instead of a clean "stop" that
+                                // hides the cut and leaves the turn silently unfinished.
+                                let finish_reason = if !finish_vu && content_streamed {
+                                    Some("length".to_string())
+                                } else {
+                                    Some("stop".to_string())
+                                };
                                 let _ = tx
                                     .send(OllamaChunk {
                                         text: String::new(),
                                         done: true,
-                                        finish_reason: Some("stop".to_string()),
+                                        finish_reason,
                                         eval_count: None,
                                         eval_duration: None,
                                         prompt_eval_count: None,
@@ -1285,6 +1304,9 @@ async fn openai_chat_stream(
                                 .as_str()
                                 .map(str::to_string);
                             let done = finish_reason.is_some();
+                            if done {
+                                finish_vu = true;
+                            }
 
                             // Last resort: if the model produced NO content at all, surface the
                             // accumulated reasoning on the final chunk so the turn is not silently empty.
@@ -1364,7 +1386,33 @@ async fn openai_chat_stream(
                         }
                     }
                 }
-                Ok(None) => break,
+                Ok(None) => {
+                    // The connection closed without ever sending `[DONE]` - a raw
+                    // disconnect/timeout, not a graceful end. Same silent-truncation
+                    // risk as the `[DONE]`-without-finish_reason case above: without
+                    // this, the caller saw the stream just stop (finish stays `None`),
+                    // classer_stop() read that as a normal end of turn, and a response
+                    // cut by a dropped connection went undetected.
+                    let tool_calls = finaliser_tool_calls(&mut tool_call_acc);
+                    let finish_reason = if !finish_vu && content_streamed {
+                        Some("length".to_string())
+                    } else {
+                        Some("stop".to_string())
+                    };
+                    let _ = tx
+                        .send(OllamaChunk {
+                            text: String::new(),
+                            done: true,
+                            finish_reason,
+                            eval_count: None,
+                            eval_duration: None,
+                            prompt_eval_count: None,
+                            tool_calls,
+                            reasoning: None,
+                        })
+                        .await;
+                    return;
+                }
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading OpenAI stream");
                     return;
