@@ -31,7 +31,7 @@ mod sync;
 mod systray;
 mod tui;
 mod config_api;
-mod plugins_api;
+mod forged_tools_api;
 mod voice_api;
 mod profiles_api;
 mod knowledge_api;
@@ -102,7 +102,10 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use laruche_essaim::{
-    abeilles::{charger_plugins, enregistrer_abeilles_builtin, enregistrer_delegation},
+    abeilles::{
+        charger_outils_forges, charger_outils_herites, enregistrer_abeilles_builtin,
+        enregistrer_delegation,
+    },
     brain::{boucle_react_memoire, boucle_react_memoire_multimodal},
     cron::{CronScheduler, ScheduledTask},
     mcp_client::charger_mcp_servers,
@@ -222,7 +225,7 @@ async fn serve_with_optional_tls(app: axum::Router, addr: String, tls: Option<(S
     }
 }
 
-/// Skills et plugins livres avec LaRuche, embarques DANS le binaire.
+/// Skills et forged_tools livres avec LaRuche, embarques DANS le binaire.
 ///
 /// Sans cela, un `laruche-node.exe` telecharge depuis les releases - ou installe
 /// par l'application de bureau - demarre une ruche a zero capacite, alors que le
@@ -233,8 +236,8 @@ async fn serve_with_optional_tls(app: axum::Router, addr: String, tls: Option<(S
 /// a plus aucun fichier a livrer a cote de l'executable.
 pub(crate) static SKILLS_LIVRES: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/../skills");
-pub(crate) static PLUGINS_LIVRES: include_dir::Dir<'_> =
-    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../plugins");
+pub(crate) static FORGED_TOOLS_LIVRES: include_dir::Dir<'_> =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../forged_tools");
 pub(crate) static MCP_LIVRES: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/../mcp");
 
@@ -408,7 +411,7 @@ fn amorcer(livre: &include_dir::Dir<'_>, cible: &str) {
     }
     // Creer le dossier de base AVANT d'extraire: `extract` ne cree que les
     // sous-dossiers, si bien qu'un fichier pose a la racine du contenu livre
-    // (skills/AUTHORING.md) n'avait nulle part ou atterrir. plugins/ s'en sortait
+    // (skills/AUTHORING.md) n'avait nulle part ou atterrir. forged_tools/ s'en sortait
     // par accident, n'ayant que des sous-dossiers.
     if let Err(e) = std::fs::create_dir_all(racine) {
         error!(dossier = cible, error = %e, "amorcage impossible: dossier non creable");
@@ -425,6 +428,60 @@ fn amorcer(livre: &include_dir::Dir<'_>, cible: &str) {
             error!(dossier = cible, error = %e, "amorcage impossible: la ruche demarrera sans");
         }
     }
+}
+
+/// Moves legacy command manifests into the Forged Tools layout without overwriting
+/// an existing canonical tool. Entries that collide stay in the old folder and are
+/// still loaded through the compatibility reader.
+fn migrer_outils_herites_depuis(
+    source: &std::path::Path,
+    destination: &std::path::Path,
+) -> usize {
+    if !source.is_dir() {
+        return 0;
+    }
+    if let Err(error) = std::fs::create_dir_all(destination) {
+        warn!(error = %error, path = %destination.display(), "Forged Tools migration could not create its destination");
+        return 0;
+    }
+
+    let Ok(entries) = std::fs::read_dir(source) else {
+        return 0;
+    };
+    let mut moved = 0usize;
+    for entry in entries.flatten() {
+        let old_folder = entry.path();
+        if !old_folder.is_dir() || !old_folder.join("plugin.json").is_file() {
+            continue;
+        }
+        let new_folder = destination.join(entry.file_name());
+        if new_folder.exists() {
+            warn!(
+                tool = %entry.file_name().to_string_lossy(),
+                "legacy Forged Tool kept because a canonical folder already exists"
+            );
+            continue;
+        }
+        if let Err(error) = std::fs::rename(&old_folder, &new_folder) {
+            warn!(error = %error, path = %old_folder.display(), "legacy Forged Tool folder could not be moved");
+            continue;
+        }
+        if let Err(error) = std::fs::rename(
+            new_folder.join("plugin.json"),
+            new_folder.join("tool.json"),
+        ) {
+            let rollback = std::fs::rename(&new_folder, &old_folder);
+            warn!(
+                error = %error,
+                rollback_ok = rollback.is_ok(),
+                path = %new_folder.display(),
+                "legacy Forged Tool manifest could not be renamed"
+            );
+            continue;
+        }
+        moved += 1;
+    }
+    moved
 }
 
 /// Verrouille le foyer pour ce processus, ou explique pourquoi c'est impossible.
@@ -476,7 +533,7 @@ fn verrouiller_foyer() -> Result<(), String> {
 }
 
 /// Le foyer de cette ruche: ou vivent `memoire.db`, `sessions/`, `skills/`,
-/// `plugins/`, les secrets et la configuration.
+/// `forged_tools/`, les secrets et la configuration.
 ///
 /// Tout le code lit ces chemins relativement au repertoire courant. On choisit donc
 /// le foyer UNE fois, au tout debut, et on s'y place - plutot que de reecrire des
@@ -569,17 +626,25 @@ async fn main() -> Result<()> {
 
     let config = load_config()?;
 
+    let migrated_tools = migrer_outils_herites_depuis(
+        std::path::Path::new("plugins"),
+        std::path::Path::new("forged_tools"),
+    );
+    if migrated_tools > 0 {
+        info!(tools = migrated_tools, "legacy tool folders migrated to Forged Tools");
+    }
+
     // Un foyer neuf doit arriver equipe: sans cela la ruche demarre sans aucune
     // capacite et l'utilisateur n'a aucun moyen de deviner ce qui manque. Pose ICI
     // et non au tout debut de main(): avant l'initialisation des traces, un echec
     // d'amorcage partait dans le vide et ne laissait aucune ligne de journal.
     amorcer(&SKILLS_LIVRES, "skills");
-    amorcer(&PLUGINS_LIVRES, "plugins");
+    amorcer(&FORGED_TOOLS_LIVRES, "forged_tools");
     amorcer(&MCP_LIVRES, "mcp");
     // Et sur un foyer DEJA etabli: on ajoute ce qui n'a jamais ete vu, on
     // rafraichit ce que personne n'a modifie, on ne ressuscite rien.
     tenir_a_jour(&SKILLS_LIVRES, "skills");
-    tenir_a_jour(&PLUGINS_LIVRES, "plugins");
+    tenir_a_jour(&FORGED_TOOLS_LIVRES, "forged_tools");
     tenir_a_jour(&MCP_LIVRES, "mcp");
 
 
@@ -938,7 +1003,7 @@ async fn main() -> Result<()> {
     // Sans lui, le repli d'un outil est `current_dir()`, c'est-a-dire le FOYER:
     // scripts, tests et dossiers d'eclaireuse atterrissaient a cote de `memoire.db`,
     // de `sessions/` et de `skills/`. Le foyer garde ses dossiers structures, chacun
-    // alimente par un outil dedie (`skill_create`, `plugin_create`, `mcp_add`);
+    // alimente par un outil dedie (`skill_create`, `forged_tool_create`, `mcp_add`);
     // `travail/` est la piece qui manquait, celle du brouillon.
     let bureau = local_api::dossier_brouillon();
     if let Err(e) = std::fs::create_dir_all(&bureau) {
@@ -1002,7 +1067,7 @@ async fn main() -> Result<()> {
     // Scout toolset: the reduced registry handed to delegated sub-agents (builtins
     // only, no delegate = no recursive fan-out). tool_call / tool_search / run_script
     // get the LIVE main registry instead, so they can reach and discover every tool
-    // registered later (crons, watchers, memory, plugins, background-loaded MCP).
+    // registered later (crons, watchers, memory, forged_tools, background-loaded MCP).
     let sub_registry = Arc::new({
         let r = AbeilleRegistry::new();
         enregistrer_abeilles_builtin(&r);
@@ -1088,10 +1153,12 @@ async fn main() -> Result<()> {
         },
     ));
 
-    // Load dynamic plugins from plugins/ directory
-    charger_plugins(std::path::Path::new("plugins"), &essaim_registry);
+    // Legacy manifests load first. Canonical Forged Tools load second and win
+    // if an old and a new manifest declare the same tool name.
+    charger_outils_herites(std::path::Path::new("plugins"), &essaim_registry);
+    charger_outils_forges(std::path::Path::new("forged_tools"), &essaim_registry);
     essaim_registry.enregistrer(Box::new(
-        laruche_essaim::abeilles::reload_plugins::ReloadPluginsTool {
+        laruche_essaim::abeilles::reload_forged_tools::ReloadForgedToolsTool {
             registry: essaim_registry.clone(),
         },
     ));
@@ -1103,8 +1170,8 @@ async fn main() -> Result<()> {
             registry: essaim_registry.clone(),
         },
     ));
-    // SELF-IMPROVEMENT tools (forge): skill_file_*, plugin_*, mcp_*. The main registry
-    // is passed so plugin_create/delete reload in the right place.
+    // SELF-IMPROVEMENT tools (forge): skill_file_*, forged_tool_*, mcp_*. The main registry
+    // is passed so forged_tool_create/delete reload in the right place.
     laruche_essaim::abeilles::enregistrer_forge(&essaim_registry, essaim_registry.clone());
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMeshSend));
 
@@ -1114,7 +1181,7 @@ async fn main() -> Result<()> {
 
     // Migration `tools.* → capacities.*` (idempotent, run at every boot but no-op afterwards).
     // The forged skills (real data) are PRESERVED; tools.abeilles (a mere projection)
-    // is purged then recreated by the indexer under capacities.tools/plugins/mcp.
+    // is purged then recreated by the indexer under capacities.tools/forged_tools/mcp.
     match memoire
         .renommer_sous_arbre("tools.skills", "capacities.skills")
         .await
@@ -1122,6 +1189,16 @@ async fn main() -> Result<()> {
         Ok(n) if n > 0 => tracing::info!(noeuds = n, "migration skills -> capacities.skills"),
         Ok(_) => {}
         Err(e) => tracing::warn!(error = %e, "skills migration skipped (backend without support)"),
+    }
+    match memoire
+        .renommer_sous_arbre("capacities.plugins", "capacities.forged_tools")
+        .await
+    {
+        Ok(n) if n > 0 => {
+            tracing::info!(noeuds = n, "migration capacities.plugins -> capacities.forged_tools")
+        }
+        Ok(_) => {}
+        Err(e) => tracing::warn!(error = %e, "forged tools migration skipped (backend without support)"),
     }
     let _ = memoire.supprimer_sous_arbre("tools").await; // purge the remaining legacy projection
 
@@ -1139,7 +1216,7 @@ async fn main() -> Result<()> {
         "system",
         "capacities",
         "capacities.tools",
-        "capacities.plugins",
+        "capacities.forged_tools",
         "capacities.mcp",
         "capacities.skills",
     ] {
@@ -1170,13 +1247,13 @@ async fn main() -> Result<()> {
         (
             "capacities",
             "Capacities",
-            "Ecosystem: tools, plugins, MCP, skills",
+            "Ecosystem: tools, Forged Tools, MCP, skills",
         ),
         ("capacities.tools", "Tools", "Native tools (builtin)"),
         (
-            "capacities.plugins",
-            "Plugins",
-            "Custom tools (JSON plugins)",
+            "capacities.forged_tools",
+            "Forged Tools",
+            "User-forged tools declared by JSON manifests",
         ),
         (
             "capacities.mcp",
@@ -1860,7 +1937,7 @@ fn load_config() -> Result<NodeConfig> {
 
 #[cfg(test)]
 mod tests_depot_livre {
-    use super::{decider, empreinte, Depot};
+    use super::{decider, empreinte, migrer_outils_herites_depuis, Depot};
 
     #[test]
     fn une_nouveaute_est_deposee() {
@@ -1900,5 +1977,46 @@ mod tests_depot_livre {
         assert_eq!(empreinte(b"bonjour"), empreinte(b"bonjour"));
         assert_ne!(empreinte(b"bonjour"), empreinte(b"bonsoir"));
         assert_eq!(empreinte(b"").len(), 16);
+    }
+
+    #[test]
+    fn un_outil_heritage_est_migre_sans_perdre_son_script() {
+        let root = std::env::temp_dir().join(format!(
+            "laruche-forged-tool-migration-{}",
+            std::process::id()
+        ));
+        let source = root.join("plugins");
+        let destination = root.join("forged_tools");
+        let old_tool = source.join("hello");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&old_tool).unwrap();
+        std::fs::write(old_tool.join("plugin.json"), "{}").unwrap();
+        std::fs::write(old_tool.join("run.py"), "print('ok')").unwrap();
+
+        assert_eq!(migrer_outils_herites_depuis(&source, &destination), 1);
+        assert!(destination.join("hello/tool.json").is_file());
+        assert!(destination.join("hello/run.py").is_file());
+        assert!(!source.join("hello").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn une_collision_canonique_laisse_l_ancien_outil_intact() {
+        let root = std::env::temp_dir().join(format!(
+            "laruche-forged-tool-collision-{}",
+            std::process::id()
+        ));
+        let source = root.join("plugins");
+        let destination = root.join("forged_tools");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(source.join("hello")).unwrap();
+        std::fs::create_dir_all(destination.join("hello")).unwrap();
+        std::fs::write(source.join("hello/plugin.json"), "{}").unwrap();
+        std::fs::write(destination.join("hello/tool.json"), "{}").unwrap();
+
+        assert_eq!(migrer_outils_herites_depuis(&source, &destination), 0);
+        assert!(source.join("hello/plugin.json").is_file());
+        assert!(destination.join("hello/tool.json").is_file());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

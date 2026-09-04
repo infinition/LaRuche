@@ -1,6 +1,6 @@
-"""Reference plugin body. Copy this folder to start your own.
+"""Reference Forged Tool body. Copy this folder to start your own.
 
-It shows the four things a plugin script has to get right, and each of them is a
+It shows the four things a Forged Tool script has to get right, and each of them is a
 real failure someone has already hit:
 
 1. READ THE ARGUMENTS FROM argv, in the order the manifest's `command` passes
@@ -15,7 +15,7 @@ real failure someone has already hit:
 
 Run it by hand exactly as the node would, from the laruche/ directory:
 
-    python plugins/example_hello/run.py Fabien fr
+    python forged_tools/example_hello/run.py Fabien fr
 """
 
 import sys

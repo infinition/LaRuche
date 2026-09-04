@@ -14,7 +14,7 @@ pub fn assembler_prompt_skills(base_prompt: &str, skills: &[(String, String)]) -
     let mut out = String::new();
     out.push_str("# Skills activated for this task\n\n");
     for (name, body) in skills {
-        // Hint: explicitly surface the tools/plugins declared useful
+        // Hint: explicitly surface the tools/Forged Tools declared useful
         // for this skill (frontmatter `tools:`/`allowed-tools:`), even when the frontmatter
         // is stripped from the body, so the model knows WHICH tools to prefer for this skill.
         let outils = extraire_outils_skill(body);
@@ -22,7 +22,7 @@ pub fn assembler_prompt_skills(base_prompt: &str, skills: &[(String, String)]) -
             String::new()
         } else {
             format!(
-                "**Recommended tools/plugins for this skill: {}**\n\n",
+                "**Recommended tools/Forged Tools for this skill: {}**\n\n",
                 outils.join(", ")
             )
         };
@@ -123,7 +123,7 @@ mod tests {
         assert!(extraire_outils_skill("# pas de frontmatter").is_empty());
         // the hint must appear in the assembly
         let out = assembler_prompt_skills("BASE", &[("meteo".into(), body.to_string())]);
-        assert!(out.contains("Recommended tools/plugins for this skill: web_search, web_fetch"));
+        assert!(out.contains("Recommended tools/Forged Tools for this skill: web_search, web_fetch"));
     }
 
     #[test]

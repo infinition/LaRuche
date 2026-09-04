@@ -26,7 +26,7 @@ pub(crate) async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<
             { "id": "people", "label": "People", "one_liner": "People and preferences" },
             { "id": "projects", "label": "Projects", "one_liner": "Active projects" },
             { "id": "decisions", "label": "Decisions", "one_liner": "Durable choices" },
-            { "id": "capacities", "label": "Capacites", "one_liner": "Tools, plugins, MCP, skills" },
+            { "id": "capacities", "label": "Capacites", "one_liner": "Tools, Forged Tools, MCP, skills" },
             { "id": "missions", "label": "Missions", "one_liner": "Long-running research" },
             { "id": "sessions", "label": "Sessions", "one_liner": "Conversational context" },
             { "id": "knowledge", "label": "Knowledge", "one_liner": "Imported knowledge" }

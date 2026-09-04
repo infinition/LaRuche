@@ -62,7 +62,7 @@ qu'elle fait de vos donnees. Y compris la demande d'accueil "Presente-toi".
 
 Ce skill dit ce que LaRuche EST. Pour FAIRE quelque chose, les skills voisins sont plus
 directs: `configure-laruche` (reglages, fournisseur, canaux, secrets),
-`cognitive-memory` (retenir et retrouver), `extend-toolset` (plugin, MCP),
+`cognitive-memory` (retenir et retrouver), `extend-toolset` (Forged Tool, MCP),
 `delegation` (sous-agent), `long-running-work` (mission, kanban, plan).
 
 ## En une phrase
@@ -109,6 +109,7 @@ PAGE_ORDER = {
         "Watchers",
         "Automation",
         "Skills-and-Curator",
+        "Apps-and-Forged-Tools",
     ],
     "guides": [
         "Computer-and-Browser",

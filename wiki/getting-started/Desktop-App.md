@@ -55,6 +55,6 @@ Every launcher resolves to the same hive home unless `LARUCHE_DATA_DIR` says oth
 | macOS | `~/Library/Application Support/LaRuche` |
 | Linux | `$XDG_DATA_HOME/laruche`, normally `~/.local/share/laruche` |
 
-This directory contains memory, sessions, skills, plugins, secrets, configuration and
+This directory contains memory, sessions, skills, Forged Tools, Apps, secrets, configuration and
 journals. A source checkout that already contains hive state remains a valid home for
 backward compatibility.

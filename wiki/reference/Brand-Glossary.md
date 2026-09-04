@@ -21,8 +21,11 @@ decoder ring.
 | **table ronde** | round table | Structured multi-agent deliberation with an arbiter |
 | **Miel** | honey | The mesh protocol between nodes |
 | **nectar** / **Source** | nectar / source | Memory content and its store |
+| **App** | application | An installable extension with isolated interface views |
+| **Forged Tool** | forged tool | A user-authored JSON-backed capability callable by the agent |
 
 Public documentation says **tool** for a callable capability and **abeille** for an
-agent. Some older Rust identifiers, including `AbeilleRegistry`, predate that
+agent. **App** and **Forged Tool** stay in English because they are product concepts,
+not hive metaphors. Some older Rust identifiers, including `AbeilleRegistry`, predate that
 distinction. Keep compatibility when changing code, but do not copy the old naming into
 new UI text or documentation. The codebase and docs do not use em dashes.

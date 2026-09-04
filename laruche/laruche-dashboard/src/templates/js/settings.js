@@ -154,9 +154,9 @@ LaRuche.i18n.add({
   'settings.skillActivated':     {fr:'activé',           en:'enabled'},
   'settings.skillDeactivated':   {fr:'désactivé',        en:'disabled'},
   'settings.skillToast':         {fr:'Skill ',           en:'Skill '},
-  'settings.skillToolsHint':     {fr:'Outils / plugins recommandés par ce skill (→ <code>tools:</code>). Pas une permission : ceux qui manquent au tour sont rappelés à l\'agent. ', en:'Tools / plugins this skill recommends (→ <code>tools:</code>). Not a permission: the ones missing from the turn are pointed out to the agent. '},
+  'settings.skillToolsHint':     {fr:'Outils natifs et outils forgés recommandés par ce skill (→ <code>tools:</code>). Pas une permission : ceux qui manquent au tour sont rappelés à l\'agent. ', en:'Native and Forged Tools this skill recommends (→ <code>tools:</code>). Not a permission: missing tools are pointed out to the agent. '},
   'settings.skillGroupTools':    {fr:'Outils',           en:'Tools'},
-  'settings.skillGroupPlugins':  {fr:'Plugins',          en:'Plugins'},
+  'settings.skillGroupForgedTools':  {fr:'Outils forgés',        en:'Forged Tools'},
   'settings.skillGroupOther':    {fr:'Autres',           en:'Other'},
   'settings.skillToolsFilter':   {fr:'filtrer…',         en:'filter…'},
   'settings.skillToolsClear':    {fr:'Vider',            en:'Clear'},
@@ -169,16 +169,16 @@ LaRuche.i18n.add({
   'settings.skillCancelBtn':     {fr:'Annuler',          en:'Cancel'},
   'settings.skillSaved':         {fr:' » enregistré',   en:' » saved'},
   'settings.skillFailed':        {fr:'Échec',            en:'Failed'},
-  'settings.pluginEditTitle':    {fr:'Éditer Plugin : ', en:'Edit Plugin: '},
-  'settings.pluginEditorHint':   {fr:'- JSON (rechargé au save)', en:'- JSON (reloaded on save)'},
-  'settings.pluginSaveBtn':      {fr:'Enregistrer',      en:'Save'},
-  'settings.pluginCancelBtn':    {fr:'Annuler',          en:'Cancel'},
-  'settings.pluginSaved':        {fr:' » enregistré',   en:' » saved'},
-  'settings.pluginFailed':       {fr:'Échec',            en:'Failed'},
-  'settings.pluginDeleted':      {fr:'Plugin supprimé',  en:'Plugin deleted'},
-  'settings.pluginSrcUnavailable': {fr:'Source non disponible', en:'Source unavailable'},
-  'settings.pluginJsonNoEdit':   {fr:'JSON non modifiable ici', en:'JSON not editable here'},
-  'settings.pluginNotFound':     {fr:'Fichier non trouvé', en:'File not found'},
+  'settings.forgedToolEditTitle':    {fr:'Éditer l\'outil forgé : ', en:'Edit Forged Tool: '},
+  'settings.forgedToolEditorHint':   {fr:'- JSON (rechargé au save)', en:'- JSON (reloaded on save)'},
+  'settings.forgedToolSaveBtn':      {fr:'Enregistrer',      en:'Save'},
+  'settings.forgedToolCancelBtn':    {fr:'Annuler',          en:'Cancel'},
+  'settings.forgedToolSaved':        {fr:' » enregistré',   en:' » saved'},
+  'settings.forgedToolFailed':       {fr:'Échec',            en:'Failed'},
+  'settings.forgedToolDeleted':      {fr:'Outil forgé supprimé', en:'Forged Tool deleted'},
+  'settings.forgedToolSrcUnavailable': {fr:'Source non disponible', en:'Source unavailable'},
+  'settings.forgedToolJsonNoEdit':   {fr:'JSON non modifiable ici', en:'JSON not editable here'},
+  'settings.forgedToolNotFound':     {fr:'Fichier non trouvé', en:'File not found'},
   'settings.fileNotFound':       {fr:'Watcher introuvable', en:'Watcher not found'},
   'settings.watcherEditTitle':   {fr:'Éditer le watcher', en:'Edit watcher'},
   'settings.watcherNomLabel':    {fr:'Nom',              en:'Name'},
@@ -435,7 +435,7 @@ LaRuche.i18n.add({
   'settings.profileSavedPrefix': {fr:'Profil « ',        en:'Profile "'},
   'settings.profileSavedSuffix': {fr:' » enregistré',    en:'" saved'},
   'settings.toolViewSource':     {fr:'Voir source',      en:'View source'},
-  'settings.toolCustomBadge':    {fr:'Custom',           en:'Custom'},
+  'settings.toolForgedBadge':    {fr:'Outil forgé',      en:'Forged Tool'},
   'settings.toolNativeBadge':    {fr:'Rust natif',       en:'Native Rust'},
   'settings.toolOn':             {fr:'ON',               en:'ON'},
   'settings.toolOff':            {fr:'OFF',              en:'OFF'},
@@ -617,7 +617,7 @@ LaRuche.i18n.add({
   'settings.bpSlotLabelPlaceholder':   {fr:'libellé', en:'label'},
   'settings.bpSlotDefaultPlaceholder': {fr:'défaut',  en:'default'},
   'settings.bpTitlePlaceholder':       {fr:'Ex. : Veille quotidienne', en:'E.g.: Daily watch'},
-  'settings.pluginToast':              {fr:'Plugin ', en:'Plugin '},
+  'settings.forgedToolToast':              {fr:'Outil forgé ', en:'Forged Tool '},
   // ── New Settings sections (left vertical nav) ──────────────────────────
   'settings.navGeneral':       {fr:'Général',            en:'General'},
   'settings.navGeneration':    {fr:'Génération',         en:'Generation'},
@@ -1817,8 +1817,9 @@ LaRuche.Settings = (function(){
 
     html += '<div class="settings-grid">'+tools.map(function(t, idx){
       var enabled = t.enabled !== false;
-      var originBadge = (t.origin === 'Custom') ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">'+LaRuche.i18n.t('settings.toolCustomBadge')+'</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">'+LaRuche.i18n.t('settings.toolNativeBadge')+'</span>';
-      var customActions = (t.origin === 'Custom') ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginSrcUnavailable\'),\'err\')">'+LaRuche.i18n.t('settings.viewSource')+'</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginJsonNoEdit\'),\'err\')">'+LaRuche.i18n.t('settings.editJson')+'</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+encodeURIComponent(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+LaRuche.i18n.t('settings.tlDelete')+'</button></div>' : '';
+      var isForged = t.origin === 'Forged' || t.origin === 'forged' || t.origin === 'Custom';
+      var originBadge = isForged ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">'+LaRuche.i18n.t('settings.toolForgedBadge')+'</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">'+LaRuche.i18n.t('settings.toolNativeBadge')+'</span>';
+      var forgedActions = isForged ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.forgedToolSrcUnavailable\'),\'err\')">'+LaRuche.i18n.t('settings.viewSource')+'</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.forgedToolJsonNoEdit\'),\'err\')">'+LaRuche.i18n.t('settings.editJson')+'</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+encodeURIComponent(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+LaRuche.i18n.t('settings.tlDelete')+'</button></div>' : '';
       return '<div class="settings-card" style="cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; position:relative;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify(window._allTools['+idx+'], null, 2))">'+
         '<div class="settings-card-title" style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
           '<span style="color:var(--cyan);font-weight:600;">'+LaRuche.Utils.esc(t.name)+originBadge+'</span>'+
@@ -1828,7 +1829,7 @@ LaRuche.Settings = (function(){
         '</div>'+
         '<div class="settings-row" style="margin-top:8px;"><span class="settings-label">'+LaRuche.i18n.t('settings.toolDanger')+'</span><span class="settings-value" style="color:'+(t.danger==='high'?'var(--red)':(t.danger==='medium'?'var(--orange)':'var(--text-dim)'))+';font-weight:bold;">'+LaRuche.Utils.esc(t.danger||LaRuche.i18n.t('settings.toolDangerSafe'))+'</span></div>'+
         '<div style="font-size:12px;color:var(--text-dim);line-height:1.5;margin-top:10px;border-top:1px solid rgba(255,255,255,0.05);padding-top:10px;">'+LaRuche.Utils.esc((t.description||'').substring(0,180))+'</div>'+
-        customActions+
+        forgedActions+
       '</div>';
     }).join('')+'</div>';
     
@@ -4298,8 +4299,8 @@ LaRuche.Settings = (function(){
   }
   function toggleSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show(LaRuche.i18n.t('settings.skillToast')+(d.enabled?LaRuche.i18n.t('settings.skillActivated'):LaRuche.i18n.t('settings.skillDeactivated')),'ok'); }); }
   function deleteSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name),{method:'DELETE'}).then(function(){ LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab(); }); }
-  var PLUGIN_TEMPLATE = '{\n  "name": "my_plugin",\n  "description": "Description of my plugin",\n  "danger": "safe",\n  "parameters": {\n    "type": "object",\n    "properties": {},\n    "required": []\n  },\n  "command": "echo {{arg}}"\n}';
-  function newPlugin(){ pluginEditor('new_plugin', PLUGIN_TEMPLATE); }
+  var FORGED_TOOL_TEMPLATE = '{\n  "name": "my_forged_tool",\n  "description": "Description of my Forged Tool",\n  "danger": "safe",\n  "parameters": {\n    "type": "object",\n    "properties": {},\n    "required": []\n  },\n  "command": "echo {{arg}}"\n}';
+  function newForgedTool(){ forgedToolEditor('new_forged_tool', FORGED_TOOL_TEMPLATE); }
   function newSkill(){ skillEditor('', SKILL_TEMPLATE); }
   function viewSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ skillEditor(name, d.content||''); }); }
   function skillEditor(name, content){
@@ -4322,23 +4323,23 @@ LaRuche.Settings = (function(){
     document.body.appendChild(ov);
     mountSkillTools(content);
   }
-  // Builds the skill's tool checklist (grouped Tools/Plugins, searchable,
+  // Builds the skill's tool checklist (grouped Tools/Forged Tools, searchable,
   // selected ones first) and syncs the frontmatter `tools:` line.
   async function mountSkillTools(content){
     var box=document.getElementById('skToolsBox'); if(!box) return;
     var tools = window._allTools;
     if(!tools){ try{ tools=await fetch('/api/tools').then(function(r){return r.json();}); window._allTools=tools; }catch(e){ tools=[]; } }
-    var plugins = [];
-    try{ plugins=await fetch('/api/plugins').then(function(r){return r.json();}); }catch(e){}
-    var pluginNames = (plugins||[]).map(function(p){return p.name||p;});
+    var forgedTools = [];
+    try{ forgedTools=await fetch('/api/forged-tools').then(function(r){return r.json();}); }catch(e){}
+    var forgedToolNames = (forgedTools||[]).map(function(tool){return tool.name||tool;});
     // Unified model: {name, group, desc}. group is a key, translated at render time.
     var items = [];
     var seen = {};
     (tools||[]).forEach(function(t){
       var n=t.name||t; if(seen[n])return; seen[n]=1;
-      items.push({name:n, group:(pluginNames.indexOf(n)>=0?'plugins':'tools'), desc:(t.description||'')});
+      items.push({name:n, group:(forgedToolNames.indexOf(n)>=0?'forged':'tools'), desc:(t.description||'')});
     });
-    pluginNames.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'plugins', desc:''}); } });
+    forgedToolNames.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'forged', desc:''}); } });
     var m = content.match(/^\s*(?:allowed-)?tools:\s*\[([^\]]*)\]/m);
     var current = m ? m[1].split(',').map(function(s){return s.trim().replace(/['"]/g,'');}).filter(Boolean) : [];
     current.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'other', desc:LaRuche.i18n.t('settings.skillToolsRef')}); } });
@@ -4359,8 +4360,8 @@ LaRuche.Settings = (function(){
         (it.desc?'<span style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+LaRuche.Utils.esc(it.desc)+'</span>':'')+
       '</label>';
     }
-    var groups=['tools','plugins','other']; var html='';
-    var etiquette={tools:'settings.skillGroupTools',plugins:'settings.skillGroupPlugins',other:'settings.skillGroupOther'};
+    var groups=['tools','forged','other']; var html='';
+    var etiquette={tools:'settings.skillGroupTools',forged:'settings.skillGroupForgedTools',other:'settings.skillGroupOther'};
     groups.forEach(function(g){
       var list=items.filter(function(it){return it.group===g && (!f || it.name.toLowerCase().indexOf(f)>=0);});
       if(!list.length) return;
@@ -4403,36 +4404,36 @@ LaRuche.Settings = (function(){
       }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.skillFailed'),'err'); });
   }
 
-  function viewPlugin(name){ fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ pluginEditor(name, d.content||''); }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginNotFound'),'err'); }); }
-  function pluginEditor(name, content){
+  function viewForgedTool(name){ fetch(LaRuche.API.base+'/api/forged-tools/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ forgedToolEditor(name, d.content||''); }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.forgedToolNotFound'),'err'); }); }
+  function forgedToolEditor(name, content){
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
     ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:var(--bg-panel);border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
-      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+LaRuche.i18n.t('settings.pluginEditTitle')+LaRuche.Utils.esc(name)+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.pluginEditorHint')+'</span></div>'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+LaRuche.i18n.t('settings.forgedToolEditTitle')+LaRuche.Utils.esc(name)+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.forgedToolEditorHint')+'</span></div>'+
       '<textarea id="plEditor" data-name="'+LaRuche.Utils.esc(name)+'" class="form-input" style="flex:1;margin:12px;font-family:var(--mono);font-size:12px;resize:none" spellcheck="false">'+LaRuche.Utils.esc(content)+'</textarea>'+
       '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
-      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.pluginCancelBtn')+'</button>'+
-      '<button class="settings-save-btn" onclick="LaRuche.Settings.savePlugin(this)">'+LaRuche.i18n.t('settings.pluginSaveBtn')+'</button></div></div>';
+      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.forgedToolCancelBtn')+'</button>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.saveForgedTool(this)">'+LaRuche.i18n.t('settings.forgedToolSaveBtn')+'</button></div></div>';
     document.body.appendChild(ov);
   }
-  function savePlugin(btn){
+  function saveForgedTool(btn){
     var ta=document.getElementById('plEditor');
     var content=ta.value; var name=ta.dataset.name;
-    fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
+    fetch(LaRuche.API.base+'/api/forged-tools/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginToast')+'"'+d.name+'"'+LaRuche.i18n.t('settings.pluginSaved'),'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.forgedToolToast')+'"'+d.name+'"'+LaRuche.i18n.t('settings.forgedToolSaved'),'ok');
         var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
-      }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginFailed'),'err'); });
+      }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.forgedToolFailed'),'err'); });
   }
-  function deletePlugin(name){
-    fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'DELETE'})
+  function deleteForgedTool(name){
+    fetch(LaRuche.API.base+'/api/forged-tools/'+encodeURIComponent(name),{method:'DELETE'})
       .then(function(r){return r.json();}).then(function(d){
-        LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginDeleted'),'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.forgedToolDeleted'),'ok');
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
-      }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginFailed'),'err'); });
+      }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.forgedToolFailed'),'err'); });
   }
 
   var _kanbanTimer=null, _kanbanLast='';
@@ -5817,7 +5818,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, basculerEtat:basculerEtat, testerVigie:testerVigie, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab, dock:dock, fermerDock:fermerDock,
-    loadGeneral:loadGeneral, loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, lancerCronTask:lancerCronTask, visionReessayer:visionReessayer, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadGeneral:loadGeneral, loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newForgedTool:newForgedTool, viewForgedTool:viewForgedTool, saveForgedTool:saveForgedTool, deleteForgedTool:deleteForgedTool, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, lancerCronTask:lancerCronTask, visionReessayer:visionReessayer, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

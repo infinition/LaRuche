@@ -21,9 +21,9 @@ pub mod ordinateur_arbre;
 pub mod ordinateur_fenetres;
 #[cfg(all(windows, feature = "gui-control"))]
 pub mod ordinateur_halo;
-// Re-export plugin loader
-pub mod plugins;
-pub use plugins::charger_plugins;
+// Re-export the canonical loader and the read-only legacy loader.
+pub mod forged_tools;
+pub use forged_tools::{charger_outils_forges, charger_outils_herites};
 pub mod delegation;
 pub mod essaim_status;
 pub mod forge;
@@ -43,7 +43,7 @@ pub mod plan_mode;
 pub mod read_extract;
 pub mod recherche_fichiers;
 pub mod reload_mcp;
-pub mod reload_plugins;
+pub mod reload_forged_tools;
 pub mod research_mode;
 pub mod run_script;
 pub mod shell;
@@ -193,7 +193,7 @@ pub fn enregistrer_memoire(
 /// Two registries on purpose:
 /// - `full_registry`: the LIVE main registry. tool_call / tool_search / run_script
 ///   must see every tool that will ever register on it (node-local crons/watchers,
-///   memory, plugins, MCP loaded in the background...). They carry their own
+///   memory, forged_tools, MCP loaded in the background...). They carry their own
 ///   by-name recursion guards. Wiring them on a snapshot registry made
 ///   `tool_call(tool="cron_list")` fail with "Unknown tool" while cron_list
 ///   existed on the main registry.

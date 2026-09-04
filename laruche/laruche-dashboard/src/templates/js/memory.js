@@ -39,7 +39,7 @@ LaRuche.i18n.add({
   'memory.cognitiveCrumb':        {fr:'Memoire cognitive', en:'Cognitive memory'},
   'memory.systemProtectedNote':   {fr:'Noeud gere par le systeme. L\'agent ne peut pas le modifier', en:'Node managed by the system. The agent cannot modify it'},
   'memory.readOnly':              {fr:' (lecture seule).', en:' (read only).'},
-  'memory.projectionNote':        {fr:"Reflet du registre d'outils de LaRuche, reecrit a chaque demarrage. Une modification faite ici serait perdue : la source est le code de l'outil, son plugin.json ou le serveur MCP.", en:"Mirror of LaRuche's tool registry, rewritten at every start. An edit made here would be lost: the source is the tool's code, its plugin.json or the MCP server."},
+  'memory.projectionNote':        {fr:"Reflet du registre d'outils de LaRuche, reecrit a chaque demarrage. Une modification faite ici serait perdue : la source est le code de l'outil, son tool.json ou le serveur MCP.", en:"Mirror of LaRuche's tool registry, rewritten at every start. An edit made here would be lost: the source is the tool's code, its tool.json or the MCP server."},
   'memory.notReadOnly':           {fr:'.', en:'.'},
   'memory.noMemoriesInNode':      {fr:'Aucun souvenir dans ce noeud.', en:'No memories in this node.'},
   'memory.editBtn':               {fr:'Editer', en:'Edit'},
@@ -136,8 +136,8 @@ LaRuche.i18n.add({
   'memory.trashEmptied':          {fr:'Corbeille videe', en:'Trash emptied'},
   'memory.trashIntro':            {fr:'Les noeuds supprimes atterrissent ici avant d\'etre effaces. Ils partent seuls au bout de sept jours ; le bouton ci-dessous ne fait qu\'accelerer.', en:'Deleted nodes land here before being erased. They go on their own after seven days; the button below only speeds that up.'},
   'memory.trashEmptyState':       {fr:'Corbeille vide.', en:'The trash is empty.'},
-  'memory.noteTools':              {fr:"Reflet de la section Outils du registre de LaRuche. Outils natifs, compiles dans le binaire. Leur nom, leur description et leur schema viennent du code de l'outil lui-meme, d'ou le fait qu'ils ne se modifient pas ici. Pour ajouter un outil a toi, forge un plugin depuis l'onglet Capacites : aucun Rust a ecrire.", en:"Mirror of the Tools section of LaRuche's registry. Built-in tools, compiled into the binary. Their name, description and schema come from the tool's own code, which is why they cannot be edited here. To add a tool of your own, forge a plugin from the Capabilities tab: no Rust to write."},
-  'memory.notePlugins':            {fr:"Reflet de la section Plugins du registre de LaRuche. Outils forges, par toi ou par l'agent. La description et le schema affiches sont ceux que TU as ecrits dans plugins/<nom>/plugin.json. Creation et edition dans l'onglet Capacites, ou plugin_create pour l'agent.", en:"Mirror of the Plugins section of LaRuche's registry. Forged tools, by you or by the agent. The description and schema shown are the ones YOU wrote in plugins/<name>/plugin.json. Created and edited from the Capabilities tab, or with plugin_create for the agent."},
+  'memory.noteTools':              {fr:"Reflet de la section Outils du registre de LaRuche. Outils natifs, compiles dans le binaire. Leur nom, leur description et leur schema viennent du code de l'outil lui-meme, d'ou le fait qu'ils ne se modifient pas ici. Pour ajouter ton propre outil, forge un outil depuis l'onglet Capacites : aucun Rust a ecrire.", en:"Mirror of the Tools section of LaRuche's registry. Built-in tools, compiled into the binary. Their name, description and schema come from the tool's own code, which is why they cannot be edited here. To add your own tool, forge one from the Capabilities tab: no Rust required."},
+  'memory.noteForgedTools':       {fr:"Reflet de la section Outils forges du registre de LaRuche. La description et le schema affiches viennent de forged_tools/<nom>/tool.json. Creation et edition dans l'onglet Capacites, ou avec forged_tool_create pour l'agent.", en:"Mirror of the Forged Tools section of LaRuche's registry. The displayed description and schema come from forged_tools/<name>/tool.json. Create and edit them from Capabilities, or with forged_tool_create for the agent."},
   'memory.noteMcp':                {fr:"Reflet de la section MCP du registre d'outils de LaRuche. Outils exposes par un serveur MCP. Le serveur s'ajoute, se modifie et s'active dans l'onglet Capacites. La description et le schema ne sont ecrits nulle part chez nous : le serveur les declare lui-meme au demarrage, donc brancher un nouveau serveur ne demande de toucher a aucun code.", en:"Mirror of the MCP section of LaRuche's tool registry. Tools exposed by an MCP server. The server is added, edited and switched on from the Capabilities tab. Their description and schema are written nowhere on our side: the server declares them itself at startup, so plugging in a new server means touching no code at all."},
   'memory.noteSkills':            {fr:"Procedures. Contrairement aux trois familles voisines, ce n'est pas un reflet mais la source : editer un skill ici reecrit son skills/<nom>/SKILL.md, et le supprimer efface son dossier. Cree et modifie donc librement ; seule cette racine refuse les notes en vrac. Relis le disque si tu as edite un fichier hors de LaRuche.", en:"Procedures. Unlike the three families beside it, this is not a mirror but the source: editing a skill here rewrites its skills/<name>/SKILL.md, and deleting one removes its folder. So create and edit freely; only this root refuses loose notes. Re-read from disk after editing a file outside LaRuche."},
   'memory.skillNew':              {fr:'+ Nouveau skill', en:'+ New skill'},
@@ -155,7 +155,7 @@ LaRuche.i18n.add({
   'memory.segBehavior':           {fr:'Comportement', en:'Behavior'},
   'memory.segCapacities':         {fr:'Capacites', en:'Capacities'},
   'memory.segTools':              {fr:'Outils', en:'Tools'},
-  'memory.segPlugins':            {fr:'Plugins', en:'Plugins'},
+  'memory.segForgedTools':       {fr:'Outils forgés', en:'Forged Tools'},
   'memory.segMcp':                {fr:'MCP', en:'MCP'},
   'memory.segSkills':             {fr:'Skills', en:'Skills'},
   'memory.consolidateAllScope':   {fr:'mémoire (nœuds surchargés)', en:'memory (overloaded nodes)'},
@@ -377,7 +377,7 @@ LaRuche.Memory = (function(){
   // in step with skills/<name>/SKILL.md in both directions.
   function estProjection(id){
     return id === 'capacities.tools' || id.indexOf('capacities.tools.') === 0
-        || id === 'capacities.plugins' || id.indexOf('capacities.plugins.') === 0
+        || id === 'capacities.forged_tools' || id.indexOf('capacities.forged_tools.') === 0
         || id === 'capacities.mcp' || id.indexOf('capacities.mcp.') === 0
         || id === 'tools' || id.indexOf('tools.') === 0;
   }
@@ -440,9 +440,9 @@ LaRuche.Memory = (function(){
     memoire:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
     corbeille:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/><path d="M10 11v6M14 11v6"/></svg>',
     // The three capability families shared the wrench, so the tree said nothing about
-    // which was which. Plug for a plugin, socket for an MCP server, wrench for a
+    // which was which. Hammer for a Forged Tool, monitor for an MCP server, wrench for a
     // built-in tool.
-    plugin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/></svg>',
+    forgedTool:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 5 5 5"/><path d="m12 7 4-4 5 5-4 4z"/><path d="m14.5 9.5-9 9"/><path d="m4 17 3 3"/><path d="M3 21h8"/></svg>',
     mcp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>',
     constitution:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M7 21h10"/><path d="M4 7h16"/><path d="M4 7l-2 6a3 3 0 0 0 6 0z"/><path d="M20 7l2 6a3 3 0 0 1-6 0z"/></svg>',
     // Behavior shared the root's gear, so two rows of the same branch looked alike.
@@ -489,7 +489,7 @@ LaRuche.Memory = (function(){
     if(id === 'system.constitution') return SVG.constitution;
     if(id === 'system.user') return SVG.user;
     if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return SVG.file;
-    if(id === 'capacities.plugins' || id.indexOf('capacities.plugins.') === 0) return SVG.plugin;
+    if(id === 'capacities.forged_tools' || id.indexOf('capacities.forged_tools.') === 0) return SVG.forgedTool;
     if(id === 'capacities.mcp' || id.indexOf('capacities.mcp.') === 0) return SVG.mcp;
     if(id === 'capacities' || id.indexOf('capacities.') === 0
        || id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
@@ -778,7 +778,7 @@ LaRuche.Memory = (function(){
   // Readable label of an id segment (unifies display: "prompt" -> "Identite", etc.).
   var MEM2_SEG_LABEL_KEYS = {
     system:'memory.segSystem', prompt:'memory.segIdentity', behavior:'memory.segBehavior', soul:'SOUL',
-    capacities:'memory.segCapacities', tools:'memory.segTools', plugins:'memory.segPlugins', mcp:'memory.segMcp', skills:'memory.segSkills',
+    capacities:'memory.segCapacities', tools:'memory.segTools', forged_tools:'memory.segForgedTools', mcp:'memory.segMcp', skills:'memory.segSkills',
     // The editor already titled these properly; the tree was still showing the raw id.
     prompt_curateur:'memory.titleCurateur', prompt_extraction:'memory.titleExtraction',
     prompt_planning:'memory.titlePlanning', prompt_reine:'memory.titleReine',
@@ -907,7 +907,7 @@ LaRuche.Memory = (function(){
       // root above it, and that is exactly where the generic note said nothing useful.
       var familles = [
         ['capacities.tools', 'memory.noteTools'],
-        ['capacities.plugins', 'memory.notePlugins'],
+        ['capacities.forged_tools', 'memory.noteForgedTools'],
         ['capacities.mcp', 'memory.noteMcp'],
         ['capacities.skills', 'memory.noteSkills']
       ];

@@ -47,7 +47,7 @@ the approval popup for anything sensitive; nothing destructive happens without y
 - **Memory**: browse and edit the cognitive map directly, including the `system.*`
   entries that are the agent's hot-editable system prompts.
 - **Automation**: crons, watchers, missions, kanban, all in one hub.
-- **Capabilities**: the live tool registry, skills, plugins and MCP servers.
+- **Capabilities**: the live tool registry, skills, Forged Tools and MCP servers.
 - **Table ronde**: a specialist debate can be opened from Chat when one answer is not
   enough.
 - **Settings**: providers and per-channel models, context sizes, the curator, LaReine,

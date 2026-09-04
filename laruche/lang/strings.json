@@ -419,9 +419,9 @@
     "en": "Delete",
     "fr": "Supprimer"
   },
-  "capabilities.confirmPlugin": {
-    "en": "Delete plugin",
-    "fr": "Supprimer le plugin"
+  "capabilities.confirmForgedTool": {
+    "en": "Delete Forged Tool",
+    "fr": "Supprimer l'outil forgé"
   },
   "capabilities.conversations": {
     "en": "Conversations",
@@ -575,9 +575,9 @@
     "en": " - native tools are immutable",
     "fr": " - outils natifs = immuables"
   },
-  "capabilities.newPlugin": {
-    "en": "+ New plugin",
-    "fr": "+ Nouveau plugin"
+  "capabilities.newForgedTool": {
+    "en": "+ New Forged Tool",
+    "fr": "+ Nouvel outil forgé"
   },
   "capabilities.newSkill": {
     "en": "+ New skill",
@@ -667,9 +667,9 @@
     "en": "MCP",
     "fr": "MCP"
   },
-  "capabilities.typePlugin": {
-    "en": "Plugin",
-    "fr": "Plugin"
+  "capabilities.typeForgedTool": {
+    "en": "Forged Tool",
+    "fr": "Outil forgé"
   },
   "capabilities.typeSkill": {
     "en": "Skill",
@@ -1396,8 +1396,8 @@
     "fr": "{n} entrées"
   },
   "core.deleteFileConfirm": {
-    "en": "Delete plugins/{path}?",
-    "fr": "Supprimer plugins/{path} ?"
+    "en": "Delete {path}?",
+    "fr": "Supprimer {path} ?"
   },
   "core.enrollError": {
     "en": "Enrollment error: {msg}",
@@ -1499,13 +1499,13 @@
     "en": "Permissions: {mode}",
     "fr": "Permissions : {mode}"
   },
-  "core.pluginFilesTitle": {
-    "en": "📁 Files in <code>plugins/</code> folder",
-    "fr": "📁 Fichiers du dossier <code>plugins/</code>"
+  "core.forgedToolFilesTitle": {
+    "en": "📁 Forged Tool and MCP sources",
+    "fr": "📁 Sources des outils forgés et MCP"
   },
-  "core.savedPlugins": {
-    "en": "Saved (plugins reloaded)",
-    "fr": "Enregistré (plugins rechargés)"
+  "core.savedForgedTools": {
+    "en": "Saved, Forged Tools reloaded",
+    "fr": "Enregistré, outils forgés rechargés"
   },
   "core.secretsHeader": {
     "en": "Secrets",
@@ -2451,9 +2451,9 @@
     "en": "MCP",
     "fr": "MCP"
   },
-  "memory.segPlugins": {
-    "en": "Plugins",
-    "fr": "Plugins"
+  "memory.segForgedTools": {
+    "en": "Forged Tools",
+    "fr": "Outils forgés"
   },
   "memory.segSkills": {
     "en": "Skills",
@@ -4307,49 +4307,49 @@
     "en": "Save",
     "fr": "Enregistrer"
   },
-  "settings.pluginCancelBtn": {
+  "settings.forgedToolCancelBtn": {
     "en": "Cancel",
     "fr": "Annuler"
   },
-  "settings.pluginDeleted": {
-    "en": "Plugin deleted",
-    "fr": "Plugin supprimé"
+  "settings.forgedToolDeleted": {
+    "en": "Forged Tool deleted",
+    "fr": "Outil forgé supprimé"
   },
-  "settings.pluginEditTitle": {
-    "en": "Edit Plugin: ",
-    "fr": "Éditer Plugin : "
+  "settings.forgedToolEditTitle": {
+    "en": "Edit Forged Tool: ",
+    "fr": "Éditer l'outil forgé : "
   },
-  "settings.pluginEditorHint": {
+  "settings.forgedToolEditorHint": {
     "en": "- JSON (reloaded on save)",
     "fr": "- JSON (rechargé au save)"
   },
-  "settings.pluginFailed": {
+  "settings.forgedToolFailed": {
     "en": "Failed",
     "fr": "Échec"
   },
-  "settings.pluginJsonNoEdit": {
+  "settings.forgedToolJsonNoEdit": {
     "en": "JSON not editable here",
     "fr": "JSON non modifiable ici"
   },
-  "settings.pluginNotFound": {
+  "settings.forgedToolNotFound": {
     "en": "File not found",
     "fr": "Fichier non trouvé"
   },
-  "settings.pluginSaveBtn": {
+  "settings.forgedToolSaveBtn": {
     "en": "Save",
     "fr": "Enregistrer"
   },
-  "settings.pluginSaved": {
+  "settings.forgedToolSaved": {
     "en": " » saved",
     "fr": " » enregistré"
   },
-  "settings.pluginSrcUnavailable": {
+  "settings.forgedToolSrcUnavailable": {
     "en": "Source unavailable",
     "fr": "Source non disponible"
   },
-  "settings.pluginToast": {
-    "en": "Plugin ",
-    "fr": "Plugin "
+  "settings.forgedToolToast": {
+    "en": "Forged Tool ",
+    "fr": "Outil forgé "
   },
   "settings.profileDeleted": {
     "en": "Profile deleted",
@@ -4584,8 +4584,8 @@
     "fr": "filtrer…"
   },
   "settings.skillToolsHint": {
-    "en": "Tools / plugins for this skill (→ <code>tools:</code>) ",
-    "fr": "Outils / plugins de ce skill (→ <code>tools:</code>) "
+    "en": "Native and Forged Tools for this skill (→ <code>tools:</code>) ",
+    "fr": "Outils natifs et outils forgés de ce skill (→ <code>tools:</code>) "
   },
   "settings.skillToolsLoading": {
     "en": "Loading…",
@@ -4751,9 +4751,9 @@
     "en": "Shift not supported for this schedule",
     "fr": "Décalage non supporté pour ce planning"
   },
-  "settings.toolCustomBadge": {
-    "en": "Custom",
-    "fr": "Personnalisé"
+  "settings.toolForgedBadge": {
+    "en": "Forged Tool",
+    "fr": "Outil forgé"
   },
   "settings.toolDanger": {
     "en": "Danger",

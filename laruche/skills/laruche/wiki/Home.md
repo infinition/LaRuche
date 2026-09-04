@@ -18,9 +18,9 @@ the Miel mesh.
 | Optional companions | Python voice service, Chrome extension, VS Code extension |
 | Cargo test inventory | 741 tests |
 
-Plugins and MCP servers can add tools at runtime. The Capabilities page in a running
-node shows the effective registry after feature flags, disabled tools and extensions
-have been applied.
+Forged Tools and MCP servers can add tools at runtime. Apps add installable interface views
+with explicit permissions and private storage. The Capabilities page in a running node shows
+the effective registry after feature flags, disabled tools and extensions have been applied.
 
 ## Getting started
 
@@ -38,6 +38,7 @@ have been applied.
 - [Table Ronde](Table-Ronde) - multi-agent debate, specialist teams, tools and arbitration
 - [Watchers](Watchers) - event reflexes with compiled rules
 - [Skills and the Curator](Skills-and-Curator) - the skill library and how it grows itself
+- [Apps and Forged Tools](Apps-and-Forged-Tools) - installable interfaces versus JSON-backed tools
 - [Automation](Automation) - crons, missions, kanban
 
 ## Guides

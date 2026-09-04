@@ -1,7 +1,7 @@
 # Tools
 
 LaRuche registers 89 built-in tools in a default node build. `computer` and `camera`
-are present when default features are enabled. Plugins and MCP servers can add more at
+are present when default features are enabled. Forged Tools and MCP servers can add more at
 runtime. The Capabilities page shows the exact registry for the running node.
 
 A tool is a callable capability. An abeille is an agent. Older Rust type names such as
@@ -193,7 +193,7 @@ whitelist of registered tools through dedicated API routes. It adds a constituti
 specialist pool, live rounds, disagreement tracking, arbitration and debate history. It
 is an interface-level workflow, not one extra tool name in the default registry.
 
-## Skills, plugins and MCP management
+## Skills, Forged Tools and MCP management
 
 | Tool | Purpose |
 |---|---|
@@ -201,10 +201,10 @@ is an interface-level workflow, not one extra tool name in the default registry.
 | `skill_file_read` | Read a supporting skill file. |
 | `skill_file_delete` | Delete a supporting skill file. |
 | `skill_file_list` | List files belonging to a skill. |
-| `plugin_create` | Create a JSON tool plugin. |
-| `plugin_list` | List installed plugins. |
-| `plugin_delete` | Delete a plugin and remove its tools. |
-| `reload_plugins` | Reload tool plugins from disk. |
+| `forged_tool_create` | Create a JSON-backed Forged Tool. |
+| `forged_tool_list` | List installed Forged Tools. |
+| `forged_tool_delete` | Delete a Forged Tool and its files. |
+| `reload_forged_tools` | Reload Forged Tools from disk. |
 | `mcp_add` | Add an external MCP server. |
 | `mcp_remove` | Remove an MCP server. |
 | `mcp_list` | List configured MCP servers. |

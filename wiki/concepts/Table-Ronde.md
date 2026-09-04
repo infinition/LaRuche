@@ -28,7 +28,7 @@ The whitelist grows by level:
 - Code and Experiment: `file_write`, `file_edit`, `git_status`, `git_diff`.
 - Experiment only: `execute_code`, `run_script`, `shell_exec`.
 
-No mission opens destructive memory, plugin, skill, watcher or scheduler tools. It also
+No mission opens destructive memory, Forged Tool, skill, watcher or scheduler tools. It also
 cannot message another channel, spawn more agents or send mesh messages. A specialist
 can make at most three tool calls per intervention. Each tool result is limited to
 4,000 characters before it returns to the specialist so one large file cannot consume

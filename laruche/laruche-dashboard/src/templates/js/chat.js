@@ -6,7 +6,7 @@ LaRuche.i18n.add({
   'chat.slashMemory':   {fr:'Ouvrir la memoire', en:'Open memory'},
   'chat.slashSkills':   {fr:'Capacites : skills', en:'Capabilities: skills'},
   'chat.slashTools':    {fr:'Capacites : outils', en:'Capabilities: tools'},
-  'chat.slashPlugins':  {fr:'Capacites : plugins', en:'Capabilities: plugins'},
+  'chat.slashForgedTools': {fr:'Capacités : outils forgés', en:'Capabilities: Forged Tools'},
   'chat.slashMcp':      {fr:'Capacites : serveurs MCP', en:'Capabilities: MCP servers'},
   'chat.slashTimeline': {fr:'Frise des taches planifiees', en:'Scheduled tasks timeline'},
   'chat.slashCron':     {fr:'Taches planifiees', en:'Scheduled tasks'},
@@ -163,7 +163,7 @@ LaRuche.i18n.add({
   'chat.tool.run_now':            {fr:'Lancement immédiat',             en:'Run now'},
   'chat.tool.mesh_send':          {fr:'Message à une ruche',            en:'Message to a hive'},
   'chat.tool.media_present':      {fr:'Média affiché',                  en:'Media shown'},
-  'chat.tool.plugin_list':        {fr:'Liste des plugins',              en:'Plugin list'},
+  'chat.tool.forged_tool_list':   {fr:'Liste des outils forgés',        en:'Forged Tool list'},
   'chat.tool.mcp_list':           {fr:'Serveurs MCP',                   en:'MCP servers'},
 
   // Les cles d'arguments, pour que la ligne se lise en francais et non en JSON.
@@ -327,7 +327,7 @@ LaRuche.Chat = (function(){
       {c:'/memory',   k:'chat.slashMemory',   f:function(){ LaRuche.Router.go('memory'); }},
       {c:'/skills',   k:'chat.slashSkills',   f:function(){ allerCapacite('skill'); }},
       {c:'/tools',    k:'chat.slashTools',    f:function(){ allerCapacite('abeille'); }},
-      {c:'/plugins',  k:'chat.slashPlugins',  f:function(){ allerCapacite('plugin'); }},
+      {c:'/forged-tools', k:'chat.slashForgedTools', f:function(){ allerCapacite('forged'); }},
       {c:'/mcp',      k:'chat.slashMcp',      f:function(){ allerCapacite('mcp'); }},
       {c:'/timeline', k:'chat.slashTimeline', f:function(){ allerOnglet('automations','autoTabsBar','timeline'); }},
       {c:'/cron',     k:'chat.slashCron',     f:function(){ allerOnglet('automations','autoTabsBar','cron'); }},

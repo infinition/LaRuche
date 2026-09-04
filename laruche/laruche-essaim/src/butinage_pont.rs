@@ -602,8 +602,8 @@ struct OutilsPont<'a> {
     agent: Option<String>,
     /// Registry snapshot taken when `schemas()` is captured, i.e. at mission start.
     /// `nouvelles_capacites` diffs the LIVE registry against it to report what the
-    /// agent forged since. The registry is the only truthful source here: a plugin
-    /// written to disk but never `reload_plugins`-ed is not callable, and announcing
+    /// agent forged since. The registry is the only truthful source here: a forged_tool
+    /// written to disk but never `reload_forged_tools`-ed is not callable, and announcing
     /// it as available would send the model at a tool that does not answer.
     outils_initiaux: std::sync::OnceLock<std::collections::BTreeSet<String>>,
     /// Names whose SCHEMAS were injected this mission, a subset of the registry chosen
@@ -1378,7 +1378,7 @@ impl but::Source for SourcePont {
     async fn consigner(&self, node_id: &str, fait: &str) {
         // Model-independent guard: consolidation must NEVER write into the domains
         // managed by the system (`system.*` = identity/behavior/capabilities, `capacities.*`
-        // = skills/plugins/MCP). The LLM sometimes dumped its own tool list there (already in
+        // = skills/forged_tools/MCP). The LLM sometimes dumped its own tool list there (already in
         // the prompt): noise + polluted "agent-immutable" nodes. We reject it.
         let n = node_id.trim();
         if n.is_empty()
@@ -1408,18 +1408,18 @@ const CURATEUR_OUTILS: &[&str] = &[
     "skill_patch",
     "skill_delete",
     "skill_file_write",
-    "plugin_list",
-    "plugin_create",
-    "plugin_delete",
+    "forged_tool_list",
+    "forged_tool_create",
+    "forged_tool_delete",
     "memory_search",
     "memory_write",
-    "reload_plugins",
-    "shell_exec", // verification: test the command of a created plugin
+    "reload_forged_tools",
+    "shell_exec", // verification: test the command of a created forged_tool
     "task_complete",
 ];
 
 /// The curateur's **rock-solid framing prompt** ("mega skill" to follow to the letter).
-// Background review, extended to TOOLS/plugins + verification.
+// Background review, extended to TOOLS/forged_tools + verification.
 const PROMPT_CURATEUR: &str = r#"You are the CURATEUR of the ruche's capability library - a background reviewer that runs AFTER a mission. The main conversation is untouched by you.
 
 ## Be CONSERVATIVE - the DEFAULT outcome is "Nothing to save."
@@ -1449,12 +1449,12 @@ GOOD: `Control Philips Hue lights, scenes, rooms via OpenHue CLI.`
 BAD: `A comprehensive skill that allows the agent to interact with the Philips Hue ecosystem in order to...`
 
 ## Declare what the skill NEEDS, and check that it exists
-A skill that calls a binary, a plugin, an MCP server or a bundled script must declare it in the frontmatter (`prerequisites:`, `tools:`), and that dependency must REALLY exist. Before saving: `plugin_list` / `tool_search` every tool you name, and for a CLI give the install line in the body. A skill whose tools do not exist is worse than no skill: the agent reads it, trusts it, and fails. If the dependency is missing and you can build it, build it (`plugin_create`, then `reload_plugins`, then verify once via `shell_exec`). If you cannot, say so plainly in the body under a `## Prerequisites` heading.
+A skill that calls a binary, a forged_tool, an MCP server or a bundled script must declare it in the frontmatter (`prerequisites:`, `tools:`), and that dependency must REALLY exist. Before saving: `forged_tool_list` / `tool_search` every tool you name, and for a CLI give the install line in the body. A skill whose tools do not exist is worse than no skill: the agent reads it, trusts it, and fails. If the dependency is missing and you can build it, build it (`forged_tool_create`, then `reload_forged_tools`, then verify once via `shell_exec`). If you cannot, say so plainly in the body under a `## Prerequisites` heading.
 A skill that ships its own scripts keeps them in its OWN folder and invokes them relative to the ruche home (`python skills/<name>/scripts/<file>.py`), which is where tools run.
 
 ## When you DO act - two kinds of capability
 - SKILL = a reusable PROCEDURE (the "how"): non-obvious multi-step know-how, steps, pitfalls, exact commands. `skill_create`/`skill_patch`. Body = concise Markdown. Decision tree: patch a loaded skill > patch an existing umbrella > add a support file (`skill_file_write`) > create new (last resort, class-level name).
-- TOOL/PLUGIN = an ATOMIC repeatable shell-able action. `plugin_create(name, description, command, schema)` where `command` is a shell template with `{{slots}}`. Run `plugin_list` first. AFTER creating: `reload_plugins`, then VERIFY by running its command once with safe args via `shell_exec`; if it errors, fix it or `plugin_delete` it - never leave a broken tool.
+- TOOL/FORGED_TOOL = an ATOMIC repeatable shell-able action. `forged_tool_create(name, description, command, schema)` where `command` is a shell template with `{{slots}}`. Run `forged_tool_list` first. AFTER creating: `reload_forged_tools`, then VERIFY by running its command once with safe args via `shell_exec`; if it errors, fix it or `forged_tool_delete` it - never leave a broken tool.
 
 ## User signals (the one case worth being slightly more active)
 A user CORRECTION or stated PREFERENCE ("stop doing X", "always format like Y") IS worth capturing: patch the skill that governs that task, and `memory_write` the preference.
@@ -1467,7 +1467,7 @@ A user CORRECTION or stated PREFERENCE ("stop doing X", "always format like Y") 
 
 ## Tool reliability stats (only when a "TOOL RELIABILITY" section is present)
 Those tools have a LOW cumulative success rate for THIS model. The stats re-rank your ATTENTION; they are NEVER evidence by themselves - the transcript is the only admissible evidence of a cause. Then:
-- PLUGIN tool (visible in `plugin_list`) whose failures come from unclear usage (wrong slots, bad argument format, missing example): RE-CREATE it via `plugin_create` with the SAME name (same name = overwrite) keeping the same `command`, with a sharper description and schema that document the exact pitfall. Then `reload_plugins` and VERIFY once via `shell_exec`. Fundamentally broken plugin: `plugin_delete`.
+- FORGED_TOOL tool (visible in `forged_tool_list`) whose failures come from unclear usage (wrong slots, bad argument format, missing example): RE-CREATE it via `forged_tool_create` with the SAME name (same name = overwrite) keeping the same `command`, with a sharper description and schema that document the exact pitfall. Then `reload_forged_tools` and VERIFY once via `shell_exec`. Fundamentally broken forged_tool: `forged_tool_delete`.
 - BUILT-IN tool: you cannot edit it. If (and ONLY if) the transcript shows a repeatable MISUSE pattern and its fix, patch the governing skill with the CORRECT usage - positive framing ("call X with quoted paths"), never a negative claim ("X is broken").
 - No transcript evidence of the cause: do NOTHING. A statistic alone is not a diagnosis.
 
@@ -1724,7 +1724,7 @@ fn slug_simple(s: &str) -> String {
 }
 
 /// Launches the curateur in the BACKGROUND (everything owned: `tokio::spawn` from the node).
-/// Best-effort: creates/patches VERIFIED skills & plugins, dedup before creation.
+/// Best-effort: creates/patches VERIFIED skills & forged_tools, dedup before creation.
 /// Curateur default prompt (to expose it in the "restore default" UI).
 pub fn prompt_curateur_defaut() -> &'static str {
     PROMPT_CURATEUR
@@ -1846,7 +1846,7 @@ pub async fn lancer_curateur_arriere_plan(
     // LLM-facing review prompt prepended to the mission transcript.
     let mut revue = format!(
         "Review the mission transcript below and update the capability library if warranted \
-         (skills and/or verified plugins), following your rules strictly.\n\n\
+         (skills and/or verified forged_tools), following your rules strictly.\n\n\
          === MISSION TRANSCRIPT ===\n{transcript}"
     );
     // Phase 2 of the tool stats: the curateur SEES which tools struggle with this
@@ -2498,7 +2498,7 @@ pub async fn executer_avec_bilan(
     };
 
     // System prompt: reuse the existing assemblers (stable tier).
-    // COMPACT capability index (~4K): exposes ALL skills/abeilles/plugins by name
+    // COMPACT capability index (~4K): exposes ALL skills/abeilles/forged_tools by name
     // (like the chat): the model knows what exists without injecting all the full
     // schemas. That was the bug: butinage passed `None` here and inflated the prompt.
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);

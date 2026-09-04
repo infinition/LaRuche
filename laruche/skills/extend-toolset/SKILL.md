@@ -1,7 +1,7 @@
 ---
 type: skill
 name: extend-toolset
-description: Add a plugin tool, connect an MCP server, or chain tools in one script.
+description: Forge a tool, connect an MCP server, or chain tools in one script.
 ---
 
 # Extending the toolset
@@ -10,7 +10,7 @@ Three different things get confused here. Pick the right one before writing anyt
 
 | You want | Use |
 |---|---|
-| A capability that does not exist, backed by a command or script | a **plugin** |
+| A capability that does not exist, backed by a command or script | a **Forged Tool** |
 | Capabilities from an existing external server | an **MCP server** |
 | Several existing tools run back to back in one turn | **run_script** |
 | A documented sequence a human or model should follow | a **skill**, see skill-forge |
@@ -53,67 +53,67 @@ Read this before you conclude that something you just created does not exist.
 
 The tool list in your prompt, and the native tool set sent to the provider, are both
 frozen when the mission starts. Freezing them is what keeps the cached prefix stable and
-the cost down. So a plugin you create mid-mission will NOT appear in your list, no matter
+the cost down. So a Forged Tool you create mid-mission will NOT appear in your list, no matter
 how many times you reload.
 
-The registry behind `tool_search` and `tool_call` is live. `plugin_create` loads the new
-plugin into it on the spot, so it is reachable through `tool_call` in the same mission, on
+The registry behind `tool_search` and `tool_call` is live. `forged_tool_create` loads the new
+Forged Tool into it on the spot, so it is reachable through `tool_call` in the same mission, on
 the next turn.
 
 | | This mission | Next mission |
 |---|---|---|
-| A plugin, after `plugin_create` | callable via `tool_call`, absent from your list | listed normally |
+| A Forged Tool, after `forged_tool_create` | callable via `tool_call`, absent from your list | listed normally |
 | A skill, after `skill_create` | openable via `skill_view` by name | listed in the catalog |
 
-So: **do not verify a new plugin by looking for it in your tool list. Verify it by
+So: **do not verify a new Forged Tool by looking for it in your tool list. Verify it by
 calling it.** `tool_search` on its name, then `tool_call` with real arguments. Absence
 from the list proves nothing and is expected.
 
-## Creating a plugin
+## Creating a Forged Tool
 
-A plugin is a folder. `plugin_create` writes `plugins/<name>/plugin.json`, and the script
+A Forged Tool is a folder. `forged_tool_create` writes `forged_tools/<name>/tool.json`, and the script
 it runs sits beside it in the same folder:
 
 ```
-plugins/
+forged_tools/
   meteo/
-    plugin.json     the manifest: name, description, schema, command
+    tool.json     the manifest: name, description, schema, command
     run.py          the body the command runs
 ```
 
-Manifest and body travel together, so `plugin_delete` removes both at once. Never put a
-plugin's script anywhere else.
+Manifest and body travel together, so `forged_tool_delete` removes both at once. Never put a
+Forged Tool script anywhere else.
 
-The layout inside the folder is flat: a plugin is a manifest and the thing it runs, so
+The layout inside the folder is flat: a Forged Tool is a manifest and the thing it runs, so
 there is no `scripts/` level to create, unlike a skill which also carries references and
-templates. A plugin that genuinely grows several files may organise them in subfolders of
-its own, `{{plugin_dir}}/lib/parse.py` and so on, and nothing has to be declared for that
+templates. A Forged Tool that genuinely grows several files may organise them in subfolders of
+its own, `{{forged_tool_dir}}/lib/parse.py` and so on, and nothing has to be declared for that
 to work. Do not add the level for a single file.
 
-`plugin_create` requires `name`, `description` and `command`.
+`forged_tool_create` requires `name`, `description` and `command`.
 
 - `command` is a shell template with `{{slots}}`, for example
-  `python "{{plugin_dir}}/run.py" {{ville}}`.
-- `{{plugin_dir}}` is filled in with the plugin's own folder. Use it for every path
-  inside the plugin, so the command works whatever directory the node was started from.
+  `python "{{forged_tool_dir}}/run.py" {{ville}}`.
+- `{{forged_tool_dir}}` is filled in with the Forged Tool folder. Use it for every path
+  inside the Forged Tool, so the command works whatever directory the node was started from.
 - `schema` is a JSON Schema for the arguments. Every slot in the command must appear as a
   property. A slot with no matching property is never filled and the command runs
-  malformed. `{{plugin_dir}}` is the exception: it is provided, never declared.
+  malformed. `{{forged_tool_dir}}` is the exception: it is provided, never declared.
 - `script_path` plus `script_content` writes the backing script at the same time.
   `script_path` is a bare file name such as `run.py`, not a path: it always lands in the
-  plugin's folder.
+  Forged Tool folder.
 
 Procedure:
 
-1. `plugin_list` first, and `tool_search` on the same keyword. Do not create a duplicate
+1. `forged_tool_list` first, and `tool_search` on the same keyword. Do not create a duplicate
    of something already registered.
-2. `plugin_create` with all four parts. It loads the plugin into the live registry itself,
+2. `forged_tool_create` with all four parts. It loads the Forged Tool into the live registry itself,
    so there is no reload step to run afterwards.
 3. `tool_search` on the new name to confirm it entered the registry, then `tool_call` it
    once with a real argument to confirm it actually runs. Do NOT look for it in your tool
    list: it will not be there until the next mission, and that is normal.
 
-`plugin_delete` with `name` removes one, and reloads what remains by itself.
+`forged_tool_delete` with `name` removes one, and reloads what remains by itself.
 
 ## Connecting an MCP server
 
@@ -129,31 +129,31 @@ Procedure:
 
 ## Traps
 
-- **Looking for the new plugin in your tool list.** It is not there and will not be until
+- **Looking for the new Forged Tool in your tool list.** It is not there and will not be until
   the next mission. Confirm it with `tool_search`, not with your eyes.
 - **A `{{slot}}` with no schema property.** The command runs with the placeholder left in
   it and fails in a way that looks like a script bug.
 - **Guessing an MCP URI.** They are opaque and server-specific. Always list first.
-- **Reaching for a plugin when a skill was needed.** If the capability already exists and
-  what is missing is knowing HOW to use it, write a skill. A plugin wrapping tools you
+- **Reaching for a Forged Tool when a skill was needed.** If the capability already exists and
+  what is missing is knowing HOW to use it, write a skill. A Forged Tool wrapping tools you
   already have adds a moving part and no capability.
 - **Relative paths in `command`.** They resolve against the server's working directory,
-  not the user's folder. Use `{{plugin_dir}}` for anything inside the plugin.
-- **A JSON dropped loose at the root of `plugins/`.** It is not loaded. The node logs the
+  not the user's folder. Use `{{forged_tool_dir}}` for anything inside the Forged Tool.
+- **A JSON dropped loose at the root of `forged_tools/`.** It is not loaded. The node logs the
   folder it should have gone into, and the tool simply never exists.
 
 ## Failure modes
 
-**The plugin was created but does not appear in my tool list.** Expected. The list is
+**The Forged Tool was created but does not appear in my tool list.** Expected. The list is
 frozen for the mission. Confirm with `tool_search` and use it through `tool_call`. Do not
 create it a second time.
 
-**The plugin was created but `tool_call` says unknown tool.** That one is real. The
-manifest did not load: a JSON dropped loose at the root of `plugins/` instead of inside
-`plugins/<name>/`, or a malformed manifest. Check the node log, fix the folder, and create
+**The Forged Tool was created but `tool_call` says unknown tool.** That one is real. The
+manifest did not load: a JSON dropped loose at the root of `forged_tools/` instead of inside
+`forged_tools/<name>/`, or a malformed manifest. Check the node log, fix the folder, and create
 it again.
 
-**The plugin runs but receives empty arguments.** Slot names in `command` and property
+**The Forged Tool runs but receives empty arguments.** Slot names in `command` and property
 names in `schema` disagree. They must match character for character.
 
 **`run_script` step 2 receives the literal text `{{1}}`.** The placeholder is inside a

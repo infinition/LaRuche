@@ -18,7 +18,7 @@ LaRuche.i18n.add({
   'capabilities.edit':          { fr:'Editer',            en:'Edit' },
   'capabilities.remove':        { fr:'Retirer',           en:'Remove' },
   'capabilities.confirmDelete': { fr:'Supprimer',         en:'Delete' },
-  'capabilities.confirmPlugin': { fr:'Supprimer le plugin', en:'Delete plugin' },
+  'capabilities.confirmForgedTool': { fr:'Supprimer l\'outil forgé', en:'Delete Forged Tool' },
   'capabilities.loading':       { fr:'Chargement...',     en:'Loading...' },
   'capabilities.mcpServerName': { fr:'Nom serveur MCP',   en:'MCP server name' },
   'capabilities.command':       { fr:'Commande',          en:'Command' },
@@ -33,7 +33,7 @@ LaRuche.i18n.add({
   'capabilities.active':        { fr:'● actif',           en:'● active' },
   'capabilities.inactive':      { fr:'○ inactif',         en:'○ inactive' },
   'capabilities.newSkill':      { fr:'+ Nouveau skill',   en:'+ New skill' },
-  'capabilities.newPlugin':     { fr:'+ Nouveau plugin',  en:'+ New plugin' },
+  'capabilities.newForgedTool':     { fr:'+ Nouvel outil forgé',  en:'+ New Forged Tool' },
   'capabilities.filesScripts':  { fr:'📁 Fichiers &amp; scripts', en:'📁 Files &amp; scripts' },
   'capabilities.enableAll':     { fr:'Tout activer',      en:'Enable all' },
   'capabilities.disableAll':    { fr:'Tout desactiver',   en:'Disable all' },
@@ -113,7 +113,7 @@ LaRuche.i18n.add({
   'capabilities.typeTool':      { fr:'Tool',              en:'Tool' },
   'capabilities.typeSkill':     { fr:'Skill',             en:'Skill' },
   'capabilities.typeMcp':       { fr:'MCP',               en:'MCP' },
-  'capabilities.typePlugin':    { fr:'Plugin',            en:'Plugin' },
+  'capabilities.typeForgedTool':    { fr:'Outil forgé',           en:'Forged Tool' },
   'capabilities.mcpNamePlaceholder': { fr:'ex: local-sqlite', en:'ex: local-sqlite' },
   'capabilities.mcpCmdPlaceholder':  { fr:'ex: node',        en:'ex: node' },
   'capabilities.mcpArgsPlaceholder': { fr:'ex: src/index.js --db db.sqlite', en:'ex: src/index.js --db db.sqlite' }
@@ -242,21 +242,21 @@ LaRuche.Capabilities = (function(){
     render();
   }
 
-  function familyLabel(f){ return ({abeille:LaRuche.i18n.t('capabilities.typeTool'),skill:LaRuche.i18n.t('capabilities.typeSkill'),mcp:LaRuche.i18n.t('capabilities.typeMcp'),plugin:LaRuche.i18n.t('capabilities.typePlugin')})[f]||f; }
+  function familyLabel(f){ return ({abeille:LaRuche.i18n.t('capabilities.typeTool'),skill:LaRuche.i18n.t('capabilities.typeSkill'),mcp:LaRuche.i18n.t('capabilities.typeMcp'),forged:LaRuche.i18n.t('capabilities.typeForgedTool')})[f]||f; }
 
   async function gather(){
     var rows = [];
-    // Tools (native/custom)
+    // Native tools and user-authored Forged Tools share the live tool registry.
     try {
       var tools = await fetch('/api/tools').then(function(r){return r.json();});
       (tools||[]).forEach(function(t){
-        var isPlugin = (t.origin==='custom' || t.origin==='Custom');
+        var isForgedTool = (t.origin==='forged' || t.origin==='Forged' || t.origin==='custom' || t.origin==='Custom');
         rows.push({
-          family: isPlugin ? 'plugin' : 'abeille', name:t.name,
-          origin: isPlugin ? 'custom' : 'native',
+          family: isForgedTool ? 'forged' : 'abeille', name:t.name,
+          origin: isForgedTool ? 'forged' : 'native',
           desc:(t.description||''), enabled:(t.enabled!==false),
           danger:(t.danger||'safe'), raw:t,
-          editable:false, immutable:!isPlugin
+          editable:false, immutable:!isForgedTool
         });
       });
     } catch(e){}
@@ -286,7 +286,7 @@ LaRuche.Capabilities = (function(){
     } catch(e){}
 
     // Alphabetical sort by name within each family
-    var famOrder = {abeille:0, skill:1, mcp:2, plugin:3};
+    var famOrder = {abeille:0, skill:1, mcp:2, forged:3};
     rows.sort(function(a,b){
       var fa=(famOrder[a.family]==null?9:famOrder[a.family]);
       var fb=(famOrder[b.family]==null?9:famOrder[b.family]);
@@ -306,7 +306,7 @@ LaRuche.Capabilities = (function(){
     LaRuche.Utils.openMediaModal('text', JSON.stringify(r.raw, null, 2));
   }
 
-  // One switch for the four families. Tools and plugins used to carry a bare checkbox
+  // One switch for the four families. Tools and Forged Tools used to carry a bare checkbox
   // with an ON/OFF word beside it, skills a slider: same state, two controls, so a row
   // read differently depending on what it held.
   function interrupteur(nom, actif, appel){
@@ -344,11 +344,11 @@ LaRuche.Capabilities = (function(){
         bouton(LaRuche.i18n.t('capabilities.remove'),
           'LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)', true);
     }
-    if(r.family==='plugin'){
+    if(r.family==='forged'){
       return interrupteur(r.name, r.enabled, basculeOutil)+' '+
-        bouton(LaRuche.i18n.t('capabilities.edit'), 'LaRuche.Settings.viewPlugin(\''+nom+'\')')+' '+
+        bouton(LaRuche.i18n.t('capabilities.edit'), 'LaRuche.Settings.viewForgedTool(\''+nom+'\')')+' '+
         bouton(LaRuche.i18n.t('capabilities.delete'),
-          'if('+confirme('capabilities.confirmPlugin')+'){LaRuche.Settings.deletePlugin(\''+nom+'\');setTimeout(LaRuche.Capabilities.refresh,300)}', true);
+          'if('+confirme('capabilities.confirmForgedTool')+'){LaRuche.Settings.deleteForgedTool(\''+nom+'\');setTimeout(LaRuche.Capabilities.refresh,300)}', true);
     }
     return '<span style="color:var(--text-dim);font-size:10px">-</span>';
   }
@@ -369,7 +369,7 @@ LaRuche.Capabilities = (function(){
     }
     window._capRows = filtered;
 
-    var counts = {all:rows.length, abeille:0, skill:0, mcp:0, plugin:0};
+    var counts = {all:rows.length, abeille:0, skill:0, mcp:0, forged:0};
     rows.forEach(function(r){ counts[r.family] = (counts[r.family]||0)+1; });
     document.querySelectorAll('#capTabsBar .settings-tab-btn').forEach(function(b){
       var f=b.dataset.tab; var base=b.textContent.replace(/\s*\(\d+\)$/,'');
@@ -383,7 +383,7 @@ LaRuche.Capabilities = (function(){
       }).join('')+'</tr></thead>';
 
     var body = filtered.map(function(r, i){
-      var typeColor = ({abeille:'var(--amber)',skill:'var(--cyan)',mcp:'var(--purple)',plugin:'var(--green)'})[r.family]||'var(--text-dim)';
+      var typeColor = ({abeille:'var(--amber)',skill:'var(--cyan)',mcp:'var(--purple)',forged:'var(--green)'})[r.family]||'var(--text-dim)';
       var originColor = (r.origin==='native')?'var(--text-dim)':'var(--purple)';
       var statut = r.enabled
         ? '<span style="color:var(--green);font-size:10px;font-weight:bold">'+LaRuche.i18n.t('capabilities.active')+'</span>'
@@ -406,14 +406,14 @@ LaRuche.Capabilities = (function(){
     if(currentFamily==='all' || currentFamily==='skill'){
       actions.push(['tl-btn tl-btn--active', 'LaRuche.Settings.newSkill()', LaRuche.i18n.t('capabilities.newSkill')]);
     }
-    if(currentFamily==='all' || currentFamily==='plugin'){
-      actions.push(['tl-btn tl-btn--active', 'LaRuche.Settings.newPlugin()', LaRuche.i18n.t('capabilities.newPlugin')]);
+    if(currentFamily==='all' || currentFamily==='forged'){
+      actions.push(['tl-btn tl-btn--active', 'LaRuche.Settings.newForgedTool()', LaRuche.i18n.t('capabilities.newForgedTool')]);
     }
     if(currentFamily==='all' || currentFamily==='mcp'){
       actions.push(['tl-btn tl-btn--active', 'LaRuche.Capabilities.addMcp()', LaRuche.i18n.t('capabilities.addMcpServer')]);
     }
-    if(currentFamily==='all' || currentFamily==='plugin'){
-      actions.push(['tl-btn', 'LaRuche.PluginFiles.open()', LaRuche.i18n.t('capabilities.filesScripts')]);
+    if(currentFamily==='all' || currentFamily==='forged'){
+      actions.push(['tl-btn', 'LaRuche.ForgedToolFiles.open()', LaRuche.i18n.t('capabilities.filesScripts')]);
     }
     if(currentFamily==='all' || currentFamily==='abeille'){
       actions.push(['tl-btn tl-btn--success', 'LaRuche.Capabilities.toggleAll(true)', LaRuche.i18n.t('capabilities.enableAll')]);

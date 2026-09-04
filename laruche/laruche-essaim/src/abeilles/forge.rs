@@ -1,5 +1,5 @@
 //! Forge: **SELF-IMPROVEMENT** tools: the agent creates/edits its own **skill scripts**,
-//! its **plugins** (forged tools) and its **MCP servers**. Granular by design
+//! its **Forged Tools** and its **MCP servers**. Granular by design
 //! (simple schemas, reliable even on a small model). The skills (OKF docs)
 //! live in the cognitive map and are managed by the `skill_*` abeilles in `memoire.rs`.
 
@@ -49,7 +49,7 @@ impl Abeille for SkillFileWrite {
     fn description(&self) -> &str {
         "Create or overwrite a file in a skill bundle (script, reference, etc.). \
          The script is then run via shell_exec/execute_code. \
-         Does NOT create a tool - use plugin_create for that."
+         Does NOT create a tool - use forged_tool_create for that."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{
@@ -195,32 +195,32 @@ impl Abeille for SkillFileList {
     }
 }
 
-// ─────────────────────────────── Plugins (forged tools) ───────────────────────────────
+// ─────────────────────────────── Forged Tools ───────────────────────────────
 
-pub struct PluginCreate {
+pub struct ForgedToolCreate {
     pub registry: Arc<AbeilleRegistry>,
 }
 #[async_trait]
-impl Abeille for PluginCreate {
+impl Abeille for ForgedToolCreate {
     fn nom(&self) -> &str {
-        "plugin_create"
+        "forged_tool_create"
     }
     fn description(&self) -> &str {
-        "Create a persistent tool (plugin) callable like any built-in. Writes the folder \
-         plugins/<name>/, with plugin.json plus any script beside it. `command` = shell template \
-         with {{slots}}, where {{plugin_dir}} is the plugin's own folder (e.g. \
-         'python {{plugin_dir}}/run.py {{arg}}'). `schema` = JSON Schema for the tool's arguments. \
+        "Create a persistent Forged Tool callable like any built-in. Writes the folder \
+         forged_tools/<name>/, with tool.json plus any script beside it. `command` = shell template \
+         with {{slots}}, where {{forged_tool_dir}} is the tool's own folder (e.g. \
+         'python {{forged_tool_dir}}/run.py {{arg}}'). `schema` = JSON Schema for the tool's arguments. \
          Optional `script_path`+`script_content` to write the script inline; script_path is a \
-         file name inside the plugin folder, not a path. Hot-reloads automatically. \
+         file name inside the forged tool folder, not a path. Hot-reloads automatically. \
          For a PROCEDURE (not a tool), use skill_create."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{
             "name":{"type":"string"},
             "description":{"type":"string"},
-            "command":{"type":"string","description":"shell template with {{slots}}; {{plugin_dir}} = the plugin folder"},
+            "command":{"type":"string","description":"shell template with {{slots}}; {{forged_tool_dir}} = the forged tool folder"},
             "schema":{"type":"object","description":"JSON Schema for the tool's arguments"},
-            "script_path":{"type":"string","description":"optional: file name inside the plugin folder, e.g. run.py"},
+            "script_path":{"type":"string","description":"optional: file name inside the forged tool folder, e.g. run.py"},
             "script_content":{"type":"string","description":"optional: script source code"}
         },"required":["name","description","command"]})
     }
@@ -237,14 +237,16 @@ impl Abeille for PluginCreate {
             return Ok(ResultatAbeille::err("name required"));
         }
         let slug = slugify(name);
-        let racine = Path::new("plugins");
-        let dossier = crate::abeilles::plugins::dossier_plugin(racine, &slug);
+        let racine = Path::new("forged_tools");
+        let dossier = crate::abeilles::forged_tools::dossier_outil_forge(racine, &slug);
         if let Err(e) = std::fs::create_dir_all(&dossier) {
-            return Ok(ResultatAbeille::err(format!("Plugin folder failed: {e}")));
+            return Ok(ResultatAbeille::err(format!(
+                "Forged Tool folder failed: {e}"
+            )));
         }
 
         // The script lives beside its manifest. Only a bare file name is accepted:
-        // a path would let a plugin write outside its own folder.
+        // a path would let a forged tool write outside its own folder.
         if let (Some(sp), Some(sc)) = (
             args["script_path"].as_str(),
             args["script_content"].as_str(),
@@ -257,8 +259,8 @@ impl Abeille for PluginCreate {
             };
             if sp.contains("..") || nom_fichier != sp {
                 return Ok(ResultatAbeille::err(format!(
-                    "script_path must be a file name inside the plugin folder, not a path. \
-                     Use `{nom_fichier}`, it will be written to plugins/{slug}/{nom_fichier}."
+                    "script_path must be a file name inside the forged tool folder, not a path. \
+                     Use `{nom_fichier}`, it will be written to forged_tools/{slug}/{nom_fichier}."
                 )));
             }
             if let Err(e) = std::fs::write(dossier.join(&nom_fichier), sc) {
@@ -272,30 +274,32 @@ impl Abeille for PluginCreate {
             "parameters": args.get("schema").cloned().unwrap_or_else(|| json!({"type":"object","properties":{}})),
             "command": args["command"].as_str().unwrap_or(""),
         });
-        let path = crate::abeilles::plugins::chemin_manifeste(racine, &slug);
+        let path = crate::abeilles::forged_tools::chemin_manifeste(racine, &slug);
         if let Err(e) = std::fs::write(
             &path,
             serde_json::to_string_pretty(&def).unwrap_or_default(),
         ) {
-            return Ok(ResultatAbeille::err(format!("Plugin write failed: {e}")));
+            return Ok(ResultatAbeille::err(format!(
+                "Forged Tool write failed: {e}"
+            )));
         }
         // Hot-reload into the main registry.
-        crate::abeilles::charger_plugins(Path::new("plugins"), &self.registry);
+        crate::abeilles::charger_outils_forges(Path::new("forged_tools"), &self.registry);
         Ok(ResultatAbeille::ok(format!(
-            "Plugin `{name}` created and loaded ({}).",
+            "Forged Tool `{name}` created and loaded ({}).",
             path.display()
         )))
     }
 }
 
-pub struct PluginList;
+pub struct ForgedToolList;
 #[async_trait]
-impl Abeille for PluginList {
+impl Abeille for ForgedToolList {
     fn nom(&self) -> &str {
-        "plugin_list"
+        "forged_tool_list"
     }
     fn description(&self) -> &str {
-        "List all forged plugins, one folder each under plugins/."
+        "List all Forged Tools, one folder each under forged_tools/."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{}})
@@ -308,36 +312,40 @@ impl Abeille for PluginList {
         _args: serde_json::Value,
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
-        let mut out = Vec::new();
-        if let Ok(rd) = std::fs::read_dir("plugins") {
-            for e in rd.flatten() {
-                let p = e.path();
-                if p.is_dir() && p.join(crate::abeilles::plugins::MANIFESTE).exists() {
-                    if let Some(n) = p.file_name() {
-                        out.push(n.to_string_lossy().to_string());
+        let mut out = std::collections::BTreeSet::new();
+        for (root, manifest) in [
+            ("forged_tools", crate::abeilles::forged_tools::MANIFESTE),
+            ("plugins", crate::abeilles::forged_tools::MANIFESTE_HERITE),
+        ] {
+            if let Ok(rd) = std::fs::read_dir(root) {
+                for e in rd.flatten() {
+                    let p = e.path();
+                    if p.is_dir() && p.join(manifest).exists() {
+                        if let Some(n) = p.file_name() {
+                            out.insert(n.to_string_lossy().to_string());
+                        }
                     }
                 }
             }
         }
-        out.sort();
         Ok(ResultatAbeille::ok(if out.is_empty() {
-            "(no plugins)".to_string()
+            "(no forged tools)".to_string()
         } else {
-            out.join("\n")
+            out.into_iter().collect::<Vec<_>>().join("\n")
         }))
     }
 }
 
-pub struct PluginDelete {
+pub struct ForgedToolDelete {
     pub registry: Arc<AbeilleRegistry>,
 }
 #[async_trait]
-impl Abeille for PluginDelete {
+impl Abeille for ForgedToolDelete {
     fn nom(&self) -> &str {
-        "plugin_delete"
+        "forged_tool_delete"
     }
     fn description(&self) -> &str {
-        "Delete a plugin: removes the whole plugins/<name>/ folder, manifest and scripts \
+        "Delete a Forged Tool: removes the whole forged_tools/<name>/ folder, manifest and scripts \
          together, then drops it from the registry."
     }
     fn schema(&self) -> serde_json::Value {
@@ -355,23 +363,34 @@ impl Abeille for PluginDelete {
         if slug.is_empty() {
             return Ok(ResultatAbeille::err("name required"));
         }
-        // The folder is the plugin: removing it takes the manifest and the scripts
+        // The folder is the forged tool: removing it takes the manifest and the scripts
         // it runs, which the flat layout used to leave behind.
-        let dossier = crate::abeilles::plugins::dossier_plugin(Path::new("plugins"), &slug);
-        if !dossier.is_dir() {
-            return Ok(ResultatAbeille::err(format!(
-                "No plugin `{slug}` (expected {}).",
-                dossier.display()
-            )));
+        let canonical =
+            crate::abeilles::forged_tools::dossier_outil_forge(Path::new("forged_tools"), &slug);
+        let legacy =
+            crate::abeilles::forged_tools::dossier_outil_forge(Path::new("plugins"), &slug);
+        let dossiers: Vec<_> = [canonical, legacy]
+            .into_iter()
+            .filter(|dossier| dossier.is_dir())
+            .collect();
+        if dossiers.is_empty() {
+            return Ok(ResultatAbeille::err(format!("No Forged Tool `{slug}`.")));
         }
-        if let Err(e) = std::fs::remove_dir_all(&dossier) {
-            return Ok(ResultatAbeille::err(format!("Delete failed: {e}")));
+        for dossier in &dossiers {
+            if let Err(e) = std::fs::remove_dir_all(dossier) {
+                return Ok(ResultatAbeille::err(format!(
+                    "Delete failed for {}: {e}",
+                    dossier.display()
+                )));
+            }
         }
-        // Clear custom plugins from the registry then reload the remaining ones.
-        self.registry.supprimer_par_origine(ToolOrigin::Custom);
-        crate::abeilles::charger_plugins(Path::new("plugins"), &self.registry);
+        // Clear forged tools from the registry then reload the remaining ones.
+        self.registry.supprimer_par_origine(ToolOrigin::Forged);
+        crate::abeilles::charger_outils_herites(Path::new("plugins"), &self.registry);
+        crate::abeilles::charger_outils_forges(Path::new("forged_tools"), &self.registry);
         Ok(ResultatAbeille::ok(format!(
-            "Plugin `{slug}` deleted with its folder."
+            "Forged Tool `{slug}` deleted with its folder{}.",
+            if dossiers.len() > 1 { "s" } else { "" }
         )))
     }
 }
@@ -502,21 +521,21 @@ impl Abeille for McpList {
 }
 
 /// Registers the forge tools (self-improvement). `registry_arc` = the MAIN registry
-/// (so plugin_create/delete reload in the right place).
+/// (so forged_tool_create/delete reload in the right place).
 pub fn enregistrer_forge(registry: &AbeilleRegistry, registry_arc: Arc<AbeilleRegistry>) {
     registry.enregistrer(Box::new(SkillFileWrite));
     registry.enregistrer(Box::new(SkillFileRead));
     registry.enregistrer(Box::new(SkillFileDelete));
     registry.enregistrer(Box::new(SkillFileList));
-    registry.enregistrer(Box::new(PluginCreate {
+    registry.enregistrer(Box::new(ForgedToolCreate {
         registry: registry_arc.clone(),
     }));
-    registry.enregistrer(Box::new(PluginList));
-    registry.enregistrer(Box::new(PluginDelete {
+    registry.enregistrer(Box::new(ForgedToolList));
+    registry.enregistrer(Box::new(ForgedToolDelete {
         registry: registry_arc,
     }));
     registry.enregistrer(Box::new(McpAdd));
     registry.enregistrer(Box::new(McpRemove));
     registry.enregistrer(Box::new(McpList));
-    tracing::info!("Forge abeilles registered (skill_file_*, plugin_*, mcp_*)");
+    tracing::info!("Forge abeilles registered (skill_file_*, forged_tool_*, mcp_*)");
 }

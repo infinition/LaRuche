@@ -159,7 +159,7 @@ Rules for the body:
 - **Never reference another agent's runtime.** No foreign home directory, no foreign
   environment variable, no foreign user-agent string. Those paths resolve to nothing on a
   LaRuche install, so the command fails for a reason no one reading the output can work
-  out. LaRuche's own: `skills/<name>/` for bundled files, `plugins/<name>/` for a plugin
+  out. LaRuche's own: `skills/<name>/` for bundled files, `forged_tools/<name>/` for a Forged Tool
   and the scripts it runs, `LARUCHE_HOME` (defaulting to `~/.laruche`) for runtime state.
 - **Do not name another agent, anywhere.** Not in the body, not in a comment, not in a
   template that ends up in a pull request, not in a user-agent header. `check_skills.py`
@@ -180,7 +180,7 @@ on failure, print what it did on success, and never depend on a path outside the
 folder and the user's home.
 
 Writing a script is expected, not exceptional. When no built-in tool does the job, the
-agent writes one, tests it, and either bundles it here or registers it as a plugin so it
+agent writes one, tests it, and either bundles it here or registers it as a Forged Tool so it
 becomes callable by name. The `skill-forge` skill documents that loop; keep this file and
 that one in agreement.
 

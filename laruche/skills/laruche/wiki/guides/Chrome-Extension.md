@@ -9,13 +9,15 @@ extension is the supported path to the user's normal browsing session.
 
 ## Install
 
-Two sources, one procedure. From a release, download `laruche-extension-chrome.zip` and
-unzip it. From a clone, use `extension-chrome/` directly.
+Two sources, one procedure. Download
+[`laruche-extension-chrome.zip`](https://github.com/infinition/LaRuche/releases/latest/download/laruche-extension-chrome.zip)
+from the latest release and unzip it. From a clone, use `extension-chrome/` directly.
 
-A release also carries `laruche-extension-chrome-store.zip`. That one is the
-Chrome Web Store submission and has the manifest `key` removed, which the Store
-forbids. Loading it by hand gives the extension an id derived from the folder
-path, and the node refuses that id: use `laruche-extension-chrome.zip`.
+A release carries one archive only, and it is the one to load by hand. The Chrome
+Web Store submission is built by the same workflow but stays out of the release:
+the Store forbids the manifest `key`, and an archive without it gets an id derived
+from the folder path, which the node refuses. Two archives side by side only made
+it harder to tell which one to install.
 
 1. Open `chrome://extensions`.
 2. Enable developer mode.

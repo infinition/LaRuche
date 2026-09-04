@@ -82,7 +82,8 @@ hive state remains in use for compatibility.
 | `memoire-okf/` | Optional markdown snapshots in a dedicated git repository |
 | `sessions/` | Conversation history |
 | `skills/` | User and bundled markdown skills |
-| `plugins/` | Runtime tool plugins |
+| `forged_tools/` | Runtime Forged Tools |
+| `apps/` | Installed App packages, registry state and private App storage |
 | configuration and journals | Providers, channels, secrets, activity and supervision state |
 
 Back up the hive home to preserve the full installation state.

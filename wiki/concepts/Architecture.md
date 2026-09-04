@@ -39,7 +39,7 @@ extension lives in `extension-chrome/`; the VS Code extension lives in
   served by the node. There is no second frontend to keep synchronized.
 - **A testable engine core.** `laruche-butinage` keeps model-independent loop behavior
   separate from providers and IO. The eval runner then tests the assembled system.
-- **One hive home.** Memory, sessions, skills, plugins, secrets, settings and journals
+- **One hive home.** Memory, sessions, skills, Forged Tools, Apps, secrets, settings and journals
   resolve to one data directory regardless of the launcher.
 - **Live configuration.** Providers, models, context limits, tools, channels, LaReine,
   MCP and voice can be changed from Settings without restarting the node.

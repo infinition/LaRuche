@@ -467,17 +467,17 @@ pub fn section_comportement() -> &'static str {
      - HOW: `skill_create(name, description, body, tools, scripts)`. List in `tools` the tools the procedure relies on: it grants nothing and forbids nothing, but when the skill is opened, any listed tool whose signature is missing from the turn is pointed out to you, so you reach it with `tool_call` instead of assuming it is gone. The body = step-by-step procedure + pitfalls + commands.\n\
      - ITERATE: if you use a skill and it fails or is stale, `skill_patch(name, old, new)` IMMEDIATELY to fix it. That's how a skill becomes reliable.\n\
      - Bundled scripts: `skill_file_write(skill, path, content)` writes a script under `skills/<name>/scripts/`, which you then run via `shell_exec`/`execute_code`. It stays inert until the skill is loaded, so it costs nothing when the skill is not in play.\n\n\
-     ### TOOL (plugin) = an atomic CAPABILITY (the *what*)\n\
-     For an atomic repetitive action (a verb), forge a persistent tool: `plugin_create(name, description, command, schema, [script_path, script_content])`.\n\
-     `command` = a shell template with {{slots}}. `{{plugin_dir}}` expands to the plugin's own folder, so use `python {{plugin_dir}}/run.py {{arg}}` rather than a path relative to the working directory.\n\
-     A plugin is registered next to the built-in tools from the moment it exists, callable without any skill being loaded.\n\n\
+     ### TOOL (forged_tool) = an atomic CAPABILITY (the *what*)\n\
+     For an atomic repetitive action (a verb), forge a persistent tool: `forged_tool_create(name, description, command, schema, [script_path, script_content])`.\n\
+     `command` = a shell template with {{slots}}. `{{forged_tool_dir}}` expands to the forged_tool's own folder, so use `python {{forged_tool_dir}}/run.py {{arg}}` rather than a path relative to the working directory.\n\
+     A forged_tool is registered next to the built-in tools from the moment it exists, callable without any skill being loaded.\n\n\
      ### Where these things live\n\
      - `skills/<name>/` holds SKILL.md and, if needed, `scripts/`. One folder per skill.\n\
-     - `plugins/<name>/` holds plugin.json and the files it runs, `run.py` by convention. One folder per plugin: `plugin_delete` removes the folder whole, so never scatter a plugin's script elsewhere.\n\
-     - A JSON dropped loose at the root of `plugins/` is NOT loaded. It must sit in its own folder.\n\
+     - `forged_tools/<name>/` holds `tool.json` and the files it runs, `run.py` by convention. One folder per Forged Tool: `forged_tool_delete` removes the folder whole, so never scatter its script elsewhere.\n\
+     - A JSON dropped loose at the root of `forged_tools/` is NOT loaded. It must sit in its own folder.\n\
      - The repository's `scripts/` folder is maintenance tooling for humans. Never write your own scripts there.\n\n\
      ### Rules\n\
-     - SKILL for a procedure, PLUGIN for an atomic capability. Don't mix them up. The test: must it be usable without knowing a skill exists? Then it is a plugin. Does it only make sense inside a procedure you are documenting? Then it is a skill script.\n\
+     - SKILL for a procedure, FORGED_TOOL for an atomic capability. Don't mix them up. The test: must it be usable without knowing a skill exists? Then it is a forged_tool. Does it only make sense inside a procedure you are documenting? Then it is a skill script.\n\
      - You don't have every tool listed this turn: see the `Tool Catalog`, and call any of them via `tool_call` (or `tool_search` to search).\n\
      - Memorize durable FACTS with `memory_write`; PROCEDURES with `skill_create`.\n\n"
 }

@@ -97,14 +97,14 @@ run and with which arguments. It stays inert until the skill is loaded, so it co
 nothing on turns where the skill is not in play.
 
 **3. A registered tool.** When the capability is useful OUTSIDE this skill and you want
-to call it by name like any built-in, register it as a plugin with `plugin_create`.
-It lands in its own folder, `plugins/<name>/`, with the manifest and
+to call it by name like any built-in, register it as a Forged Tool with `forged_tool_create`.
+It lands in its own folder, `forged_tools/<name>/`, with the manifest and
 the script side by side, and it is callable from the moment it exists, with no skill
 loaded. Full procedure in the extend-toolset skill. This is how a script you wrote today
 becomes a tool available on every future turn.
 
 The test between 2 and 3: must it work without anyone knowing the skill exists? Then it
-is a plugin. Does it only make sense inside the procedure you are writing? Then it is a
+is a Forged Tool. Does it only make sense inside the procedure you are writing? Then it is a
 bundled script.
 
 Rules for anything you write, at every level:
@@ -151,7 +151,7 @@ from the catalog, not just from disk.
 - **Never reference another agent's runtime** in a body. Paths from other agents resolve
   to directories that do not exist here, and the failure is unreadable.
 - **A skill is a procedure, not a tool.** If what you want is a new capability rather
-  than a documented sequence, you want a plugin. See the `extend-toolset` skill.
+  than a documented sequence, you want a Forged Tool. See the `extend-toolset` skill.
 - **Never write `description: >-`.** The folded block scalar is legal YAML and the
   dashboard's parser used to reject the whole file over it. Put the description on one
   line, which is also what `skill_create` writes.

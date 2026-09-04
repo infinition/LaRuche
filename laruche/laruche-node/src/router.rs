@@ -455,17 +455,42 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             post(mcp_api::api_mcp_save_server).delete(mcp_api::api_mcp_delete_server),
         )
         .route(
-            "/api/plugins/:name",
-            get(plugins_api::api_plugin_get)
-                .post(plugins_api::api_plugin_save)
-                .delete(plugins_api::api_plugin_delete),
+            "/api/forged-tools",
+            get(forged_tools_api::api_forged_tools_list),
         )
-        .route("/api/plugin-files", get(plugins_api::api_plugin_files))
+        .route(
+            "/api/forged-tools/:name",
+            get(forged_tools_api::api_forged_tool_get)
+                .post(forged_tools_api::api_forged_tool_save)
+                .delete(forged_tools_api::api_forged_tool_delete),
+        )
+        .route(
+            "/api/forged-tool-files",
+            get(forged_tools_api::api_forged_tool_files),
+        )
+        .route(
+            "/api/forged-tool-file/*path",
+            get(forged_tools_api::api_forged_tool_file_get)
+                .post(forged_tools_api::api_forged_tool_file_save)
+                .delete(forged_tools_api::api_forged_tool_file_delete),
+        )
+        // Compatibility aliases for clients created before Forged Tools was named.
+        .route("/api/plugins", get(forged_tools_api::api_forged_tools_list))
+        .route(
+            "/api/plugins/:name",
+            get(forged_tools_api::api_forged_tool_get)
+                .post(forged_tools_api::api_forged_tool_save)
+                .delete(forged_tools_api::api_forged_tool_delete),
+        )
+        .route(
+            "/api/plugin-files",
+            get(forged_tools_api::api_forged_tool_files),
+        )
         .route(
             "/api/plugin-file/*path",
-            get(plugins_api::api_plugin_file_get)
-                .post(plugins_api::api_plugin_file_save)
-                .delete(plugins_api::api_plugin_file_delete),
+            get(forged_tools_api::api_forged_tool_file_get)
+                .post(forged_tools_api::api_forged_tool_file_save)
+                .delete(forged_tools_api::api_forged_tool_file_delete),
         )
         .route("/api/channels/discord/webhook", post(discord_api::api_discord_webhook))
         .route("/api/channels/slack/events", post(slack_api::api_slack_events))

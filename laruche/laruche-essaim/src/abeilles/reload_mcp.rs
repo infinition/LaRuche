@@ -6,9 +6,9 @@ use std::sync::Arc;
 
 /// Relire `mcp_servers.json` et s'y reconnecter, sans redemarrer la ruche.
 ///
-/// Il existait `reload_plugins` pour les plugins, et rien pour le MCP. Un agent
+/// Il existait `reload_forged_tools` pour les Outils forges, et rien pour le MCP. Un agent
 /// qui venait d'enregistrer un serveur avec `mcp_add` n'avait donc aucun moyen
-/// de le rendre joignable: il appelait `reload_plugins`, qui recharge un tout
+/// de le rendre joignable: il appelait `reload_forged_tools`, qui recharge un tout
 /// autre dossier et ne dit pas non, puis constatait que ses outils n'existaient
 /// toujours pas et concluait qu'il fallait redemarrer. Redemarrer est justement
 /// ce qu'il ne peut pas faire, et ce qu'on ne veut pas lui apprendre a demander.

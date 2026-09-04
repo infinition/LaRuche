@@ -115,8 +115,10 @@ web research, memory, scheduling, machine control, media, jobs and delegation. D
 selection sends only the relevant tool schemas to the model.
 
 Skills are plain markdown. LaRuche ships a curated set, loads user skills from its data
-directory, and can propose new ones through the background curator. Plugins and MCP
-servers extend the registry at runtime. LaRuche is both an MCP client and an MCP server.
+directory, and can propose new ones through the background curator. Forged Tools add
+JSON-backed commands to the registry, while MCP servers provide external tools. Apps add
+installable, sandboxed interface views with explicit permissions and private storage.
+LaRuche is both an MCP client and an MCP server.
 
 ### Interfaces and channels
 
@@ -227,8 +229,8 @@ Installed builds use one shared hive home:
 hive directory, including a source checkout with existing state, it keeps using that
 directory for compatibility.
 
-The hive home contains `memoire.db`, sessions, skills, plugins, secrets, configuration,
-journals and the optional `memoire-okf/` git history.
+The hive home contains `memoire.db`, sessions, skills, `forged_tools/`, `apps/`, secrets,
+configuration, journals and the optional `memoire-okf/` git history.
 
 ## Architecture
 

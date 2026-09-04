@@ -897,4 +897,4 @@ LaRuche.Automations = (function(){
   return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh };
 })();
 
-/* ── Capabilities (Tools · Skills · MCP · Plugins): unified table ── */
+/* ── Capabilities (Tools · Skills · MCP · Forged Tools): unified table ── */

@@ -64,7 +64,7 @@ const SEMANTIC_CORE: &[&str] = &[
     "file_edit",
     "file_list",
     // Tool creation and reloading
-    "reload_plugins",
+    "reload_forged_tools",
     // Long background jobs
     "submit_job",
     "check_job_status",
@@ -160,11 +160,11 @@ pub fn build_capability_index(registry: &AbeilleRegistry, exclude: &HashSet<&str
     let Some(tools) = schema.as_array() else {
         return String::new();
     };
-    // Native: NAMES only (~70). Plugins + MCP: NAME - DESCRIPTION (few, custom capabilities).
+    // Native: NAMES only (~70). Forged Tools + MCP: NAME - DESCRIPTION.
     // `exclude` = tools ALREADY detailed this turn (section `## Available tools`) -> we do NOT
     // repeat them here, otherwise the same tools are injected twice (signatures + names).
     let mut builtin: Vec<&str> = Vec::new();
-    let mut plugins: Vec<(&str, String)> = Vec::new();
+    let mut forged_tools: Vec<(&str, String)> = Vec::new();
     let mut mcp: Vec<(&str, String)> = Vec::new();
     for t in tools {
         let Some(name) = t["name"].as_str().filter(|n| !n.is_empty()) else {
@@ -174,7 +174,7 @@ pub fn build_capability_index(registry: &AbeilleRegistry, exclude: &HashSet<&str
             continue;
         }
         match t["origin"].as_str().unwrap_or("builtin") {
-            "custom" => plugins.push((
+            "forged" => forged_tools.push((
                 name,
                 resumer_description(t["description"].as_str().unwrap_or("")),
             )),
@@ -185,11 +185,11 @@ pub fn build_capability_index(registry: &AbeilleRegistry, exclude: &HashSet<&str
             _ => builtin.push(name),
         }
     }
-    if builtin.is_empty() && plugins.is_empty() && mcp.is_empty() {
+    if builtin.is_empty() && forged_tools.is_empty() && mcp.is_empty() {
         return String::new();
     }
     builtin.sort_unstable();
-    plugins.sort_by(|a, b| a.0.cmp(b.0));
+    forged_tools.sort_by(|a, b| a.0.cmp(b.0));
     mcp.sort_by(|a, b| a.0.cmp(b.0));
     let ligne = |out: &mut String, n: &str, d: &str| {
         if d.is_empty() {
@@ -206,9 +206,9 @@ pub fn build_capability_index(registry: &AbeilleRegistry, exclude: &HashSet<&str
     if !builtin.is_empty() {
         out.push_str(&format!("- Native tools: {}\n", builtin.join(", ")));
     }
-    if !plugins.is_empty() {
-        out.push_str("- Plugins:\n");
-        for (n, d) in &plugins {
+    if !forged_tools.is_empty() {
+        out.push_str("- Forged Tools:\n");
+        for (n, d) in &forged_tools {
             ligne(&mut out, n, d);
         }
     }
@@ -345,14 +345,14 @@ pub fn schema_outils_pour_prompt(
         }
     }
 
-    // ε-greedy cold start: a FORGED tool (origin `custom`, e.g. built by the
+    // ε-greedy cold start: a FORGED tool (origin `forged`, e.g. built by the
     // curateur) that this model has never tried can never earn a track record if
     // the selection always ignores it. Roughly 1 turn in 4 (deterministic on the
-    // prompt: no rand, replayable), give ONE never-tried custom tool a seat.
+    // prompt: no rand, replayable), give ONE never-tried forged tool a seat.
     if selected.len() < total_limit {
         let mut jamais: Vec<&str> = tools
             .iter()
-            .filter(|t| t.get("origin").and_then(|o| o.as_str()) == Some("custom"))
+            .filter(|t| t.get("origin").and_then(|o| o.as_str()) == Some("forged"))
             .filter_map(|t| tool_name(t))
             .filter(|n| !selected.contains(*n) && stats.essais(&config.model, n) == 0)
             .collect();
@@ -870,17 +870,17 @@ pub async fn boucle_react_memoire_multimodal(
     Ok(reponse)
 }
 
-/// Capability family of a tool based on its origin (builtin/custom/mcp).
+/// Capability family of a tool based on its origin (builtin/forged/mcp).
 fn famille_capacite(origin: &str) -> &'static str {
     match origin {
-        "custom" => "capacities.plugins",
+        "forged" => "capacities.forged_tools",
         "mcp" => "capacities.mcp",
         _ => "capacities.tools", // builtin + default
     }
 }
 
 /// Index (reconcile) the tool registry into the cognitive map under `capacities.*`,
-/// routed by origin: builtin->`capacities.tools`, custom->`capacities.plugins`, mcp->`capacities.mcp`.
+/// routed by origin: builtin->`capacities.tools`, forged->`capacities.forged_tools`, mcp->`capacities.mcp`.
 /// Incremental: writes only the missing tools. Called at startup AND on the 1st chat turn
 /// (failsafe), so any new tool from the code surfaces in memory.
 /// Marker of the current projection format. An item written before the schema was
@@ -979,7 +979,7 @@ pub async fn indexer_abeilles_memoire_ex(
     rafraichir_projections(registry, memoire).await;
     // INCREMENTAL reconciliation: ids already indexed under the 3 tool families.
     let mut deja: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for parent in ["capacities.tools", "capacities.plugins", "capacities.mcp"] {
+    for parent in ["capacities.tools", "capacities.forged_tools", "capacities.mcp"] {
         if let Ok(node) = memoire.read_node(parent).await {
             if let Some(children) = node["children"].as_array() {
                 for child in children {
@@ -1034,20 +1034,20 @@ pub async fn indexer_abeilles_memoire_ex(
     // moins un, sinon un demarrage purgerait tout avant que les serveurs MCP
     // n'aient eu le temps de se charger, en tache de fond.
     let mut valides: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let (mut a_natifs, mut a_plugins, mut a_mcp) = (false, false, false);
+    let (mut a_natifs, mut a_forged_tools, mut a_mcp) = (false, false, false);
     for tool in tools {
         let name = tool["name"].as_str().unwrap_or("");
         let origin = tool["origin"].as_str().unwrap_or("builtin");
         valides.insert(format!("{}.{name}", famille_capacite(origin)));
         match origin {
-            "custom" => a_plugins = true,
+            "forged" => a_forged_tools = true,
             "mcp" => a_mcp = true,
             _ => a_natifs = true,
         }
     }
     for (parent, actif) in [
         ("capacities.tools", a_natifs),
-        ("capacities.plugins", a_plugins),
+        ("capacities.forged_tools", a_forged_tools),
         ("capacities.mcp", a_mcp || mcp_charge),
     ] {
         if !actif {
@@ -1147,11 +1147,11 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
         }
     }
 
-    // (3) Capability CREATION intent (skill / tool / plugin) -> forge box.
+    // (3) Capability CREATION intent (skill / tool / forged_tool) -> forge box.
     const MOTS_FORGE: &[&str] = &[
         "skill",
         "outil",
-        "plugin",
+        "forged_tool",
         "forge",
         "crée",
         "cree",
@@ -1169,8 +1169,8 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
             "skill_view",
             "skill_list",
             "skill_file_write",
-            "plugin_create",
-            "plugin_list",
+            "forged_tool_create",
+            "forged_tool_list",
         ];
         for t in BOITE_FORGE {
             if noms.iter().any(|n| n.as_str() == *t) {
@@ -1266,10 +1266,10 @@ async fn recuperer_abeilles_pertinentes(
                 .or_else(|| item.get("node"))
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("");
-            // Tools = families capacities.tools / capacities.plugins / capacities.mcp (not skills).
+            // Tools = families capacities.tools / capacities.forged_tools / capacities.mcp (not skills).
             let name = [
                 "capacities.tools.",
-                "capacities.plugins.",
+                "capacities.forged_tools.",
                 "capacities.mcp.",
             ]
             .iter()

@@ -4,7 +4,7 @@
 //! L'interface en porte trois integres, ecrits en dur dans la feuille de style; ce
 //! module ne s'occupe que de ceux que l'utilisateur fabrique.
 //!
-//! Ils vivent dans `<foyer>/themes/<id>.json`, a cote des skills et des plugins,
+//! Ils vivent dans `<foyer>/themes/<id>.json`, a cote des skills et des outils forges,
 //! pour la meme raison qu'eux: ce sont des choses que l'on cree, que l'on veut
 //! retrouver au redemarrage et que l'on peut vouloir copier d'une machine a
 //! l'autre. Un fichier par theme, lisible et modifiable a la main.

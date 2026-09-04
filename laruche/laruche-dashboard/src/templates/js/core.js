@@ -139,16 +139,16 @@ LaRuche.i18n = (function(){
 })();
 
 LaRuche.i18n.add({
-  // PluginFiles
-  'core.pluginFilesTitle':   { fr:'📁 Fichiers de <code>plugins/</code> et <code>mcp/</code>', en:'📁 Files in <code>plugins/</code> and <code>mcp/</code>' },
+  // Forged Tool files
+  'core.forgedToolFilesTitle':   { fr:'📁 Sources des outils forgés et MCP', en:'📁 Forged Tool and MCP sources' },
   'core.newFile':            { fr:'+ Nouveau fichier',    en:'+ New file' },
   'core.folderEmpty':        { fr:'Dossier vide.',        en:'Empty folder.' },
   'core.fileHint':           { fr:"Sélectionne un fichier à gauche, ou glisse-dépose un script ici pour l'ajouter.", en:'Select a file on the left, or drag and drop a script here to add it.' },
   'core.binaryFile':         { fr:'Fichier binaire ({size} o) - non éditable ici.', en:'Binary file ({size} bytes) - not editable here.' },
-  'core.savedPlugins':       { fr:'Enregistré (plugins rechargés)', en:'Saved (plugins reloaded)' },
-  'core.deleteFileConfirm':  { fr:'Supprimer plugins/{path} ?', en:'Delete plugins/{path}?' },
+  'core.savedForgedTools':       { fr:'Enregistré, outils forgés rechargés', en:'Saved, Forged Tools reloaded' },
+  'core.deleteFileConfirm':  { fr:'Supprimer {path} ?', en:'Delete {path}?' },
   'core.fileDeleted':        { fr:'Fichier supprimé.',    en:'File deleted.' },
-  'core.newFilePrompt':      { fr:'Chemin du fichier, racine comprise (ex: plugins/mon_outil/run.py) :', en:'File path, root included (e.g. plugins/my_tool/run.py):' },
+  'core.newFilePrompt':      { fr:'Chemin du fichier, racine comprise (ex: forged_tools/mon_outil/run.py) :', en:'File path, root included (e.g. forged_tools/my_tool/run.py):' },
   'core.invalidName':        { fr:'Nom invalide',         en:'Invalid name' },
   'core.fileAdded':          { fr:'Ajouté : {dest}',      en:'Added: {dest}' },
   'core.fileRejected':       { fr:'Refusé : {name}',      en:'Rejected: {name}' },
@@ -204,10 +204,10 @@ LaRuche.i18n.add({
   'core.modelSelected':         { fr:'Modèle : {model}',   en:'Model: {model}' },
 });
 
-/* ── Plugins file browser (plugins/ + scripts/ folder) ─────────────────
+/* ── Forged Tool file browser (forged_tools/ + mcp/) ─────────────────
  * View/edit/delete/drop your own scripts (.py/.ps1/.sh/.json…) in addition to the JSON.
- * Server-side confined to plugins/ (anti-traversal). Drag and drop = upload. */
-LaRuche.PluginFiles = (function(){
+ * Server-side confined to forged_tools/ and mcp/ (anti-traversal). */
+LaRuche.ForgedToolFiles = (function(){
   var ov=null, current=null;
   function esc(s){ return LaRuche.Utils.esc(s); }
   function close(){ if(ov){ ov.remove(); ov=null; current=null; } }
@@ -218,9 +218,9 @@ LaRuche.PluginFiles = (function(){
     ov.onclick=function(e){ if(e.target===ov) close(); };
     ov.innerHTML='<div style="width:880px;max-width:95vw;height:84vh;background:var(--bg-panel);border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber);display:flex;align-items:center;gap:10px">'+
-        '<span style="flex:1">'+LaRuche.i18n.t('core.pluginFilesTitle')+'</span>'+
-        '<button class="tl-btn" onclick="LaRuche.PluginFiles.newFile()">'+LaRuche.i18n.t('core.newFile')+'</button>'+
-        '<button class="tl-btn" onclick="LaRuche.PluginFiles.close()">'+LaRuche.i18n.t('common.close')+'</button>'+
+        '<span style="flex:1">'+LaRuche.i18n.t('core.forgedToolFilesTitle')+'</span>'+
+        '<button class="tl-btn" onclick="LaRuche.ForgedToolFiles.newFile()">'+LaRuche.i18n.t('core.newFile')+'</button>'+
+        '<button class="tl-btn" onclick="LaRuche.ForgedToolFiles.close()">'+LaRuche.i18n.t('common.close')+'</button>'+
       '</div>'+
       '<div style="flex:1;display:flex;min-height:0">'+
         '<div id="pfTree" style="width:260px;border-right:1px solid var(--border);overflow:auto;padding:6px;font-size:12px"></div>'+
@@ -229,9 +229,9 @@ LaRuche.PluginFiles = (function(){
         '</div>'+
       '</div></div>';
     document.body.appendChild(ov);
-    // Drag and drop = upload at the root of plugins/. A plugin is a folder, so a
-    // dropped script belongs to nothing yet: move it into plugins/<name>/ next to
-    // the plugin.json that runs it.
+    // Drag and drop = upload at the root of forged_tools/. A forged tool is a folder, so a
+    // dropped script belongs to nothing yet: move it into forged_tools/<name>/ next to
+    // the tool.json manifest that runs it.
     var card=ov.firstChild;
     card.addEventListener('dragover', function(e){ e.preventDefault(); card.style.outline='2px dashed var(--amber)'; });
     card.addEventListener('dragleave', function(){ card.style.outline=''; });
@@ -239,7 +239,7 @@ LaRuche.PluginFiles = (function(){
     refresh();
   }
   function refresh(){
-    fetch('/api/plugin-files').then(function(r){return r.json();}).then(function(d){
+    fetch('/api/forged-tool-files').then(function(r){return r.json();}).then(function(d){
       var files=(d&&d.files)||[];
       var t=document.getElementById('pfTree'); if(!t) return;
       if(!files.length){ t.innerHTML='<div style="color:var(--text-dim);padding:8px">'+LaRuche.i18n.t('core.folderEmpty')+'</div>'; return; }
@@ -259,30 +259,30 @@ LaRuche.PluginFiles = (function(){
     });
   }
   function openFile(path){
-    fetch('/api/plugin-file/'+path.split('/').map(encodeURIComponent).join('/')).then(function(r){return r.json();}).then(function(d){
+    fetch('/api/forged-tool-file/'+path.split('/').map(encodeURIComponent).join('/')).then(function(r){return r.json();}).then(function(d){
       var m=document.getElementById('pfMain'); if(!m) return;
       current=path;
       if(d.binary){ m.innerHTML='<div style="color:var(--text-dim);padding:20px">'+LaRuche.i18n.t('core.binaryFile',{size:d.size||'?'})+'</div>'; return; }
       m.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><code style="flex:1;color:var(--amber)">'+esc(path)+'</code>'+
-        '<button class="tl-btn" onclick="LaRuche.PluginFiles.save()">'+LaRuche.i18n.t('common.save')+'</button>'+
-        '<button class="tl-btn tl-btn--danger" onclick="LaRuche.PluginFiles.del()">'+LaRuche.i18n.t('common.delete')+'</button></div>'+
+        '<button class="tl-btn" onclick="LaRuche.ForgedToolFiles.save()">'+LaRuche.i18n.t('common.save')+'</button>'+
+        '<button class="tl-btn tl-btn--danger" onclick="LaRuche.ForgedToolFiles.del()">'+LaRuche.i18n.t('common.delete')+'</button></div>'+
         '<textarea id="pfEditor" spellcheck="false" style="flex:1;width:100%;font-family:var(--mono);font-size:12px;background:#16161a;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;resize:none">'+esc(d.content||'')+'</textarea>';
     });
   }
   function save(){
     if(!current) return;
     var ta=document.getElementById('pfEditor'); if(!ta) return;
-    fetch('/api/plugin-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:ta.value})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('core.savedPlugins'),'ok'); refresh(); } else LaRuche.Toast.show(LaRuche.i18n.t('toast.failed'),'err'); });
+    fetch('/api/forged-tool-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:ta.value})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('core.savedForgedTools'),'ok'); refresh(); } else LaRuche.Toast.show(LaRuche.i18n.t('toast.failed'),'err'); });
   }
   function del(){
     if(!current || !confirm(LaRuche.i18n.t('core.deleteFileConfirm',{path:current}))) return;
-    fetch('/api/plugin-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'DELETE'})
+    fetch('/api/forged-tool-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'DELETE'})
       .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('toast.deleted'),'ok'); current=null; document.getElementById('pfMain').innerHTML='<div id="pfHint" style="color:var(--text-dim);padding:20px;text-align:center">'+LaRuche.i18n.t('core.fileDeleted')+'</div>'; refresh(); } });
   }
   function newFile(){
-    var name=prompt(LaRuche.i18n.t('core.newFilePrompt'),'plugins/'); if(!name) return;
-    fetch('/api/plugin-file/'+name.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:''})})
+    var name=prompt(LaRuche.i18n.t('core.newFilePrompt'),'forged_tools/'); if(!name) return;
+    fetch('/api/forged-tool-file/'+name.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:''})})
       .then(function(r){ if(r.ok){ refresh(); openFile(name); } else LaRuche.Toast.show(LaRuche.i18n.t('core.invalidName'),'err'); });
   }
   function handleDrop(e){
@@ -290,8 +290,8 @@ LaRuche.PluginFiles = (function(){
     Array.prototype.forEach.call(files, function(file){
       var reader=new FileReader();
       reader.onload=function(){
-        var dest='plugins/'+file.name;
-        fetch('/api/plugin-file/'+dest.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:reader.result})})
+        var dest='forged_tools/'+file.name;
+        fetch('/api/forged-tool-file/'+dest.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:reader.result})})
           .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('core.fileAdded',{dest:dest}),'ok'); refresh(); } else LaRuche.Toast.show(LaRuche.i18n.t('core.fileRejected',{name:file.name}),'err'); });
       };
       reader.readAsText(file);

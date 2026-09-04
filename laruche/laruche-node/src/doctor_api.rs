@@ -250,10 +250,10 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
         "detail": if sessions_ok { "sessions/ directory exists" } else { "Will be created on first chat" },
     }));
 
-    // Check plugins directory
-    let plugins_dir = std::path::Path::new("plugins");
-    let plugin_count = if plugins_dir.exists() {
-        std::fs::read_dir(plugins_dir)
+    // Check the Forged Tools directory.
+    let forged_tools_dir = std::path::Path::new("forged_tools");
+    let forged_tool_count = if forged_tools_dir.exists() {
+        std::fs::read_dir(forged_tools_dir)
             .map(|entries| {
                 entries
                     .filter(|e| {
@@ -268,9 +268,9 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
         0
     };
     checks.push(serde_json::json!({
-        "name": "Plugins",
+        "name": "Forged Tools",
         "status": "ok",
-        "detail": format!("{} plugin(s) loaded", plugin_count),
+        "detail": format!("{} Forged Tool(s) installed", forged_tool_count),
     }));
 
     // Check Chrome for browser tools

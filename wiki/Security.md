@@ -60,7 +60,7 @@ you need them to decide what to turn on, not because they are theoretical.
   `contains`, so an equivalent command written differently goes straight through:
   `Remove-Item -Recurse -Force C:\` matches none of them. The real barrier is the
   reviewer plus the popup. Treat the list as a guard against the obvious.
-- **Deferred execution is still execution.** `plugin_create` writes a manifest whose
+- **Deferred execution is still execution.** `forged_tool_create` writes a manifest whose
   `command` field is a shell template run later, and `mcp_add` registers a
   `{command, args}` launched at the next start. Neither runs anything at the moment of
   the call, which makes them look like file writes. Judge them like `shell_exec`.

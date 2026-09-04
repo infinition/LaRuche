@@ -227,7 +227,7 @@ mod tests {
             "cron_delete",
             "mission_delete",
             "skill_delete",
-            "plugin_delete",
+            "forged_tool_delete",
             "watcher_delete",
             "send_telegram",
             "mesh_send",

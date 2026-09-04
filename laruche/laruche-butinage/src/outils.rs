@@ -86,7 +86,7 @@ pub trait Outils: Send + Sync {
     ///
     /// [`Self::schemas`] is captured once before the loop, because the prompt and the
     /// native tool set must stay byte-identical for the provider's cached prefix to
-    /// hold. A plugin the agent forges at turn 5 is therefore callable (the registry
+    /// hold. A Forged Tool created at turn 5 is therefore callable (the registry
     /// behind it is live) but absent from every list it can see, which reads as a
     /// failure and gets it created again.
     ///

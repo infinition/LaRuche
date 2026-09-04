@@ -436,7 +436,7 @@ pub(crate) struct AppState {
     /// every use is a handful of map operations with no await, on the cheapest possible
     /// path, since the whole point of a ban is that it costs nothing to serve.
     pub(crate) mcp_verrou: Arc<std::sync::Mutex<crate::mcp_pare_feu::Verrou>>,
-    /// Installable Apps discovered under `<foyer>/addons/packages`.
+    /// Installable Apps discovered under `<foyer>/apps/packages`.
     ///
     /// The registry owns lifecycle metadata only. UI assets and future backends are
     /// resolved from the immutable versioned package directory, never from a path

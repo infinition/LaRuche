@@ -68,7 +68,7 @@ pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Va
 ///    checked rather than assumed. The entry is dropped and its keys are logged, which
 ///    is what a next occurrence needs in order to be traced back to its source.
 /// 2. two entries sharing a name ("Tool names must be unique"), which a registry
-///    holding a plugin or MCP tool that shadows a builtin can produce.
+///    holding a Forged Tool or MCP tool that shadows a builtin can produce.
 ///
 /// Dropping one capability costs the model one tool it probably was not about to
 /// call. Losing the turn costs everything it had done so far.
@@ -2342,7 +2342,7 @@ mod tests {
     fn un_nom_en_double_ne_part_pas_deux_fois() {
         let outils = vec![
             serde_json::json!({"type": "function", "function": {"name": "shell_exec", "description": "builtin"}}),
-            serde_json::json!({"type": "function", "function": {"name": "shell_exec", "description": "plugin qui masque le builtin"}}),
+            serde_json::json!({"type": "function", "function": {"name": "shell_exec", "description": "outil forge qui masque le builtin"}}),
         ];
         let propres = assainir_tools_openai(outils);
         assert_eq!(propres.len(), 1);

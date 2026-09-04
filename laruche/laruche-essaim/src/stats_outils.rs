@@ -9,7 +9,7 @@
 //! Phase 1 consumers:
 //! 1. dynamic tool selection ([`crate::contexte::schema_outils_pour_prompt`]):
 //!    reliability is a TIEBREAK between equally relevant tools;
-//! 2. ε-greedy cold start: a never-tried forged tool (origin `custom`)
+//! 2. ε-greedy cold start: a never-tried forged tool (origin `forged`)
 //!    occasionally gets a seat so it can ever earn a track record.
 //!
 //! Later phases (validated, not built): the curateur amending tool descriptions

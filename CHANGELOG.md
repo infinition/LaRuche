@@ -1,5 +1,23 @@
 # Changelog
 
+## Non publie
+
+### Change
+
+- **Addons devient Apps** dans l'interface, les routes, le SDK et le format de paquet.
+  Les nouveaux paquets utilisent `app.json` et l'extension `.laruche-app`.
+- **Plugins devient Forged Tools** pour distinguer les outils JSON appelables par
+  l'agent des Apps completes. Les nouveaux outils vivent dans
+  `forged_tools/<nom>/tool.json` et utilisent `{{forged_tool_dir}}`.
+
+### Compatibilite
+
+- Les anciens paquets `.laruche-addon`, manifestes `addon.json`, routes `/api/addons`
+  et appels `LaRucheAddon` restent acceptes.
+- Les dossiers `plugins/<nom>/plugin.json` sont migres sans ecrasement au demarrage.
+  En cas de collision avec un dossier canonique, ils restent lisibles sur place. Les
+  anciennes routes et le placeholder `{{plugin_dir}}` restent disponibles comme alias.
+
 ## [1.6.0] - 2026-09-03
 
 Une version d'apparence, au sens propre. Le theme n'etait plus une palette mais

@@ -974,7 +974,7 @@ impl Abeille for MemoireSkillCreate {
         "Create (or replace) a SKILL = reusable procedure, stored under \
          capacities.skills.<name>. Do this AFTER a complex SUCCESSFUL task (>=2 chained tools, \
          errors overcome, non-trivial workflow). Declare the tools/scripts the skill \
-         orchestrates (tools/scripts fields) to scope it. For an atomic tool: plugin_create."
+         orchestrates (tools/scripts fields) to scope it. For an atomic tool: forged_tool_create."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({

@@ -1,6 +1,6 @@
 {
   "name": "example_hello",
-  "description": "Example plugin: says hello (delete this file to remove)",
+  "description": "Example Forged Tool: says hello (delete this folder to remove)",
   "parameters": {
     "properties": {
       "name": {

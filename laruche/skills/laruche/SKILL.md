@@ -7,7 +7,7 @@ tools: [file_read]
 
 # LaRuche, expliquee par elle-meme
 
-Ce skill embarque le wiki complet de LaRuche, 28 pages, 126 Ko de markdown. C'est
+Ce skill embarque le wiki complet de LaRuche, 29 pages, 130 Ko de markdown. C'est
 la MEME source que le site publie: `wiki/` a la racine du depot, dont `docs/wiki.html`
 et ce dossier sont deux sorties generees par `scripts/build_wiki.py`. Ce qui est ecrit
 ici fait donc foi. Ne repondez jamais de memoire sur le fonctionnement de LaRuche:
@@ -21,7 +21,7 @@ qu'elle fait de vos donnees. Y compris la demande d'accueil "Presente-toi".
 
 Ce skill dit ce que LaRuche EST. Pour FAIRE quelque chose, les skills voisins sont plus
 directs: `configure-laruche` (reglages, fournisseur, canaux, secrets),
-`cognitive-memory` (retenir et retrouver), `extend-toolset` (plugin, MCP),
+`cognitive-memory` (retenir et retrouver), `extend-toolset` (Forged Tool, MCP),
 `delegation` (sous-agent), `long-running-work` (mission, kanban, plan).
 
 ## En une phrase
@@ -56,6 +56,7 @@ vous ne les demandez pas.
 | `wiki/concepts/Watchers.md` | Watchers | A watcher is a standing condition. It observes something, decides whether that means anything, and reacts. |
 | `wiki/concepts/Automation.md` | Automation | The automation hub gathers everything the hive does on its own: crons, missions, the kanban, and [watchers](Watchers). |
 | `wiki/concepts/Skills-and-Curator.md` | Skills and the Curator | A skill is a markdown file: instructions, examples, and conventions for a category of task. |
+| `wiki/concepts/Apps-and-Forged-Tools.md` | Apps and Forged Tools | LaRuche has two extension formats with different jobs. |
 | **Guides** | | |
 | `wiki/guides/Computer-and-Browser.md` | Computer and Browser | LaRuche can act on the desktop, the user's Chrome session and visual inputs. |
 | `wiki/guides/Chrome-Extension.md` | Chrome Extension | The LaRuche extension lets `browser` control the Chrome instance the user already has open, including its tabs and signed-in... |

@@ -60,13 +60,14 @@ pub enum NiveauDanger {
     Dangerous,
 }
 
-/// Where a tool comes from. Built-in tools are compiled Rust code; custom tools
-/// are user-editable JSON plugins.
+/// Where a tool comes from. Built-in tools are compiled Rust code; forged tools
+/// are user-editable JSON tool manifests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolOrigin {
     Builtin,
-    Custom,
+    #[serde(alias = "custom")]
+    Forged,
     Mcp,
 }
 
@@ -276,7 +277,7 @@ impl AbeilleRegistry {
     /// Enregistre un outil. Un natif n'est JAMAIS ecrase par un outil externe.
     ///
     /// L'insertion etait un simple `insert`, donc le dernier arrive gagnait. Or
-    /// les serveurs MCP et les plugins sont charges APRES les natifs, en tache
+    /// les serveurs MCP et les forged_tools sont charges APRES les natifs, en tache
     /// de fond: un serveur MCP exposant `computer` remplacait silencieusement
     /// l'outil natif du meme nom, et l'agent se retrouvait avec l'ancien sans
     /// que rien ne l'indique nulle part. Observe exactement comme ca.
@@ -648,7 +649,7 @@ mod tests {
 
     /// Un outil externe ne prend pas la place d'un natif.
     ///
-    /// Les serveurs MCP et les plugins sont charges APRES les natifs, en tache
+    /// Les serveurs MCP et les forged_tools sont charges APRES les natifs, en tache
     /// de fond. Avec un simple `insert`, le dernier arrive gagnait: un serveur
     /// exposant `computer` remplacait l'outil natif du meme nom, et l'agent
     /// travaillait avec l'ancien sans que rien ne l'indique. Vu en production.
@@ -811,4 +812,10 @@ mod tests_forme_attendue {
         assert!(forme_attendue(&json!({})).is_none());
         assert!(forme_attendue(&json!({"type": "object", "properties": {}})).is_none());
     }
+}
+#[test]
+fn custom_origin_deserializes_as_forged_for_compatibility() {
+    let origin: ToolOrigin = serde_json::from_str("\"custom\"").unwrap();
+    assert_eq!(origin, ToolOrigin::Forged);
+    assert_eq!(serde_json::to_string(&origin).unwrap(), "\"forged\"");
 }
