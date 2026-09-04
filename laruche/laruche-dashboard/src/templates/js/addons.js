@@ -10,11 +10,13 @@ LaRuche.i18n.add({
   'addons.subtitle':        {fr:'Applications locales branchées à LaRuche', en:'Local applications connected to LaRuche'},
   'addons.catalogue':       {fr:'Catalogue', en:'Catalogue'},
   'addons.views':           {fr:'Applications', en:'Applications'},
+  'addons.install':         {fr:'Installer', en:'Install'},
+  'addons.installing':      {fr:'Installation…', en:'Installing…'},
   'addons.refresh':         {fr:'Actualiser', en:'Refresh'},
   'addons.detach':          {fr:'Détacher', en:'Detach'},
   'addons.installed':       {fr:'Addons installés', en:'Installed addons'},
   'addons.catalogueHint':   {fr:'Active les applications auxquelles tu fais confiance. Leurs vues restent isolées de l’interface et des données de LaRuche.', en:'Enable applications you trust. Their views remain isolated from LaRuche UI and data.'},
-  'addons.none':            {fr:'Aucun addon détecté. Dépose un package dans le dossier addons/packages puis actualise.', en:'No addon detected. Add a package under addons/packages, then refresh.'},
+  'addons.none':            {fr:'Aucun addon détecté. Installe un package .laruche-addon ou .zip pour commencer.', en:'No addon detected. Install a .laruche-addon or .zip package to get started.'},
   'addons.loading':         {fr:'Chargement des addons…', en:'Loading addons…'},
   'addons.loadFailed':      {fr:'Impossible de charger les addons.', en:'Could not load addons.'},
   'addons.enabled':         {fr:'Activé', en:'Enabled'},
@@ -23,6 +25,12 @@ LaRuche.i18n.add({
   'addons.enable':          {fr:'Activer', en:'Enable'},
   'addons.disable':         {fr:'Désactiver', en:'Disable'},
   'addons.rescanDone':      {fr:'Catalogue actualisé', en:'Catalogue refreshed'},
+  'addons.installDone':     {fr:'Addon installé et laissé désactivé :', en:'Addon installed and left disabled:'},
+  'addons.installFailed':   {fr:'L’installation a échoué.', en:'Installation failed.'},
+  'addons.installInvalid':  {fr:'Ce fichier n’est pas un package addon valide.', en:'This file is not a valid addon package.'},
+  'addons.installTooLarge': {fr:'Le package dépasse la limite de 32 Mio.', en:'The package exceeds the 32 MiB limit.'},
+  'addons.installExists':   {fr:'Cette version est déjà installée.', en:'This version is already installed.'},
+  'addons.installType':     {fr:'Choisis un fichier .laruche-addon ou .zip.', en:'Choose a .laruche-addon or .zip file.'},
   'addons.changeFailed':    {fr:'La modification a échoué.', en:'The change failed.'},
   'addons.noViews':         {fr:'Aucune application activée.', en:'No enabled application.'},
   'addons.isolated':        {fr:'Vue isolée — aucun accès à LaRuche sans permission', en:'Isolated view — no LaRuche access without permission'},
@@ -37,6 +45,8 @@ LaRuche.Addons = (function(){
   var pendingRoute = null;
   var requestSerial = 0;
   var detachedUrls = [];
+  var installing = false;
+  var maxPackageBytes = 32 * 1024 * 1024;
 
   function t(key, vars){ return LaRuche.i18n.t(key, vars); }
   function esc(value){ return LaRuche.Utils.esc(value == null ? '' : value); }
@@ -62,19 +72,31 @@ LaRuche.Addons = (function(){
 
   function init(){
     ensureNavigation();
+    var install = document.getElementById('addonsInstall');
+    var packageInput = document.getElementById('addonsPackageInput');
     var refresh = document.getElementById('addonsRefresh');
     var detach = document.getElementById('addonsDetach');
     if(refresh){
       refresh.textContent=t('addons.refresh');
       refresh.onclick=function(){ if(isAdmin()) rescan(); else load(false); };
     }
+    if(install){
+      install.textContent=t('addons.install');
+      install.onclick=function(){
+        if(!isAdmin()) { LaRuche.Toast.show(t('addons.adminOnly'),'err'); return; }
+        if(!installing && packageInput) packageInput.click();
+      };
+    }
+    if(packageInput){ packageInput.onchange=function(){ installPackage(packageInput.files && packageInput.files[0]); }; }
     if(detach){ detach.textContent=t('addons.detach'); detach.onclick=function(){ detachActive(); }; }
+    syncInstallButton();
     renderLoading();
     load(false);
   }
 
   function enter(){
     ensureNavigation();
+    syncInstallButton();
     if(!catalogue) load(false);
     else applyRoute(pendingRoute || 'overview');
   }
@@ -107,6 +129,54 @@ LaRuche.Addons = (function(){
   }
 
   function rescan(){ load(true); }
+
+  function syncInstallButton(){
+    var button=document.getElementById('addonsInstall');
+    if(!button) return;
+    button.disabled=installing || !isAdmin();
+    button.textContent=installing?t('addons.installing'):t('addons.install');
+    button.title=!isAdmin()?t('addons.adminOnly'):'';
+  }
+
+  function installErrorMessage(payload){
+    var error=payload && payload.error;
+    var code=error && error.code;
+    if(code==='addon_package_too_large') return t('addons.installTooLarge');
+    if(code==='addon_version_exists') return t('addons.installExists');
+    if(code==='addon_package_invalid') return t('addons.installInvalid');
+    if(code==='admin_required') return t('addons.adminOnly');
+    return (error && error.message) || t('addons.installFailed');
+  }
+
+  function installPackage(file){
+    var input=document.getElementById('addonsPackageInput');
+    if(input) input.value='';
+    if(!file || !isAdmin() || installing) return;
+    var name=String(file.name||'').toLowerCase();
+    if(!name.endsWith('.zip') && !name.endsWith('.laruche-addon')){
+      LaRuche.Toast.show(t('addons.installType'),'err'); return;
+    }
+    if(file.size>maxPackageBytes){ LaRuche.Toast.show(t('addons.installTooLarge'),'err'); return; }
+    installing=true; syncInstallButton();
+    fetch(LaRuche.API.base+'/api/addons/install',{
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/zip'}, body:file
+    })
+      .then(function(response){
+        return response.json().catch(function(){ return null; }).then(function(payload){
+          if(!response.ok) throw new Error(installErrorMessage(payload));
+          return payload;
+        });
+      })
+      .then(function(installed){
+        installed=installed||{};
+        var manifest=(installed&&installed.manifest)||{};
+        LaRuche.Toast.show(t('addons.installDone')+' '+(manifest.name||installed.id)+' '+(installed.activeVersion||''),'ok');
+        pendingRoute='overview';
+        load(false);
+      })
+      .catch(function(error){ LaRuche.Toast.show(error.message||t('addons.installFailed'),'err'); })
+      .finally(function(){ installing=false; syncInstallButton(); });
+  }
 
   function addons(){ return (catalogue && Array.isArray(catalogue.addons)) ? catalogue.addons : []; }
   function enabledViews(){
