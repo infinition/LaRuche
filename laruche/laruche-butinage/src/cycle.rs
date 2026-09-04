@@ -239,6 +239,64 @@ pub async fn butiner(
                         carnet.passe,
                     ));
                 }
+                Err(EchecAppel::ContexteDepasse) => {
+                    // The provider says the request outgrew the context window
+                    // despite the proactive gauge-driven compaction and the hard
+                    // cut above: on a local backend the real n_ctx can be smaller
+                    // than `context_max_tokens`, or the jauge's chars-per-token
+                    // ratio can be off for that model's tokenizer. Force an
+                    // UNCONDITIONAL compaction (bypassing the gauge, which just
+                    // proved unreliable) and a harder cut, then retry ONCE:
+                    // a request that still overflows after that has nothing
+                    // left to shrink, and looping on it would only repeat
+                    // the same failed call.
+                    emet.emettre(Evenement::Statut(
+                        "Context window exceeded: compacting and retrying once.".into(),
+                    ));
+                    if let Some(ev) = compacter(carnet, fournisseur, &jauge, reglages, emet).await {
+                        emet.emettre(ev);
+                    }
+                    jauge.estimer(&reglages.systeme, &carnet.historique, schemas_chars);
+                    tronquer_historique(
+                        carnet,
+                        &reglages.systeme,
+                        reglages.context_max_tokens / 2,
+                        jauge.chars_par_token(),
+                    );
+                    let messages_reduits =
+                        assembler(carnet, reglages, outils.nouvelles_capacites().as_deref());
+                    match appeler_modele(
+                        fournisseur,
+                        &messages_reduits,
+                        &schemas,
+                        reglages,
+                        emet,
+                        annulation,
+                    )
+                    .await
+                    {
+                        Ok(r) => r,
+                        Err(EchecAppel::Interrompu) => {
+                            carnet.itineraire.finaliser();
+                            return Ok(Bilan::nouveau(
+                                "Interrupted by the user.",
+                                FinDeVol::Interrompue,
+                                carnet.passe,
+                            ));
+                        }
+                        Err(_) => {
+                            let motif = "context window exceeded even after compaction: \
+                                the configured window is likely larger than what this \
+                                model or server actually supports"
+                                .to_string();
+                            return Ok(Bilan::nouveau(
+                                format!("Fatal provider error: {motif}"),
+                                FinDeVol::Erreur(motif),
+                                carnet.passe,
+                            ));
+                        }
+                    }
+                }
                 Err(EchecAppel::Fatal(motif)) => {
                     return Ok(Bilan::nouveau(
                         format!("Fatal provider error: {motif}"),
@@ -615,6 +673,10 @@ enum EchecAppel {
     Fatal(String),
     /// The cancellation flag was raised while waiting.
     Interrompu,
+    /// The request outgrew the context window. Carries no message: unlike
+    /// `Fatal`, this one is recoverable by the caller (which holds the carnet
+    /// and can compact), so `appeler_modele` itself has nothing useful to say.
+    ContexteDepasse,
 }
 
 /// Model call with weather policy (backoff/abandon). Key rotation and model
@@ -693,6 +755,7 @@ async fn appeler_modele(
                     Reaction::RotationCle | Reaction::Deroutement => {
                         emet.emettre(Evenement::Statut("Resuming after provider error.".into()));
                     }
+                    Reaction::ReduireContexte => return Err(EchecAppel::ContexteDepasse),
                     Reaction::Stopper(motif) => {
                         // Diagnostic error: surface the REAL HTTP code + an excerpt of the
                         // provider body, otherwise "fatal error" is opaque (impossible to
