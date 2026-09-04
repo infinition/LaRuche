@@ -91,8 +91,10 @@ fn html_policy(host: Option<&HeaderValue>, id: &str, version: &str) -> Option<He
     }
     let http = format!("http://{host}/addons-assets/{id}/{version}/");
     let https = format!("https://{host}/addons-assets/{id}/{version}/");
+    let runtime_http = format!("http://{host}/addons-runtime/v1.js");
+    let runtime_https = format!("https://{host}/addons-runtime/v1.js");
     let policy = format!(
-        "default-src 'none'; script-src {http} {https}; style-src {http} {https} 'unsafe-inline'; img-src {http} {https} data: blob:; font-src {http} {https}; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://{host} https://{host}"
+        "default-src 'none'; script-src {http} {https} {runtime_http} {runtime_https}; style-src {http} {https} 'unsafe-inline'; img-src {http} {https} data: blob:; font-src {http} {https}; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://{host} https://{host}"
     );
     HeaderValue::from_str(&policy).ok()
 }
@@ -137,6 +139,7 @@ mod tests {
         assert!(policy.contains("frame-ancestors http://localhost:8419"));
         assert!(policy
             .contains("script-src http://localhost:8419/addons-assets/dev.laruche.test/1.2.3/"));
+        assert!(policy.contains("http://localhost:8419/addons-runtime/v1.js"));
         assert!(!policy.contains("unsafe-eval"));
         assert!(!policy.contains("script-src *"));
     }

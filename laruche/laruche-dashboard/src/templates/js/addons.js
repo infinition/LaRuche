@@ -36,6 +36,7 @@ LaRuche.i18n.add({
   'addons.isolated':        {fr:'Vue isolée — aucun accès à LaRuche sans permission', en:'Isolated view — no LaRuche access without permission'},
   'addons.popupBlocked':    {fr:'La fenêtre a été bloquée par le navigateur.', en:'The browser blocked the window.'},
   'addons.diagnostics':     {fr:'Diagnostics de découverte', en:'Discovery diagnostics'},
+  'addons.permissions':     {fr:'Permissions', en:'Permissions'},
   'addons.adminOnly':       {fr:'Seul un administrateur peut changer cet état.', en:'Only an administrator can change this state.'}
 });
 
@@ -47,11 +48,185 @@ LaRuche.Addons = (function(){
   var detachedUrls = [];
   var installing = false;
   var maxPackageBytes = 32 * 1024 * 1024;
+  var activeBridge = null;
+  var supportedCapabilities = ['storage.private','ui.theme.read','ui.locale.read'];
+  var bridgeMaxBytes = 64 * 1024;
 
   function t(key, vars){ return LaRuche.i18n.t(key, vars); }
   function esc(value){ return LaRuche.Utils.esc(value == null ? '' : value); }
   function initial(value){ return String(value || '?').trim().charAt(0) || '?'; }
   function isAdmin(){ return !!(LaRuche.Auth && LaRuche.Auth.isAdmin && LaRuche.Auth.isAdmin()); }
+
+  function bridgeFailure(code,message,retryable){
+    var error=new Error(message); error.code=code; error.retryable=!!retryable; return error;
+  }
+
+  function randomToken(){
+    var bytes=new Uint8Array(24); crypto.getRandomValues(bytes);
+    return Array.prototype.map.call(bytes,function(value){ return value.toString(16).padStart(2,'0'); }).join('');
+  }
+
+  function messageIsBounded(value,depth){
+    if(depth>20) return false;
+    if(value===null || typeof value==='string' || typeof value==='boolean' || (typeof value==='number' && isFinite(value))) return true;
+    if(Array.isArray(value)) return value.length<=256 && value.every(function(item){ return messageIsBounded(item,depth+1); });
+    if(Object.prototype.toString.call(value)!=='[object Object]') return false;
+    var keys=Object.keys(value);
+    return keys.length<=128 && keys.every(function(key){ return key.length<=128 && messageIsBounded(value[key],depth+1); });
+  }
+
+  function bridgeMessageIsSafe(message){
+    if(!messageIsBounded(message,0)) return false;
+    try{ return JSON.stringify(message).length<=bridgeMaxBytes; }catch(error){ return false; }
+  }
+
+  function manifestPermissions(addon,kind){
+    var permissions=addon&&addon.manifest&&addon.manifest.permissions;
+    return permissions&&Array.isArray(permissions[kind])?permissions[kind].slice():[];
+  }
+
+  function bridgeCapabilities(addon){
+    // Until the durable grants ledger lands, enabling an addon is the explicit
+    // grant for the small, low-risk v1 host set. Optional permissions remain
+    // denied and every future backend capability must be checked again in Rust.
+    return manifestPermissions(addon,'required').filter(function(permission){ return supportedCapabilities.indexOf(permission)!==-1; });
+  }
+
+  function revokeBridge(){
+    var bridge=activeBridge; activeBridge=null;
+    if(!bridge) return;
+    clearTimeout(bridge.timer);
+    try{ bridge.port.onmessage=null; bridge.port.close(); }catch(error){}
+  }
+
+  function bridgeReply(bridge,id,ok,result,error){
+    if(activeBridge!==bridge) return;
+    var response={v:1,kind:'response',id:id,ok:ok};
+    if(ok) response.result=result==null?{}:result;
+    else response.error={code:error.code||'internal_error',message:error.message||'Host request failed',retryable:!!error.retryable};
+    bridge.port.postMessage(response);
+  }
+
+  function storageBucketName(bridge){
+    var user=LaRuche.Auth&&LaRuche.Auth.getUser&&LaRuche.Auth.getUser();
+    if(!user || !user.user_id) throw bridgeFailure('authentication_required','An authenticated user is required');
+    return 'laruche:addon-storage:v1:'+encodeURIComponent(user.user_id)+':'+encodeURIComponent(bridge.addon.id);
+  }
+
+  function storageKey(params){
+    var key=params&&params.key;
+    if(typeof key!=='string' || key.length<1 || key.length>128 || !/^[A-Za-z0-9._:/-]+$/.test(key)){
+      throw bridgeFailure('validation_failed','Storage key is invalid');
+    }
+    return key;
+  }
+
+  function readStorage(bridge){
+    var raw=localStorage.getItem(storageBucketName(bridge));
+    if(!raw) return {};
+    try{
+      var parsed=JSON.parse(raw);
+      return parsed && Object.prototype.toString.call(parsed)==='[object Object]' ? parsed : {};
+    }catch(error){ return {}; }
+  }
+
+  function requireCapability(bridge,capability){
+    if(bridge.capabilities.indexOf(capability)===-1) throw bridgeFailure('permission_denied','Capability not granted');
+  }
+
+  function handleBridgeRequest(bridge,method,params){
+    if(method.indexOf('storage.')===0){
+      requireCapability(bridge,'storage.private');
+      var bucket=readStorage(bridge);
+      if(method==='storage.get'){
+        var getKey=storageKey(params);
+        return {value:Object.prototype.hasOwnProperty.call(bucket,getKey)?bucket[getKey]:null};
+      }
+      if(method==='storage.list'){
+        var prefix=params&&params.prefix;
+        if(typeof prefix!=='string' || prefix.length>128) throw bridgeFailure('validation_failed','Storage prefix is invalid');
+        return {keys:Object.keys(bucket).filter(function(key){ return key.indexOf(prefix)===0; }).sort()};
+      }
+      var key=storageKey(params);
+      if(method==='storage.delete') delete bucket[key];
+      else if(method==='storage.set'){
+        if(!messageIsBounded(params.value,0)) throw bridgeFailure('validation_failed','Storage value is invalid');
+        var valueBytes=JSON.stringify(params.value).length;
+        if(valueBytes>bridgeMaxBytes) throw bridgeFailure('quota_exceeded','Storage value exceeds 64 KiB');
+        if(!Object.prototype.hasOwnProperty.call(bucket,key) && Object.keys(bucket).length>=256) throw bridgeFailure('quota_exceeded','Storage key quota exceeded');
+        bucket[key]=params.value;
+      } else throw bridgeFailure('not_found','Unknown storage method');
+      var serialized=JSON.stringify(bucket);
+      if(serialized.length>1024*1024) throw bridgeFailure('quota_exceeded','Private storage exceeds 1 MiB');
+      localStorage.setItem(storageBucketName(bridge),serialized);
+      return {};
+    }
+    if(method==='ui.setTitle'){
+      var title=params&&params.title;
+      if(typeof title!=='string' || !title.trim() || title.length>80 || /[\u0000-\u001f\u007f]/.test(title)) throw bridgeFailure('validation_failed','Title is invalid');
+      bridge.title=title.trim(); bridge.titleNode.textContent=bridge.title+(bridge.dirty?' •':''); return {};
+    }
+    if(method==='ui.setDirty'){
+      bridge.dirty=!!(params&&params.dirty); bridge.titleNode.textContent=bridge.title+(bridge.dirty?' •':''); return {};
+    }
+    if(method==='ui.requestDetach'){
+      if(bridge.view.detachable===false) throw bridgeFailure('permission_denied','This view cannot be detached');
+      detachActive(); return {};
+    }
+    if(method==='ui.close'){
+      LaRuche.Router.go('addons/overview'); return {};
+    }
+    throw bridgeFailure('not_found','Unknown addon bridge method');
+  }
+
+  function onBridgeMessage(bridge,message){
+    if(activeBridge!==bridge || !bridgeMessageIsSafe(message) || message.v!==1) return;
+    if(!bridge.hello){
+      if(message.kind!=='addon.hello' || message.nonce!==bridge.nonce || message.addonId!==bridge.addon.id || message.viewId!==bridge.view.id || message.apiVersion!==1){ revokeBridge(); return; }
+      bridge.hello=true;
+      var context={
+        sessionId:bridge.sessionId,
+        addonId:bridge.addon.id,
+        addonVersion:bridge.addon.activeVersion,
+        viewId:bridge.view.id,
+        grantedCapabilities:bridge.capabilities.slice(),
+        locale:bridge.capabilities.indexOf('ui.locale.read')!==-1?(window.__LANG__||'fr'):null,
+        theme:bridge.capabilities.indexOf('ui.theme.read')!==-1?(document.documentElement.getAttribute('data-theme')||'default'):null,
+        limits:{messageBytes:bridgeMaxBytes,concurrentRequests:8,requestsPerMinute:120,storageBytes:1024*1024}
+      };
+      bridge.port.postMessage({v:1,kind:'host.welcome',context:context});
+      return;
+    }
+    if(!bridge.ready){
+      if(message.kind==='addon.ready' && message.sessionId===bridge.sessionId){ bridge.ready=true; clearTimeout(bridge.timer); }
+      return;
+    }
+    if(message.kind!=='request' || typeof message.id!=='string' || message.id.length>80 || !/^[A-Za-z0-9._:-]+$/.test(message.id) || typeof message.method!=='string' || message.method.length>100) return;
+    if(bridge.pending.has(message.id)){ bridgeReply(bridge,message.id,false,null,bridgeFailure('conflict','Request id is already active')); return; }
+    var now=Date.now(); bridge.requests=bridge.requests.filter(function(time){ return now-time<60000; });
+    if(bridge.requests.length>=120){ bridgeReply(bridge,message.id,false,null,bridgeFailure('rate_limited','Bridge rate limit exceeded',true)); return; }
+    if(bridge.pending.size>=8){ bridgeReply(bridge,message.id,false,null,bridgeFailure('rate_limited','Too many concurrent requests',true)); return; }
+    bridge.requests.push(now); bridge.pending.add(message.id);
+    Promise.resolve().then(function(){ return handleBridgeRequest(bridge,message.method,message.params||{}); })
+      .then(function(result){ bridgeReply(bridge,message.id,true,result); })
+      .catch(function(error){ bridgeReply(bridge,message.id,false,null,error); })
+      .finally(function(){ bridge.pending.delete(message.id); });
+  }
+
+  function connectBridge(frame,addon,view,titleNode){
+    frame.addEventListener('load',function(){
+      revokeBridge();
+      if(!frame.contentWindow || !window.MessageChannel || !window.crypto || !crypto.getRandomValues) return;
+      var channel=new MessageChannel();
+      var bridge={addon:addon,view:view,frame:frame,titleNode:titleNode,title:titleNode.textContent,dirty:false,port:channel.port1,nonce:randomToken(),sessionId:randomToken(),capabilities:bridgeCapabilities(addon),hello:false,ready:false,pending:new Set(),requests:[],timer:null};
+      activeBridge=bridge;
+      bridge.port.onmessage=function(event){ onBridgeMessage(bridge,event.data); };
+      bridge.port.onmessageerror=function(){ revokeBridge(); };
+      bridge.port.start();
+      bridge.timer=setTimeout(function(){ if(activeBridge===bridge && !bridge.ready) revokeBridge(); },5000);
+      frame.contentWindow.postMessage({v:1,kind:'laruche.host.init',nonce:bridge.nonce,addonId:addon.id,viewId:view.id},'*',[channel.port2]);
+    });
+  }
 
   function navIcon(){
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg>';
@@ -245,7 +420,7 @@ LaRuche.Addons = (function(){
   }
 
   function showOverview(){
-    active=null; setDetach(false); paintRail();
+    revokeBridge(); active=null; setDetach(false); paintRail();
     var stage=document.getElementById('addonsStage'); if(!stage) return;
     var list=addons();
     var html='<div class="addons-catalogue"><div class="addons-catalogue-intro"><h2>'+esc(t('addons.installed'))+'</h2><p>'+esc(t('addons.catalogueHint'))+'</p></div>';
@@ -259,8 +434,11 @@ LaRuche.Addons = (function(){
         var label=addon.error?t('addons.broken'):(addon.enabled?t('addons.enabled'):t('addons.disabled'));
         var action=addon.enabled?t('addons.disable'):t('addons.enable');
         var disabled=!!addon.error || !isAdmin();
+        var permissions=manifestPermissions(addon,'required').concat(manifestPermissions(addon,'optional'));
         html+='<article class="addons-card"><div class="addons-card-top"><div class="addons-card-icon">'+esc(initial(name))+'</div><div class="addons-card-copy"><div class="addons-card-name">'+esc(name)+'</div><div class="addons-card-meta">'+esc(addon.id)+' · '+esc(addon.activeVersion||'')+'</div></div></div>'+
-          '<div class="addons-card-desc">'+esc(manifest.description||'')+'</div><div class="addons-card-foot"><span class="addons-state '+state+'"><span class="addons-state-dot"></span>'+esc(label)+'</span>'+
+          '<div class="addons-card-desc">'+esc(manifest.description||'')+'</div>'+
+          (permissions.length?'<div class="addons-card-permissions"><strong>'+esc(t('addons.permissions'))+'</strong> '+permissions.map(esc).join(' · ')+'</div>':'')+
+          '<div class="addons-card-foot"><span class="addons-state '+state+'"><span class="addons-state-dot"></span>'+esc(label)+'</span>'+
           '<button type="button" class="addons-btn" data-addon-toggle="'+index+'" '+(disabled?'disabled title="'+esc(addon.error||t('addons.adminOnly'))+'"':'')+'>'+esc(action)+'</button></div>'+
           (addon.error?'<div class="addons-error">'+esc(addon.error)+'</div>':'')+'</article>';
       });
@@ -299,6 +477,7 @@ LaRuche.Addons = (function(){
 
   function showView(addon, view){
     var url=assetUrl(addon,view); if(!url){ showOverview(); return; }
+    revokeBridge();
     active={addon:addon,view:view,url:url}; setDetach(view.detachable!==false); paintRail();
     var stage=document.getElementById('addonsStage'); if(!stage) return;
     stage.innerHTML='';
@@ -310,7 +489,8 @@ LaRuche.Addons = (function(){
     frame.className='addons-frame'; frame.title=view.title; frame.src=url;
     frame.setAttribute('sandbox','allow-scripts allow-forms allow-downloads');
     frame.setAttribute('referrerpolicy','no-referrer');
-    frame.setAttribute('allow','clipboard-write');
+    frame.setAttribute('allow',"clipboard-read 'none'; clipboard-write 'none'; camera 'none'; microphone 'none'; geolocation 'none'");
+    connectBridge(frame,addon,view,title);
     bar.appendChild(title); bar.appendChild(note); wrap.appendChild(bar); wrap.appendChild(frame); stage.appendChild(wrap);
   }
 
@@ -323,7 +503,7 @@ LaRuche.Addons = (function(){
     if(!active || active.view.detachable===false) return;
     var title=esc((active.addon.manifest.name||active.addon.id)+' — '+active.view.title);
     var src=esc(active.url);
-    var host='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+title+'</title><style>html,body,iframe{width:100%;height:100%;margin:0;border:0;background:#101014}body{overflow:hidden}</style></head><body><iframe title="'+title+'" src="'+src+'" sandbox="allow-scripts allow-forms allow-downloads" referrerpolicy="no-referrer" allow="clipboard-write"></iframe></body></html>';
+    var host='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+title+'</title><style>html,body,iframe{width:100%;height:100%;margin:0;border:0;background:#101014}body{overflow:hidden}</style></head><body><iframe title="'+title+'" src="'+src+'" sandbox="allow-scripts allow-forms allow-downloads" referrerpolicy="no-referrer" allow="clipboard-read \'none\'; clipboard-write \'none\'; camera \'none\'; microphone \'none\'; geolocation \'none\'"></iframe></body></html>';
     var url=URL.createObjectURL(new Blob([host],{type:'text/html'}));
     detachedUrls.push(url);
     // The top-level blob contains only this trusted host document; untrusted code
@@ -335,7 +515,7 @@ LaRuche.Addons = (function(){
     setTimeout(function(){ URL.revokeObjectURL(url); detachedUrls=detachedUrls.filter(function(item){return item!==url;}); },60000);
   }
 
-  function leave(){ /* iframe lifecycle follows the page; split mode keeps it mounted. */ }
+  function leave(){ revokeBridge(); }
   return {init:init,enter:enter,leave:leave,deepLink:deepLink,rescan:rescan,detach:detachActive};
 })();
 

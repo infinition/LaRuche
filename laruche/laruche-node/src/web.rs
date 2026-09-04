@@ -26,6 +26,7 @@ const ICON_SVG: &str = include_str!("../../laruche-dashboard/src/templates/icon.
 const ICON_PNG_192: &[u8] = include_bytes!("../../laruche-dashboard/src/templates/icones/icon-192.png");
 const ICON_PNG_512: &[u8] = include_bytes!("../../laruche-dashboard/src/templates/icones/icon-512.png");
 const SW_JS: &str = include_str!("../../laruche-dashboard/src/templates/sw.js");
+const ADDON_SDK_JS: &str = include_str!("../../laruche-dashboard/src/templates/js/addon-sdk.js");
 // app.js is split into modules under `templates/js/` (one i18n agent per module). The node
 // CONCATENATES them at compile time in dependency ORDER: one `/app.js` served, one binary.
 const APP_JS: &str = concat!(
@@ -236,6 +237,31 @@ pub async fn app_js() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
         APP_JS,
+    )
+}
+
+/// Public runtime loaded inside an opaque addon iframe. It only knows how to
+/// accept the private MessagePort transferred by the trusted SPA host; it has
+/// no cookie, API credential or direct network capability.
+pub async fn addon_sdk_js() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/javascript; charset=utf-8"),
+            // `/v1.js` is a compatibility line, not a content-hashed URL. It
+            // may receive backwards-compatible security fixes.
+            (header::CACHE_CONTROL, "no-cache"),
+            (
+                header::HeaderName::from_static("x-content-type-options"),
+                "nosniff",
+            ),
+            (
+                header::HeaderName::from_static("cross-origin-resource-policy"),
+                "cross-origin",
+            ),
+            (header::REFERRER_POLICY, "no-referrer"),
+        ],
+        ADDON_SDK_JS,
     )
 }
 
