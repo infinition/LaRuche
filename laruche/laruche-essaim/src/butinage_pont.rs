@@ -1295,6 +1295,32 @@ mod tests_lecture_seule_navigateur {
     }
 
     #[test]
+    fn navigate_repete_declenche_bien_un_avertissement_vigie() {
+        // End-to-end reproduction of the real incident: the same navigate,
+        // byte-identical, three times in a row. Chains est_lecture_seule_pour_vigie
+        // through a real Vigie (not just the predicate in isolation) to prove the
+        // combination actually fires, matching SeuilsVigie::default()'s
+        // avertir_sans_progres=2.
+        let appel = appel_browser("navigate");
+        let mut vigie = but::Vigie::nouvelle(but::SeuilsVigie::default());
+        let idempotent = est_lecture_seule_pour_vigie(&appel);
+        assert!(idempotent);
+        let empreinte = 42u64; // stand-in for an identical tool result each time
+        assert_eq!(
+            vigie.apres_appel(&appel.nom, appel.signature(), true, idempotent, empreinte),
+            but::Signal::Laisser,
+            "1st occurrence: nothing to report yet"
+        );
+        assert!(
+            matches!(
+                vigie.apres_appel(&appel.nom, appel.signature(), true, idempotent, empreinte),
+                but::Signal::Avertir(_)
+            ),
+            "2nd identical occurrence must warn (avertir_sans_progres=2)"
+        );
+    }
+
+    #[test]
     fn un_autre_outil_lecture_seule_reste_couvert() {
         assert!(est_lecture_seule_pour_vigie(&but::Appel::nouveau(
             "web_search",
