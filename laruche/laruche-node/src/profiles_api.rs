@@ -197,6 +197,9 @@ pub(crate) async fn api_upsert_profile(
     // l'expose pas, donc il ne doit pas pouvoir le remettre a zero en passant.
     let visibilite = ancien.map(|a| a.visibilite).unwrap_or_default();
     let allowed_peers = ancien.map(|a| a.allowed_peers.clone()).unwrap_or_default();
+    // Same reasoning: no form field for it yet, so an edit through the
+    // dashboard must not silently reset it to false.
+    let modele_faible = ancien.map(|a| a.modele_faible).unwrap_or(false);
 
     let profile = profiles::ProviderProfile {
         provider,
@@ -207,6 +210,7 @@ pub(crate) async fn api_upsert_profile(
         visibilite,
         allowed_peers,
         max_context_length,
+        modele_faible,
     };
 
     cfg.profiles.insert(id.clone(), profile);
@@ -327,6 +331,7 @@ pub(crate) async fn ensure_codex_profile(state: &Arc<AppState>) {
                     models,
                     visibilite: Default::default(), allowed_peers: Vec::new(),
                     max_context_length: 128000,
+                    modele_faible: false,
                 },
             );
         }
@@ -479,10 +484,11 @@ pub(crate) async fn api_get_unified_models(State(state): State<Arc<AppState>>) -
     // Without this, the default (128000) stays for a local 32768 model → the compact path
     // (index ~4K + dynamic selection, active if ≤ 40000) never triggers → "request exceeds
     // context size" overflow. Here the probed value propagates automatically.
-    let (.., mcl) = profiles::active_to_essaim_fields(&cfg);
+    let (.., mcl, modele_faible) = profiles::active_to_essaim_fields(&cfg);
     drop(cfg);
     {
         let mut ec = state.essaim_config.write().await;
+        ec.modele_faible = modele_faible;
         if ec.context_max_tokens != mcl {
             ec.context_max_tokens = mcl;
         }
@@ -670,6 +676,7 @@ pub(crate) async fn api_models_use(
                     models: vec![],
                     visibilite: profiles::Visibilite::Prive, allowed_peers: Vec::new(),
                     max_context_length: 128000,
+                    modele_faible: false,
                 });
         if !prof.models.contains(&name) {
             prof.models.push(name.clone());
@@ -756,7 +763,8 @@ pub(crate) async fn appliquer_capacite(state: &Arc<AppState>, config: &mut Essai
 /// Sync the active profile into EssaimConfig so brain.rs picks it up.
 pub(crate) async fn sync_essaim_from_profiles(state: &Arc<AppState>) {
     let cfg = state.profiles.read().await;
-    let (provider, model, api_key, api_base, ollama_url, max_context_length) = profiles::active_to_essaim_fields(&cfg);
+    let (provider, model, api_key, api_base, ollama_url, max_context_length, modele_faible) =
+        profiles::active_to_essaim_fields(&cfg);
     drop(cfg);
 
     let mut ec = state.essaim_config.write().await;
@@ -766,4 +774,5 @@ pub(crate) async fn sync_essaim_from_profiles(state: &Arc<AppState>) {
     ec.api_base = api_base;
     ec.ollama_url = ollama_url;
     ec.context_max_tokens = max_context_length;
+    ec.modele_faible = modele_faible;
 }

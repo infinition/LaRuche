@@ -1069,6 +1069,10 @@ impl but::Outils for OutilsPont<'_> {
         est_lecture_seule(nom)
     }
 
+    fn idempotent_pour_vigie(&self, appel: &but::Appel) -> bool {
+        est_lecture_seule_pour_vigie(appel)
+    }
+
     /// Éclaireuses run on ISOLATED contexts: several scouts dispatched in the same
     /// turn are safe to run concurrently (parallel fan-out, Claude Code style).
     fn concurrence_sure(&self, appel: &but::Appel) -> bool {
@@ -1230,6 +1234,73 @@ fn est_lecture_seule(nom: &str) -> bool {
         || nom.starts_with("git_log")
         || nom == "skill_view"
         || nom == "skill_list"
+}
+
+/// Browser actions that only observe the page, safe for the vigie's
+/// stagnation detection: repeating one with the same arguments is expected
+/// to reproduce the same result, which is exactly the signal a model stuck
+/// looping (typically a small local model that "forgets" it already did
+/// this) needs caught. Everything that touches the page's own state
+/// (`click`, `fill`, `type`, `key`, `upload`, `drag`, `select`, `dialog`,
+/// `download`...) is deliberately left out: repeating one of those is not
+/// expected to be a no-op, so treating it as stagnation would be wrong, and
+/// it must never count as safe for concurrency either (`concurrence_sure`
+/// does not call this, only `idempotent_pour_vigie` does).
+const ACTIONS_NAVIGATEUR_LECTURE_SEULE: &[&str] = &[
+    "navigate", "back", "forward", "read", "find", "screenshot", "console", "network", "cookies",
+    "tabs", "wait", "resize",
+];
+
+/// Idempotent for the vigie specifically ([`Outils::idempotent_pour_vigie`]):
+/// everything `est_lecture_seule` already covers, plus a browser call whose
+/// `action` is read-only. Kept OUT of `est_lecture_seule` itself so it never
+/// leaks into `concurrence_sure` (a browser tab is one shared resource,
+/// never safe to parallelize regardless of which action is read-only).
+fn est_lecture_seule_pour_vigie(appel: &but::Appel) -> bool {
+    if est_lecture_seule(&appel.nom) {
+        return true;
+    }
+    appel.nom == "browser"
+        && appel
+            .args
+            .get("action")
+            .and_then(|v| v.as_str())
+            .is_some_and(|a| ACTIONS_NAVIGATEUR_LECTURE_SEULE.contains(&a))
+}
+
+#[cfg(test)]
+mod tests_lecture_seule_navigateur {
+    use super::*;
+
+    fn appel_browser(action: &str) -> but::Appel {
+        but::Appel::nouveau("browser", serde_json::json!({ "action": action }))
+    }
+
+    #[test]
+    fn navigate_et_read_comptent_pour_la_vigie() {
+        // The actual incident: the same navigate repeated verbatim, never
+        // followed by a read, must be visible to the vigie's stagnation check.
+        assert!(est_lecture_seule_pour_vigie(&appel_browser("navigate")));
+        assert!(est_lecture_seule_pour_vigie(&appel_browser("read")));
+        assert!(est_lecture_seule_pour_vigie(&appel_browser("screenshot")));
+    }
+
+    #[test]
+    fn click_et_fill_ne_comptent_jamais() {
+        // Mutating actions: repeating one is not expected to be a no-op, and
+        // must never be inferred safe for concurrency through this path either.
+        assert!(!est_lecture_seule_pour_vigie(&appel_browser("click")));
+        assert!(!est_lecture_seule_pour_vigie(&appel_browser("fill")));
+        assert!(!est_lecture_seule_pour_vigie(&appel_browser("type")));
+    }
+
+    #[test]
+    fn un_autre_outil_lecture_seule_reste_couvert() {
+        assert!(est_lecture_seule_pour_vigie(&but::Appel::nouveau(
+            "web_search",
+            serde_json::json!({ "q": "x" })
+        )));
+    }
 }
 
 // ───────────────────────── Emetteur (events) ─────────────────────────
@@ -1560,6 +1631,10 @@ impl but::Outils for OutilsCurateur {
 
     fn idempotent(&self, nom: &str) -> bool {
         est_lecture_seule(nom)
+    }
+
+    fn idempotent_pour_vigie(&self, appel: &but::Appel) -> bool {
+        est_lecture_seule_pour_vigie(appel)
     }
 
     fn schemas(&self) -> Vec<serde_json::Value> {
@@ -2303,6 +2378,13 @@ fn backend_local(config: &EssaimConfig) -> bool {
 }
 
 fn profil_pour(config: &EssaimConfig) -> but::ProfilModele {
+    // Explicit override wins over the name guess below, which only catches
+    // family names it already knows (a custom local build, "ornith-9b",
+    // matches none of them and would otherwise be trusted like a frontier
+    // cloud model).
+    if config.modele_faible {
+        return but::ProfilModele::Fragile;
+    }
     match config.provider.as_str() {
         "anthropic" | "codex" => but::ProfilModele::NatifOutils,
         _ => {
@@ -2313,6 +2395,46 @@ fn profil_pour(config: &EssaimConfig) -> but::ProfilModele {
                 but::ProfilModele::Robuste
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_profil_pour {
+    use super::*;
+
+    fn cfg(provider: &str, model: &str, modele_faible: bool) -> EssaimConfig {
+        EssaimConfig {
+            provider: provider.to_string(),
+            model: model.to_string(),
+            modele_faible,
+            ..EssaimConfig::default()
+        }
+    }
+
+    #[test]
+    fn un_nom_inconnu_est_traite_comme_robuste_sans_override() {
+        // The real incident: a custom local build the name guesser has never
+        // heard of is trusted like a frontier model, by default.
+        assert_eq!(profil_pour(&cfg("openai", "ornith-9b", false)), but::ProfilModele::Robuste);
+    }
+
+    #[test]
+    fn l_override_explicite_gagne_meme_sur_un_nom_inconnu() {
+        assert_eq!(profil_pour(&cfg("openai", "ornith-9b", true)), but::ProfilModele::Fragile);
+    }
+
+    #[test]
+    fn l_override_gagne_aussi_sur_le_provider() {
+        // Unusual on purpose (anthropic/codex are never small local models in
+        // practice), but the override must still be unconditional: it is an
+        // explicit statement from the user, not a second guess to weigh
+        // against the provider's own signal.
+        assert_eq!(profil_pour(&cfg("anthropic", "claude", true)), but::ProfilModele::Fragile);
+    }
+
+    #[test]
+    fn le_nom_connu_reste_fragile_sans_override() {
+        assert_eq!(profil_pour(&cfg("ollama", "gemma3:2b", false)), but::ProfilModele::Fragile);
     }
 }
 
