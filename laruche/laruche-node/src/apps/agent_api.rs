@@ -376,13 +376,15 @@ pub(crate) async fn command(
     let result = state
         .app_runtime
         .enqueue(
-            owner,
-            id,
-            principal,
-            &operation,
-            &view,
+            Call {
+                user: owner,
+                app: id,
+                principal,
+                operation: &operation,
+                view: &view,
+                instance: args["instanceId"].as_str(),
+            },
             payload,
-            args["instanceId"].as_str(),
         )
         .await;
     crate::log_activite(

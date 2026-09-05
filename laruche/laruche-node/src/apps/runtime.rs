@@ -135,16 +135,37 @@ pub(crate) struct Conversation {
     pub fingerprint: String,
     pub messages: Vec<Value>,
 }
+/// One conversation per (account, App, view, instance).
+///
+/// The key is long on purpose: two open games of the same App must not share a
+/// context, and the account has to be part of the key so a second user never
+/// lands in the first one's history.
+pub(crate) type Sessions =
+    Mutex<BTreeMap<(Uuid, String, String, String), Arc<tokio::sync::Mutex<Conversation>>>>;
+
 pub(crate) struct Runtime {
     path: PathBuf,
     store: Mutex<Store>,
     pub hosts: Mutex<BTreeMap<(Uuid, String), Host>>,
     pub pending: Mutex<BTreeMap<Uuid, Pending>>,
-    pub sessions:
-        Mutex<BTreeMap<(Uuid, String, String, String), Arc<tokio::sync::Mutex<Conversation>>>>,
+    pub sessions: Sessions,
     pub model_slots: tokio::sync::Semaphore,
     pub rates: Mutex<BTreeMap<Uuid, Vec<Instant>>>,
 }
+/// What it takes to route one call to an open App view.
+///
+/// Six of these were already positional strings; adding the instance made
+/// eight in a row, and eight bare arguments of the same type swap places at
+/// the call site without the compiler ever noticing.
+pub(crate) struct Call<'a> {
+    pub user: Uuid,
+    pub app: &'a str,
+    pub principal: &'a str,
+    pub operation: &'a str,
+    pub view: &'a str,
+    pub instance: Option<&'a str>,
+}
+
 impl Runtime {
     pub fn load(path: PathBuf) -> anyhow::Result<Self> {
         let backup = path.with_extension("json.bak");
@@ -227,16 +248,15 @@ impl Runtime {
             .unwrap_or_default()
             .allows(principal, operation)
     }
-    pub async fn enqueue(
-        &self,
-        user: Uuid,
-        app: &str,
-        principal: &str,
-        operation: &str,
-        view: &str,
-        payload: Value,
-        instance: Option<&str>,
-    ) -> Result<Value, String> {
+    pub async fn enqueue(&self, call: Call<'_>, payload: Value) -> Result<Value, String> {
+        let Call {
+            user,
+            app,
+            principal,
+            operation,
+            view,
+            instance,
+        } = call;
         if !self.allows(user, app, principal, operation) {
             return Err(
                 "Permission denied. Open Apps > Permissions to grant this operation.".into(),

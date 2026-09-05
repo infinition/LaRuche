@@ -76,7 +76,7 @@ pub(crate) fn rollback(path: &Path) {
 fn extract_archive(bytes: &[u8], destination: &Path) -> Result<(), InstallError> {
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .map_err(|error| InstallError::Invalid(format!("invalid ZIP package: {error}")))?;
-    if archive.len() == 0 || archive.len() > MAX_FILES {
+    if archive.is_empty() || archive.len() > MAX_FILES {
         return Err(InstallError::TooLarge(format!(
             "package must contain between 1 and {MAX_FILES} entries"
         )));
