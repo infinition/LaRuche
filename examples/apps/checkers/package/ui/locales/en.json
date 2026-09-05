@@ -33,5 +33,6 @@
   "moves": "moves",
   "move": "move",
   "permissionRequired": "Permission required",
-  "noAgentFound": "No agent available"
+  "noAgentFound": "No agent available",
+  "autoStopped": "Auto response stopped."
 }

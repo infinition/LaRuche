@@ -11,6 +11,14 @@ LaRuche. It covers:
 - a side panel and an independent popup window;
 - package and view icons.
 
+## Correction 1.3.0
+
+- Meme correction que pour les dames: le guide precise que rien ne previent
+  l'agent quand l'humain joue, que ce sont les boutons de l'App qui le
+  rappellent, et qu'un message annoncant son tour se verifie par `game.state`
+  avant toute reponse.
+- Le mode auto annonce son arret au lieu de se couper sans rien dire.
+
 ## Build and test
 
 From the repository root:

@@ -33,5 +33,6 @@
   "moves": "coups",
   "move": "coup",
   "permissionRequired": "Autorisation requise",
-  "noAgentFound": "Aucun agent disponible"
+  "noAgentFound": "Aucun agent disponible",
+  "autoStopped": "Reponse auto arretee."
 }

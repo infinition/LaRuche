@@ -13,8 +13,8 @@
   var seat='game-'+Date.now().toString(36);
 
   var copy={
-    fr:{score:'Score',best:'Record',undo:'Annuler',newGame:'Nouvelle partie',continue:'Continuer',restart:'Rejouer',instructions:'Utilise les flèches, ZQSD ou glisse sur la grille.',moves:'coups',move:'coup',saved:'Synchronisé',saving:'Sauvegarde...',offline:'Stockage indisponible',won:'2048 atteint !',wonText:'Tu peux continuer pour viser encore plus haut.',lost:'Partie terminée',lostText:'Plus aucun mouvement possible.'},
-    en:{score:'Score',best:'Best',undo:'Undo',newGame:'New game',continue:'Keep going',restart:'Play again',instructions:'Use arrow keys, WASD or swipe the board.',moves:'moves',move:'move',saved:'Synced',saving:'Saving...',offline:'Storage unavailable',won:'You reached 2048!',wonText:'Keep going to chase a higher tile.',lost:'Game over',lostText:'There are no moves left.'}
+    fr:{score:'Score',best:'Record',undo:'Annuler',newGame:'Nouvelle partie',continue:'Continuer',restart:'Rejouer',instructions:'Utilise les flèches, ZQSD ou glisse sur la grille.',moves:'coups',move:'coup',saved:'Synchronisé',saving:'Sauvegarde...',offline:'Stockage indisponible',won:'2048 atteint !',wonText:'Tu peux continuer pour viser encore plus haut.',lost:'Partie terminée',lostText:'Plus aucun mouvement possible.',autoStopped:'Mode auto arrete.'},
+    en:{score:'Score',best:'Best',undo:'Undo',newGame:'New game',continue:'Keep going',restart:'Play again',instructions:'Use arrow keys, WASD or swipe the board.',moves:'moves',move:'move',saved:'Synced',saving:'Saving...',offline:'Storage unavailable',won:'You reached 2048!',wonText:'Keep going to chase a higher tile.',lost:'Game over',lostText:'There are no moves left.',autoStopped:'Auto mode stopped.'}
   };
 
   function text(key){ return (copy[locale]&&copy[locale][key])||copy.fr[key]||key; }
@@ -192,7 +192,7 @@
       document.getElementById('agentTurn').disabled=true;document.getElementById('agentAuto').disabled=true;document.getElementById('agentPause').disabled=false;
       info.textContent=locale==='en'?'Agent thinking…':'L’agent réfléchit…';
       try{var result=await sdk.agents.act(select.value,seat,'game.state','Read the supplied guide, goal and rules. Reach a 2048 tile, then pursue higher score only after the human continues. Select ONE direction from the current legalMoves, using the exact revision. Preserve empty squares and keep large tiles organized. Return only game.move action JSON; do not reset or invent a future random tile.');info.textContent=result.model+' · '+result.text;}
-      catch(e){agentAuto=false;info.textContent=e.message;}
+      catch(e){var etaitAuto=agentAuto;agentAuto=false;info.textContent=e.message+(etaitAuto?' '+text('autoStopped'):'');}
       finally{agentBusy=false;document.getElementById('agentTurn').disabled=false;document.getElementById('agentAuto').disabled=false;document.getElementById('agentPause').disabled=!agentAuto;}
       if(agentAuto&&snapshot().legalMoves.length)agentTimer=setTimeout(function(){agentTimer=null;if(agentAuto)turn();},2200);else agentAuto=false;
     }

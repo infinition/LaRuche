@@ -2,6 +2,16 @@
 
 Application de Jeu de Dames 8x8 autonome concue pour le bac a sable LaRuche.
 
+## Correction 1.2.0
+
+- L'agent promettait de « surveiller le jeu » apres son coup. Il n'a aucune
+  boucle de fond et rien ne le previent quand l'humain joue: la promesse ne
+  pouvait pas etre tenue, et on attendait un tour qui ne venait jamais. Le guide
+  dit maintenant qui le rappelle, les boutons Tour agent et Reponse auto, et
+  exige un `game.state` avant de repondre a un message qui annonce son tour.
+- La reponse auto se coupait en silence sur la moindre erreur. Elle se coupe
+  toujours, sinon elle rejouerait la panne en boucle, mais le statut le dit.
+
 ## Caracteristiques
 
 - Variante LaRuche 8x8 : dames courtes, pions vers l'avant, prises obligatoires,

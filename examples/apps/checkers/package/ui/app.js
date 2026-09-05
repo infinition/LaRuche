@@ -457,7 +457,8 @@
     var agentId = select ? select.value : '';
 
     if (!agentId) {
-      if (info) info.textContent = t('permissionRequired');
+      if (info) info.textContent = t('permissionRequired') +
+        (agentAuto ? ' ' + t('autoStopped') : '');
       agentAuto = false;
       return;
     }
@@ -471,8 +472,13 @@
       var res = await sdk.agents.act(agentId, seat, 'game.state', prompt);
       if (info) info.textContent = (res.model || 'Agent') + ' · ' + (res.text || 'OK');
     } catch (e) {
+      /* La reponse auto se coupe sur une erreur, sinon elle rejouerait la meme
+         panne en boucle. Mais il faut le dire: un statut qui n'affiche que le
+         message laisse croire que la partie reprendra seule, et on attend un
+         tour qui ne viendra jamais. */
+      var etaitAuto = agentAuto;
       agentAuto = false;
-      if (info) info.textContent = e.message;
+      if (info) info.textContent = e.message + (etaitAuto ? ' ' + t('autoStopped') : '');
     } finally {
       agentBusy = false;
       updateTurnBanner();
