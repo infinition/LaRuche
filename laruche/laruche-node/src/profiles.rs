@@ -51,6 +51,16 @@ pub struct ProviderProfile {
     /// Sensible defaults: ollama=32768, openai=128000, anthropic=200000, codex=128000.
     #[serde(default = "default_max_context_length")]
     pub max_context_length: u32,
+    /// Explicit override: treat this profile's model as weak (small local
+    /// model prone to tool-call loops and malformed output), regardless of
+    /// what its name looks like. `profil_pour` guesses from the model name
+    /// first (known small-model families), which misses anything with an
+    /// unfamiliar name (a custom finetune, an unusual local build); this lets
+    /// the user say so directly instead of teaching the guesser one more
+    /// name pattern every time it misses. `false` changes nothing: every
+    /// existing profile keeps guessing exactly as before.
+    #[serde(default)]
+    pub modele_faible: bool,
 }
 
 fn default_max_context_length() -> u32 {
@@ -96,6 +106,7 @@ impl Default for ProfilesConfig {
                 models: vec![],
                 visibilite: Visibilite::Prive, allowed_peers: Vec::new(),
                 max_context_length: 32768,
+                modele_faible: false,
             },
         );
         Self {
@@ -413,6 +424,12 @@ pub async fn ensure_llamacpp_8001_profile(config: &mut ProfilesConfig) {
             models: models.clone(),
             visibilite: Visibilite::Prive, allowed_peers: Vec::new(),
             max_context_length: 32768,
+            // Auto-discovered local llama.cpp: virtually always a small model
+            // by weight class, and the naming is whatever the user picked for
+            // their own build, which the name-based guesser cannot know in
+            // advance. Default to the careful profile rather than wait for a
+            // loop to make the case for it.
+            modele_faible: true,
         },
     );
 
@@ -436,10 +453,10 @@ pub async fn ensure_llamacpp_8001_profile(config: &mut ProfilesConfig) {
 }
 
 /// Convert the active profile into EssaimConfig-compatible fields.
-/// Returns (provider, model, api_key, api_base, ollama_url, max_context_length).
+/// Returns (provider, model, api_key, api_base, ollama_url, max_context_length, modele_faible).
 pub fn active_to_essaim_fields(
     config: &ProfilesConfig,
-) -> (String, String, String, Option<String>, String, u32) {
+) -> (String, String, String, Option<String>, String, u32, bool) {
     let active = &config.active_model;
     if let Some(profile) = config.profiles.get(&active.profile_id) {
         let ollama_url = if profile.provider == "ollama" {
@@ -467,6 +484,7 @@ pub fn active_to_essaim_fields(
             api_base,
             ollama_url,
             profile.max_context_length,
+            profile.modele_faible,
         )
     } else {
         // Fallback
@@ -477,6 +495,7 @@ pub fn active_to_essaim_fields(
             None,
             "http://127.0.0.1:11434".to_string(),
             32768,
+            false,
         )
     }
 }

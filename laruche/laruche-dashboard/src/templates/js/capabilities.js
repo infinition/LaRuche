@@ -12,6 +12,11 @@ LaRuche.i18n.add({
   'capabilities.livresLivree':    {fr:'Version livree',            en:'Shipped version'},
   'capabilities.livresAbsent':    {fr:'(absent du disque)',        en:'(absent from disk)'},
   'capabilities.livresFait':      {fr:'Fait',                      en:'Done'},
+  'capabilities.livresDeplier':   {fr:'Deplier',                   en:'Expand'},
+  'capabilities.livresReplier':   {fr:'Replier',                   en:'Collapse'},
+  'capabilities.livresVueDiff':   {fr:'Differences',               en:'Differences'},
+  'capabilities.livresVueCote':   {fr:'Cote a cote',               en:'Side by side'},
+  'capabilities.livresLignesIdentiques': {fr:'lignes identiques',   en:'identical lines'},
 
   'capabilities.view':          { fr:'Voir',              en:'View' },
   'capabilities.delete':        { fr:'Suppr',             en:'Del' },
@@ -133,7 +138,7 @@ LaRuche.Capabilities = (function(){
       render();
     });
   }
-  function enter(){ render(); rendreLivres(); }
+  function enter(){ render(); }
 
   /* Ce que la mise a jour n'a PAS ose toucher.
 
@@ -148,6 +153,22 @@ LaRuche.Capabilities = (function(){
      une entree qu'il laisse de cote reste affichee tant qu'il n'a pas tranche. */
   var _livres = [];
 
+  /* Replie par defaut, et il le reste.
+
+     Quatre capacites a decider ne doivent pas pousser la liste des capacites
+     hors de l'ecran a chaque visite: le bandeau se resume donc a une ligne, et
+     s'ouvre si on le lui demande. L'etat vit dans le stockage local et non dans
+     une variable: le bandeau se redessine a chaque rendu de la page, et il se
+     serait sinon referme tout seul des qu'on change d'onglet ou qu'on modifie un
+     skill. */
+  function _livresReplie(){
+    try{ return localStorage.getItem('lr_livres_deplie') !== '1'; }catch(e){ return true; }
+  }
+  function basculerLivres(){
+    try{ localStorage.setItem('lr_livres_deplie', _livresReplie() ? '1' : '0'); }catch(e){}
+    rendreLivres();
+  }
+
   async function rendreLivres(){
     var hote = document.getElementById('capLivres');
     if(!hote) return;
@@ -160,59 +181,182 @@ LaRuche.Capabilities = (function(){
 
     var esc = LaRuche.Utils.esc;
     var t = LaRuche.i18n.t;
-    hote.innerHTML =
-      '<div class="settings-card" style="border-color:var(--amber);margin-bottom:12px">'+
-        '<div class="settings-card-title">'+t('capabilities.livresTitre')+' ('+_livres.length+')</div>'+
-        '<p style="color:var(--text-dim);font-size:12px;margin:2px 0 10px">'+t('capabilities.livresAide')+'</p>'+
-        _livres.map(function(e){
-          var manquant = e.etat === 'manquant';
-          var c = esc(e.chemin);
-          return '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--border)">'+
-            '<span class="etat-pastille'+(manquant?'':' on')+'" style="cursor:default">'+
-              '<span class="etat-point"></span>'+
-              t(manquant ? 'capabilities.livresManquant' : 'capabilities.livresDifferent')+'</span>'+
-            '<code style="flex:1;min-width:150px;font-size:11.5px;color:var(--text-dim)">'+c+'</code>'+
-            (manquant ? '' :
-              '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px" '+
-                'onclick="LaRuche.Capabilities.voirLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresComparer')+'</button>')+
-            '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px" '+
-              'onclick="LaRuche.Capabilities.appliquerLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresAppliquer')+'</button>'+
-            '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px;color:var(--text-muted)" '+
-              'onclick="LaRuche.Capabilities.ignorerLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresIgnorer')+'</button>'+
-          '</div>';
-        }).join('')+
+    var replie = _livresReplie();
+
+    // La synthese: ce qu'on a besoin de savoir sans ouvrir.
+    var nbEfface = _livres.filter(function(e){ return e.etat === 'manquant'; }).length;
+    var nbModifie = _livres.length - nbEfface;
+    var parts = [];
+    if(nbModifie) parts.push(nbModifie+' '+t('capabilities.livresDifferent'));
+    if(nbEfface) parts.push(nbEfface+' '+t('capabilities.livresManquant'));
+
+    var entete =
+      '<div style="display:flex;align-items:center;gap:9px;cursor:pointer" '+
+        'onclick="LaRuche.Capabilities.basculerLivres()" role="button" tabindex="0" '+
+        'title="'+esc(t(replie ? 'capabilities.livresDeplier' : 'capabilities.livresReplier'))+'">'+
+        '<span style="color:var(--amber);font-size:11px;width:10px">'+(replie?'&#9656;':'&#9662;')+'</span>'+
+        '<span class="settings-card-title" style="margin:0;flex:1">'+
+          t('capabilities.livresTitre')+' ('+_livres.length+')</span>'+
+        '<span style="font-size:11px;color:var(--text-muted)">'+esc(parts.join(' · '))+'</span>'+
       '</div>';
+
+    var corps = replie ? '' :
+      '<p style="color:var(--text-dim);font-size:12px;margin:8px 0 6px">'+t('capabilities.livresAide')+'</p>'+
+      _livres.map(function(e){
+        var manquant = e.etat === 'manquant';
+        var c = esc(e.chemin);
+        return '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--border)">'+
+          '<span class="etat-pastille'+(manquant?'':' on')+'" style="cursor:default">'+
+            '<span class="etat-point"></span>'+
+            t(manquant ? 'capabilities.livresManquant' : 'capabilities.livresDifferent')+'</span>'+
+          '<code style="flex:1;min-width:150px;font-size:11.5px;color:var(--text-dim)">'+c+'</code>'+
+          (manquant ? '' :
+            '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px" '+
+              'onclick="LaRuche.Capabilities.voirLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresComparer')+'</button>')+
+          '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px" '+
+            'onclick="LaRuche.Capabilities.appliquerLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresAppliquer')+'</button>'+
+          '<button class="cwd-btn" style="opacity:1;font-size:11.5px;padding:5px 9px;color:var(--text-muted)" '+
+            'onclick="LaRuche.Capabilities.ignorerLivre(&quot;'+c+'&quot;)">'+t('capabilities.livresIgnorer')+'</button>'+
+        '</div>';
+      }).join('');
+
+    hote.innerHTML = '<div class="settings-card" style="border-color:var(--amber);margin-bottom:12px">'+
+      entete + corps + '</div>';
   }
 
-  /* La comparaison, en clair. Un bouton « appliquer » sans montrer ce qu'il
-     remplace demande une confiance qu'on n'a aucune raison d'accorder. */
+  /* La comparaison, en clair.
+
+     Un bouton « appliquer » sans montrer ce qu'il remplace demande une confiance
+     qu'on n'a aucune raison d'accorder. Deux vues: cote a cote pour lire chaque
+     version entiere, et les differences seules pour voir ce qui change. La
+     seconde est le defaut, parce que c'est la question qu'on se pose. */
+  var _livreVue = 'diff';
+
+  /* Diff ligne a ligne par plus longue sous-sequence commune.
+
+     Comparer deux textes en les alignant du haut marquerait tout comme change
+     des qu'une ligne est inseree au debut. La LCS trouve ce qui est REELLEMENT
+     commun, et n'appelle changement que le reste. Le tableau est en O(n*m), ce
+     qui tient largement pour des fichiers de skill de quelques centaines de
+     lignes; au-dela on retombe sur une comparaison brute plutot que de faire
+     ramer la page. */
+  function _diffLignes(a, b){
+    var A = String(a == null ? '' : a).split('\n');
+    var B = String(b == null ? '' : b).split('\n');
+    if(A.length * B.length > 4000000){
+      return [{s:'-', l:'(fichiers trop volumineux pour la comparaison detaillee)'}];
+    }
+    var n = A.length, m2 = B.length;
+    // Longueurs de la LCS, calculees depuis la fin.
+    var T = new Array(n + 1);
+    for(var i = n; i >= 0; i--){
+      T[i] = new Int32Array(m2 + 1);
+    }
+    for(i = n - 1; i >= 0; i--){
+      for(var j = m2 - 1; j >= 0; j--){
+        T[i][j] = (A[i] === B[j]) ? T[i+1][j+1] + 1 : Math.max(T[i+1][j], T[i][j+1]);
+      }
+    }
+    var out = [], x = 0, y = 0;
+    while(x < n && y < m2){
+      if(A[x] === B[y]){ out.push({s:' ', l:A[x]}); x++; y++; }
+      else if(T[x+1][y] >= T[x][y+1]){ out.push({s:'-', l:A[x]}); x++; }
+      else { out.push({s:'+', l:B[y]}); y++; }
+    }
+    while(x < n){ out.push({s:'-', l:A[x++]}); }
+    while(y < m2){ out.push({s:'+', l:B[y++]}); }
+    return out;
+  }
+
+  /* On ne montre pas les centaines de lignes identiques: trois lignes de
+     contexte de chaque cote suffisent a situer un changement, et le reste se
+     resume par le nombre de lignes sautees. */
+  function _diffHtml(actuel, livre){
+    var esc = LaRuche.Utils.esc;
+    var d = _diffLignes(actuel, livre);
+    var garde = new Array(d.length);
+    for(var i = 0; i < d.length; i++){
+      if(d[i].s !== ' '){
+        for(var k = Math.max(0, i-3); k <= Math.min(d.length-1, i+3); k++) garde[k] = true;
+      }
+    }
+    var html = '', saut = 0, plus = 0, moins = 0;
+    for(i = 0; i < d.length; i++){
+      if(d[i].s === '+') plus++;
+      if(d[i].s === '-') moins++;
+      if(!garde[i]){ saut++; continue; }
+      if(saut){
+        html += '<div style="color:var(--text-muted);padding:1px 6px">'+
+          '@@ '+saut+' '+LaRuche.i18n.t('capabilities.livresLignesIdentiques')+' @@</div>';
+        saut = 0;
+      }
+      var couleur = d[i].s === '+' ? 'var(--green)' : (d[i].s === '-' ? 'var(--red)' : 'var(--text-dim)');
+      var fond = d[i].s === '+' ? 'rgba(var(--green-rgb),.10)'
+               : (d[i].s === '-' ? 'rgba(var(--red-rgb),.10)' : 'transparent');
+      html += '<div style="color:'+couleur+';background:'+fond+';padding:1px 6px;white-space:pre-wrap">'+
+        esc(d[i].s + ' ' + d[i].l)+'</div>';
+    }
+    if(saut){
+      html += '<div style="color:var(--text-muted);padding:1px 6px">'+
+        '@@ '+saut+' '+LaRuche.i18n.t('capabilities.livresLignesIdentiques')+' @@</div>';
+    }
+    return { html: html, plus: plus, moins: moins };
+  }
+
   async function voirLivre(chemin){
     var d = await fetch(LaRuche.API.base+'/api/skills/livres/contenu?chemin='+encodeURIComponent(chemin),
       {credentials:'include'}).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
     if(!d || d.error){ if(LaRuche.Toast) LaRuche.Toast.show((d && d.error) || 'erreur','err'); return; }
     var esc = LaRuche.Utils.esc, t = LaRuche.i18n.t;
-    var volet = function(titre, couleur, texte){
-      return '<div style="flex:1;min-width:250px">'+
-        '<div style="font-size:11px;color:'+couleur+';margin-bottom:4px">'+titre+'</div>'+
-        '<pre style="max-height:50vh;overflow:auto;background:var(--bg-input);padding:9px;'+
-          'border-radius:6px;font-size:11px;white-space:pre-wrap;margin:0">'+esc(texte)+'</pre></div>';
-    };
+
     var ov = document.createElement('div');
     ov.className = 'lr-modal-overlay';
     ov.onclick = function(ev){ if(ev.target === ov) ov.remove(); };
-    ov.innerHTML = '<div class="lr-modal" role="dialog" aria-modal="true" style="max-width:920px;width:92vw">'+
-      '<div class="lr-modal-title">'+esc(chemin)+'</div>'+
-      '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
-        volet(t('capabilities.livresVotre'), 'var(--text-dim)',
-              d.actuel == null ? t('capabilities.livresAbsent') : d.actuel)+
-        volet(t('capabilities.livresLivree'), 'var(--amber)', d.livre || '')+
-      '</div>'+
-      '<div class="lr-modal-actions">'+
-        '<button class="cwd-btn" style="opacity:1" id="livreFermer">'+t('common.close')+'</button>'+
-      '</div></div>';
     document.body.appendChild(ov);
-    var f = ov.querySelector('#livreFermer');
-    if(f) f.onclick = function(){ ov.remove(); };
+
+    function peindre(){
+      var contenu;
+      if(_livreVue === 'diff'){
+        var r = _diffHtml(d.actuel == null ? '' : d.actuel, d.livre || '');
+        contenu =
+          '<div style="font-size:11px;margin-bottom:5px">'+
+            '<span style="color:var(--green)">+'+r.plus+'</span> '+
+            '<span style="color:var(--red)">-'+r.moins+'</span>'+
+          '</div>'+
+          '<div style="max-height:52vh;overflow:auto;background:var(--bg-input);border-radius:6px;'+
+            'font-size:11px;font-family:var(--mono)">'+r.html+'</div>';
+      } else {
+        var volet = function(titre, couleur, texte){
+          return '<div style="flex:1;min-width:250px">'+
+            '<div style="font-size:11px;color:'+couleur+';margin-bottom:4px">'+titre+'</div>'+
+            '<pre style="max-height:52vh;overflow:auto;background:var(--bg-input);padding:9px;'+
+              'border-radius:6px;font-size:11px;white-space:pre-wrap;margin:0">'+esc(texte)+'</pre></div>';
+        };
+        contenu = '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+          volet(t('capabilities.livresVotre'), 'var(--text-dim)',
+                d.actuel == null ? t('capabilities.livresAbsent') : d.actuel)+
+          volet(t('capabilities.livresLivree'), 'var(--amber)', d.livre || '')+
+        '</div>';
+      }
+      ov.innerHTML = '<div class="lr-modal" role="dialog" aria-modal="true" style="max-width:920px;width:92vw">'+
+        '<div class="lr-modal-title">'+esc(chemin)+'</div>'+
+        '<div style="display:flex;gap:6px;margin-bottom:8px">'+
+          '<button class="cwd-btn" id="vueDiff" style="opacity:1;font-size:11.5px;padding:4px 10px'+
+            (_livreVue==='diff'?';border-color:var(--amber);color:var(--amber)':'')+'">'+
+            t('capabilities.livresVueDiff')+'</button>'+
+          '<button class="cwd-btn" id="vueCote" style="opacity:1;font-size:11.5px;padding:4px 10px'+
+            (_livreVue!=='diff'?';border-color:var(--amber);color:var(--amber)':'')+'">'+
+            t('capabilities.livresVueCote')+'</button>'+
+        '</div>'+
+        contenu+
+        '<div class="lr-modal-actions">'+
+          '<button class="cwd-btn" style="opacity:1" id="livreFermer">'+t('common.close')+'</button>'+
+        '</div></div>';
+      ov.querySelector('#vueDiff').onclick = function(){ _livreVue = 'diff'; peindre(); };
+      ov.querySelector('#vueCote').onclick = function(){ _livreVue = 'cote'; peindre(); };
+      ov.querySelector('#livreFermer').onclick = function(){ ov.remove(); };
+    }
+    peindre();
   }
 
   async function _livreAction(route, chemin){
@@ -442,6 +586,13 @@ LaRuche.Capabilities = (function(){
       (filtered.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+head+'<tbody>'+body+'</tbody></table></div>'
                        : '<div style="text-align:center;color:var(--text-muted);padding:30px">'+LaRuche.i18n.t('capabilities.emptyFilter')+'</div>');
 
+    // Le bandeau des capacites livrees se remplit ICI, apres l'ecriture du
+    // contenu: `render` reecrit tout, y compris l'hote du bandeau, et le remplir
+    // en parallele revenait a le voir efface une fois sur deux. Volontairement
+    // sans `await`: c'est une information de plus, elle ne doit pas retarder
+    // l'affichage de la liste.
+    rendreLivres();
+
     // Restore focus + cursor in the search field after re-render
     if(searchTerm){
       var si = document.getElementById('capSearch');
@@ -588,7 +739,7 @@ LaRuche.Capabilities = (function(){
   function ensureSwitchStyle(){}
 
   return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp, showFamily:showFamily,
-    rendreLivres:rendreLivres, voirLivre:voirLivre, appliquerLivre:appliquerLivre, ignorerLivre:ignorerLivre,
+    rendreLivres:rendreLivres, voirLivre:voirLivre, appliquerLivre:appliquerLivre, ignorerLivre:ignorerLivre, basculerLivres:basculerLivres,
     toggleMcp:toggleMcp, saveMcpModal:saveMcpModal, closeMcpModal:fermerMcpModal,
     majTransport:majTransport };
 })();

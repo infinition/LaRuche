@@ -209,11 +209,16 @@ pub(crate) async fn api_delete_watcher(
     StatusCode::NOT_FOUND
 }
 
-/// POST /api/watchers/:id/test - evaluer une vigie tout de suite.
+/// POST /api/watchers/:id/test - declencher une vigie tout de suite.
 ///
-/// Sans effet de bord: la vigie n'avance pas son etat et ne notifie pas. La
-/// reponse dit ce qu'elle voit et si sa regle est remplie, ce qui suffit a
-/// distinguer « ma regle est fausse » de « il ne s'est rien passe ».
+/// Un VRAI passage, comme si l'intervalle venait d'echoir: si la condition est
+/// remplie, l'action part pour de bon, notification comprise. Seuls l'intervalle
+/// et le delai de garde sont court-circuites, parce que ce sont des cadences et
+/// que c'est justement pour ne pas les attendre qu'on appuie sur le bouton.
+///
+/// Une vigie dont la condition n'est pas remplie repond `declenche: false` sans
+/// rien envoyer: c'est ce qui distingue « ma regle est fausse » de « il ne s'est
+/// rien passe ».
 pub(crate) async fn api_test_watcher(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -221,11 +226,23 @@ pub(crate) async fn api_test_watcher(
     let Ok(uuid) = Uuid::parse_str(&id) else {
         return Json(serde_json::json!({ "status": "error", "error": "identifiant invalide" }));
     };
-    let registry = state.watchers.read().await;
-    match registry.tester(&uuid).await {
-        Some((feu, description)) => Json(serde_json::json!({
-            "status": "ok", "declenche": feu, "description": description
+    // Le verrou est relache AVANT le dispatch: celui-ci relit le registre pour
+    // retrouver le profil et le canal de la vigie, et le garder ici le ferait
+    // s'attendre lui-meme.
+    let declenchement = {
+        let mut registry = state.watchers.write().await;
+        registry.tester(&uuid).await
+    };
+    match declenchement {
+        Some(d) => {
+            let contexte = d.contexte.clone();
+            crate::background::traiter_declenchement(&state, d).await;
+            Json(serde_json::json!({
+                "status": "ok", "declenche": true, "description": contexte
+            }))
+        }
+        None => Json(serde_json::json!({
+            "status": "ok", "declenche": false, "description": ""
         })),
-        None => Json(serde_json::json!({ "status": "error", "error": "vigie introuvable" })),
     }
 }

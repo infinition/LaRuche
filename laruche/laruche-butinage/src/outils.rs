@@ -52,6 +52,21 @@ pub trait Outils: Send + Sync {
         false
     }
 
+    /// Idempotent specifically for the vigie's stagnation detection ([`crate::cap::vigie`]).
+    /// Defaults to [`Self::idempotent`], so an implementor that never overrides
+    /// this keeps behaving exactly as before.
+    ///
+    /// Deliberately SEPARATE from `idempotent`/`concurrence_sure`: a tool can be
+    /// read-only in effect for one particular call (e.g. a browser's `navigate`
+    /// or `read` action) without every action under that same tool name being
+    /// safe to run concurrently (a browser tab is one shared, mutable resource;
+    /// its `click`/`fill`/`type` actions never belong here, and must still go
+    /// through `idempotent`/`concurrence_sure` unchanged). Only the vigie side
+    /// needs the finer, per-action answer, so only this method gets it.
+    fn idempotent_pour_vigie(&self, appel: &Appel) -> bool {
+        self.idempotent(&appel.nom)
+    }
+
     /// Safe to run in parallel with other safe calls (no mutation/approval).
     fn concurrence_sure(&self, appel: &Appel) -> bool {
         self.idempotent(&appel.nom)

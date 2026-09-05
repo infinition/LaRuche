@@ -3190,6 +3190,60 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .tr-bilan { display:flex; gap:14px; flex-wrap:wrap; font-size:11px;
   color:var(--text-dim); margin-bottom:14px; }
 
+/* Vue table / vue chat: un onglet, pas un remplacement - la table dit qui
+   fait quoi d'un coup d'oeil, le chat se lit comme une conversation. */
+.tr-vues { display:flex; gap:0; margin-left:auto; }
+.tr-vue-btn {
+  background:transparent; border:1px solid var(--border); color:var(--text-dim);
+  border-radius:0; padding:4px 11px; font-size:11px; cursor:pointer; font-family:inherit;
+}
+.tr-vue-btn:first-child { border-radius:var(--radius-btn) 0 0 var(--radius-btn); }
+.tr-vue-btn:last-child { border-radius:0 var(--radius-btn) var(--radius-btn) 0; margin-left:-1px; }
+.tr-vue-btn.actif { color:var(--amber); border-color:var(--amber); position:relative; z-index:1; }
+.tr-vue-btn:hover { color:var(--text); }
+
+/* La vue chat: memes interventions que le transcript, en bulles
+   chronologiques - une couleur et un avatar par specialiste, comme une
+   conversation de groupe qu'on suit dans l'ordre plutot qu'une table qu'il
+   faut interpreter. */
+.tr-chat { display:flex; flex-direction:column; gap:10px; padding-bottom:4px; }
+.tr-bulle { display:flex; gap:8px; max-width:min(560px,92%); }
+.tr-bulle-avatar { flex-shrink:0; font-size:24px; line-height:1; width:32px;
+  text-align:center; margin-top:2px; }
+.tr-bulle-avatar .tr-av-img { width:32px; height:32px; border-radius:50%; object-fit:cover; }
+.tr-bulle-corps {
+  background:rgba(255,255,255,.03); border:1px solid var(--border);
+  border-left:3px solid var(--tr-couleur); border-radius:var(--radius-card);
+  padding:7px 11px; min-width:0; flex:1;
+}
+.tr-bulle-tete { display:flex; gap:6px; align-items:center; font-size:11.5px; flex-wrap:wrap; }
+.tr-bulle-tete strong { color:var(--text); }
+.tr-bulle-texte { font-size:13px; line-height:1.55; color:var(--text-dim);
+  margin-top:3px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.tr-bulle-refut { margin-top:3px; }
+/* Le verdict de l'arbitre se distingue sans casser la lecture de groupe:
+   une etiquette, pas un alignement a droite qui suggererait un "soi" face
+   aux autres - ici tout le monde est un specialiste parmi d'autres. */
+.tr-bulle--verdict .tr-bulle-corps { background:rgba(var(--amber-rgb),.06); }
+.tr-bulle--verdict .tr-verdict-eti { font-size:9.5px; font-weight:600; color:var(--amber);
+  text-transform:uppercase; letter-spacing:.05em; margin-right:2px; }
+
+/* Qui ecrit maintenant: les trois points classiques, dans la couleur du
+   specialiste. Sans ca la vue chat retombe dans le silence d'une table
+   qu'on ne peut que deviner en train de reflechir. */
+.tr-frappe-points { display:flex; gap:3px; margin-top:4px; }
+.tr-frappe-points span {
+  width:6px; height:6px; border-radius:50%; background:var(--tr-couleur);
+  animation:tr-frappe 1.1s ease-in-out infinite; opacity:.3;
+}
+.tr-frappe-points span:nth-child(2) { animation-delay:.15s; }
+.tr-frappe-points span:nth-child(3) { animation-delay:.3s; }
+@keyframes tr-frappe {
+  0%,60%,100% { opacity:.25; transform:translateY(0); }
+  30% { opacity:1; transform:translateY(-2px); }
+}
+@media (max-width:560px){ .tr-bulle { max-width:100%; } }
+
 .tr-tour { margin-bottom:6px; }
 .tr-tour summary { cursor:pointer; font-size:11.5px; color:var(--text-dim); padding:3px 0; }
 .tr-inter { border-left:2px solid var(--tr-couleur); padding:5px 0 5px 9px; margin:6px 0; }
@@ -3350,7 +3404,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 }
 @media (max-width:640px){
   /* Sur telephone la table prend trop de hauteur en collant: elle defile avec le
-     reste plutot que de manger la moitie de l'ecran. */
+     reste plutot que de manger la moitie de l'ecran. */
   .tr-place { width:70px; padding:6px 4px; }
   .tr-avatar { font-size:34px; }
 }
@@ -4120,146 +4174,146 @@ html[data-verre="1"] {
 }
 
 
-html[data-verre="1"] #consoleOut,
-html[data-verre="1"] .acc-etat,
-html[data-verre="1"] .actions-tray,
-html[data-verre="1"] .admin-user,
-html[data-verre="1"] .agent-header-block,
-html[data-verre="1"] .approval-args,
-html[data-verre="1"] .attachment-preview,
+html[data-verre="1"] #consoleOut,
+html[data-verre="1"] .acc-etat,
+html[data-verre="1"] .actions-tray,
+html[data-verre="1"] .admin-user,
+html[data-verre="1"] .agent-header-block,
+html[data-verre="1"] .approval-args,
+html[data-verre="1"] .attachment-preview,
 
-html[data-verre="1"] .b-tts,
-
-
+html[data-verre="1"] .b-tts,
 
 
-html[data-verre="1"] .cc-act,
-html[data-verre="1"] .cc-act,
-html[data-verre="1"] .cc-diff,
-html[data-verre="1"] .cc-plan,
-html[data-verre="1"] .chat-ctx-bar,
-html[data-verre="1"] .chat-ctx-gauge,
-html[data-verre="1"] .chat-jump,
-html[data-verre="1"] .chat-onglet,
-html[data-verre="1"] .code-toolbar,
-html[data-verre="1"] .console-panel,
-html[data-verre="1"] .console-toolbar,
-html[data-verre="1"] .dash-card,
-html[data-verre="1"] .dash-panel,
-html[data-verre="1"] .feed-drawer,
-html[data-verre="1"] .feed-filters,
-html[data-verre="1"] .feed-filters,
-html[data-verre="1"] .feed-item,
-html[data-verre="1"] .feed-md,
-html[data-verre="1"] .feed-md,
-html[data-verre="1"] .feed-md,
-html[data-verre="1"] .feed-row,
-html[data-verre="1"] .fn-retour,
-html[data-verre="1"] .header,
-html[data-verre="1"] .help-bulle,
-html[data-verre="1"] .help-lien,
-html[data-verre="1"] .help-version,
-html[data-verre="1"] .history-close,
-html[data-verre="1"] .history-overlay,
-html[data-verre="1"] .history-panel,
-html[data-verre="1"] .honey-wave,
-html[data-verre="1"] .infer-panel,
-html[data-verre="1"] .infer-result,
-html[data-verre="1"] .kb-carte,
-html[data-verre="1"] .kb-cible,
-html[data-verre="1"] .kb-col,
-html[data-verre="1"] .log-popover,
-html[data-verre="1"] .log-popover-close,
-html[data-verre="1"] .log-strip,
-html[data-verre="1"] .login-card,
-html[data-verre="1"] .lr-modal,
-html[data-verre="1"] .lr-modal-ov,
-html[data-verre="1"] .lr-slider,
-html[data-verre="1"] .lr-slider:before,
-html[data-verre="1"] .mcp-outil,
-html[data-verre="1"] .mem2-count,
-html[data-verre="1"] .mem2-iact,
-html[data-verre="1"] .mem2-item,
-html[data-verre="1"] .mem2-md,
-html[data-verre="1"] .mem2-md,
-html[data-verre="1"] .mem2-md,
-html[data-verre="1"] .mem2-md,
-html[data-verre="1"] .mem2-md,
-html[data-verre="1"] .mem2-side,
-html[data-verre="1"] .mem2-tree,
-html[data-verre="1"] .mesh-inbox,
-html[data-verre="1"] .mesh-ligne,
-html[data-verre="1"] .mesh-msg.in,
-html[data-verre="1"] .mesh-peer-etiq,
-html[data-verre="1"] .mesh-win,
-html[data-verre="1"] .mesh-win-close,
-html[data-verre="1"] .mesh-win-min,
-html[data-verre="1"] .message-row.assistant,
-html[data-verre="1"] .message.assistant,
-html[data-verre="1"] .message.assistant,
-html[data-verre="1"] .message.assistant,
-html[data-verre="1"] .message.assistant,
-html[data-verre="1"] .message.assistant,
-html[data-verre="1"] .message.assistant,
-html[data-verre="1"] .message.assistant,
-html[data-verre="1"] .mis-act,
-html[data-verre="1"] .mis-card,
-html[data-verre="1"] .mis-dossier-bar,
-html[data-verre="1"] .mis-side,
-html[data-verre="1"] .n-detail,
-html[data-verre="1"] .panel,
-html[data-verre="1"] .percent,
-html[data-verre="1"] .plan-mission,
-html[data-verre="1"] .pop-content,
-html[data-verre="1"] .profile-modal,
-html[data-verre="1"] .profile-modal-overlay,
-html[data-verre="1"] .provider-favicon,
-html[data-verre="1"] .reaction-picker,
-html[data-verre="1"] .reaction-trigger,
-html[data-verre="1"] .reine-appel-apply,
-html[data-verre="1"] .reine-appel-card,
-html[data-verre="1"] .settings-card,
-html[data-verre="1"] .shine,
-html[data-verre="1"] .sidebar-close,
-html[data-verre="1"] .sidebar-controls,
-html[data-verre="1"] .sidebar-outils-poignee,
-html[data-verre="1"] .stats-card,
-html[data-verre="1"] .stats-close,
-html[data-verre="1"] .status-bar,
-html[data-verre="1"] .status-bar,
-html[data-verre="1"] .suggested-prompt,
-html[data-verre="1"] .tb-stinger,
-html[data-verre="1"] .tb-wing1,
-html[data-verre="1"] .tb-wing2,
-html[data-verre="1"] .tb9-antenna-l,
-html[data-verre="1"] .tb9-antenna-r,
-html[data-verre="1"] .tl-card,
-html[data-verre="1"] .tl-detail,
-html[data-verre="1"] .tl-inv-head,
-html[data-verre="1"] .tl-piste,
-html[data-verre="1"] .tr-bloc,
 
-html[data-verre="1"] .tr-role,
-html[data-verre="1"] .tr-strat,,
-html[data-verre="1"] .user-dropdown,
-html[data-verre="1"] .user-logout,
-html[data-verre="1"] .voicemode-close,
-html[data-verre="1"] .console-panel,
-html[data-verre="1"] .wcard,
-html[data-verre="1"] .wnode {
-  /* Le FOND aussi, et pas seulement le flou.
-
-     La redefinition de `--bg-panel` et `--bg-card` plus haut suffit a tout ce
-     qui les utilise, mais une poignee de conteneurs peignent une valeur ecrite
-     en clair, un voile blanc a deux pour cent par exemple. Ceux-la ne suivaient
-     pas le curseur d'opacite et restaient a leur propre densite au milieu du
-     verre. On les y ramene: c'est un seul reglage, il doit valoir pour tout ce
-     qu'on voit. */
-  background-color: rgba(var(--bg-card-rgb), var(--verre-opacite));
-  backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
-}
-
+
+html[data-verre="1"] .cc-act,
+html[data-verre="1"] .cc-act,
+html[data-verre="1"] .cc-diff,
+html[data-verre="1"] .cc-plan,
+html[data-verre="1"] .chat-ctx-bar,
+html[data-verre="1"] .chat-ctx-gauge,
+html[data-verre="1"] .chat-jump,
+html[data-verre="1"] .chat-onglet,
+html[data-verre="1"] .code-toolbar,
+html[data-verre="1"] .console-panel,
+html[data-verre="1"] .console-toolbar,
+html[data-verre="1"] .dash-card,
+html[data-verre="1"] .dash-panel,
+html[data-verre="1"] .feed-drawer,
+html[data-verre="1"] .feed-filters,
+html[data-verre="1"] .feed-filters,
+html[data-verre="1"] .feed-item,
+html[data-verre="1"] .feed-md,
+html[data-verre="1"] .feed-md,
+html[data-verre="1"] .feed-md,
+html[data-verre="1"] .feed-row,
+html[data-verre="1"] .fn-retour,
+html[data-verre="1"] .header,
+html[data-verre="1"] .help-bulle,
+html[data-verre="1"] .help-lien,
+html[data-verre="1"] .help-version,
+html[data-verre="1"] .history-close,
+html[data-verre="1"] .history-overlay,
+html[data-verre="1"] .history-panel,
+html[data-verre="1"] .honey-wave,
+html[data-verre="1"] .infer-panel,
+html[data-verre="1"] .infer-result,
+html[data-verre="1"] .kb-carte,
+html[data-verre="1"] .kb-cible,
+html[data-verre="1"] .kb-col,
+html[data-verre="1"] .log-popover,
+html[data-verre="1"] .log-popover-close,
+html[data-verre="1"] .log-strip,
+html[data-verre="1"] .login-card,
+html[data-verre="1"] .lr-modal,
+html[data-verre="1"] .lr-modal-ov,
+html[data-verre="1"] .lr-slider,
+html[data-verre="1"] .lr-slider:before,
+html[data-verre="1"] .mcp-outil,
+html[data-verre="1"] .mem2-count,
+html[data-verre="1"] .mem2-iact,
+html[data-verre="1"] .mem2-item,
+html[data-verre="1"] .mem2-md,
+html[data-verre="1"] .mem2-md,
+html[data-verre="1"] .mem2-md,
+html[data-verre="1"] .mem2-md,
+html[data-verre="1"] .mem2-md,
+html[data-verre="1"] .mem2-side,
+html[data-verre="1"] .mem2-tree,
+html[data-verre="1"] .mesh-inbox,
+html[data-verre="1"] .mesh-ligne,
+html[data-verre="1"] .mesh-msg.in,
+html[data-verre="1"] .mesh-peer-etiq,
+html[data-verre="1"] .mesh-win,
+html[data-verre="1"] .mesh-win-close,
+html[data-verre="1"] .mesh-win-min,
+html[data-verre="1"] .message-row.assistant,
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .message.assistant,
+html[data-verre="1"] .mis-act,
+html[data-verre="1"] .mis-card,
+html[data-verre="1"] .mis-dossier-bar,
+html[data-verre="1"] .mis-side,
+html[data-verre="1"] .n-detail,
+html[data-verre="1"] .panel,
+html[data-verre="1"] .percent,
+html[data-verre="1"] .plan-mission,
+html[data-verre="1"] .pop-content,
+html[data-verre="1"] .profile-modal,
+html[data-verre="1"] .profile-modal-overlay,
+html[data-verre="1"] .provider-favicon,
+html[data-verre="1"] .reaction-picker,
+html[data-verre="1"] .reaction-trigger,
+html[data-verre="1"] .reine-appel-apply,
+html[data-verre="1"] .reine-appel-card,
+html[data-verre="1"] .settings-card,
+html[data-verre="1"] .shine,
+html[data-verre="1"] .sidebar-close,
+html[data-verre="1"] .sidebar-controls,
+html[data-verre="1"] .sidebar-outils-poignee,
+html[data-verre="1"] .stats-card,
+html[data-verre="1"] .stats-close,
+html[data-verre="1"] .status-bar,
+html[data-verre="1"] .status-bar,
+html[data-verre="1"] .suggested-prompt,
+html[data-verre="1"] .tb-stinger,
+html[data-verre="1"] .tb-wing1,
+html[data-verre="1"] .tb-wing2,
+html[data-verre="1"] .tb9-antenna-l,
+html[data-verre="1"] .tb9-antenna-r,
+html[data-verre="1"] .tl-card,
+html[data-verre="1"] .tl-detail,
+html[data-verre="1"] .tl-inv-head,
+html[data-verre="1"] .tl-piste,
+html[data-verre="1"] .tr-bloc,
+
+html[data-verre="1"] .tr-role,
+html[data-verre="1"] .tr-strat,,
+html[data-verre="1"] .user-dropdown,
+html[data-verre="1"] .user-logout,
+html[data-verre="1"] .voicemode-close,
+html[data-verre="1"] .console-panel,
+html[data-verre="1"] .wcard,
+html[data-verre="1"] .wnode {
+  /* Le FOND aussi, et pas seulement le flou.
+
+     La redefinition de `--bg-panel` et `--bg-card` plus haut suffit a tout ce
+     qui les utilise, mais une poignee de conteneurs peignent une valeur ecrite
+     en clair, un voile blanc a deux pour cent par exemple. Ceux-la ne suivaient
+     pas le curseur d'opacite et restaient a leur propre densite au milieu du
+     verre. On les y ramene: c'est un seul reglage, il doit valoir pour tout ce
+     qu'on voit. */
+  background-color: rgba(var(--bg-card-rgb), var(--verre-opacite));
+  backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
+}
+
 /* Les MARQUES gardent leur couleur.
 
    L'extraction cherchait ce qui peint un fond et porte une forme, ce qui decrit
@@ -4271,57 +4325,57 @@ html[data-verre="1"] .wnode {
 
    Une couleur SEMANTIQUE n'est pas une teinte de surface, c'est une information.
    Ces elements prennent donc le flou comme les autres, mais pas le fond. */
-html[data-verre="1"] .approval-dialog,
-html[data-verre="1"] .b-agent,
-html[data-verre="1"] .b-audio,
-html[data-verre="1"] .b-code,
-html[data-verre="1"] .b-embed,
-html[data-verre="1"] .b-image,
-html[data-verre="1"] .b-llm,
-html[data-verre="1"] .b-rag,
-html[data-verre="1"] .b-vlm,
-html[data-verre="1"] .chat-ctx-fill,
-html[data-verre="1"] .codex-auth-inline,
-html[data-verre="1"] .feed-actor.actor-laruche,
-html[data-verre="1"] .feed-actor.actor-peer,
-html[data-verre="1"] .feed-actor.actor-user,
-html[data-verre="1"] .feed-ask-send,
-html[data-verre="1"] .feed-av-laruche,
-html[data-verre="1"] .feed-av-peer,
-html[data-verre="1"] .feed-av-user,
-html[data-verre="1"] .feed-drawer-head,
-html[data-verre="1"] .feed-next,
+html[data-verre="1"] .approval-dialog,
+html[data-verre="1"] .b-agent,
+html[data-verre="1"] .b-audio,
+html[data-verre="1"] .b-code,
+html[data-verre="1"] .b-embed,
+html[data-verre="1"] .b-image,
+html[data-verre="1"] .b-llm,
+html[data-verre="1"] .b-rag,
+html[data-verre="1"] .b-vlm,
+html[data-verre="1"] .chat-ctx-fill,
+html[data-verre="1"] .codex-auth-inline,
+html[data-verre="1"] .feed-actor.actor-laruche,
+html[data-verre="1"] .feed-actor.actor-peer,
+html[data-verre="1"] .feed-actor.actor-user,
+html[data-verre="1"] .feed-ask-send,
+html[data-verre="1"] .feed-av-laruche,
+html[data-verre="1"] .feed-av-peer,
+html[data-verre="1"] .feed-av-user,
+html[data-verre="1"] .feed-drawer-head,
+html[data-verre="1"] .feed-next,
 
 
-html[data-verre="1"] .hk,
-html[data-verre="1"] .kb-col-n,
-html[data-verre="1"] .mcp-avert,
-html[data-verre="1"] .mem-prop-count,
-html[data-verre="1"] .mem-proposals,
-html[data-verre="1"] .mem2-item-bar,
-html[data-verre="1"] .mem2-protnote,
-html[data-verre="1"] .mem2-suggest-item,
-html[data-verre="1"] .mem2-wikilink,
-html[data-verre="1"] .mesh-unread,
-html[data-verre="1"] .mesh-win-head,
-html[data-verre="1"] .mesh-win-send,
-html[data-verre="1"] .message.error,
-html[data-verre="1"] .message.steer,
-html[data-verre="1"] .message.tool,
-html[data-verre="1"] .model-host,
-html[data-verre="1"] .plan-completed,
+html[data-verre="1"] .hk,
+html[data-verre="1"] .kb-col-n,
+html[data-verre="1"] .mcp-avert,
+html[data-verre="1"] .mem-prop-count,
+html[data-verre="1"] .mem-proposals,
+html[data-verre="1"] .mem2-item-bar,
+html[data-verre="1"] .mem2-protnote,
+html[data-verre="1"] .mem2-suggest-item,
+html[data-verre="1"] .mem2-wikilink,
+html[data-verre="1"] .mesh-unread,
+html[data-verre="1"] .mesh-win-head,
+html[data-verre="1"] .mesh-win-send,
+html[data-verre="1"] .message.error,
+html[data-verre="1"] .message.steer,
+html[data-verre="1"] .message.tool,
+html[data-verre="1"] .model-host,
+html[data-verre="1"] .plan-completed,
 
-html[data-verre="1"] .provider-runtime-note,
-html[data-verre="1"] .reconnect-banner,
-html[data-verre="1"] .reine-analyse,
-html[data-verre="1"] .reine-thinking,
-html[data-verre="1"] .reine-verdict,
-html[data-verre="1"] .shard-section,
-html[data-verre="1"] .stats-reset-zoom,
-html[data-verre="1"] .timeout-warning,
-html[data-verre="1"] .tr-avertit,
-html[data-verre="1"] .tr-question,
-html[data-verre="1"] .tr-verdict,
+html[data-verre="1"] .provider-runtime-note,
+html[data-verre="1"] .reconnect-banner,
+html[data-verre="1"] .reine-analyse,
+html[data-verre="1"] .reine-thinking,
+html[data-verre="1"] .reine-verdict,
+html[data-verre="1"] .shard-section,
+html[data-verre="1"] .stats-reset-zoom,
+html[data-verre="1"] .timeout-warning,
+html[data-verre="1"] .tr-avertit,
+html[data-verre="1"] .tr-question,
+html[data-verre="1"] .tr-verdict,
 
 html[data-verre="1"] .voicemode-orb {
   backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
@@ -4338,8 +4392,8 @@ html[data-verre="1"] .feed-drawer,
 html[data-verre="1"] .lr-dock,
 html[data-verre="1"] .console-panel {
   background-color: rgba(var(--bg-panel-rgb), var(--verre-opacite));
-}
-
+}
+
 /* Les ENVELOPPES ne prennent pas le flou.
 
    Une enveloppe couvre toute une zone et ne contient que d'autres surfaces:
@@ -4361,8 +4415,8 @@ html[data-verre="1"] .drop-zone,
 html[data-verre="1"] .tl-inv-cartes {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-}
-
+}
+
 /* Les conteneurs dont la feuille est INJECTEE depuis le JS.
 
    La liste du flou est generee en lisant cette feuille-ci, elle ne pouvait donc
@@ -4385,8 +4439,8 @@ html[data-verre="1"] .cb-wrap,
 html[data-verre="1"] .lr-art-win {
   backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
   -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(1.3);
-}
-
+}
+
 /* La table des capacites n'avait aucune surface sous elle.
 
    Elle est ecrite en HTML nu, sans classe, avec ses styles en clair dans
@@ -4413,8 +4467,8 @@ html[data-verre="1"] .settings-content table {
    missions et le kanban.
 
    Chaque surface floute donc pour elle-meme. C'est un peu plus de travail pour
-   le navigateur, et c'est ce qu'on voit qui decide. */
-
+   le navigateur, et c'est ce qu'on voit qui decide. */
+
 /* Les messages et les animations suivent LEURS reglages.
 
    Cette regle vient apres celles du verre, donc elle l'emporte sans avoir a les

@@ -243,7 +243,7 @@ fn appliquer(
         &appel.nom,
         appel.signature(),
         res.ok,
-        outils.idempotent(&appel.nom),
+        outils.idempotent_pour_vigie(appel),
         res.empreinte(),
     );
     emet.emettre(Evenement::ResultatOutil { nom: appel.nom.clone(), ok: res.ok, ms });

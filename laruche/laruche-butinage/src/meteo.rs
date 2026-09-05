@@ -11,15 +11,44 @@ pub enum ClasseErreur {
     RateLimited { reset_at: Option<i64> },
     /// Invalid/expired authentication: model failover is pointless.
     ReloginRequis,
+    /// The request outgrew the model's context window. Distinct from `Fatal`:
+    /// retrying the identical request reproduces it forever, but shrinking the
+    /// context first (compaction) and retrying makes it recoverable, which a
+    /// model failover would not.
+    ContexteDepasse,
     /// Transient failure (5xx, network reset, timeout): retry on the SAME model.
     Transitoire,
     /// Definitive error (4xx except 401/403/429, invalid request): model failover.
     Fatal,
 }
 
+/// Phrasings observed across backends when the request outgrew the context
+/// window. Local servers (small n_ctx, no server-side compaction of their own)
+/// hit this far more often than cloud APIs, and each names it differently:
+/// llama.cpp's own server, LM Studio, Ollama, and the generic cloud wording.
+/// Checked ACROSS status codes (usually 400, but not guaranteed) rather than
+/// nested under one status arm, so a server that answers oddly still matches.
+const PHRASES_CONTEXTE_DEPASSE: &[&str] = &[
+    "exceeds the available context size", // llama.cpp server
+    "greater than the context length",    // LM Studio
+    "prompt too long",                    // Ollama ("exceeded max context length")
+    "context_length_exceeded",            // generic OpenAI-compatible cloud
+    "maximum context length",
+    "context window",
+    "reduce the length of the messages",
+];
+
+fn corps_depasse_contexte(corps: &str) -> bool {
+    let c = corps.to_lowercase();
+    PHRASES_CONTEXTE_DEPASSE.iter().any(|p| c.contains(p))
+}
+
 impl ClasseErreur {
     /// Classifies an error from the HTTP status and hints (body, retry-after header).
     pub fn classer(status: u16, retry_after: Option<&str>, corps: &str) -> ClasseErreur {
+        if corps_depasse_contexte(corps) {
+            return ClasseErreur::ContexteDepasse;
+        }
         match status {
             429 => {
                 // A 429 for an EXHAUSTED BALANCE (no credit / no resource package, e.g.
@@ -109,6 +138,10 @@ pub enum Reaction {
     RotationCle,
     /// Switch to a fallback model (failover).
     Deroutement,
+    /// Shrink the context (compaction) then retry. Bounded to ONE attempt by
+    /// the caller: a request that still overflows after compaction has
+    /// nothing left to shrink, and looping on it would just repeat the error.
+    ReduireContexte,
     /// Give up with this reason (relogin required, or recourses exhausted).
     Stopper(String),
 }
@@ -133,6 +166,7 @@ pub fn reagir(
         ClasseErreur::ReloginRequis => {
             Reaction::Stopper("invalid authentication, reconnect the provider".into())
         }
+        ClasseErreur::ContexteDepasse => Reaction::ReduireContexte,
         ClasseErreur::RateLimited { reset_at } => {
             if cle_dispo {
                 // Another key is free: rotate rather than wait.
@@ -268,6 +302,29 @@ mod tests {
             ClasseErreur::classer(400, None, "invalid model name"),
             ClasseErreur::Fatal
         );
+    }
+
+    #[test]
+    fn depassement_de_contexte_est_distingue_du_fatal() {
+        // Real phrasings from local backends: distinct from a genuinely broken
+        // request, and checked whatever the status code the server answers with.
+        assert_eq!(
+            ClasseErreur::classer(500, None, "the request exceeds the available context size"),
+            ClasseErreur::ContexteDepasse
+        );
+        assert_eq!(
+            ClasseErreur::classer(400, None, "Input is greater than the context length (8192)"),
+            ClasseErreur::ContexteDepasse
+        );
+        assert_eq!(
+            ClasseErreur::classer(400, None, "prompt too long; exceeded max context length"),
+            ClasseErreur::ContexteDepasse
+        );
+        assert_eq!(
+            ClasseErreur::classer(400, None, "This model's maximum context length is 32768 tokens"),
+            ClasseErreur::ContexteDepasse
+        );
+        assert_eq!(reagir(&ClasseErreur::ContexteDepasse, 1, 3, 3, false, false, 0), Reaction::ReduireContexte);
     }
 
     #[test]

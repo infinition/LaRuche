@@ -27,6 +27,12 @@ LaRuche.TableRonde = (function(){
   var actifs = [];         // qui reflechit EN CE MOMENT
   var etapeNom = '';
   var flux = [];           // interventions recues au fil de l'eau
+  // Vue table (le plateau + le transcript par tour) ou vue chat (les memes
+  // interventions en bulles, chronologiques, comme une conversation de
+  // groupe). Memorisee par utilisateur: un choix qu'on refait a chaque
+  // ouverture n'est pas un choix.
+  var vueTr = 'table';
+  try{ vueTr = localStorage.getItem('laruche_tr_vue') || 'table'; }catch(e){}
 
   function esc(t){ return LaRuche.Utils.esc(t); }
   function specDe(id){ for(var i=0;i<pool.length;i++){ if(pool[i].id===id) return pool[i]; } return null; }
@@ -195,6 +201,71 @@ LaRuche.TableRonde = (function(){
     '</div>';
   }
 
+  /* ── Vue chat: la meme deliberation, en bulles ──────────────────────────
+     Un onglet, pas un remplacement: la table dit qui fait quoi d'un coup
+     d'oeil, le chat se lit comme une conversation qu'on suit dans l'ordre -
+     y compris pendant le debat, ou le flux et les "..." de frappe font toute
+     la difference avec une table qui respire sans dire qui ni pourquoi. */
+  function indicateurIv(iv){
+    var sym = {approuve:'✔', reserve:'⚠', oppose:'✖'}[iv.accord] || '';
+    if(!sym) return '';
+    var cls = iv.accord==='approuve' ? 'ok' : (iv.accord==='oppose' ? 'ko' : 'mid');
+    return '<span class="tr-ind tr-ind--'+cls+'" title="'+esc(iv.accord)+'">'+esc(sym)+'</span>';
+  }
+
+  function bulleHtml(iv){
+    var s = specDe(iv.specialiste);
+    var estArbitre = s && s.role === 'arbitre';
+    return '<div class="tr-bulle'+(estArbitre?' tr-bulle--verdict':'')+'" '+
+             'style="--tr-couleur:'+esc((s&&s.couleur)||'#8a8a92')+'">'+
+      '<div class="tr-bulle-avatar">'+avatarHtml(s&&s.avatar)+'</div>'+
+      '<div class="tr-bulle-corps">'+
+        '<div class="tr-bulle-tete">'+
+          (estArbitre ? '<span class="tr-verdict-eti">'+LaRuche.i18n.t('tr.verdict')+'</span>' : '')+
+          '<strong>'+esc(nomDe(iv.specialiste))+'</strong>'+
+          indicateurIv(iv)+
+          '<span class="tr-note">'+LaRuche.i18n.t('tr.tour',{n:iv.tour})+' · '+
+            LaRuche.i18n.t('tr.confiance')+' '+iv.confiance+'</span>'+
+        '</div>'+
+        (iv.changement && iv.changement.toLowerCase().indexOf('aucun')<0
+           ? '<div class="tr-change">↻ '+esc(iv.changement)+'</div>' : '')+
+        '<div class="tr-bulle-texte">'+esc(iv.position)+'</div>'+
+        (iv.refutable ? '<div class="tr-note tr-bulle-refut">réfutable si : '+esc(iv.refutable)+'</div>' : '')+
+      '</div>'+
+    '</div>';
+  }
+
+  /* Qui ecrit MAINTENANT: les trois points classiques, dans la couleur du
+     specialiste. Sans ca la vue chat retombe dans le meme silence qu'un
+     debat qu'on ne peut que deviner en train de se passer. */
+  function bulleFrappeHtml(id){
+    var s = specDe(id);
+    return '<div class="tr-bulle tr-bulle--frappe" style="--tr-couleur:'+esc((s&&s.couleur)||'#8a8a92')+'">'+
+      '<div class="tr-bulle-avatar">'+avatarHtml(s&&s.avatar)+'</div>'+
+      '<div class="tr-bulle-corps">'+
+        '<div class="tr-bulle-tete"><strong>'+esc(nomDe(id))+'</strong>'+
+          '<span class="tr-note">'+LaRuche.i18n.t('tr.ecrit')+'</span></div>'+
+        '<div class="tr-frappe-points"><span></span><span></span><span></span></div>'+
+      '</div>'+
+    '</div>';
+  }
+
+  function chatTrHtml(){
+    // Le debat termine a un ordre garanti (interventions triees par tour a
+    // la fin); en plein debat, seul `flux` existe encore, et il arrive
+    // recent-d'abord (pour la vue table) - la vue chat le veut chronologique.
+    var interventions = (dernier && dernier.interventions && dernier.interventions.length)
+      ? dernier.interventions
+      : flux.slice().reverse();
+    if(!interventions.length && !actifs.length){
+      return '<div class="tr-vide">'+LaRuche.i18n.t('tr.aucunEmbauche')+'</div>';
+    }
+    return '<div class="tr-chat">'+
+      interventions.map(bulleHtml).join('')+
+      actifs.map(bulleFrappeHtml).join('')+
+    '</div>';
+  }
+
   function bilanHtml(){
     if(!dernier) return '';
     var arret = {convergence:'tr.arretConvergence', tours_epuises:'tr.arretTours',
@@ -228,6 +299,12 @@ LaRuche.TableRonde = (function(){
       '<div class="tr-barre">'+
         '<select id="trMission" class="tr-select">'+m+'</select>'+
         '<button class="tl-btn" id="trGerer">'+LaRuche.i18n.t('tr.gerer')+'</button>'+
+        '<div class="tr-vues" role="group">'+
+          '<button class="tr-vue-btn'+(vueTr==='table'?' actif':'')+'" data-vuetr="table">'+
+            LaRuche.i18n.t('tr.vueTable')+'</button>'+
+          '<button class="tr-vue-btn'+(vueTr==='chat'?' actif':'')+'" data-vuetr="chat">'+
+            LaRuche.i18n.t('tr.vueChat')+'</button>'+
+        '</div>'+
         (enCours ? '<span class="tr-encours">'+LaRuche.i18n.t('tr.encours')+'</span>' : '')+
       '</div>'+
       (sansOutils ? '<div class="tr-avertit">'+LaRuche.i18n.t('tr.sansOutils')+'</div>' : '')+
@@ -240,14 +317,25 @@ LaRuche.TableRonde = (function(){
           (actifs.length ? ' - '+actifs.map(function(id){ return esc(nomDe(id)); }).join(', ') : '')+
           '</div>'
         : '')+
-      tableHtml()+
-      // Le flux en direct pendant le debat, le bilan complet apres.
-      (enCours ? fluxHtml() : verdictHtml()+desaccordsHtml()+bilanHtml()+transcriptHtml());
+      (vueTr==='chat'
+        // La vue chat remplace le plateau: memes interventions, lues dans
+        // l'ordre plutot que reparties sur une table qu'il faut interpreter.
+        ? chatTrHtml()
+        : tableHtml()+
+          // Le flux en direct pendant le debat, le bilan complet apres.
+          (enCours ? fluxHtml() : verdictHtml()+desaccordsHtml()+bilanHtml()+transcriptHtml()));
 
     var sel = document.getElementById('trMission');
     if(sel) sel.onchange = function(){ missionActive = sel.value; };
     var g = document.getElementById('trGerer');
     if(g) g.onclick = ouvrirPool;
+    document.querySelectorAll('.tr-vue-btn').forEach(function(b){
+      b.onclick = function(){
+        vueTr = b.dataset.vuetr;
+        try{ localStorage.setItem('laruche_tr_vue', vueTr); }catch(e){}
+        rendre();
+      };
+    });
   }
 
   /* ── Lancer un debat ─────────────────────────────────────────────────── */
@@ -775,5 +863,8 @@ LaRuche.i18n.add({
   'tr.etapeRelecture':     { fr:'Chacun relit les autres', en:'Each reading the others' },
   'tr.etapeContradiction': { fr:'Le contradicteur attaque', en:'The contrarian attacks' },
   'tr.etapeReponse':       { fr:'Réponses aux objections', en:'Answering objections' },
-  'tr.etapeSynthese':      { fr:"L'arbitre tranche", en:'The arbiter decides' }
+  'tr.etapeSynthese':      { fr:"L'arbitre tranche", en:'The arbiter decides' },
+  'tr.vueTable':      { fr:'Table', en:'Table' },
+  'tr.vueChat':       { fr:'Chat', en:'Chat' },
+  'tr.ecrit':         { fr:'écrit…', en:'typing…' }
 });

@@ -809,6 +809,7 @@ async fn main() -> Result<()> {
                     "openai" => 128000,
                     _ => 32768,
                 },
+                modele_faible: false,
             },
         );
         profiles_cfg.active_model = profiles::ActiveModel {
@@ -900,7 +901,7 @@ async fn main() -> Result<()> {
     let _ = profiles::save_profiles(&profiles_path, &profiles_cfg);
 
     // Derive EssaimConfig from active profile
-    let (prof_provider, prof_model, prof_api_key, prof_api_base, prof_ollama_url, prof_max_context_len) =
+    let (prof_provider, prof_model, prof_api_key, prof_api_base, prof_ollama_url, prof_max_context_len, prof_modele_faible) =
         profiles::active_to_essaim_fields(&profiles_cfg);
 
     let cron_arc = Arc::new(RwLock::new(CronScheduler::new(std::path::Path::new(
@@ -971,6 +972,7 @@ async fn main() -> Result<()> {
         api_key: prof_api_key,
         api_base: prof_api_base,
         context_max_tokens: prof_max_context_len,
+        modele_faible: prof_modele_faible,
         disabled_tools: persistent.disabled_tools.clone(),
         disabled_skills: persistent.disabled_skills.clone(),
         ..EssaimConfig::default()

@@ -40,6 +40,12 @@ pub struct EssaimConfig {
     /// LLM provider: "ollama" (default), "openai", "anthropic"
     #[serde(default = "default_provider")]
     pub provider: String,
+    /// Explicit override from the active profile: treat this model as weak
+    /// (small local model, prone to tool-call loops and malformed output),
+    /// regardless of what its name looks like. `false` falls back to
+    /// `profil_pour`'s name-based guess, unchanged.
+    #[serde(default)]
+    pub modele_faible: bool,
     /// API key for cloud providers (empty for Ollama)
     #[serde(default)]
     pub api_key: String,
@@ -270,6 +276,7 @@ impl Default for EssaimConfig {
         Self {
             ollama_url: "http://127.0.0.1:11434".to_string(),
             model: "gemma4:e4b".to_string(),
+            modele_faible: false,
             fallback_models: vec![],
             max_iterations: 100,
             temperature: 0.7,

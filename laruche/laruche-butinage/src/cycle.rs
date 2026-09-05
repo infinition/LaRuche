@@ -239,6 +239,64 @@ pub async fn butiner(
                         carnet.passe,
                     ));
                 }
+                Err(EchecAppel::ContexteDepasse) => {
+                    // The provider says the request outgrew the context window
+                    // despite the proactive gauge-driven compaction and the hard
+                    // cut above: on a local backend the real n_ctx can be smaller
+                    // than `context_max_tokens`, or the jauge's chars-per-token
+                    // ratio can be off for that model's tokenizer. Force an
+                    // UNCONDITIONAL compaction (bypassing the gauge, which just
+                    // proved unreliable) and a harder cut, then retry ONCE:
+                    // a request that still overflows after that has nothing
+                    // left to shrink, and looping on it would only repeat
+                    // the same failed call.
+                    emet.emettre(Evenement::Statut(
+                        "Context window exceeded: compacting and retrying once.".into(),
+                    ));
+                    if let Some(ev) = compacter(carnet, fournisseur, &jauge, reglages, emet).await {
+                        emet.emettre(ev);
+                    }
+                    jauge.estimer(&reglages.systeme, &carnet.historique, schemas_chars);
+                    tronquer_historique(
+                        carnet,
+                        &reglages.systeme,
+                        reglages.context_max_tokens / 2,
+                        jauge.chars_par_token(),
+                    );
+                    let messages_reduits =
+                        assembler(carnet, reglages, outils.nouvelles_capacites().as_deref());
+                    match appeler_modele(
+                        fournisseur,
+                        &messages_reduits,
+                        &schemas,
+                        reglages,
+                        emet,
+                        annulation,
+                    )
+                    .await
+                    {
+                        Ok(r) => r,
+                        Err(EchecAppel::Interrompu) => {
+                            carnet.itineraire.finaliser();
+                            return Ok(Bilan::nouveau(
+                                "Interrupted by the user.",
+                                FinDeVol::Interrompue,
+                                carnet.passe,
+                            ));
+                        }
+                        Err(_) => {
+                            let motif = "context window exceeded even after compaction: \
+                                the configured window is likely larger than what this \
+                                model or server actually supports"
+                                .to_string();
+                            return Ok(Bilan::nouveau(
+                                format!("Fatal provider error: {motif}"),
+                                FinDeVol::Erreur(motif),
+                                carnet.passe,
+                            ));
+                        }
+                    }
+                }
                 Err(EchecAppel::Fatal(motif)) => {
                     return Ok(Bilan::nouveau(
                         format!("Fatal provider error: {motif}"),
@@ -615,6 +673,10 @@ enum EchecAppel {
     Fatal(String),
     /// The cancellation flag was raised while waiting.
     Interrompu,
+    /// The request outgrew the context window. Carries no message: unlike
+    /// `Fatal`, this one is recoverable by the caller (which holds the carnet
+    /// and can compact), so `appeler_modele` itself has nothing useful to say.
+    ContexteDepasse,
 }
 
 /// Model call with weather policy (backoff/abandon). Key rotation and model
@@ -693,6 +755,7 @@ async fn appeler_modele(
                     Reaction::RotationCle | Reaction::Deroutement => {
                         emet.emettre(Evenement::Statut("Resuming after provider error.".into()));
                     }
+                    Reaction::ReduireContexte => return Err(EchecAppel::ContexteDepasse),
                     Reaction::Stopper(motif) => {
                         // Diagnostic error: surface the REAL HTTP code + an excerpt of the
                         // provider body, otherwise "fatal error" is opaque (impossible to
@@ -833,6 +896,23 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
     }
     if appels.len() > 1 {
         appels.retain(|a| a.nom != "clarify");
+    }
+
+    // A tool call whose arguments failed to parse as JSON, and were not simply
+    // empty, is a genuine truncation or malformation signal whatever
+    // finish_reason claims: a relay can report a normal end of turn while it
+    // actually cut the response in the middle of a tool-call's own
+    // arguments. Route it through the malformed-tool-call rail instead of
+    // executing a call with silently null arguments.
+    if !appels.is_empty() && appels.iter().any(|a| a.args.is_null()) {
+        return Issue::TexteSeul(TexteSeul {
+            texte: reponse.texte.clone(),
+            fin_native: Some(reponse.stop),
+            plan_inacheve: carnet.itineraire.a_des_ouvertes(),
+            malforme: true,
+            tronquee: matches!(reponse.stop, StopReason::Longueur),
+            vide: false,
+        });
     }
 
     if !appels.is_empty() {
@@ -1541,6 +1621,27 @@ It is Sunday.".into()),
             assert!(t.malforme, "stop=Outils with zero calls is a strong malformed signal");
         } else {
             panic!("expected TexteSeul");
+        }
+    }
+
+    #[test]
+    fn appel_aux_arguments_illisibles_est_malforme_pas_execute() {
+        // args=Null signals a tool call whose JSON failed to parse (not a
+        // legitimate zero-argument call, which is always "{}"): a provider can
+        // report a normal finish while it actually cut the response in the
+        // middle of a tool-call's own arguments. Must never reach Issue::Outils
+        // as if the call were valid.
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        let rep = ReponseModele {
+            texte: String::new(),
+            stop: StopReason::Outils,
+            appels: vec![Appel::nouveau("file_write", serde_json::Value::Null)],
+            usage: None,
+            ..Default::default()
+        };
+        match analyser(&rep, &mut carnet, ProfilModele::NatifOutils) {
+            Issue::TexteSeul(t) => assert!(t.malforme),
+            autre => panic!("expected TexteSeul(malforme), got {autre:?}"),
         }
     }
 }

@@ -613,14 +613,17 @@ fn finaliser_tool_calls(
     let mut calls: Vec<(u32, ToolCall)> = acc
         .drain()
         .map(|(idx, (id, name, args_str))| {
-            (
-                idx,
-                ToolCall {
-                    id,
-                    name,
-                    args: serde_json::from_str(&args_str).unwrap_or(serde_json::Value::Null),
-                },
-            )
+            // Empty arguments are a valid zero-argument call ("{}"), never a parse
+            // failure. Anything else that fails to parse stays Value::Null, which
+            // is what the caller reads as a genuinely truncated or malformed call
+            // whatever finish_reason claims: a relay can report "stop" while
+            // cutting a response in the middle of a tool-call's own arguments.
+            let args = if args_str.trim().is_empty() {
+                serde_json::json!({})
+            } else {
+                serde_json::from_str(&args_str).unwrap_or(serde_json::Value::Null)
+            };
+            (idx, ToolCall { id, name, args })
         })
         .collect();
     calls.sort_by_key(|(idx, _)| *idx);
@@ -1173,6 +1176,14 @@ async fn openai_chat_stream(
         let mut content_streamed = false;
         let mut reasoning_acc = String::new();
         let mut reasoning_emitted = false;
+        // Whether some chunk ever carried an explicit `finish_reason` before we hit
+        // `[DONE]`. A well-behaved OpenAI-compatible stream always stamps one on the
+        // last content-bearing chunk; some relays (observed on deepseek-v4-flash's
+        // "flash" proxy) truncate on their own output-token cap and just go straight
+        // to `[DONE]` without ever saying so. Without this flag that case defaulted
+        // to "stop" (normal end), which hid the truncation from the caller's
+        // auto-resume rail and left the turn silently cut mid-sentence/mid-code.
+        let mut finish_vu = false;
 
         loop {
             match response.chunk().await {
@@ -1214,11 +1225,22 @@ async fn openai_chat_stream(
                                 }
                                 // Finalize the accumulated tool_calls (ordered by index).
                                 let tool_calls = finaliser_tool_calls(&mut tool_call_acc);
+                                // No explicit finish_reason ever arrived before [DONE]. If
+                                // real content was streamed, that silence is the signature
+                                // of a relay that cut the response on its own cap without
+                                // saying so - report "length" so classer_stop() and the
+                                // truncation rail see it, instead of a clean "stop" that
+                                // hides the cut and leaves the turn silently unfinished.
+                                let finish_reason = if !finish_vu && content_streamed {
+                                    Some("length".to_string())
+                                } else {
+                                    Some("stop".to_string())
+                                };
                                 let _ = tx
                                     .send(OllamaChunk {
                                         text: String::new(),
                                         done: true,
-                                        finish_reason: Some("stop".to_string()),
+                                        finish_reason,
                                         eval_count: None,
                                         eval_duration: None,
                                         prompt_eval_count: None,
@@ -1285,6 +1307,9 @@ async fn openai_chat_stream(
                                 .as_str()
                                 .map(str::to_string);
                             let done = finish_reason.is_some();
+                            if done {
+                                finish_vu = true;
+                            }
 
                             // Last resort: if the model produced NO content at all, surface the
                             // accumulated reasoning on the final chunk so the turn is not silently empty.
@@ -1364,7 +1389,33 @@ async fn openai_chat_stream(
                         }
                     }
                 }
-                Ok(None) => break,
+                Ok(None) => {
+                    // The connection closed without ever sending `[DONE]` - a raw
+                    // disconnect/timeout, not a graceful end. Same silent-truncation
+                    // risk as the `[DONE]`-without-finish_reason case above: without
+                    // this, the caller saw the stream just stop (finish stays `None`),
+                    // classer_stop() read that as a normal end of turn, and a response
+                    // cut by a dropped connection went undetected.
+                    let tool_calls = finaliser_tool_calls(&mut tool_call_acc);
+                    let finish_reason = if !finish_vu && content_streamed {
+                        Some("length".to_string())
+                    } else {
+                        Some("stop".to_string())
+                    };
+                    let _ = tx
+                        .send(OllamaChunk {
+                            text: String::new(),
+                            done: true,
+                            finish_reason,
+                            eval_count: None,
+                            eval_duration: None,
+                            prompt_eval_count: None,
+                            tool_calls,
+                            reasoning: None,
+                        })
+                        .await;
+                    return;
+                }
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading OpenAI stream");
                     return;
@@ -1530,6 +1581,35 @@ async fn anthropic_chat_stream(
     _anthropic_send_request(&url, api_key, body).await
 }
 
+/// Turns Anthropic's `tool_use` accumulator into an ordered [`ToolCall`] list.
+/// Empty arguments are a valid zero-argument call (`{}`); anything else that
+/// fails to parse stays `Value::Null`, which downstream analysis reads as a
+/// genuinely truncated or malformed call, never a legitimate one.
+fn finaliser_tool_use_anthropic(
+    acc: &std::collections::HashMap<u64, (String, String, String)>,
+) -> Vec<ToolCall> {
+    let mut calls: Vec<(u64, ToolCall)> = acc
+        .iter()
+        .map(|(idx, (id, name, args_str))| {
+            let args = if args_str.trim().is_empty() {
+                serde_json::json!({})
+            } else {
+                serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null)
+            };
+            (
+                *idx,
+                ToolCall {
+                    id: id.clone(),
+                    name: name.clone(),
+                    args,
+                },
+            )
+        })
+        .collect();
+    calls.sort_by_key(|(idx, _)| *idx);
+    calls.into_iter().map(|(_, c)| c).collect()
+}
+
 async fn _anthropic_send_request(
     url: &str,
     api_key: &str,
@@ -1567,6 +1647,13 @@ async fn _anthropic_send_request(
         // Native tool_use blocks, keyed by content-block index: (id, name, partial_json).
         let mut tool_acc: std::collections::HashMap<u64, (String, String, String)> =
             std::collections::HashMap::new();
+        // Anthropic's own stop reason, carried on `message_delta` ("end_turn",
+        // "max_tokens", "stop_sequence", "tool_use"). It always precedes
+        // `message_stop`; captured here so the final chunk can report it instead
+        // of a blanket "stop" that would hide a real max_tokens cutoff.
+        let mut vrai_stop_reason: Option<String> = None;
+        // Whether any visible text was received, for the raw-disconnect case below.
+        let mut contenu_recu = false;
         loop {
             match response.chunk().await {
                 Ok(Some(bytes)) => {
@@ -1592,6 +1679,9 @@ async fn _anthropic_send_request(
                                     "message_delta" => {
                                         if let Some(u) = parsed["usage"]["output_tokens"].as_u64() {
                                             out_tok = Some(u);
+                                        }
+                                        if let Some(sr) = parsed["delta"]["stop_reason"].as_str() {
+                                            vrai_stop_reason = Some(sr.to_string());
                                         }
                                     }
                                     "content_block_start"
@@ -1625,32 +1715,26 @@ async fn _anthropic_send_request(
                                     }
                                     _ => String::new(),
                                 };
+                                if !text.is_empty() {
+                                    contenu_recu = true;
+                                }
                                 let done = chunk_type == "message_stop";
-                                let finish_reason =
-                                    if done { Some("stop".to_string()) } else { None };
+                                // Map the REAL stop reason instead of assuming "stop": a
+                                // "max_tokens" cutoff must reach classer_stop() as a
+                                // truncation, not a normal end of turn.
+                                let finish_reason = if done {
+                                    Some(match vrai_stop_reason.as_deref() {
+                                        Some("max_tokens") => "length",
+                                        Some("tool_use") => "tool_calls",
+                                        Some("end_turn") | Some("stop_sequence") => "stop",
+                                        _ => "stop",
+                                    }.to_string())
+                                } else {
+                                    None
+                                };
                                 // Emit the accumulated tool_use blocks (ordered by index) on stop.
                                 let tool_calls = if done && !tool_acc.is_empty() {
-                                    let mut calls: Vec<(u64, ToolCall)> = tool_acc
-                                        .iter()
-                                        .map(|(idx, (id, name, args_str))| {
-                                            let args = if args_str.trim().is_empty() {
-                                                serde_json::json!({})
-                                            } else {
-                                                serde_json::from_str(args_str)
-                                                    .unwrap_or(serde_json::Value::Null)
-                                            };
-                                            (
-                                                *idx,
-                                                ToolCall {
-                                                    id: id.clone(),
-                                                    name: name.clone(),
-                                                    args,
-                                                },
-                                            )
-                                        })
-                                        .collect();
-                                    calls.sort_by_key(|(idx, _)| *idx);
-                                    Some(calls.into_iter().map(|(_, c)| c).collect())
+                                    Some(finaliser_tool_use_anthropic(&tool_acc))
                                 } else {
                                     None
                                 };
@@ -1673,7 +1757,37 @@ async fn _anthropic_send_request(
                         }
                     }
                 }
-                Ok(None) => break,
+                Ok(None) => {
+                    // The connection closed without a `message_stop` event: same
+                    // silent-truncation risk as elsewhere in this file. Anthropic
+                    // always sends `message_delta` (carrying stop_reason) before
+                    // stopping cleanly, so reaching a raw disconnect with content
+                    // already received and no stop_reason captured means the cut
+                    // happened mid-response, not at a real end of turn.
+                    let finish_reason = if vrai_stop_reason.is_none() && contenu_recu {
+                        Some("length".to_string())
+                    } else {
+                        Some("stop".to_string())
+                    };
+                    let tool_calls = if tool_acc.is_empty() {
+                        None
+                    } else {
+                        Some(finaliser_tool_use_anthropic(&tool_acc))
+                    };
+                    let _ = tx
+                        .send(OllamaChunk {
+                            text: String::new(),
+                            done: true,
+                            finish_reason,
+                            eval_count: out_tok,
+                            eval_duration: None,
+                            prompt_eval_count: in_tok,
+                            tool_calls,
+                            reasoning: None,
+                        })
+                        .await;
+                    return;
+                }
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading Anthropic stream");
                     return;
@@ -1803,6 +1917,11 @@ async fn codex_chat_stream(
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
     tokio::spawn(async move {
         let mut buffer: Vec<u8> = Vec::new();
+        // Whether any visible text was received, for the raw-disconnect case below.
+        let mut contenu_recu = false;
+        // Whether the stream ever reached an explicit terminal event (completed
+        // OR incomplete). Used to tell a real disconnect from a clean finish.
+        let mut fin_vue = false;
         loop {
             match response.chunk().await {
                 Ok(Some(bytes)) => {
@@ -1823,14 +1942,26 @@ async fn codex_chat_stream(
                                     }
                                     _ => String::new(),
                                 };
+                                if !text.is_empty() {
+                                    contenu_recu = true;
+                                }
+                                // The Responses API distinguishes a clean finish from a
+                                // cutoff (usually the model's own output-token cap): treat
+                                // them as such instead of reporting "stop" for both, which
+                                // hid a real truncation from the caller.
                                 let done =
-                                    ctype == "response.completed" || ctype == "response.incomplete";
+                                    matches!(ctype, "response.completed" | "response.incomplete");
+                                if done {
+                                    fin_vue = true;
+                                }
                                 if !text.is_empty() || done {
                                     let _ = tx
                                         .send(OllamaChunk {
                                             text,
                                             done,
-                                            finish_reason: if done {
+                                            finish_reason: if ctype == "response.incomplete" {
+                                                Some("length".to_string())
+                                            } else if done {
                                                 Some("stop".to_string())
                                             } else {
                                                 None
@@ -1847,7 +1978,26 @@ async fn codex_chat_stream(
                         }
                     }
                 }
-                Ok(None) => break,
+                Ok(None) => {
+                    // The connection closed without a terminal event at all: same
+                    // silent-truncation risk as elsewhere in this file.
+                    if !fin_vue {
+                        let finish_reason = if contenu_recu { "length" } else { "stop" };
+                        let _ = tx
+                            .send(OllamaChunk {
+                                text: String::new(),
+                                done: true,
+                                finish_reason: Some(finish_reason.to_string()),
+                                eval_count: None,
+                                eval_duration: None,
+                                prompt_eval_count: None,
+                                tool_calls: None,
+                                reasoning: None,
+                            })
+                            .await;
+                    }
+                    return;
+                }
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading Codex stream");
                     return;

@@ -182,13 +182,24 @@ pub async fn ollama_chat_stream(
                                         .filter_map(|tc| {
                                             // Some models emit `arguments` as an embedded JSON
                                             // STRING: unwrap it so the engine sees an object.
+                                            // `None` (no arguments field at all) is a valid
+                                            // zero-argument call, same as an empty string: both
+                                            // become "{}", never Value::Null. Null is reserved
+                                            // for a string that failed to parse as JSON, which
+                                            // downstream analysis reads as a truncated or
+                                            // malformed call, never a legitimate empty one.
                                             let args = match tc.function.arguments.clone() {
+                                                Some(serde_json::Value::String(s))
+                                                    if s.trim().is_empty() =>
+                                                {
+                                                    serde_json::json!({})
+                                                }
                                                 Some(serde_json::Value::String(s)) => {
                                                     serde_json::from_str(&s)
-                                                        .unwrap_or(serde_json::Value::String(s))
+                                                        .unwrap_or(serde_json::Value::Null)
                                                 }
                                                 Some(v) => v,
-                                                None => serde_json::Value::Null,
+                                                None => serde_json::json!({}),
                                             };
                                             Some(ToolCall {
                                                 id: format!("call_{}", uuid::Uuid::new_v4()),
