@@ -1,0 +1,41 @@
+# Real-host App integration tests
+
+These tests create isolated temporary LaRuche data homes and launch their own node. They do
+not enroll users on a running hive or use its provider credentials. Temporary test homes and
+screenshots are retained for inspection. Close the tests before rebuilding their executable
+on Windows.
+
+Requirements: Node, Playwright, Chromium and a built LaRuche node. Set `NODE_PATH` if Playwright
+is supplied by a separate runtime. Optional `CHROME_PATH` selects a browser;
+`LARUCHE_TEST_BINARY` selects the node executable (otherwise the debug binary is used).
+
+## Bidirectional bridge
+
+```powershell
+python examples/apps/2048/build.py
+node examples/apps/test/agent-bridge.test.cjs
+```
+
+Uses a controlled local streaming provider, not a real LLM. Covers installation consent,
+permissions UI, agent library, opening/Ready, valid and stale game moves, two independent
+agent contexts, user isolation and live revocation during a model request.
+
+## DS Studio persistence
+
+Supply an independently built DS Studio package using the `dev.laruche.ds-studio` action
+contract. The test consumes the archive as-is and does not modify the App source:
+
+```powershell
+node examples/apps/test/ds-persistence.test.cjs C:/Packages/dev.laruche.ds-studio-1.2.0.laruche-app
+```
+
+Checks actual manifest validation, the opaque iframe (direct localStorage is unavailable),
+Ready, dataset import, cell execution/job polling, a yearly sales aggregation and its chart.
+It waits until the cell/chart reach disk-backed storage, closes the browser context, stops
+and restarts its node, then opens a fresh browser context with only the test login cookie.
+The notebook id, source, calculated table/chart and small dataset must all be restored.
+
+This verifies the built-in notebook engine and the existing small JSON storage contract. It
+does not validate Pyodide, large binary files, a real LLM, sudden power loss or backups. It
+does not prove persistence for datasets above DS Studio's current save quota. Large-dataset
+storage remains a separate host capability to implement.
