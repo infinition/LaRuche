@@ -238,6 +238,16 @@ def main():
     # not on vendor names as such. `openai` is deliberately absent: it is the name of a
     # Python package and of the wire protocol llama.cpp's server speaks, so a llama-cpp
     # page that says "OpenAI-compatible API" is being accurate, not borrowing an identity.
+    # Le tiret cadratin, par point de code et jamais en clair.
+    #
+    # Ecrit en clair, il s'est fait remplacer par un simple trait d'union le
+    # 30 aout par un passage de nettoyage des cadratins. Le test est alors
+    # devenu vrai sur presque chaque ligne du depot: deux mille huit cent
+    # trente-trois faux positifs, dans lesquels les quatre vrais controles
+    # etaient noyes. La regle sur les cadratins avait donc detruit son propre
+    # gardien, et personne ne pouvait plus lancer ce linter.
+    EM_DASH = chr(0x2014)
+
     foreign = re.compile(
         r"claude|anthropic|chatgpt|copilot|cursor\.(?:so|com)|codeium",
         re.I,
@@ -247,7 +257,13 @@ def main():
             target = os.path.join(folder, name)
             shown = os.path.relpath(target, ROOT).replace("\\", "/")
             for number, line in enumerate(read(target).splitlines(), 1):
-                if "-" in line:
+                # Le tiret cadratin s'ecrit ici en echappement, jamais en clair.
+                # Ecrit en clair, il s'est fait remplacer par un trait d'union par
+                # un passage de nettoyage des cadratins: le test est alors devenu
+                # vrai sur presque chaque ligne, la bibliotheque a rendu deux mille
+                # huit cents faux positifs, et la regle qu'il defendait ne pouvait
+                # plus etre verifiee par personne.
+                if EM_DASH in line:
                     problems.append("%s:%d: em dash" % (shown, number))
                 hit = foreign.search(line)
                 if hit:
