@@ -2,8 +2,8 @@
   "apiVersion": 1,
   "id": "dev.laruche.checkers",
   "name": "Checkers",
-  "version": "1.0.0",
-  "description": "Jeu de dames local avec regles officielles, tour par tour strict et integration agent.",
+  "version": "1.1.0",
+  "description": "Dames LaRuche 8x8, dames courtes et blancs en premier, avec tours stricts et integration agent.",
   "publisher": {
     "name": "LaRuche"
   },
@@ -37,7 +37,7 @@
       "agents.invoke"
     ]
   },
-  "guide": "Checkers is a turn-based board game on an 8x8 board. The human player controls white by default, and the agent controls black. The agent MUST strictly wait for the human move: never attempt to move when waitingFor is 'human' or turn is 'white'. Read game.state to view the board (64 cells, row-major), score, current turn, legalMoves, and revision. If any capture is available, captures are mandatory. Use game.move with { from, to, revision } to play one legal move when it is your turn. A stale revision or moving out of turn is rejected.",
+  "guide": "# LaRuche Checkers: read before playing\n## Objective and exact variant\nWin by capturing every opposing piece OR leaving the opponent with no legal move on their turn. The engine's over/winner fields decide the result. Piece counts are material, not points and not proof of victory.\nThis is LaRuche's 8x8 variant with short kings and forward-only men, similar to English/American checkers but with WHITE moving first. It is NOT international 10x10 draughts, Russian draughts or chess. Do not import flying kings, backwards captures by men, mandatory maximum captures or a different first player. No automatic repetition or move-count draw is implemented.\n\n## Board and roles\nThe board contains 64 integers in row-major order. index = row*8+column; both range 0..7; row 0 is the top, column 0 the left. Top-left is index 0 and bottom-right 63. Only dark squares ((row+column)%2=1) are playable. Values: 0 empty, 1 white man, 2 white king, -1 black man, -2 black king.\nEach side starts with 12 men: black on rows 0..2 and white on rows 5..7. White moves towards row 0 and promotes there. Black moves towards row 7 and promotes there.\nNEVER hardcode the agent as black. The human selects humanSide; agentSide is the opposite. The human may choose black, in which case the agent is WHITE and moves first.\nRead opponentMode and waitingFor. waitingFor=human means stop and return control to the user, not repeatedly poll. waitingFor=localAI means the built-in search controls the opponent, not the LLM. waitingFor=finished means the game ended. Only waitingFor=agent with over=false permits an agent turn. A white turn is NOT always a human turn.\n\n## Movement, capture and promotion\nA man moves one diagonally forward square into an empty square. It captures by jumping one adjacent opposing piece diagonally FORWARD and landing in the empty square immediately beyond. White uses row changes -1 for a simple move and -2 for a jump; black uses +1 and +2.\nA king can move one diagonal square, or jump an adjacent enemy to the empty square immediately beyond, in all four diagonal directions. It cannot slide across several empty squares like a flying king.\nIf ANY piece of the current side can capture, a non-capturing move anywhere on the board is forbidden. After a jump, continue jumping with the SAME piece while another legal jump exists. The engine supplies complete paths, not individual half-turns. You may choose any complete legal capture chain; this variant does NOT require the longest available chain.\nReaching the last row crowns a man. Crowning ends this turn, including during a capture chain; do not continue backwards with the newly crowned king in that turn.\nA full capture chain is executed by ONE game.move call, removes every captured piece and changes the side to move exactly once.\n\n## Exact interaction procedure\n1. Use app_list to find dev.laruche.checkers, app_guide to read this guide and available permissions, app_open to open its game view, then app_wait until ready. Keep the returned instanceId.\n2. Call game.state with {}. Read rules, humanSide, agentSide, opponentMode, waitingFor, turn, over, winner, revision and legalMoves. These rules are also repeated in state so they remain available after context compaction.\n3. If over=true, report winner and stop. If waitingFor is not agent, yield to the human/local AI. Do not fake their move or switch sides.\n4. Choose ONE object from legalMoves. An entry contains from, to, path and captures. path includes the origin and EVERY landing, e.g. [42,28,14]; captures lists the removed squares. Treat both arrays as authoritative and do not reconstruct an incomplete chain.\n5. Call game.move with {from: chosen.from, to: chosen.to, path: chosen.path, revision: currentRevision}. Do NOT pass captures, board, turn, userId or reasoning. Always include path: different king capture chains can have the same from/to, and such ambiguity is rejected without it.\n6. Inspect the returned state. Do not take another turn for the human. The human may also edit, undo, restart or switch opponent modes between calls, so never reuse a revision.\n\nFor a direct host tool call use app_call({appId:\"dev.laruche.checkers\", instanceId, action:\"game.move\", arguments:{from,to,path,revision}}).\nWhen the App asks an agent through agents.act, return ONLY {\"action\":\"game.move\",\"arguments\":{\"from\":FROM,\"to\":TO,\"path\":[ORIGIN,LANDINGS],\"revision\":REVISION}}, replacing every placeholder with actual values from the supplied current state. No code fence, prose or extra fields. This is an illustration, not a move to copy.\n\n## Decisions and strategy\nCompare legal alternatives, not arbitrary board coordinates. Value king safety, safe promotions, mobility and favorable exchanges; avoid offering a forced recapture unless it benefits the position. The most captures in this turn is not necessarily the best long-term move. Keep the opponent's reply in mind, but never claim a forced win without checking it. Only the engine decides legality and victory.\nOne legal move is enough for the current turn. There is no permission to play both seats, impersonate the human or restart to avoid a loss.\n\n## Errors, permissions and destructive operations\nFor stale revision: read game.state again and reassess. For illegal or ambiguous move: reread legalMoves and copy an exact complete path. For permission denied: ask the user to adjust this App's native Permissions panel, do not use shell/browser tricks to bypass it. For loading/disconnected: reconnect/open and wait for Ready.\nNever automatically retry a timed-out mutation: it may already have executed. Read state first.\ngame.new replaces the current board and requires its own action permission AND a user request to restart. It keeps the human-selected side/opponent mode, starts with white and resets move count. It is not a remedy for an illegal move, denied access, a human turn or losing.\nThe App stores the latest game privately. Independent windows are not live synchronized; play in one instance and wait for Synced before closing. Agent contexts and permission grants are separate from the board.",
   "actions": [
     {
       "name": "game.state",
@@ -52,7 +52,7 @@
     },
     {
       "name": "game.move",
-      "description": "Play one legal checkers move using from, to and the exact current revision.",
+      "description": "Agent side only: copy from, to and complete path from legalMoves with the current revision. Read game.state rules and waitingFor first.",
       "viewId": "game",
       "inputSchema": {
         "type": "object",
@@ -73,6 +73,13 @@
             "type": "integer",
             "minimum": 0,
             "description": "Current state revision"
+          },
+          "path": {
+            "type": "array",
+            "items": {"type":"integer","minimum":0,"maximum":63},
+            "minItems": 2,
+            "maxItems": 13,
+            "description": "Exact full path from legalMoves: origin and every landing. Required to disambiguate capture chains."
           }
         },
         "required": [

@@ -37,3 +37,15 @@ last saved state. Independent windows do not synchronize live; avoid playing the
 game in two windows simultaneously. Closing the main LaRuche window closes its App popups.
 
 See `wiki/guides/Developing-Apps.md` for authoring your own App and the current SDK limits.
+
+## Agent play in 1.2.0
+
+The package guide explains the objective, full-board slides, single-merge rule, random
+tile probabilities, score, concrete row examples, strategy, permissions and recovery.
+The engine repeats a rules summary in `game.state`. `won`, `needsContinue`, `keepPlaying`
+and `waitingFor` distinguish reaching 2048 from a blocked board. The model must yield
+to the human's Continue button at victory, not restart or send impossible moves.
+
+Grant `game.state` and `game.move`, approve `agents.invoke` and select the allowed agent
+in native App Permissions. Use One turn or Auto. The model must copy a current legal
+direction and revision; the engine remains the authority even if it ignores the guide.

@@ -102,6 +102,7 @@
   }
 
   function newGame(){
+    agentAuto=false; clearTimeout(agentTimer); agentTimer=null;
     previous=state?clone(state):null;
     state=fresh(state&&state.best);
     revision+=1;seat='game-'+Date.now().toString(36);
@@ -172,22 +173,25 @@
       sdk.actions.register('game.new',async function(args){if(args.revision!==revision)throw new Error('Stale revision');newGame();await saveChain;return snapshot();});
       bindAgent();
       return sdk.ui.setStatus('ready','2048 prêt',100);
-    }).catch(function(){
+    }).catch(function(error){
       state=fresh(0);
       render();
       setSaveStatus('offline');
+      sdk.ui.setStatus('error',String(error.message||error).slice(0,180)).catch(function(){});
     });
   }
 
-  function snapshot(){return {board:state.board.slice(),score:state.score,moves:state.moves,revision:revision,legalMoves:(!state.keepPlaying&&engine.hasWon(state.board))?[]:['left','right','up','down'].filter(function(d){return engine.move(state.board,d).moved;}),over:!engine.canMove(state.board)};}
+  function snapshot(){return Object.assign({board:state.board.slice(),score:state.score,best:state.best,moves:state.moves,revision:revision},engine.describe(state.board,state.keepPlaying));}
   function bindAgent(){
     var select=document.getElementById('agentPlayer'),info=document.getElementById('agentStatus');
     function refresh(){sdk.agents.list().then(function(agents){select.innerHTML='';agents.forEach(function(a){var o=document.createElement('option');o.value=a.id;o.textContent=(a.avatar||'')+' '+a.name;select.appendChild(o);});document.getElementById('agentTurn').disabled=!agents.length;document.getElementById('agentAuto').disabled=!agents.length;info.textContent=agents.length?(locale==='en'?'Ready for an agent turn.':'Prêt pour un tour agent.'):(locale==='en'?'Authorize an agent in App Permissions.':'Autorise un agent dans les permissions de l’App.');}).catch(function(e){info.textContent=e.message;});}
     async function turn(){
-      if(agentBusy||!select.value)return;agentBusy=true;
+      if(agentBusy||!select.value)return;
+      if(!snapshot().legalMoves.length){agentAuto=false;info.textContent=text(snapshot().won?'wonText':'lostText');return;}
+      agentBusy=true;
       document.getElementById('agentTurn').disabled=true;document.getElementById('agentAuto').disabled=true;document.getElementById('agentPause').disabled=false;
       info.textContent=locale==='en'?'Agent thinking…':'L’agent réfléchit…';
-      try{var result=await sdk.agents.act(select.value,seat,'game.state','Play one legal 2048 move to maximize score.');info.textContent=result.model+' · '+result.text;}
+      try{var result=await sdk.agents.act(select.value,seat,'game.state','Read the supplied guide, goal and rules. Reach a 2048 tile, then pursue higher score only after the human continues. Select ONE direction from the current legalMoves, using the exact revision. Preserve empty squares and keep large tiles organized. Return only game.move action JSON; do not reset or invent a future random tile.');info.textContent=result.model+' · '+result.text;}
       catch(e){agentAuto=false;info.textContent=e.message;}
       finally{agentBusy=false;document.getElementById('agentTurn').disabled=false;document.getElementById('agentAuto').disabled=false;document.getElementById('agentPause').disabled=!agentAuto;}
       if(agentAuto&&snapshot().legalMoves.length)agentTimer=setTimeout(function(){agentTimer=null;if(agentAuto)turn();},2200);else agentAuto=false;

@@ -16,6 +16,26 @@
   var BLACK_KING = -2;
   var EMPTY = 0;
 
+  function validBoard(board) {
+    return Array.isArray(board) && board.length === 64 && board.every(function(p, index) {
+      var pos = indexToPos(index);
+      return [0, 1, 2, -1, -2].indexOf(p) !== -1 && (p === 0 || isDarkSquare(pos.row, pos.col));
+    }) && countPieces(board).white <= 12 && countPieces(board).black <= 12;
+  }
+
+  function rules() {
+    return {
+      variant: 'LaRuche 8x8, short kings, forward-only men, white starts; not international 10x10 draughts',
+      goal: 'Win by leaving the opponent with no pieces or no legal move. Material alone is not victory.',
+      coordinates: 'index = row * 8 + column; rows and columns 0..7, top-left index 0, dark squares have (row+column)%2=1',
+      pieces: {'0':'empty','1':'white man','2':'white king','-1':'black man','-2':'black king'},
+      movement: 'White men move/capture towards row 0; black men towards row 7. Kings move one diagonal square, or jump an adjacent enemy to the empty square immediately beyond, in either direction. No flying kings or backward captures by men.',
+      captures: 'Captures are compulsory across the whole board. Finish the full chain with the same piece. Any complete legal chain is allowed; maximum capture count is NOT required. Promotion ends the turn.',
+      protocol: 'Read humanSide, agentSide, opponentMode and waitingFor. Only act when waitingFor=agent and over=false. Copy from, to AND path from one legalMoves entry with the current revision. A path includes the origin and every landing square; one call executes the whole turn.',
+      draws: 'No automatic repetition/draw counter. Stop if the human asks; do not invent a draw result.'
+    };
+  }
+
   function isDarkSquare(row, col) {
     return (row + col) % 2 === 1;
   }
@@ -219,6 +239,21 @@
     return next;
   }
 
+  function resolveMove(board, turn, args) {
+    var matches = legalMoves(board, turn).filter(function(m) {
+      return m.from === args.from && m.to === args.to;
+    });
+    if (args.path !== undefined) {
+      if (!Array.isArray(args.path)) throw new Error('path must be an array from legalMoves');
+      matches = matches.filter(function(m) {
+        return m.path.length === args.path.length && m.path.every(function(p, i) { return p === args.path[i]; });
+      });
+    }
+    if (!matches.length) throw new Error('Illegal move: copy a complete entry from game.state legalMoves');
+    if (matches.length > 1) throw new Error('Ambiguous capture chain: include the exact path from legalMoves');
+    return matches[0];
+  }
+
   function countPieces(board) {
     var whiteMen = 0;
     var whiteKings = 0;
@@ -268,6 +303,9 @@
     BLACK_MAN: BLACK_MAN,
     BLACK_KING: BLACK_KING,
     EMPTY: EMPTY,
+    validBoard: validBoard,
+    rules: rules,
+    resolveMove: resolveMove,
     createBoard: createBoard,
     isDarkSquare: isDarkSquare,
     indexToPos: indexToPos,

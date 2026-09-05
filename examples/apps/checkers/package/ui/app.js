@@ -30,7 +30,7 @@
       you: "Vous",
       agent: "Agent",
       aiLocal: "IA locale",
-      score: "Prises",
+      score: "Pieces restantes",
       turn: "Tour",
       yourTurn: "A votre tour",
       agentTurn: "Tour de l'adversaire",
@@ -67,7 +67,7 @@
       you: "You",
       agent: "Agent",
       aiLocal: "Local AI",
-      score: "Captures",
+      score: "Pieces remaining",
       turn: "Turn",
       yourTurn: "Your turn",
       agentTurn: "Opponent turn",
@@ -123,10 +123,11 @@
   }
 
   function validStoredState(s) {
-    return s && Array.isArray(s.board) && s.board.length === 64 &&
+    return s && engine.validBoard(s.board) &&
       (s.turn === 'white' || s.turn === 'black') &&
       (s.humanSide === 'white' || s.humanSide === 'black') &&
-      typeof s.moves === 'number';
+      (s.opponentMode === 'agent' || s.opponentMode === 'aiLocal') &&
+      Number.isInteger(s.moves) && s.moves >= 0;
   }
 
   async function loadTranslations(lang) {
@@ -224,7 +225,7 @@
       if (state.over) {
         details.textContent = state.winner === state.humanSide ? t('statusWon') : t('statusLost');
       } else if (!isHumanTurn) {
-        details.textContent = t('thinking');
+        details.textContent = agentBusy || state.opponentMode === 'aiLocal' ? t('thinking') : t('agentTurn');
       } else if (hasCaptures) {
         details.textContent = t('mandatoryCapture');
       } else {
@@ -340,9 +341,9 @@
     if (selectedSquare !== null) {
       var matchingMove = validMovesForSelected.find(function(m){ return m.to === index; });
       if (matchingMove) {
-        executeMove(matchingMove);
         selectedSquare = null;
         validMovesForSelected = [];
+        executeMove(matchingMove);
         return;
       }
     }
@@ -368,12 +369,15 @@
   }
 
   function scheduleOpponentMove() {
+    clearTimeout(agentTimer);
+    var expectedRevision = revision;
     var agentStatus = document.getElementById('agentStatus');
     if (agentStatus) agentStatus.textContent = t('thinking');
 
     if (state.opponentMode === 'aiLocal') {
-      setTimeout(function(){
-        if (state.over || state.turn === state.humanSide) return;
+      agentTimer = setTimeout(function(){
+        agentTimer = null;
+        if (revision !== expectedRevision || state.opponentMode !== 'aiLocal' || state.over || state.turn === state.humanSide) return;
         var best = ai.chooseBestMove(engine, state.board, state.turn, 3);
         if (best) {
           executeMove(best);
@@ -382,19 +386,23 @@
     } else if (state.opponentMode === 'agent') {
       if (agentAuto) {
         triggerAgentTurn();
-      }
+      } else if (agentStatus) agentStatus.textContent = t('agentTurn');
     }
   }
 
   function snapshot() {
-    var isAgentTurn = state.turn !== state.humanSide;
+    var isAgentTurn = !state.over && state.opponentMode === 'agent' && state.turn !== state.humanSide;
     var legal = engine.legalMoves(state.board, state.turn);
 
     return {
       board: state.board.slice(),
       turn: state.turn,
       humanSide: state.humanSide,
-      waitingFor: state.turn === state.humanSide ? 'human' : 'agent',
+      agentSide: state.humanSide === 'white' ? 'black' : 'white',
+      opponentMode: state.opponentMode,
+      waitingFor: state.over ? 'finished' : state.turn === state.humanSide ? 'human' : state.opponentMode === 'aiLocal' ? 'localAI' : 'agent',
+      rules: engine.rules(),
+      piecesRemaining: engine.countPieces(state.board),
       moves: state.moves,
       revision: revision,
       legalMoves: isAgentTurn ? legal : [],
@@ -404,6 +412,7 @@
   }
 
   function newGame() {
+    clearTimeout(agentTimer); agentTimer = null; agentAuto = false;
     previous = null;
     selectedSquare = null;
     validMovesForSelected = [];
@@ -427,6 +436,7 @@
 
   function undo() {
     if (!previous || state.over) return;
+    clearTimeout(agentTimer); agentTimer = null; agentAuto = false;
     state = previous;
     previous = null;
     selectedSquare = null;
@@ -441,7 +451,7 @@
   }
 
   async function triggerAgentTurn() {
-    if (agentBusy || state.over || state.turn === state.humanSide) return;
+    if (agentBusy || state.over || state.opponentMode !== 'agent' || state.turn === state.humanSide) return;
     var select = document.getElementById('agentSelect');
     var info = document.getElementById('agentStatus');
     var agentId = select ? select.value : '';
@@ -457,7 +467,7 @@
     if (info) info.textContent = t('thinking');
 
     try {
-      var prompt = 'You are playing black in Checkers. Read game.state and call game.move with { from, to, revision } using one legal move.';
+      var prompt = 'Win this LaRuche 8x8 checkers game as ' + (state.humanSide === 'white' ? 'black' : 'white') + '. Read the supplied guide and state.rules first. Check waitingFor=agent and over=false. Copy one complete legalMoves entry, including its path, into game.move arguments {from,to,path,revision}. A capture chain is one whole turn. Do not move for the human, reset the board or use international 10x10 rules. Return the single action JSON required by the host.';
       var res = await sdk.agents.act(agentId, seat, 'game.state', prompt);
       if (info) info.textContent = (res.model || 'Agent') + ' · ' + (res.text || 'OK');
     } catch (e) {
@@ -499,7 +509,9 @@
     var opponentMode = document.getElementById('opponentMode');
     if (opponentMode) {
       opponentMode.addEventListener('change', function() {
+        clearTimeout(agentTimer); agentTimer = null; agentAuto = false;
         state.opponentMode = opponentMode.value;
+        revision += 1;
         var agentSection = document.getElementById('agentSection');
         if (agentSection) {
           agentSection.style.display = state.opponentMode === 'agent' ? 'flex' : 'none';
@@ -585,15 +597,8 @@
       if (state.turn === state.humanSide) {
         throw new Error('Not agent turn: waiting for human move');
       }
-
-      var legal = engine.legalMoves(state.board, state.turn);
-      var matching = legal.find(function(m) {
-        return m.from === args.from && m.to === args.to;
-      });
-
-      if (!matching) {
-        throw new Error('Illegal checkers move');
-      }
+      if (state.opponentMode !== 'agent') throw new Error('Local AI controls this side. Ask the human to select Agent mode.');
+      var matching = engine.resolveMove(state.board, state.turn, args);
 
       executeMove(matching);
       await saveChain;
@@ -630,6 +635,8 @@
       var saved = await sdk.storage.get(storageKey);
       if (validStoredState(saved)) {
         state = saved;
+        var restoredStatus = engine.gameStatus(state.board, state.turn);
+        state.over = restoredStatus.over; state.winner = restoredStatus.winner;
         setSaveStatus('saved');
       } else {
         state = createInitialState('white', 'agent');
@@ -660,6 +667,7 @@
       state = createInitialState('white', 'aiLocal');
       render();
       setSaveStatus('offline');
+      sdk.ui.setStatus('error', String(e.message || e).slice(0, 180)).catch(function(){});
     }
   }
 

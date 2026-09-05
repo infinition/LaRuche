@@ -10,7 +10,7 @@
 
   function validBoard(board){
     return Array.isArray(board) && board.length===SIZE*SIZE && board.every(function(value){
-      return Number.isInteger(value) && value>=0 && (value===0 || (value&(value-1))===0);
+      return Number.isSafeInteger(value) && value>=0 && (value===0 || (value>=2 && Number.isInteger(Math.log2(value))));
     });
   }
 
@@ -92,6 +92,21 @@
     return validBoard(board) && board.some(function(value){ return value>=2048; });
   }
 
+  function describe(board, keepPlaying){
+    var won=hasWon(board), over=!canMove(board), needsContinue=won&&!keepPlaying;
+    return {
+      goal:'Create a tile of 2048. After an explicit Continue, maximize score and tile size while retaining legal moves.',
+      rules:{size:4,empty:0,coordinates:'16 values, row-major; index=row*4+column; row 0 at top, column 0 at left',
+        turn:'One direction slides ALL tiles as far as possible. Adjacent equal values merge once per tile per move. Score increases by the values of the new merged tiles.',
+        example:'[2,2,2,2] moved left becomes [4,4,0,0], adds 8 points, NOT [8,0,0,0].',
+        randomTile:'After each move that changes the board, one empty square gets 2 (90%) or 4 (10%). Read the new state; never predict the random square as fact.',
+        stopping:'If needsContinue=true, wait for the human to press Continue. If over=true, no moves remain. Do not use game.new to escape either condition without user authorization.'},
+      won:won,keepPlaying:!!keepPlaying,needsContinue:needsContinue,over:over,
+      waitingFor:over?'finished':needsContinue?'humanContinue':'move',
+      legalMoves:needsContinue||over?[]:DIRECTIONS.filter(function(d){return move(board,d).moved;})
+    };
+  }
+
   return Object.freeze({
     size:SIZE,
     validBoard:validBoard,
@@ -99,6 +114,7 @@
     addRandom:addRandom,
     createBoard:createBoard,
     canMove:canMove,
-    hasWon:hasWon
+    hasWon:hasWon,
+    describe:describe
   });
 });
