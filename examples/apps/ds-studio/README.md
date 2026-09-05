@@ -220,6 +220,15 @@ navigateur.
   le depot. Le chemin de detection, l'echec propre et le repli sont testes ;
   l'execution Python elle-meme demande de lancer le script de vendoring.
 
+## Correction 1.3.1
+
+- Le guide et le noyau annoncaient Python 3.11. Le script de vendoring epingle
+  Pyodide 0.26.4, qui embarque CPython 3.12. Ils renvoient desormais au champ
+  `version` de `kernel.status` plutot qu'a un numero recopie a la main, puisque
+  c'est le runtime vendorise qui decide, et lui seul.
+- Le numero de version monte parce que l'installeur refuse une version deja
+  presente dans le foyer. Republier le meme 1.3.0 corrige n'aurait rien installe.
+
 ## Corrections et extensions 1.3.0
 
 - Chaque modification de dataset invalide la revision, y compris un import ou une
