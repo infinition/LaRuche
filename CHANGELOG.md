@@ -4,6 +4,12 @@
 
 ### Change
 
+- Apps de reference : guides LLM complets pour 2048 1.2.0 et Dames 1.1.0, rappels
+  des regles dans l'etat, camp agent dynamique, rafles identifiees par chemin, victoire
+  2048 distincte d'une partie bloquee.
+- DS Studio 1.3.0 : stockage decoupe selon les octets UTF-8 reels et ecrit sequentiellement,
+  suivi et demande de sauvegarde via actions, revisions des datasets, export CSV pagine
+  sans couper les lignes. Refus d'executer un carnet avec un noyau d'un autre langage.
 - Raccordement bidirectionnel Apps/agents: decouverte, guide, ouverture, attente Ready et
   actions declarees avec schemas. Les autorisations sont controlees cote serveur par compte.
 - Panneau de consentement et de permissions par App, droits herites ou specifiques par agent,

@@ -18,7 +18,8 @@ async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await
     let answer='seen='+body.messages.length;
     if(last.includes('Choose ONE legal action')){
       const state=JSON.parse(last.match(/\nState: (.+)\nAllowed actions:/)[1]);
-      answer=JSON.stringify({action:'game.move',arguments:{direction:state.legalMoves[0],revision:state.revision}});
+      const move=state.legalMoves[0];
+      answer=JSON.stringify({action:'game.move',arguments:typeof move==='string'?{direction:move,revision:state.revision}:{from:move.from,to:move.to,path:move.path,revision:state.revision}});
     }
     if(last.includes('SLOW'))await sleep(5000);
     res.writeHead(200,{'Content-Type':'text/event-stream'});
@@ -40,7 +41,8 @@ async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await
     const api=context.request;
     async function post(endpoint,data){const r=await api.post(base+endpoint,{data});const value=await r.json();assert(r.ok(),endpoint+' '+JSON.stringify(value));return value;}
     await post('/api/auth/enroll',{display_name:'App owner',password:randomUUID()});
-    const archive=path.join(root,'examples/apps/2048/dist/laruche-2048-1.1.0.laruche-app');
+    const gameVersion=require('../2048/package/app.json').version;
+    const archive=path.join(root,'examples/apps/2048/dist/laruche-2048-'+gameVersion+'.laruche-app');
     const install=await api.post(base+'/api/apps/install',{data:fs.readFileSync(archive),headers:{'Content-Type':'application/zip'}});assert(install.ok());
     const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(base+'/#apps/overview');
@@ -96,8 +98,26 @@ async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await
     await page.evaluate(()=>LaRuche.AppAccess.open('dev.laruche.2048'));
     await page.locator('#agentRights').waitFor();
     await page.screenshot({path:path.join(home,'permissions.png')});
+    await page.locator('[data-close]').click();
+
+    // The human selected black, so the model must be white and may play first.
+    const checkers=require('../checkers/package/app.json');
+    const checkersArchive=path.join(root,'examples/apps/checkers/dist/'+checkers.id+'-'+checkers.version+'.laruche-app');
+    const ci=await api.post(base+'/api/apps/install',{data:fs.readFileSync(checkersArchive),headers:{'Content-Type':'application/zip'}});assert(ci.ok());
+    await post('/api/apps/'+checkers.id+'/enable',{grantedPermissions:checkers.permissions.required.concat(['agents.invoke'])});
+    await post('/api/apps/'+checkers.id+'/storage',{op:'set',key:'checkers.state.v1',value:{board:require('../checkers/package/ui/game.js').createBoard(),turn:'white',humanSide:'black',opponentMode:'agent',moves:0,over:false,winner:null}});
+    await post('/api/apps/access',{kind:'policy',appId:checkers.id,policy:{principals:{laruche:{discover:true,open:true,actions:{'game.state':true,'game.move':true}}},invokeAgents:[agent.id]}});
+    const co=await post('/api/apps/command',{kind:'app_open',appId:checkers.id});
+    assert((await post('/api/apps/command',{kind:'app_wait',appId:checkers.id,instanceId:co.instanceId})).ready);
+    const cc=(action,args={})=>post('/api/apps/command',{appId:checkers.id,instanceId:co.instanceId,action,arguments:args});
+    let cs=await cc('game.state');assert.equal(cs.agentSide,'white');assert.equal(cs.waitingFor,'agent');assert(cs.rules.captures.includes('compulsory'));
+    const cf=page.frames().find(f=>f.url().includes('/apps-assets/'+checkers.id+'/'));
+    await cf.evaluate(async id=>LaRucheApp.agents.act(id,'white-test','game.state','Follow the complete rules and select one legal move.'),agent.id);
+    cs=await cc('game.state');assert.equal(cs.turn,'black');assert.equal(cs.waitingFor,'human');assert.deepEqual(cs.legalMoves,[]);
+    const forbidden=await api.post(base+'/api/apps/command',{data:{appId:checkers.id,instanceId:co.instanceId,action:'game.move',arguments:{from:1,to:10,revision:cs.revision}}});assert(!forbidden.ok(),'model cannot play for human');
+    await page.screenshot({path:path.join(home,'checkers.png')});
     assert.deepEqual(errors,[]);
-    console.log('PASS: install consent UI, live grants, agent library UI, app discovery/open/ready/actions, valid and stale moves, controlled-provider agent turn, isolated contexts/users, live model/action revocation.');
+    console.log('PASS: install consent UI, live grants, agent library UI, discovery/open/Ready/actions, valid/stale 2048 moves, isolated contexts/users, live revocation, checkers agent-as-white and enforced human turns.');
     console.log('Test artifacts: '+home);
   }finally{
     if(browser)await browser.close();child.stdout.unpipe(log);child.stderr.unpipe(log);child.kill();provider.closeAllConnections();provider.close();log.end();

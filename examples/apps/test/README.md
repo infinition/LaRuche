@@ -13,12 +13,15 @@ is supplied by a separate runtime. Optional `CHROME_PATH` selects a browser;
 
 ```powershell
 python examples/apps/2048/build.py
+python examples/apps/checkers/build.py
 node examples/apps/test/agent-bridge.test.cjs
 ```
 
 Uses a controlled local streaming provider, not a real LLM. Covers installation consent,
 permissions UI, agent library, opening/Ready, valid and stale game moves, two independent
 agent contexts, user isolation and live revocation during a model request.
+Also checks that the checkers agent can play white when the human chooses black,
+and that it cannot play the subsequent human turn.
 
 ## DS Studio persistence
 
@@ -26,7 +29,7 @@ Supply an independently built DS Studio package using the `dev.laruche.ds-studio
 contract. The test consumes the archive as-is and does not modify the App source:
 
 ```powershell
-node examples/apps/test/ds-persistence.test.cjs C:/Packages/dev.laruche.ds-studio-1.2.0.laruche-app
+node examples/apps/test/ds-persistence.test.cjs C:/Packages/dev.laruche.ds-studio-1.3.0.laruche-app
 ```
 
 Checks actual manifest validation, the opaque iframe (direct localStorage is unavailable),
@@ -34,6 +37,8 @@ Ready, dataset import, cell execution/job polling, a yearly sales aggregation an
 It waits until the cell/chart reach disk-backed storage, closes the browser context, stops
 and restarts its node, then opens a fresh browser context with only the test login cookie.
 The notebook id, source, calculated table/chart and small dataset must all be restored.
+Requires DS Studio 1.3.0 or later for `storage.status`/`storage.flush`; checks dataset
+revision changes and paginated CSV export too.
 
 This verifies the built-in notebook engine and the existing small JSON storage contract. It
 does not validate Pyodide, large binary files, a real LLM, sudden power loss or backups. It

@@ -62,6 +62,7 @@ async function until(fn,label){const end=Date.now()+45000;while(Date.now()<end){
     const kernel=await call('kernel.status');assert(kernel.ready);
     let state=await call('notebook.state');
     const data=await call('data.add',{name:'sales_test',text:'year,sales\n2023,10\n2023,15\n2024,30',revision:state.revision});
+    assert(data.revision>state.revision,'dataset import invalidates stale actions');
     state=await call('notebook.state');
     const source='v = load("'+data.name+'")\nt = v.groupby("year").agg(total = sum(sales))\nshow(t)\nbar(t, x = "year", y = "total")';
     const cell=await call('cell.add',{source,type:'code',revision:state.revision});
@@ -70,6 +71,10 @@ async function until(fn,label){const end=Date.now()+45000;while(Date.now()<end){
     state=await call('notebook.state',{includeOutputs:true});
     const result=state.cells.find(c=>c.id===cell.cellId);assert(result.outputs.some(o=>o.kind==='table'));assert(result.outputs.some(o=>o.kind==='chart'));
     assert.deepEqual(result.outputs.find(o=>o.kind==='table').rows,[[2023,25],[2024,30]],'yearly sales aggregation');
+    const flushed=await call('storage.flush',{revision:state.revision});assert.equal(flushed.state,'saved');
+    const saving=await call('storage.status');assert.equal(saving.savedRevision,state.revision);assert.equal(saving.error,null);
+    const export1=await call('data.export',{name:data.name,limit:2});assert.equal(export1.rows,2);assert.equal(export1.nextOffset,2);
+    const export2=await call('data.export',{name:data.name,offset:export1.nextOffset,limit:2});assert.equal(export2.rows,1);assert.equal(export2.nextOffset,null);
     // Confirm the write reached the real storage API before closing the browser.
     await until(async()=>{
       const r=await post('/api/apps/'+appId+'/storage',{op:'list',prefix:''});
