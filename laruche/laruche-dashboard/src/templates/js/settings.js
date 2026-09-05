@@ -880,15 +880,14 @@ LaRuche.Settings = (function(){
      l'onglet qu'elle devrait montrer est justement celui qui est accroche.
      ------------------------------------------------------------------------ */
   var _dockTab = null;
+  var _dockCustom = null;
 
   function _dockTitre(tab){
     var s = _visibleSections().filter(function(x){ return x.id === tab; })[0];
     return s ? LaRuche.i18n.t(s.i18n || ('settings.nav' + tab)) : tab;
   }
 
-  function dock(tab){
-    tab = _ALIASES[tab] || tab;
-    if(!_visibleSections().some(function(s){ return s.id === tab; })) return false;
+  function _assurerDock(){
     var d = document.getElementById('lrDock');
     if(!d){
       d = document.createElement('aside');
@@ -913,7 +912,15 @@ LaRuche.Settings = (function(){
       conteneur.appendChild(d);
       document.getElementById('lrDockClose').onclick = fermerDock;
       document.getElementById('lrDockPage').onclick = function(){
-        var t = _dockTab; fermerDock(); ouvrirSection(t);
+        if(_dockCustom){
+          var ouvrir = _dockCustom.onPage;
+          fermerDock();
+          if(typeof ouvrir === 'function') ouvrir();
+          return;
+        }
+        var t = _dockTab;
+        fermerDock();
+        if(t) ouvrirSection(t);
       };
       _brancherPoignee(d);
       document.body.classList.add('lr-dock-ouvert');
@@ -924,9 +931,19 @@ LaRuche.Settings = (function(){
         if(tw) d.style.flexBasis = tw;
       }catch(e){}
     }
+    document.body.classList.add('lr-dock-ouvert');
+    return d;
+  }
+
+  function dock(tab){
+    tab = _ALIASES[tab] || tab;
+    if(!_visibleSections().some(function(s){ return s.id === tab; })) return false;
+    if(_dockCustom) fermerDock();
+    var d = _assurerDock();
     _dockTab = tab;
     document.getElementById('lrDockTitre').textContent = _dockTitre(tab);
     var corps = document.getElementById('lrDockCorps');
+    corps.className = 'lr-dock-corps';
     corps.innerHTML = '';
     var el = document.createElement('div');
     el.className = 'settings-tab-canvas';
@@ -939,7 +956,42 @@ LaRuche.Settings = (function(){
     return true;
   }
 
+  /* Le meme panneau peut accueillir une vue qui ne vient pas des reglages.
+     Le proprietaire monte son contenu et fournit son nettoyage. Cela garde une
+     seule colonne laterale, une seule poignee et le meme comportement mobile. */
+  function dockCustom(options){
+    if(!options || typeof options.id !== 'string' || !options.id || typeof options.mount !== 'function') return false;
+    if(_dockTab || _dockCustom) fermerDock();
+    _dockCustom = options;
+    var d = _assurerDock();
+    var titre = document.getElementById('lrDockTitre');
+    var corps = document.getElementById('lrDockCorps');
+    titre.textContent = String(options.title || options.id);
+    corps.className = 'lr-dock-corps' + (options.bodyClass ? ' ' + options.bodyClass : '');
+    corps.innerHTML = '';
+    try{
+      var cleanup = options.mount(corps, titre, d);
+      if(typeof cleanup === 'function') _dockCustom.cleanup = cleanup;
+    }catch(error){
+      fermerDock();
+      return false;
+    }
+    try { localStorage.removeItem('laruche_dock'); } catch(e){}
+    _majLargeurDock();
+    return true;
+  }
+
+  function fermerDockSi(id){
+    if(!_dockCustom || _dockCustom.id !== id) return false;
+    fermerDock();
+    return true;
+  }
+
   function fermerDock(){
+    var ancien = _dockTab;
+    var custom = _dockCustom;
+    _dockTab = null;
+    _dockCustom = null;
     var d = document.getElementById('lrDock');
     if(d) d.parentNode.removeChild(d);
     document.body.classList.remove('lr-dock-ouvert');
@@ -947,9 +999,13 @@ LaRuche.Settings = (function(){
     document.documentElement.style.removeProperty('--lr-dock-hauteur');
     document.documentElement.style.removeProperty('--lr-dock-haut');
     document.documentElement.style.removeProperty('--lr-dock-bas');
-    var ancien = _dockTab;
-    _dockTab = null;
     try { localStorage.removeItem('laruche_dock'); } catch(e){}
+    if(custom){
+      try{
+        if(typeof custom.cleanup === 'function') custom.cleanup();
+        if(typeof custom.onClose === 'function') custom.onClose();
+      }catch(e){}
+    }
     // Rendre son contenu a la page des reglages si elle attendait dessus.
     if(ancien && currentTab === ancien && document.getElementById('settingsContent')) loadTab(ancien);
   }
@@ -2084,6 +2140,7 @@ LaRuche.Settings = (function(){
      recoit donc le controle qui lui convient, et la couleur en recoit DEUX, la
      teinte et l'opacite, parce que l'une sans l'autre ne decrit pas un fond. */
   function _ligneJeton(j, valeur, esc){
+    var t = LaRuche.i18n.t;
     var T = LaRuche.Themes;
     var nom = esc(j[LaRuche.i18n.get()] || j.fr);
     var etiquette = '<span style="flex:1;font-size:12.5px;color:var(--text-dim)">'+nom+'</span>'+
@@ -5817,7 +5874,7 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, basculerEtat:basculerEtat, testerVigie:testerVigie, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab, dock:dock, fermerDock:fermerDock,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, ouvrirSection:ouvrirSection, deepLink:deepLink, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, basculerEtat:basculerEtat, testerVigie:testerVigie, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab, dock:dock, dockCustom:dockCustom, fermerDockSi:fermerDockSi, fermerDock:fermerDock,
     loadGeneral:loadGeneral, loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, toggleHalo:toggleHalo, saveEpisodesCfg:saveEpisodesCfg, clearEpisodes:clearEpisodes, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newForgedTool:newForgedTool, viewForgedTool:viewForgedTool, saveForgedTool:saveForgedTool, deleteForgedTool:deleteForgedTool, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, setKanbanInterval:setKanbanInterval, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, lancerCronTask:lancerCronTask, visionReessayer:visionReessayer, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, lancerKanbanTask:lancerKanbanTask, adminPickAvatar:adminPickAvatar, loadKanbanTodo:loadKanbanTodo, saveKanbanTodo:saveKanbanTodo, kanbanTodoMaintenant:kanbanTodoMaintenant, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 

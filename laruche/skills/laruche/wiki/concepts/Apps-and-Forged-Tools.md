@@ -11,6 +11,10 @@ each view opens as a tab that can be detached when the manifest allows it. App p
 isolated iframe and communicate with LaRuche through a narrow message bridge. They do not
 receive the user's cookies or unrestricted access to the host page.
 
+Views support both a LaRuche side panel (**Panneau**) and an independent popup (**Fenêtre**).
+Browser WASM modules can be bundled with an App. See [Developing Apps](Developing-Apps) for
+the build/install workflow, SDK examples, supported permissions and remaining limitations.
+
 The canonical package extension is `.laruche-app`. It is a ZIP archive whose root contains
 `app.json` and the files referenced by the manifest. An App identifier uses reverse-DNS form,
 for example `dev.example.supervision`, and its version follows semantic versioning.

@@ -7,7 +7,7 @@ tools: [file_read]
 
 # LaRuche, expliquee par elle-meme
 
-Ce skill embarque le wiki complet de LaRuche, 29 pages, 130 Ko de markdown. C'est
+Ce skill embarque le wiki complet de LaRuche, 30 pages, 136 Ko de markdown. C'est
 la MEME source que le site publie: `wiki/` a la racine du depot, dont `docs/wiki.html`
 et ce dossier sont deux sorties generees par `scripts/build_wiki.py`. Ce qui est ecrit
 ici fait donc foi. Ne repondez jamais de memoire sur le fonctionnement de LaRuche:
@@ -66,6 +66,7 @@ vous ne les demandez pas.
 | `wiki/guides/MCP.md` | MCP | LaRuche sits on both sides of the Model Context Protocol: it consumes external MCP servers as extra tools, and it exposes... |
 | `wiki/guides/Secrets.md` | Secrets | The secrets vault exists for one reason: your API keys, tokens, and passwords should never enter a model's context. |
 | `wiki/guides/Troubleshooting.md` | When something does not work | Symptoms first. Each one below has been seen, and the cause is rarely where the message points. |
+| `wiki/guides/Developing-Apps.md` | Developing Apps | Apps can be developed and installed without rebuilding LaRuche. |
 | **Reference** | | |
 | `wiki/reference/Configuration.md` | Configuration | Two layers: supported environment variables set at launch, and the Settings UI for everything that can change live. |
 | `wiki/reference/Providers-and-Profiles.md` | Providers and profiles | Most confusion about "which model am I actually talking to" comes from one idea that is never stated: **the active model is a... |

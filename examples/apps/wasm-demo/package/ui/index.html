@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WASM Lab</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="/apps-runtime/v1.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">LARUCHE APP / WEBASSEMBLY</p>
+    <h1>WASM Lab</h1>
+    <p>Ces deux nombres sont additionnés par un module WebAssembly local.</p>
+    <form id="calculator">
+      <label>Premier entier<input id="a" type="number" min="-1000000" max="1000000" step="1" value="19" required></label>
+      <span aria-hidden="true">+</span>
+      <label>Second entier<input id="b" type="number" min="-1000000" max="1000000" step="1" value="23" required></label>
+      <button id="calculate" disabled>Calculer</button>
+    </form>
+    <output id="result" aria-live="polite"></output>
+    <p id="status" role="status">Chargement du module…</p>
+    <p class="hint">Le calcul reste dans le navigateur. Aucun accès au DOM de LaRuche, aux fichiers du système ou aux services réseau.</p>
+  </main>
+</body>
+</html>

@@ -13,7 +13,12 @@ LaRuche.i18n.add({
   'apps.install':         {fr:'Installer', en:'Install'},
   'apps.installing':      {fr:'Installation…', en:'Installing…'},
   'apps.refresh':         {fr:'Actualiser', en:'Refresh'},
-  'apps.detach':          {fr:'Détacher', en:'Detach'},
+  'apps.detach':          {fr:'Fenêtre', en:'Window'},
+  'apps.detachHint':      {fr:'Ouvrir dans une fenêtre indépendante', en:'Open in an independent window'},
+  'apps.dock':            {fr:'Panneau', en:'Panel'},
+  'apps.dockHint':        {fr:'Détacher dans le panneau latéral de LaRuche', en:'Detach into the LaRuche side panel'},
+  'apps.docked':          {fr:'Cette app est ouverte dans le panneau latéral. Tu peux continuer à utiliser LaRuche.', en:'This app is open in the side panel. You can keep using LaRuche.'},
+  'apps.returnPage':      {fr:'Ramener dans la page', en:'Return to page'},
   'apps.installed':       {fr:'Apps installées', en:'Installed apps'},
   'apps.catalogueHint':   {fr:'Active les applications auxquelles tu fais confiance. Leurs vues restent isolées de l’interface et des données de LaRuche.', en:'Enable applications you trust. Their views remain isolated from LaRuche UI and data.'},
   'apps.none':            {fr:'Aucune app détectée. Installe un package .laruche-app ou .zip pour commencer.', en:'No app detected. Install a .laruche-app or .zip package to get started.'},
@@ -54,6 +59,8 @@ LaRuche.Apps = (function(){
   var installing = false;
   var maxPackageBytes = 32 * 1024 * 1024;
   var activeBridge = null;
+  var dockBridge = null;
+  var docked = null;
   var supportedCapabilities = ['storage.private','ui.theme.read','ui.locale.read'];
   var bridgeMaxBytes = 64 * 1024;
   var detachedBridges = new Set();
@@ -131,7 +138,7 @@ LaRuche.Apps = (function(){
   }
 
   function bridgeIsLive(bridge){
-    return activeBridge===bridge || detachedBridges.has(bridge);
+    return activeBridge===bridge || dockBridge===bridge || detachedBridges.has(bridge);
   }
 
   function stopDetachedSweep(){
@@ -142,6 +149,7 @@ LaRuche.Apps = (function(){
     var bridge=target||activeBridge;
     if(!bridge) return;
     if(activeBridge===bridge) activeBridge=null;
+    if(dockBridge===bridge) dockBridge=null;
     detachedBridges.delete(bridge);
     clearTimeout(bridge.timer);
     try{ bridge.port.onmessage=null; bridge.port.close(); }catch(error){}
@@ -164,6 +172,12 @@ LaRuche.Apps = (function(){
 
   function reconcileDetachedBridges(data){
     var records=data&&Array.isArray(data.apps)?data.apps:[];
+    if(docked){
+      var current=records.find(function(app){ return app.id===docked.app.id; });
+      if(!current || !current.enabled || current.activeVersion!==docked.app.activeVersion){
+        LaRuche.Settings.fermerDockSi('apps');
+      }
+    }
     Array.from(detachedBridges).forEach(function(bridge){
       var current=records.find(function(app){ return app.id===bridge.app.id; });
       if(!current || !current.enabled || current.activeVersion!==bridge.app.activeVersion) revokeBridge(bridge,true);
@@ -230,10 +244,11 @@ LaRuche.Apps = (function(){
     if(method==='ui.requestDetach'){
       if(bridge.view.detachable===false) throw bridgeFailure('permission_denied','This view cannot be detached');
       if(bridge.popup) throw bridgeFailure('conflict','View is already detached');
-      detachActive(); return {};
+      detachItem({app:bridge.app,view:bridge.view,url:assetUrl(bridge.app,bridge.view)}); return {};
     }
     if(method==='ui.close'){
       if(bridge.popup){ revokeBridge(bridge,true); return {}; }
+      if(bridge===dockBridge){ LaRuche.Settings.fermerDockSi('apps'); return {}; }
       LaRuche.Router.go('apps/overview'); return {};
     }
     throw bridgeFailure('not_found','Unknown app bridge method');
@@ -273,11 +288,12 @@ LaRuche.Apps = (function(){
       .finally(function(){ bridge.pending.delete(message.id); });
   }
 
-  function startBridge(app,view,title,titleNode,popup,deliver){
+  function startBridge(app,view,title,titleNode,popup,deliver,mode){
     if(!window.MessageChannel || !window.crypto || !crypto.getRandomValues) return null;
     var channel=new MessageChannel();
     var bridge={app:app,view:view,titleNode:titleNode||null,title:title,dirty:false,popup:popup||null,port:channel.port1,nonce:randomToken(),sessionId:randomToken(),capabilities:bridgeCapabilities(app),hello:false,ready:false,pending:new Set(),requests:[],timer:null};
     if(popup) detachedBridges.add(bridge);
+    else if(mode==='dock'){ if(dockBridge) revokeBridge(dockBridge); dockBridge=bridge; }
     else { revokeBridge(); activeBridge=bridge; }
     bridge.port.onmessage=function(event){ onBridgeMessage(bridge,event.data); };
     bridge.port.onmessageerror=function(){ revokeBridge(bridge,true); };
@@ -292,12 +308,12 @@ LaRuche.Apps = (function(){
     return bridge;
   }
 
-  function connectBridge(frame,app,view,titleNode){
+  function connectBridge(frame,app,view,titleNode,mode){
     frame.addEventListener('load',function(){
-      if(!frame.contentWindow) return;
+      if(!frame.isConnected || !frame.contentWindow) return;
       startBridge(app,view,titleNode.textContent,titleNode,null,function(init,port){
         frame.contentWindow.postMessage(init,'*',[port]);
-      });
+      },mode);
     });
   }
 
@@ -328,6 +344,7 @@ LaRuche.Apps = (function(){
     var packageInput = document.getElementById('appsPackageInput');
     var refresh = document.getElementById('appsRefresh');
     var detach = document.getElementById('appsDetach');
+    var dock = document.getElementById('appsDock');
     if(refresh){
       refresh.textContent=t('apps.refresh');
       refresh.onclick=function(){ if(isAdmin()) rescan(); else load(false); };
@@ -340,7 +357,8 @@ LaRuche.Apps = (function(){
       };
     }
     if(packageInput){ packageInput.onchange=function(){ installPackage(packageInput.files && packageInput.files[0]); }; }
-    if(detach){ detach.textContent=t('apps.detach'); detach.onclick=function(){ detachActive(); }; }
+    if(detach){ detach.textContent='↗ '+t('apps.detach'); detach.title=t('apps.detachHint'); detach.onclick=function(){ detachActive(); }; }
+    if(dock){ dock.textContent='◧ '+t('apps.dock'); dock.title=t('apps.dockHint'); dock.onclick=dockActive; }
     syncInstallButton();
     renderLoading();
     load(false);
@@ -367,8 +385,8 @@ LaRuche.Apps = (function(){
       .then(function(response){ if(!response.ok) throw new Error('HTTP '+response.status); return response.json(); })
       .then(function(data){
         if(serial !== requestSerial) return;
-        reconcileDetachedBridges(data);
         catalogue = data || {apps:[], diagnostics:[]};
+        reconcileDetachedBridges(catalogue);
         renderRail();
         applyRoute(pendingRoute || 'overview');
         if(forceRescan) LaRuche.Toast.show(t('apps.rescanDone'),'ok');
@@ -568,6 +586,13 @@ LaRuche.Apps = (function(){
     active={app:app,view:view,url:url}; setDetach(view.detachable!==false); paintRail();
     var stage=document.getElementById('appsStage'); if(!stage) return;
     stage.innerHTML='';
+    if(docked && docked.app.id===app.id && docked.view.id===view.id){
+      var notice=document.createElement('div'); notice.className='apps-empty';
+      var text=document.createElement('p'); text.textContent=t('apps.docked'); notice.appendChild(text);
+      var restore=document.createElement('button'); restore.className='apps-btn'; restore.textContent=t('apps.returnPage');
+      restore.onclick=function(){ LaRuche.Settings.fermerDockSi('apps'); };
+      notice.appendChild(restore); stage.appendChild(notice); return;
+    }
     var wrap=document.createElement('div'); wrap.className='apps-frame-wrap';
     var bar=document.createElement('div'); bar.className='apps-frame-bar';
     var title=document.createElement('div'); title.className='apps-frame-title'; title.textContent=(app.manifest.name||app.id)+' · '+view.title;
@@ -582,8 +607,38 @@ LaRuche.Apps = (function(){
   }
 
   function setDetach(visible){
-    var button=document.getElementById('appsDetach');
-    if(button) button.hidden=!visible;
+    ['appsDetach','appsDock'].forEach(function(id){
+      var button=document.getElementById(id);
+      if(button) button.hidden=!visible;
+    });
+  }
+
+  function dockActive(){
+    if(!active || active.view.detachable===false) return;
+    var item=active;
+    if(docked && docked.app.id===item.app.id && docked.view.id===item.view.id) return;
+    var mounted=LaRuche.Settings.dockCustom({
+      id:'apps',title:(item.app.manifest.name||item.app.id)+' · '+item.view.title,
+      bodyClass:'lr-dock-corps-app',
+      mount:function(host,title){
+        docked=item;
+        var frame=document.createElement('iframe');
+        frame.className='apps-dock-frame'; frame.title=item.view.title;
+        frame.setAttribute('sandbox','allow-scripts allow-forms allow-downloads');
+        frame.setAttribute('referrerpolicy','no-referrer');
+        frame.setAttribute('allow',"clipboard-read 'none'; clipboard-write 'none'; camera 'none'; microphone 'none'; geolocation 'none'");
+        connectBridge(frame,item.app,item.view,title,'dock');
+        frame.src=item.url; host.appendChild(frame);
+        return function(){ if(dockBridge) revokeBridge(dockBridge); docked=null; };
+      },
+      onClose:function(){
+        // Restore the page only when it still refers to this enabled view.
+        var current=apps().find(function(app){ return app.id===item.app.id; });
+        if(active && active.app.id===item.app.id && active.view.id===item.view.id && current && current.enabled) showView(current,item.view);
+      },
+      onPage:function(){ LaRuche.Router.go('apps/'+encodeURIComponent(item.app.id)+'/'+encodeURIComponent(item.view.id)); }
+    });
+    if(mounted) showView(item.app,item.view);
   }
 
   function forgetDetachedUrl(url){
@@ -597,11 +652,15 @@ LaRuche.Apps = (function(){
   }
 
   function detachActive(){
-    if(!active || active.view.detachable===false) return;
+    detachItem(active);
+  }
+
+  function detachItem(item){
+    if(!item || !item.url || item.view.detachable===false) return;
     if(detachedBridges.size+pendingDetached>=maxDetachedViews){ LaRuche.Toast.show(t('apps.detachLimit'),'err'); return; }
-    var item=active;
     var title=esc((item.app.manifest.name||item.app.id)+' · '+item.view.title);
-    var src=esc(item.url);
+    // Blob documents have no usable relative base URL.
+    var src=esc(new URL(item.url,window.location.href).href);
     var token=randomToken();
     var host=detachedHost(title,src,token);
     var url=URL.createObjectURL(new Blob([host],{type:'text/html'}));
@@ -638,8 +697,8 @@ LaRuche.Apps = (function(){
     timer=setTimeout(fail,5000);
   }
 
-  function leave(){ revokeBridge(); }
-  return {init:init,enter:enter,leave:leave,deepLink:deepLink,rescan:rescan,detach:detachActive};
+  function leave(){ revokeBridge(); active=null; }
+  return {init:init,enter:enter,leave:leave,deepLink:deepLink,rescan:rescan,detach:detachActive,dock:dockActive};
 })();
 
 LaRuche.Router.register('apps', LaRuche.Apps);

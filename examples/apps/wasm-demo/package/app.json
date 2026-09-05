@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "dev.laruche.wasm-demo",
+  "name": "WASM Lab",
+  "version": "1.0.0",
+  "description": "Calcul WebAssembly local dans une App isolée.",
+  "publisher": {"name": "LaRuche"},
+  "ui": {"views": [{"id": "lab", "title": "WASM Lab", "entry": "ui/index.html", "detachable": true}]},
+  "permissions": {"required": [], "optional": []}
+}

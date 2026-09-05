@@ -4,6 +4,12 @@
 
 ### Change
 
+- Les Apps proposent **Panneau**, partage avec les onglets detachables des Parametres,
+  et **Fenetre**, qui conserve la fenetre independante. Le panneau reste actif pendant
+  la navigation et ferme son bridge quand il est remplace ou que l'App est desactivee.
+- Support des modules WebAssembly navigateur dans les paquets Apps: MIME, CORS des
+  assets et CSP limitee au paquet. Exemple WASM Lab et guide de creation/packaging inclus.
+
 - **Addons devient Apps** dans l'interface, les routes, le SDK et le format de paquet.
   Les nouveaux paquets utilisent `app.json` et l'extension `.laruche-app`.
 - **Plugins devient Forged Tools** pour distinguer les outils JSON appelables par

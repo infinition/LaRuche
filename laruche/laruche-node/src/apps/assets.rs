@@ -67,6 +67,12 @@ pub(crate) async fn serve(
         header::REFERRER_POLICY,
         HeaderValue::from_static("no-referrer"),
     );
+    // Package assets are public static files. Opaque-origin app frames need
+    // CORS to fetch their WASM modules; no credentials or API access is granted.
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        HeaderValue::from_static("*"),
+    );
     if is_html {
         if let Some(policy) = html_policy(request_headers.get(header::HOST), &id, &version) {
             headers.insert(header::CONTENT_SECURITY_POLICY, policy);
@@ -78,7 +84,8 @@ pub(crate) async fn serve(
 /// A sandbox without `allow-same-origin` gives the document an opaque origin.
 /// Consequently CSP's `'self'` cannot load even the app's own JS/CSS. Name the
 /// exact package URL instead: scripts may come from this id/version only, while
-/// `connect-src 'none'` keeps LaRuche APIs and the network unreachable.
+/// connections are restricted to that same package. This permits WASM fetches
+/// while keeping LaRuche APIs, other packages and external services unreachable.
 fn html_policy(host: Option<&HeaderValue>, id: &str, version: &str) -> Option<HeaderValue> {
     let host = host?.to_str().ok()?;
     if host.is_empty()
@@ -94,7 +101,7 @@ fn html_policy(host: Option<&HeaderValue>, id: &str, version: &str) -> Option<He
     let runtime_http = format!("http://{host}/apps-runtime/v1.js");
     let runtime_https = format!("https://{host}/apps-runtime/v1.js");
     let policy = format!(
-        "default-src 'none'; script-src {http} {https} {runtime_http} {runtime_https}; style-src {http} {https} 'unsafe-inline'; img-src {http} {https} data: blob:; font-src {http} {https}; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://{host} https://{host}"
+        "default-src 'none'; script-src {http} {https} {runtime_http} {runtime_https} 'wasm-unsafe-eval'; style-src {http} {https} 'unsafe-inline'; img-src {http} {https} data: blob:; font-src {http} {https}; connect-src {http} {https}; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://{host} https://{host}"
     );
     HeaderValue::from_str(&policy).ok()
 }
@@ -134,14 +141,23 @@ mod tests {
         )
         .unwrap();
         let policy = policy.to_str().unwrap();
-        assert!(policy.contains("connect-src 'none'"));
+        assert!(policy.contains("connect-src http://localhost:8419/apps-assets/dev.laruche.test/1.2.3/ https://localhost:8419/apps-assets/dev.laruche.test/1.2.3/;"));
         assert!(policy.contains("object-src 'none'"));
         assert!(policy.contains("frame-ancestors http://localhost:8419"));
         assert!(policy
             .contains("script-src http://localhost:8419/apps-assets/dev.laruche.test/1.2.3/"));
         assert!(policy.contains("http://localhost:8419/apps-runtime/v1.js"));
-        assert!(!policy.contains("unsafe-eval"));
+        assert!(policy.contains("'wasm-unsafe-eval'"));
+        assert!(!policy.contains("'unsafe-eval'"));
         assert!(!policy.contains("script-src *"));
+    }
+
+    #[test]
+    fn wasm_assets_have_streaming_mime_type() {
+        assert_eq!(
+            mime_guess::from_path("engine.wasm").first_or_octet_stream().essence_str(),
+            "application/wasm"
+        );
     }
 
     #[test]
