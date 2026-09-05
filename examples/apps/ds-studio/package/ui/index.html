@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-touch-icon" content="./icon.svg">
+  <meta name="theme-color" content="#101014">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' /apps-runtime/; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';">
+  <title>DS Studio</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="/apps-runtime/v1.js" defer></script>
+  <script src="./lib/i18n.js" defer></script>
+  <script src="./lib/frame.js" defer></script>
+  <script src="./lib/csv.js" defer></script>
+  <script src="./lib/chart.js" defer></script>
+  <script src="./lib/lang.js" defer></script>
+  <script src="./lib/store.js" defer></script>
+  <script src="./notebook.js" defer></script>
+  <script src="./kernel/kernel-js.js" defer></script>
+  <script src="./kernel/kernel-python.js" defer></script>
+  <script src="./kernel/kernel.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="boot" id="boot" aria-live="polite">
+    <div class="boot-card">
+      <p class="eyebrow" data-i18n="eyebrow">LARUCHE APP</p>
+      <h1 data-i18n="appName">DS Studio</h1>
+      <p class="boot-message" id="bootMessage" data-i18n="kernelStarting">Demarrage du noyau...</p>
+      <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bootProgress">
+        <div class="progress-bar" id="bootBar"></div>
+      </div>
+      <p class="boot-hint" id="bootHint" data-i18n="kernelWaitHint">L'agent doit attendre l'etat Pret avant d'envoyer une action.</p>
+    </div>
+  </div>
+
+  <main class="shell" id="shell" hidden>
+    <header class="head">
+      <div class="head-title">
+        <p class="eyebrow" data-i18n="eyebrow">LARUCHE APP</p>
+        <input
+          id="notebookTitle"
+          class="title-input"
+          type="text"
+          maxlength="120"
+          data-i18n-placeholder="untitledNotebook"
+          data-i18n-aria-label="notebookTitleLabel">
+      </div>
+      <div class="head-status">
+        <div class="library">
+          <select id="notebookSelect" data-i18n-aria-label="notebookLibrary"></select>
+          <button type="button" class="icon-button" id="newNotebookBtn"
+            data-i18n-title="newNotebook" data-i18n-aria-label="newNotebook">+</button>
+          <button type="button" class="icon-button danger" id="deleteNotebookBtn"
+            data-i18n-title="deleteNotebook" data-i18n-aria-label="deleteNotebook">×</button>
+        </div>
+        <span class="chip" id="kernelChip" role="status">
+          <span class="dot" id="kernelDot"></span>
+          <span id="kernelLabel">…</span>
+        </span>
+      </div>
+    </header>
+
+    <nav class="toolbar" aria-label="Actions">
+      <div class="toolbar-group">
+        <button type="button" class="button primary" id="addCodeBtn" data-i18n="addCode">Cellule</button>
+        <button type="button" class="button" id="addNoteBtn" data-i18n="addNote">Note</button>
+      </div>
+      <div class="toolbar-group">
+        <button type="button" class="button" id="runAllBtn" data-i18n="runAll">Tout executer</button>
+        <button type="button" class="button" id="stopBtn" data-i18n="stopAll" disabled>Arreter</button>
+        <button type="button" class="button" id="clearBtn" data-i18n="clearOutputs">Vider</button>
+      </div>
+      <div class="toolbar-group toolbar-end">
+        <button type="button" class="button" id="importBtn" data-i18n="importData">Importer</button>
+        <button type="button" class="button" id="exportBtn" data-i18n="exportNotebook">Exporter</button>
+        <input type="file" id="fileInput" accept=".csv,.tsv,.txt,.json" multiple hidden>
+      </div>
+    </nav>
+
+    <div class="layout">
+      <section class="notebook-pane" aria-label="Carnet">
+        <div id="cells" class="cells"></div>
+        <div class="empty" id="emptyState" hidden>
+          <p data-i18n="emptyTitle">Carnet vide</p>
+          <p class="muted" id="emptyHint" data-i18n="emptyHint">Ajoutez une cellule, ou importez un fichier de donnees.</p>
+          <button type="button" class="button primary" id="emptyAddBtn" data-i18n="addCode">Cellule</button>
+          <button type="button" class="button" id="sampleBtn" data-i18n="loadSample">Jeu d'exemple</button>
+        </div>
+        <div class="drop-hint" id="dropHint" hidden data-i18n="dropHere">Deposez le fichier pour l'importer</div>
+      </section>
+
+      <aside class="inspector" id="inspector" aria-label="Inspecteur">
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab is-active" role="tab" aria-selected="true" data-panel="data" id="tabData" data-i18n="tabData">Donnees</button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-panel="vars" id="tabVars" data-i18n="tabVariables">Variables</button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-panel="agent" id="tabAgent" data-i18n="tabAgent">Agent</button>
+        </div>
+
+        <div class="panel is-active" id="panelData" role="tabpanel" aria-labelledby="tabData">
+          <div class="quota">
+            <div class="quota-head">
+              <span data-i18n="storageUsed">Stockage</span>
+              <span id="quotaValue">–</span>
+            </div>
+            <div class="quota-bar"><div class="quota-fill" id="quotaFill"></div></div>
+            <p class="muted small" id="quotaNote"></p>
+          </div>
+          <ul class="dataset-list" id="datasetList"></ul>
+          <p class="muted small" id="datasetEmpty" data-i18n="noDataset">Aucun jeu de donnees charge.</p>
+        </div>
+
+        <div class="panel" id="panelVars" role="tabpanel" aria-labelledby="tabVars" hidden>
+          <ul class="variable-list" id="variableList"></ul>
+          <p class="muted small" id="variableEmpty" data-i18n="noVariable">Aucune variable. Executez une cellule.</p>
+        </div>
+
+        <div class="panel" id="panelAgent" role="tabpanel" aria-labelledby="tabAgent" hidden>
+          <label class="field">
+            <span data-i18n="agentSelect">Agent</span>
+            <select id="agentSelect">
+              <option value="" data-i18n="permissionRequired">Autorisation requise</option>
+            </select>
+          </label>
+          <label class="field">
+            <span data-i18n="agentTask">Demande</span>
+            <textarea id="agentPrompt" rows="4" data-i18n-placeholder="agentPromptHint"></textarea>
+          </label>
+          <div class="field-row">
+            <button type="button" class="button" id="refreshAgentsBtn" data-i18n="refresh">Actualiser</button>
+            <button type="button" class="button primary" id="agentRunBtn" data-i18n="agentRun" disabled>Lancer</button>
+          </div>
+          <p class="muted small" id="agentStatus" role="status" data-i18n="agentIdle">En attente.</p>
+          <p class="muted small" data-i18n="agentNote">L'agent lit et modifie ce carnet via les actions declarees. Les droits se reglent dans Permissions.</p>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="foot">
+      <span class="save-status" id="saveStatus" data-i18n="storageLocal">Stockage local</span>
+      <span class="muted small" id="cellSummary"></span>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <template id="cellTemplate">
+    <article class="cell" data-cell-id="">
+      <div class="cell-gutter">
+        <button type="button" class="run-button" data-action="run" data-i18n-title="runCell" data-i18n-aria-label="runCell">
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon-run"><path d="M4 2.5v11l9-5.5z"/></svg>
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon-stop"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>
+        </button>
+        <span class="exec-count" data-role="execCount"></span>
+      </div>
+      <div class="cell-body">
+        <div class="cell-head">
+          <span class="cell-kind" data-role="kind"></span>
+          <span class="badge agent-badge" data-role="agentBadge" hidden data-i18n="writtenByAgent">Agent</span>
+          <span class="cell-timing muted small" data-role="timing"></span>
+          <div class="cell-tools">
+            <button type="button" class="icon-button" data-action="toggleType" data-i18n-title="toggleType" data-i18n-aria-label="toggleType">¶</button>
+            <button type="button" class="icon-button" data-action="moveUp" data-i18n-title="moveUp" data-i18n-aria-label="moveUp">↑</button>
+            <button type="button" class="icon-button" data-action="moveDown" data-i18n-title="moveDown" data-i18n-aria-label="moveDown">↓</button>
+            <button type="button" class="icon-button danger" data-action="delete" data-i18n-title="deleteCell" data-i18n-aria-label="deleteCell">×</button>
+          </div>
+        </div>
+        <textarea class="editor" data-role="editor" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        <div class="note-preview" data-role="notePreview" hidden></div>
+        <div class="outputs" data-role="outputs"></div>
+      </div>
+    </article>
+  </template>
+</body>
+</html>

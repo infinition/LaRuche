@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DS Studio">
+  <defs>
+    <linearGradient id="dsBar" x1="0" y1="1" x2="0" y2="0">
+      <stop stop-color="#ff7a18"/>
+      <stop offset="1" stop-color="#f5a623"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#18181f"/>
+  <rect x="9" y="12" width="46" height="40" rx="7" fill="#22222c"/>
+  <line x1="14" y1="45" x2="50" y2="45" stroke="#3a3a48" stroke-width="1.5"/>
+  <line x1="14" y1="34" x2="50" y2="34" stroke="#2f2f3b" stroke-width="1.5"/>
+  <line x1="14" y1="23" x2="50" y2="23" stroke="#2f2f3b" stroke-width="1.5"/>
+  <rect x="16" y="30" width="7" height="15" rx="2.5" fill="url(#dsBar)"/>
+  <rect x="26" y="21" width="7" height="24" rx="2.5" fill="url(#dsBar)"/>
+  <rect x="36" y="35" width="7" height="10" rx="2.5" fill="#3987e5"/>
+  <rect x="46" y="27" width="6" height="18" rx="2.5" fill="#5dd39e"/>
+  <circle cx="19.5" cy="30" r="3" fill="#18181f"/>
+  <circle cx="19.5" cy="30" r="1.6" fill="#f5a623"/>
+</svg>
