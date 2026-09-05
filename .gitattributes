@@ -1,0 +1,24 @@
+# Une seule facon d'ecrire les fins de ligne dans le depot.
+#
+# Sans cette regle, un fichier enregistre en CRLF par un editeur et le meme
+# fichier en LF sont deux contenus differents pour git. Une branche qui
+# renormalise un fichier sans y toucher autrement fait alors partir la fusion
+# suivante en conflit sur des centaines de lignes identiques. C'est exactement
+# ce qui est arrive a app.css entre main et addons.
+#
+# Le depot stocke du LF. La copie de travail aussi, y compris sous Windows:
+# tous les editeurs du projet le supportent, et cela evite que la question se
+# repose au prochain clone.
+* text=auto eol=lf
+
+# Les scripts Windows font exception. cmd.exe se perd sur un label ou un goto
+# quand le fichier est en LF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Les binaires ne sont jamais convertis. La detection automatique les attrape
+# deja, ces lignes la rendent explicite.
+*.png binary
+*.ico binary
+*.laruche-app binary

@@ -64,7 +64,7 @@ LaRuche.i18n.add({
   'capabilities.kindCron':      { fr:'Cron',              en:'Cron' },
   'capabilities.kindMission':   { fr:'Mission',           en:'Mission' },
   'capabilities.kindWatcher':   { fr:'Watcher',           en:'Watcher' },
-  'capabilities.kindChat':        {fr:'Chat',     en:'Chat'},
+  'capabilities.kindChat':        {fr:'Chat',     en:'Chat'},
   'capabilities.kindDm':        { fr:'DM',                en:'DM' },
   'capabilities.feedVide':       {fr:'Flux vide. Ce qui arrive ensuite s\'affichera.',
                                   en:'Feed cleared. What comes next will show.'},
