@@ -4,6 +4,12 @@
 
 ### Change
 
+- Raccordement bidirectionnel Apps/agents: decouverte, guide, ouverture, attente Ready et
+  actions declarees avec schemas. Les autorisations sont controlees cote serveur par compte.
+- Panneau de consentement et de permissions par App, droits herites ou specifiques par agent,
+  bibliotheque d'agents avec provider/modele et contextes distincts par partie.
+- Le 2048 1.1.0 propose un tour LLM valide par son moteur, un mode Auto et Pause. Tests
+  navigateur isoles avec provider local controle et revocation des droits pendant un appel.
 - Les Apps proposent **Panneau**, partage avec les onglets detachables des Parametres,
   et **Fenetre**, qui conserve la fenetre independante. Le panneau reste actif pendant
   la navigation et ferme son bridge quand il est remplace ou que l'App est desactivee.

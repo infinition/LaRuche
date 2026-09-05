@@ -830,6 +830,7 @@ impl but::Outils for OutilsPont<'_> {
         }
         // Origin channel: tools (cron_create) know where the request came from.
         ctx.channel = self.config.origin_channel.clone();
+        ctx.user_id = self.config.origin_user_id;
         // Carried to the execution guard: hiding a disabled tool from the schema is not
         // enough, since the agent can still name it through `tool_call` or `tool_search`.
         ctx.disabled_tools = self.config.disabled_tools.clone();

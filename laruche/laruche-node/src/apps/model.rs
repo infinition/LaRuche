@@ -29,6 +29,21 @@ pub(crate) struct AppManifest {
     pub(crate) permissions: AppPermissions,
     #[serde(default)]
     pub(crate) contributes: Contributions,
+    #[serde(default)]
+    pub(crate) guide: String,
+    #[serde(default)]
+    pub(crate) actions: Vec<AppAction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct AppAction {
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) view_id: String,
+    pub(crate) input_schema: serde_json::Value,
+    #[serde(default)]
+    pub(crate) read_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +85,8 @@ pub(crate) struct AppView {
     pub(crate) detachable: bool,
     #[serde(default)]
     pub(crate) multi_instance: bool,
+    #[serde(default)]
+    pub(crate) wait_for_ready: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) min_size: Option<ViewSize>,
 }
@@ -216,6 +233,35 @@ impl AppManifest {
         }
         validate_permissions(&self.permissions)?;
         validate_contributions(&self.contributes)?;
+        if self.guide.len() > 16_384 || self.actions.len() > 64 {
+            return Err("guide or action catalogue too large".into());
+        }
+        let mut names = std::collections::HashSet::new();
+        for action in &self.actions {
+            if ["open", "discover"].contains(&action.name.as_str()) {
+                return Err("Reserved action name".into());
+            }
+            if action.name.is_empty()
+                || action.name.len() > 80
+                || !action
+                    .name
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+                || !names.insert(&action.name)
+            {
+                return Err("invalid or duplicate action name".into());
+            }
+            validate_text("action description", &action.description, 1, 1000)?;
+            if !self
+                .ui
+                .as_ref()
+                .map(|ui| ui.views.iter().any(|v| v.id == action.view_id))
+                .unwrap_or(false)
+            {
+                return Err("action view does not exist".into());
+            }
+            super::runtime::validate_schema(&action.input_schema)?;
+        }
         Ok(())
     }
 }

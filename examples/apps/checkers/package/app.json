@@ -1,0 +1,106 @@
+{
+  "apiVersion": 1,
+  "id": "dev.laruche.checkers",
+  "name": "Checkers",
+  "version": "1.0.0",
+  "description": "Jeu de dames local avec regles officielles, tour par tour strict et integration agent.",
+  "publisher": {
+    "name": "LaRuche"
+  },
+  "icon": "ui/icon.svg",
+  "license": "MPL-2.0",
+  "ui": {
+    "views": [
+      {
+        "id": "game",
+        "title": "Checkers",
+        "entry": "ui/index.html",
+        "icon": "ui/icon.svg",
+        "navigation": true,
+        "detachable": true,
+        "multiInstance": false,
+        "waitForReady": true,
+        "minSize": {
+          "width": 360,
+          "height": 520
+        }
+      }
+    ]
+  },
+  "permissions": {
+    "required": [
+      "storage.private",
+      "ui.locale.read",
+      "ui.theme.read"
+    ],
+    "optional": [
+      "agents.invoke"
+    ]
+  },
+  "guide": "Checkers is a turn-based board game on an 8x8 board. The human player controls white by default, and the agent controls black. The agent MUST strictly wait for the human move: never attempt to move when waitingFor is 'human' or turn is 'white'. Read game.state to view the board (64 cells, row-major), score, current turn, legalMoves, and revision. If any capture is available, captures are mandatory. Use game.move with { from, to, revision } to play one legal move when it is your turn. A stale revision or moving out of turn is rejected.",
+  "actions": [
+    {
+      "name": "game.state",
+      "description": "Read current board, turn, legal moves, waiting status and revision.",
+      "viewId": "game",
+      "readOnly": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game.move",
+      "description": "Play one legal checkers move using from, to and the exact current revision.",
+      "viewId": "game",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 63,
+            "description": "Origin square index (0 to 63)"
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 63,
+            "description": "Target square index (0 to 63)"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Current state revision"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "revision"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game.new",
+      "description": "Start a new checkers game.",
+      "viewId": "game",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Current state revision"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

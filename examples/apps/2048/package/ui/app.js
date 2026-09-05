@@ -9,6 +9,8 @@
   var saveRevision=0;
   var locale='fr';
   var touchStart=null;
+  var revision=0, agentBusy=false, agentAuto=false, agentTimer=null;
+  var seat='game-'+Date.now().toString(36);
 
   var copy={
     fr:{score:'Score',best:'Record',undo:'Annuler',newGame:'Nouvelle partie',continue:'Continuer',restart:'Rejouer',instructions:'Utilise les flèches, ZQSD ou glisse sur la grille.',moves:'coups',move:'coup',saved:'Synchronisé',saving:'Sauvegarde...',offline:'Stockage indisponible',won:'2048 atteint !',wonText:'Tu peux continuer pour viser encore plus haut.',lost:'Partie terminée',lostText:'Plus aucun mouvement possible.'},
@@ -94,6 +96,7 @@
     state.score+=result.gained;
     state.best=Math.max(state.best,state.score);
     state.moves+=1;
+    revision+=1;
     render();
     persist();
   }
@@ -101,12 +104,14 @@
   function newGame(){
     previous=state?clone(state):null;
     state=fresh(state&&state.best);
+    revision+=1;seat='game-'+Date.now().toString(36);
     render();
     persist();
   }
 
   function bind(){
     document.addEventListener('keydown',function(event){
+      if(/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;
       var directions={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',q:'left',d:'right',w:'up',z:'up',s:'down'};
       var direction=directions[event.key];
       if(!direction) return;
@@ -129,11 +134,12 @@
     board.addEventListener('pointercancel',function(){ touchStart=null; });
     document.getElementById('newGame').addEventListener('click',newGame);
     document.getElementById('restartGame').addEventListener('click',newGame);
-    document.getElementById('continueGame').addEventListener('click',function(){ state.keepPlaying=true; render(); persist(); });
+    document.getElementById('continueGame').addEventListener('click',function(){ state.keepPlaying=true; revision++; render(); persist(); });
     document.getElementById('undo').addEventListener('click',function(){
       if(!previous) return;
       var current=clone(state);
       state=previous;
+      revision+=1;
       previous=current;
       render();
       persist();
@@ -156,11 +162,42 @@
       if(restored) setSaveStatus('saved');
       else persist();
       return sdk.ui.setTitle('2048');
+    }).then(function(){
+      sdk.actions.register('game.state',snapshot);
+      sdk.actions.register('game.move',async function(args){
+        if(args.revision!==revision)throw new Error('Stale revision: read game.state again');
+        if(snapshot().legalMoves.indexOf(args.direction)===-1)throw new Error('Illegal move');
+        play(args.direction);await saveChain;return snapshot();
+      });
+      sdk.actions.register('game.new',async function(args){if(args.revision!==revision)throw new Error('Stale revision');newGame();await saveChain;return snapshot();});
+      bindAgent();
+      return sdk.ui.setStatus('ready','2048 prêt',100);
     }).catch(function(){
       state=fresh(0);
       render();
       setSaveStatus('offline');
     });
+  }
+
+  function snapshot(){return {board:state.board.slice(),score:state.score,moves:state.moves,revision:revision,legalMoves:(!state.keepPlaying&&engine.hasWon(state.board))?[]:['left','right','up','down'].filter(function(d){return engine.move(state.board,d).moved;}),over:!engine.canMove(state.board)};}
+  function bindAgent(){
+    var select=document.getElementById('agentPlayer'),info=document.getElementById('agentStatus');
+    function refresh(){sdk.agents.list().then(function(agents){select.innerHTML='';agents.forEach(function(a){var o=document.createElement('option');o.value=a.id;o.textContent=(a.avatar||'')+' '+a.name;select.appendChild(o);});document.getElementById('agentTurn').disabled=!agents.length;document.getElementById('agentAuto').disabled=!agents.length;info.textContent=agents.length?(locale==='en'?'Ready for an agent turn.':'Prêt pour un tour agent.'):(locale==='en'?'Authorize an agent in App Permissions.':'Autorise un agent dans les permissions de l’App.');}).catch(function(e){info.textContent=e.message;});}
+    async function turn(){
+      if(agentBusy||!select.value)return;agentBusy=true;
+      document.getElementById('agentTurn').disabled=true;document.getElementById('agentAuto').disabled=true;document.getElementById('agentPause').disabled=false;
+      info.textContent=locale==='en'?'Agent thinking…':'L’agent réfléchit…';
+      try{var result=await sdk.agents.act(select.value,seat,'game.state','Play one legal 2048 move to maximize score.');info.textContent=result.model+' · '+result.text;}
+      catch(e){agentAuto=false;info.textContent=e.message;}
+      finally{agentBusy=false;document.getElementById('agentTurn').disabled=false;document.getElementById('agentAuto').disabled=false;document.getElementById('agentPause').disabled=!agentAuto;}
+      if(agentAuto&&snapshot().legalMoves.length)agentTimer=setTimeout(function(){agentTimer=null;if(agentAuto)turn();},2200);else agentAuto=false;
+    }
+    document.getElementById('refreshAgents').onclick=refresh;
+    document.getElementById('agentTurn').onclick=turn;
+    document.getElementById('agentAuto').onclick=function(){agentAuto=true;turn();};
+    document.getElementById('agentPause').onclick=function(){agentAuto=false;clearTimeout(agentTimer);agentTimer=null;this.disabled=true;info.textContent=agentBusy?(locale==='en'?'Pause after this turn.':'Pause après le tour en cours.'):(locale==='en'?'Paused.':'En pause.');};
+    if(locale==='en'){document.getElementById('agentTurn').textContent='One turn';document.getElementById('agentPlayer').options[0].textContent='Permission required';}
+    refresh();
   }
 
   if(sdk && engine) start();

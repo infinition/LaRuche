@@ -48,6 +48,14 @@
       <button type="button" data-direction="down" aria-label="Bas">↓</button>
       <button type="button" data-direction="right" aria-label="Droite">→</button>
     </nav>
+    <section class="agent-player" aria-label="Agent player">
+      <label>Agent <select id="agentPlayer"><option value="">Autorisations requises</option></select></label>
+      <button id="refreshAgents" class="button secondary" type="button">↻</button>
+      <button id="agentTurn" class="button primary" type="button" disabled>Un tour</button>
+      <button id="agentAuto" class="button secondary" type="button" disabled>Auto</button>
+      <button id="agentPause" class="button secondary" type="button" disabled>Pause</button>
+      <p id="agentStatus" role="status">Autorise un agent dans Apps → Permissions.</p>
+    </section>
 
     <footer>
       <span id="saveStatus" class="save-status">Connexion à LaRuche...</span>

@@ -13,6 +13,7 @@
   var context=null;
   var sequence=0;
   var pending=new Map();
+  var actions=new Map();
   var readyResolve, readyReject;
   var readyPromise=new Promise(function(resolve,reject){ readyResolve=resolve; readyReject=reject; });
   var initTimer=setTimeout(function(){
@@ -34,6 +35,18 @@
   function onPortMessage(event){
     var message=event.data;
     if(!message || message.v!==1 || typeof message.kind!=='string') return;
+    if(message.kind==='host.action' && context){
+      var handler=actions.get(message.action);
+      Promise.resolve().then(function(){
+        if(!handler) throw new Error('Action handler not registered: '+message.action);
+        return handler(message.arguments||{});
+      }).then(function(result){
+        var response={v:1,kind:'action.result',id:message.id,result:result==null?{}:result};
+        if(JSON.stringify(response).length>60*1024) throw new Error('Action result exceeds 60 KiB');
+        send(response);
+      }).catch(function(error){send({v:1,kind:'action.result',id:message.id,error:String(error.message||error).slice(0,1000)});});
+      return;
+    }
     if(message.kind==='host.welcome'){
       context=Object.freeze(message.context||{});
       send({v:1,kind:'app.ready',sessionId:context.sessionId});
@@ -77,7 +90,7 @@
         var timer=setTimeout(function(){
           pending.delete(id);
           reject(bridgeError({code:'timeout',message:'Host request timed out',retryable:true}));
-        },10000);
+        },method==='agents.run'?175000:10000);
         pending.set(id,{resolve:resolve,reject:reject,timer:timer});
         try{ send({v:1,kind:'request',id:id,method:method,params:params||{}}); }
         catch(error){ clearTimeout(timer); pending.delete(id); reject(error); }
@@ -90,6 +103,19 @@
     version:'1.0.0',
     ready:function(){ return readyPromise; },
     call:call,
+    actions:Object.freeze({
+      register:function(name,handler){
+        if(typeof name!=='string'||!/^[A-Za-z0-9._-]{1,80}$/.test(name)||typeof handler!=='function') throw new Error('Invalid action handler');
+        actions.set(name,handler);
+        return function(){actions.delete(name);};
+      }
+    }),
+    agents:Object.freeze({
+      list:function(){return call('agents.list',{}).then(function(r){return r.agents;});},
+      run:function(agentId,sessionId,prompt){return call('agents.run',{agentId:agentId,sessionId:sessionId,prompt:prompt});},
+      act:function(agentId,sessionId,stateAction,prompt){return call('agents.run',{agentId:agentId,sessionId:sessionId,stateAction:stateAction,prompt:prompt||'',act:true});},
+      reset:function(agentId,sessionId){return call('agents.run',{agentId:agentId,sessionId:sessionId,prompt:'',reset:true});}
+    }),
     storage:Object.freeze({
       get:function(key){ return call('storage.get',{key:key}).then(function(result){ return result.value; }); },
       set:function(key,value){ return call('storage.set',{key:key,value:value}); },
@@ -97,6 +123,7 @@
       list:function(prefix){ return call('storage.list',{prefix:prefix||''}).then(function(result){ return result.keys; }); }
     }),
     ui:Object.freeze({
+      setStatus:function(state,message,progress){return call('ui.setStatus',{state:state,message:message||'',progress:progress==null?null:progress});},
       setTitle:function(title){ return call('ui.setTitle',{title:title}); },
       setDirty:function(dirty){ return call('ui.setDirty',{dirty:!!dirty}); },
       requestDetach:function(){ return call('ui.requestDetach',{}); },

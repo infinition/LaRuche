@@ -217,6 +217,11 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/themes/actif", get(themes_api::api_theme_actif_get).post(themes_api::api_theme_actif_set))
         .route("/api/themes/:id", axum::routing::delete(themes_api::api_themes_delete))
         .route("/api/apps", get(apps::api::list))
+        .route("/api/apps/access", get(apps::agent_api::access).post(apps::agent_api::edit))
+        .route("/api/apps/host/sync", post(apps::agent_api::sync))
+        .route("/api/apps/host/reply", post(apps::agent_api::reply))
+        .route("/api/apps/command", post(apps::agent_api::call))
+        .route("/api/apps/agents/run", post(apps::agent_api::run))
         .route(
             "/api/apps/permissions",
             get(apps::api::permission_catalog),

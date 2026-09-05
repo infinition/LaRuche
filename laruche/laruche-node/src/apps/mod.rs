@@ -13,6 +13,9 @@ mod model;
 pub(crate) mod permissions;
 mod registry;
 pub(crate) mod storage;
+pub(crate) mod runtime;
+pub(crate) mod agent_api;
+pub(crate) mod tools;
 
 pub(crate) use model::*;
 pub(crate) use registry::*;

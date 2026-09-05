@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Checkers">
+  <defs>
+    <linearGradient id="pieceGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f5a623"/>
+      <stop offset="100%" stop-color="#ff7a18"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#18181f"/>
+  <rect x="8" y="8" width="24" height="24" fill="#2b2b36"/>
+  <rect x="32" y="8" width="24" height="24" fill="#1f1f27"/>
+  <rect x="8" y="32" width="24" height="32" fill="#1f1f27"/>
+  <rect x="32" y="32" width="24" height="24" fill="#2b2b36"/>
+  <circle cx="32" cy="32" r="18" fill="url(#pieceGrad)" filter="url(#shadow)"/>
+  <circle cx="32" cy="32" r="13" fill="none" stroke="#fff" stroke-width="1.5" stroke-opacity="0.6"/>
+  <path d="M25 35 L23 27 L28 29 L32 24 L36 29 L41 27 L39 35 Z" fill="#ffffff" filter="url(#shadow)"/>
+</svg>

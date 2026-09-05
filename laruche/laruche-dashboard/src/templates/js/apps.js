@@ -61,7 +61,10 @@ LaRuche.Apps = (function(){
   var activeBridge = null;
   var dockBridge = null;
   var docked = null;
-  var supportedCapabilities = ['storage.private','ui.theme.read','ui.locale.read'];
+  var supportedCapabilities = ['storage.private','ui.theme.read','ui.locale.read','agents.invoke'];
+  var hostId = crypto.randomUUID();
+  var hostTimer = null;
+  var hostConfig = {agents:[],policies:{}};
   var bridgeMaxBytes = 64 * 1024;
   var detachedBridges = new Set();
   var detachedSweep = null;
@@ -150,6 +153,7 @@ LaRuche.Apps = (function(){
     if(!bridge) return;
     if(activeBridge===bridge) activeBridge=null;
     if(dockBridge===bridge) dockBridge=null;
+    if(bridge.calls) bridge.calls.forEach(function(call){clearTimeout(call.timer);call.reject(new Error('App view closed'));});
     detachedBridges.delete(bridge);
     clearTimeout(bridge.timer);
     try{ bridge.port.onmessage=null; bridge.port.close(); }catch(error){}
@@ -193,11 +197,13 @@ LaRuche.Apps = (function(){
   }
 
   function requireCapability(bridge,capability){
-    if(bridge.capabilities.indexOf(capability)===-1) throw bridgeFailure('permission_denied','Capability not granted');
+    var current=apps().find(function(a){return a.id===bridge.app.id;});
+    if(!current || !current.enabled || (current.grantedPermissions||[]).indexOf(capability)===-1) throw bridgeFailure('permission_denied','Capability not granted');
   }
 
   function paintBridgeTitle(bridge){
     var display=bridge.title+(bridge.dirty?' •':'');
+    if(!bridge.appReady)display+=' · '+bridge.appStatus+(bridge.progress==null?'':' '+bridge.progress+'%');
     if(bridge.titleNode) bridge.titleNode.textContent=display;
     if(bridge.popup && !bridge.popup.closed){
       try{ bridge.popup.document.title=display; }catch(error){}
@@ -230,6 +236,21 @@ LaRuche.Apps = (function(){
   }
 
   function handleBridgeRequest(bridge,method,params){
+    if(method==='ui.setStatus'){
+      if(['loading','ready','error'].indexOf(params.state)===-1||typeof params.message!=='string'||params.message.length>200)throw new Error('Invalid App status');
+      bridge.appReady=params.state==='ready';bridge.appStatus=params.state+': '+params.message;
+      bridge.progress=typeof params.progress==='number'?Math.max(0,Math.min(100,Math.round(params.progress))):null;
+      paintBridgeTitle(bridge);return {};
+    }
+    if(method==='agents.list'){
+      requireCapability(bridge,'agents.invoke');
+      var ids=(hostConfig.policies[bridge.app.id]||{}).invokeAgents||[];
+      return {agents:[{id:'laruche',name:'LaRuche',avatar:'🐝'}].concat(hostConfig.agents).filter(function(a){return ids.indexOf(a.id)!==-1;}).map(function(a){return {id:a.id,name:a.name,avatar:a.avatar};})};
+    }
+    if(method==='agents.run'){
+      requireCapability(bridge,'agents.invoke');
+      return hostApi('/api/apps/agents/run',{hostId:hostId,instanceId:bridge.instanceId,appId:bridge.app.id,agentId:params.agentId,sessionId:params.sessionId,prompt:params.prompt,reset:!!params.reset,act:!!params.act,stateAction:params.stateAction||null});
+    }
     if(method.indexOf('storage.')===0){
       return backendStorage(bridge,method,params);
     }
@@ -256,6 +277,12 @@ LaRuche.Apps = (function(){
 
   function onBridgeMessage(bridge,message){
     if(!bridgeIsLive(bridge) || !bridgeMessageIsSafe(message) || message.v!==1) return;
+    if(bridge.ready && message.kind==='action.result'){
+      var call=bridge.calls.get(message.id); if(!call) return;
+      bridge.calls.delete(message.id);clearTimeout(call.timer);
+      if(message.error) call.reject(new Error(String(message.error)));else call.resolve(message.result||{});
+      return;
+    }
     if(!bridge.hello){
       if(message.kind!=='app.hello' || message.nonce!==bridge.nonce || message.appId!==bridge.app.id || message.viewId!==bridge.view.id || message.apiVersion!==1){ revokeBridge(bridge,true); return; }
       bridge.hello=true;
@@ -292,6 +319,7 @@ LaRuche.Apps = (function(){
     if(!window.MessageChannel || !window.crypto || !crypto.getRandomValues) return null;
     var channel=new MessageChannel();
     var bridge={app:app,view:view,titleNode:titleNode||null,title:title,dirty:false,popup:popup||null,port:channel.port1,nonce:randomToken(),sessionId:randomToken(),capabilities:bridgeCapabilities(app),hello:false,ready:false,pending:new Set(),requests:[],timer:null};
+    bridge.instanceId=crypto.randomUUID();bridge.calls=new Map();bridge.appReady=view.waitForReady!==true;bridge.appStatus=bridge.appReady?'ready':'loading';bridge.progress=null;
     if(popup) detachedBridges.add(bridge);
     else if(mode==='dock'){ if(dockBridge) revokeBridge(dockBridge); dockBridge=bridge; }
     else { revokeBridge(); activeBridge=bridge; }
@@ -361,7 +389,8 @@ LaRuche.Apps = (function(){
     if(dock){ dock.textContent='◧ '+t('apps.dock'); dock.title=t('apps.dockHint'); dock.onclick=dockActive; }
     syncInstallButton();
     renderLoading();
-    load(false);
+          load(false);
+    if(!hostTimer) syncHost();
   }
 
   function enter(){
@@ -400,6 +429,49 @@ LaRuche.Apps = (function(){
   }
 
   function rescan(){ load(true); }
+
+  function hostApi(path,body){
+    return fetch(LaRuche.API.base+path,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {};}).then(function(data){if(!r.ok)throw new Error(data.error&&data.error.message||'Request failed ('+r.status+')');return data;});});
+  }
+  function liveBridges(){return [activeBridge,dockBridge].concat(Array.from(detachedBridges)).filter(function(b){return b&&b.ready;});}
+  function syncHost(){
+    var instances=liveBridges().map(function(b){return {instanceId:b.instanceId,appId:b.app.id,version:b.app.activeVersion,viewId:b.view.id,ready:b.appReady,status:b.appStatus,progress:b.progress};});
+    hostApi('/api/apps/host/sync',{hostId:hostId,instances:instances}).then(function(data){
+      hostConfig=data.config;
+      if(catalogue){catalogue.apps=data.apps;reconcileDetachedBridges(catalogue);
+        if(activeBridge){var current=data.apps.find(function(a){return a.id===activeBridge.app.id;});if(!current||!current.enabled||current.activeVersion!==activeBridge.app.activeVersion){revokeBridge();showOverview();}}
+      }
+      data.commands.forEach(function(command){
+        executeHostCommand(command).then(function(result){return hostApi('/api/apps/host/reply',{hostId:hostId,id:command.id,result:result});}).catch(function(error){return hostApi('/api/apps/host/reply',{hostId:hostId,id:command.id,error:String(error.message||error).slice(0,1000)}).catch(function(){});});
+      });
+    }).catch(function(){}).finally(function(){hostTimer=setTimeout(syncHost,1000);});
+  }
+  function executeHostCommand(command){
+    var payload=command.payload;
+    var app=apps().find(function(a){return a.id===command.appId&&a.enabled&&a.activeVersion===payload.version;});
+    if(!app) return Promise.reject(new Error('App disabled or updated'));
+    if(command.operation==='open'){
+      var view=app.manifest.ui.views.find(function(v){return v.id===payload.viewId;});
+      if(!view) return Promise.reject(new Error('View missing'));
+      var existing=liveBridges().find(function(b){return b.app.id===app.id&&b.view.id===view.id;});
+      if(existing)return Promise.resolve({opened:true,ready:existing.appReady,status:existing.appStatus,instanceId:existing.instanceId});
+      showView(app,view);
+      if(view.detachable!==false)dockActive();else LaRuche.Router.go('apps/'+encodeURIComponent(app.id)+'/'+encodeURIComponent(view.id));
+      return new Promise(function(resolve,reject){
+        var deadline=Date.now()+8000;
+        function ready(){var b=liveBridges().find(function(b){return b.app.id===app.id&&b.view.id===view.id;});if(b)resolve({opened:true,ready:b.appReady,status:b.appStatus,instanceId:b.instanceId});else if(Date.now()>deadline)reject(new Error('App did not connect'));else setTimeout(ready,100);}
+        ready();
+      });
+    }
+    var bridge=liveBridges().find(function(b){return b.app.id===app.id&&b.view.id===payload.viewId&&(!payload.instanceId||payload.instanceId===b.instanceId);});
+    if(!bridge)return Promise.reject(new Error('App instance disconnected'));
+    if(!bridge.appReady)return Promise.reject(new Error('App is not ready: '+bridge.appStatus));
+    return new Promise(function(resolve,reject){
+      var timer=setTimeout(function(){bridge.calls.delete(command.id);reject(new Error('App action timed out'));},15000);
+      bridge.calls.set(command.id,{resolve:resolve,reject:reject,timer:timer});
+      bridge.port.postMessage({v:1,kind:'host.action',id:command.id,action:payload.action,arguments:payload.arguments});
+    });
+  }
 
   function syncInstallButton(){
     var button=document.getElementById('appsInstall');
@@ -444,6 +516,7 @@ LaRuche.Apps = (function(){
         LaRuche.Toast.show(t('apps.installDone')+' '+(manifest.name||installed.id)+' '+(installed.activeVersion||''),'ok');
         pendingRoute='overview';
         load(false);
+        if(LaRuche.AppAccess) LaRuche.AppAccess.open(installed.id,true);
       })
       .catch(function(error){ LaRuche.Toast.show(error.message||t('apps.installFailed'),'err'); })
       .finally(function(){ installing=false; syncInstallButton(); });
@@ -533,7 +606,7 @@ LaRuche.Apps = (function(){
         var permissions=manifestPermissions(app,'required').concat(manifestPermissions(app,'optional'));
         html+='<article class="apps-card"><div class="apps-card-top"><div class="apps-card-icon">'+appIconMarkup(app,null,initial(name))+'</div><div class="apps-card-copy"><div class="apps-card-name">'+esc(name)+'</div><div class="apps-card-meta">'+esc(app.id)+' · '+esc(app.activeVersion||'')+'</div></div></div>'+
           '<div class="apps-card-desc">'+esc(manifest.description||'')+'</div>'+
-          (permissions.length?'<div class="apps-card-permissions"><strong>'+esc(t('apps.permissions'))+'</strong>'+permissionMarkup(app,index)+'</div>':'')+
+          '<button type="button" class="apps-btn apps-rights-button" data-app-rights="'+esc(app.id)+'">⚿ '+esc(t('apps.permissions'))+' · '+permissions.length+'</button>'+
           '<div class="apps-card-foot"><span class="apps-state '+state+'"><span class="apps-state-dot"></span>'+esc(label)+'</span>'+
           '<button type="button" class="apps-btn" data-app-toggle="'+index+'" '+(disabled?'disabled title="'+esc(app.error||t('apps.adminOnly'))+'"':'')+'>'+esc(action)+'</button></div>'+
           (app.error?'<div class="apps-error">'+esc(app.error)+'</div>':'')+'</article>';
@@ -548,11 +621,13 @@ LaRuche.Apps = (function(){
     }
     stage.innerHTML=html+'</div>';
     stage.querySelectorAll('[data-app-toggle]').forEach(function(button){ button.onclick=function(){ toggleApp(parseInt(button.dataset.appToggle,10)); }; });
+    stage.querySelectorAll('[data-app-rights]').forEach(function(button){button.onclick=function(){LaRuche.AppAccess.open(button.dataset.appRights);};});
   }
 
   function toggleApp(index){
     var app=apps()[index]; if(!app || app.error || !isAdmin()) return;
     var action=app.enabled?'disable':'enable';
+    if(action==='enable' && LaRuche.AppAccess){LaRuche.AppAccess.open(app.id,true);return;}
     var options={method:'POST',credentials:'include'};
     if(action==='enable'){
       var granted=manifestPermissions(app,'required');

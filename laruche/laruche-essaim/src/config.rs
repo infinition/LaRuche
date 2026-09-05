@@ -127,6 +127,8 @@ pub struct EssaimConfig {
     /// and route the recurring output back there.
     #[serde(skip)]
     pub origin_channel: Option<String>,
+    #[serde(skip)]
+    pub origin_user_id: Option<uuid::Uuid>,
     /// Home channel (set by the user via `/sethome`): default destination for proactive
     /// messages (cron/missions) when no origin channel is known. Persisted.
     #[serde(default)]
@@ -298,6 +300,7 @@ impl Default for EssaimConfig {
             reasoning_effort: String::new(),
             reasoning_effort_aux: String::new(),
             origin_channel: None,
+            origin_user_id: None,
             home_channel: None,
             reactions_agent: false,
             dynamic_tool_selection: false,

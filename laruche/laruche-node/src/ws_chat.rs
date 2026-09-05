@@ -43,9 +43,9 @@ async fn arreter_run(state: &Arc<AppState>, session_id: Uuid) {
 pub(crate) async fn ws_chat_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
-    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+    headers: axum::http::HeaderMap,
 ) -> axum::response::Response {
-    let user_id = params.get("user_id").and_then(|s| Uuid::parse_str(s).ok());
+    let user_id = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
     ws.on_upgrade(move |socket| ws_chat_connection(socket, state, user_id))
 }
 
@@ -442,6 +442,7 @@ pub(crate) async fn ws_chat_connection(
             }
 
             let mut config = ec_snapshot;
+            config.origin_user_id = ws_user_id;
             // List of reachable mesh hives → injected into the context (the agent can `mesh_send`).
             {
                 let listener = state_clone.listener.read().await;

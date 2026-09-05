@@ -24,6 +24,12 @@ pub(crate) enum GrantError {
 pub(crate) fn catalog() -> Vec<PermissionDescriptor> {
     vec![
         PermissionDescriptor {
+            id: "agents.invoke",
+            risk: "high",
+            title_fr: "Solliciter les agents autorisés (consomme des tokens)",
+            title_en: "Invoke authorized agents (uses model tokens)",
+        },
+        PermissionDescriptor {
             id: "storage.private",
             risk: "low",
             title_fr: "Stockage privé de l'app",
@@ -47,7 +53,7 @@ pub(crate) fn catalog() -> Vec<PermissionDescriptor> {
 pub(crate) fn is_available(permission: &str) -> bool {
     matches!(
         permission,
-        "storage.private" | "ui.locale.read" | "ui.theme.read"
+        "storage.private" | "ui.locale.read" | "ui.theme.read" | "agents.invoke"
     )
 }
 

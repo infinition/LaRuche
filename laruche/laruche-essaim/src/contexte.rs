@@ -47,6 +47,7 @@ const SEMANTIC_CORE: &[&str] = &[
     "skill_view",
     // Universal tool discovery (retrieval failsafe) - always present.
     "tool_search",
+    "app_list", "app_guide", "app_open", "app_call", "app_wait",
     "tool_call",
     // Common actions - always useful (otherwise the agent can do nothing)
     "web_deep_search",
@@ -79,6 +80,7 @@ const SEMANTIC_CORE: &[&str] = &[
 ];
 
 const CORE_TOOL_NAMES: &[&str] = &[
+    "app_list", "app_guide", "app_open", "app_call", "app_wait",
     "memory_search",
     "memory_write",
     "memory_update_item",

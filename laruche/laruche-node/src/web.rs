@@ -54,6 +54,8 @@ const APP_JS: &str = concat!(
     "\n",
     include_str!("../../laruche-dashboard/src/templates/js/apps.js"),
     "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/apps-access.js"),
+    "\n",
     // After chat.js: it decorates rows chat.js creates, and calls back into LaRuche.Chat.
     include_str!("../../laruche-dashboard/src/templates/js/reactions.js"),
     "\n",

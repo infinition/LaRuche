@@ -442,6 +442,7 @@ pub(crate) struct AppState {
     /// resolved from the immutable versioned package directory, never from a path
     /// supplied by a browser request.
     pub(crate) apps: Arc<RwLock<crate::apps::AppRegistry>>,
+    pub(crate) app_runtime: crate::apps::runtime::Runtime,
 }
 
 /// One job in flight: who is working, with which model, toward which channel.

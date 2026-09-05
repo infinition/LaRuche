@@ -1562,6 +1562,7 @@ async fn main() -> Result<()> {
         travaux: Arc::new(std::sync::RwLock::new(HashMap::new())),
         mcp_verrou: Arc::new(std::sync::Mutex::new(Default::default())),
         apps: Arc::new(RwLock::new(apps)),
+        app_runtime: apps::runtime::Runtime::load(std::path::PathBuf::from("apps/access.json"))?,
     });
 
     // Published once, right after construction. The tool registry is built long before
@@ -1570,6 +1571,9 @@ async fn main() -> Result<()> {
     // field. One Arc for the process lifetime; nothing to reclaim on a daemon that exits
     // with the process.
     let _ = crate::abeilles_local::ETAT_NOEUD.set(state.clone());
+    for kind in ["app_list", "app_guide", "app_open", "app_call", "app_wait"] {
+        state.essaim_registry.enregistrer(Box::new(apps::tools::AppTool(kind)));
+    }
 
     // Persist the state RIGHT AWAY: the shutdown save only runs on a clean exit
     // (Ctrl+C / tray Quit). Closing the console window kills the process without

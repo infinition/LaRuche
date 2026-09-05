@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-touch-icon" content="./icon.svg">
+  <meta name="theme-color" content="#101014">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' /apps-runtime/; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self';">
+  <title>Checkers</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="/apps-runtime/v1.js" defer></script>
+  <script src="./game.js" defer></script>
+  <script src="./ai.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="game-head">
+      <div>
+        <p class="eyebrow" data-i18n="eyebrow">LARUCHE APP</p>
+        <h1 data-i18n="title">Jeu de Dames</h1>
+      </div>
+      <div class="scores" aria-label="Scores">
+        <div class="score-card">
+          <span class="score-label" data-i18n="white">Blancs</span>
+          <strong id="scoreWhite">12</strong>
+        </div>
+        <div class="score-card">
+          <span class="score-label" data-i18n="black">Noirs</span>
+          <strong id="scoreBlack">12</strong>
+        </div>
+      </div>
+    </header>
+
+    <section class="turn-banner" id="turnBanner" aria-live="polite">
+      <div class="turn-indicator" id="turnBadge"></div>
+      <div class="turn-info">
+        <strong id="turnLabel" data-i18n="yourTurn">A votre tour</strong>
+        <span id="turnDetails" data-i18n="instructions">Selectionnez un pion puis la case cible.</span>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <div class="toolbar-options">
+        <label class="control-label">
+          <span data-i18n="opponent">Adversaire</span>
+          <select id="opponentMode">
+            <option value="agent" data-i18n="agent">Agent</option>
+            <option value="aiLocal" data-i18n="aiLocal">IA locale</option>
+          </select>
+        </label>
+        <label class="control-label">
+          <span data-i18n="playAs">Jouer</span>
+          <select id="userColor">
+            <option value="white" data-i18n="white">Blancs</option>
+            <option value="black" data-i18n="black">Noirs</option>
+          </select>
+        </label>
+      </div>
+      <div class="toolbar-actions">
+        <button id="undoBtn" type="button" class="button secondary" disabled data-i18n="undo">Annuler</button>
+        <button id="newGameBtn" type="button" class="button primary" data-i18n="newGame">Nouvelle partie</button>
+      </div>
+    </section>
+
+    <section class="game-wrap" aria-label="Damier">
+      <div id="board" class="board" role="grid" aria-label="Plateau de jeu de dames"></div>
+      <div id="overlay" class="overlay" hidden>
+        <strong id="overlayTitle"></strong>
+        <p id="overlayText"></p>
+        <div class="overlay-actions">
+          <button id="restartBtn" type="button" class="button primary" data-i18n="newGame">Nouvelle partie</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="agent-player" id="agentSection" aria-label="Controle Agent">
+      <label class="agent-select-label">
+        <span data-i18n="agentPlayer">Agent</span>
+        <select id="agentSelect">
+          <option value="" data-i18n="permissionRequired">Autorisation requise</option>
+        </select>
+      </label>
+      <div class="agent-actions">
+        <button id="refreshAgentsBtn" class="button secondary" type="button" title="Actualiser" aria-label="Actualiser" data-i18n="refresh">↻</button>
+        <button id="agentTurnBtn" class="button primary" type="button" disabled data-i18n="oneTurn">Tour agent</button>
+        <button id="agentAutoBtn" class="button secondary" type="button" disabled data-i18n="autoPlay">Reponse auto</button>
+        <button id="agentPauseBtn" class="button secondary" type="button" disabled data-i18n="pause">Pause</button>
+      </div>
+      <p id="agentStatus" role="status" data-i18n="waitingUser">En attente de votre coup.</p>
+    </section>
+
+    <footer>
+      <span id="saveStatus" class="save-status">Connexion a LaRuche...</span>
+      <span id="moveCount">0 coups</span>
+    </footer>
+  </main>
+</body>
+</html>

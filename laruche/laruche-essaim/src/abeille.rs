@@ -136,6 +136,8 @@ pub struct ContextExecution {
     /// Originating channel of the request (`telegram:12345`, `discord:bob`, `web`...). Lets
     /// tools like `cron_create` route the recurring job back to where it was requested.
     pub channel: Option<String>,
+    /// Authenticated user of the originating run, never supplied by tool arguments.
+    pub user_id: Option<uuid::Uuid>,
     /// Tools the user switched off. Enforced HERE, at the single point every execution
     /// goes through, because filtering the schema only hides a tool from the model: an
     /// agent that knows the name anyway (from `tool_call`, from `tool_search`, from its
@@ -154,6 +156,7 @@ impl Default for ContextExecution {
             working_dir: crate::config::dossier_travail(),
             live_output: None,
             channel: None,
+            user_id: None,
         }
     }
 }

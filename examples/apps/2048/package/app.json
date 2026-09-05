@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "id": "dev.laruche.2048",
   "name": "2048",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Jeu 2048 local avec sauvegarde privée, commandes tactiles et vue détachable.",
   "publisher": {
     "name": "LaRuche"
@@ -19,6 +19,7 @@
         "navigation": true,
         "detachable": true,
         "multiInstance": false,
+        "waitForReady": true,
         "minSize": {
           "width": 360,
           "height": 520
@@ -32,6 +33,12 @@
       "ui.locale.read",
       "ui.theme.read"
     ],
-    "optional": []
-  }
+    "optional": ["agents.invoke"]
+  },
+  "guide": "2048 is a solitaire puzzle. Use game.state to read the 16 cells in row-major order, score, revision and legalMoves. Use game.move with one of those legal directions and the exact revision. The engine merges equal adjacent tiles once per move and adds a random tile. A stale revision is refused: read state again, do not replay the old move. game.new starts a new game and requires its own permission. The human may play between agent turns. Agents should maximize score; never invent board state. The App's SDK agents.act can run one authorized model turn. Each seat uses a distinct session id.",
+  "actions": [
+    {"name":"game.state","description":"Read the board, score, legal moves and revision.","viewId":"game","readOnly":true,"inputSchema":{"type":"object","properties":{},"additionalProperties":false}},
+    {"name":"game.move","description":"Play one legal direction at the exact current revision.","viewId":"game","inputSchema":{"type":"object","properties":{"direction":{"type":"string","enum":["left","right","up","down"]},"revision":{"type":"integer","minimum":0}},"required":["direction","revision"],"additionalProperties":false}},
+    {"name":"game.new","description":"Start a new game, replacing the current board.","viewId":"game","inputSchema":{"type":"object","properties":{"revision":{"type":"integer","minimum":0}},"required":["revision"],"additionalProperties":false}}
+  ]
 }
