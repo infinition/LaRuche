@@ -220,6 +220,17 @@ navigateur.
   le depot. Le chemin de detection, l'echec propre et le repli sont testes ;
   l'execution Python elle-meme demande de lancer le script de vendoring.
 
+## Correction 1.3.2
+
+- Le guide listait vingt-cinq actions sans dire une seule fois qu'elles passent
+  par `app_call`. Un agent lisait `notebook.state {includeOutputs?}`, l'appelait
+  comme un outil de l'hote, recevait `Unknown tool`, puis inventait `revision: 0`
+  pour continuer. Les guides du 2048 et des Dames montraient deja l'enveloppe,
+  celui-ci l'oubliait.
+- La section 3 s'ouvre desormais sur la forme d'appel, avec un exemple complet,
+  et rappelle que seuls app_list, app_guide, app_open et app_wait sont des outils
+  appelables directement.
+
 ## Correction 1.3.1
 
 - Le guide et le noyau annoncaient Python 3.11. Le script de vendoring epingle
