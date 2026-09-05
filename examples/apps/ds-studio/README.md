@@ -220,6 +220,18 @@ navigateur.
   le depot. Le chemin de detection, l'echec propre et le repli sont testes ;
   l'execution Python elle-meme demande de lancer le script de vendoring.
 
+## Correction 1.3.3
+
+- La section 10 interdisait le reseau, le disque et le shell « depuis une
+  cellule ». Cette precision ouvrait la porte qu'elle croyait fermer: un agent en
+  a deduit que le shell de l'hote, lui, etait libre. Il a lu le stockage prive de
+  l'App avec PowerShell, puis fouille les sources du paquet pour deviner comment
+  tracer en 3D, alors que le guide documente `scatter3d` et `color`.
+- L'interdiction porte desormais sur les outils de l'agent autant que sur les
+  cellules, et le cas qui declenche la derive est nomme: un `data.list` vide
+  signifie qu'il n'y a pas de donnees, pas qu'elles se cachent sur le disque. La
+  reponse est `data.add`.
+
 ## Correction 1.3.2
 
 - Le guide listait vingt-cinq actions sans dire une seule fois qu'elles passent
