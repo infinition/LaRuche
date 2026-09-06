@@ -1276,6 +1276,58 @@
     return row;
   }
 
+  /* Une confirmation qui vit dans la page, et non dans le navigateur.
+   *
+   * L'App est servie dans une iframe en bac a sable dont les jetons sont
+   * `allow-scripts allow-forms allow-downloads`. Sans `allow-modals`,
+   * `window.confirm()` n'ouvre rien et rend `false`: le bouton de suppression
+   * d'un carnet sortait donc immediatement, sans dialogue, sans erreur et sans
+   * rien supprimer. Il paraissait mort.
+   *
+   * Un `<dialog>` est un element du DOM et non une fenetre du navigateur: le bac
+   * a sable ne le concerne pas. Corriger ici plutot que d'ajouter `allow-modals`
+   * a toutes les Apps: une App qui peut ouvrir un modal du navigateur peut aussi
+   * bloquer l'interface entiere de LaRuche. */
+  function confirmer(message) {
+    return new Promise(function(resolve){
+      var boite = document.createElement('dialog');
+      boite.className = 'confirm-box';
+      var texte = document.createElement('p');
+      texte.textContent = message;
+      boite.appendChild(texte);
+
+      var rangee = document.createElement('div');
+      rangee.className = 'confirm-actions';
+      var non = document.createElement('button');
+      non.type = 'button';
+      non.className = 'button';
+      non.textContent = t('confirmNo');
+      var oui = document.createElement('button');
+      oui.type = 'button';
+      oui.className = 'button danger';
+      oui.textContent = t('confirmYes');
+      rangee.appendChild(non);
+      rangee.appendChild(oui);
+      boite.appendChild(rangee);
+      document.body.appendChild(boite);
+
+      var repondu = false;
+      function fermer(reponse) {
+        if (repondu) return;
+        repondu = true;
+        try { boite.close(); } catch (e) {}
+        boite.remove();
+        resolve(reponse);
+      }
+      non.addEventListener('click', function(){ fermer(false); });
+      oui.addEventListener('click', function(){ fermer(true); });
+      // Echap ferme un <dialog> sans passer par nos boutons.
+      boite.addEventListener('cancel', function(event){ event.preventDefault(); fermer(false); });
+      if (typeof boite.showModal === 'function') boite.showModal(); else boite.setAttribute('open', '');
+      oui.focus();
+    });
+  }
+
   function triggerDownload(href, filename, revoke) {
     var link = document.createElement('a');
     link.href = href;
@@ -1650,12 +1702,16 @@
 
     element('deleteNotebookBtn').addEventListener('click', function(){
       var title = notebook.title || t('untitledNotebook');
-      if (!window.confirm(t('deleteNotebookConfirm', { title: title }))) return;
-      deleteNotebook(notebook.id).then(function(){
-        toast(t('notebookDeleted', { title: title }));
-      }).catch(function(error){
-        toast(String(error.message || error), 'error');
-      });
+      confirmer(t('deleteNotebookConfirm', { title: title }))
+        .then(function(accord){
+          if (!accord) return null;
+          return deleteNotebook(notebook.id).then(function(){
+            toast(t('notebookDeleted', { title: title }));
+          });
+        })
+        .catch(function(error){
+          toast(String(error.message || error), 'error');
+        });
     });
 
     element('addCodeBtn').addEventListener('click', function(){

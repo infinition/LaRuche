@@ -156,5 +156,7 @@
   "packagesNone": "No extra package.",
   "packagesOffline": "The kernel is running without network: nothing can be installed.",
   "plotlyMissing": "A Plotly figure arrived, but its rendering library is not loaded.",
-  "plotlyFullscreen": "Fullscreen"
+  "plotlyFullscreen": "Fullscreen",
+  "confirmYes": "Confirm",
+  "confirmNo": "Cancel"
 }

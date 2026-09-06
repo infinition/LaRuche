@@ -665,6 +665,19 @@ th.sorted-desc::after { content: " ↓"; color: var(--amber); }
   background: #ffffff;
 }
 
+.confirm-box {
+  border: 1px solid var(--border, #2a2a2e);
+  border-radius: 10px;
+  background: var(--bg-panel, #16161a);
+  color: inherit;
+  padding: 16px;
+  max-width: 420px;
+  font: inherit;
+}
+.confirm-box::backdrop { background: rgba(0, 0, 0, .55); }
+.confirm-box p { margin: 0 0 14px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
 .output-chart { position: relative; }
 
 /* Plotly dessine dans ce conteneur et lit sa hauteur au montage: sans hauteur

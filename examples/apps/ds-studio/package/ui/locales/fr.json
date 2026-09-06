@@ -156,5 +156,7 @@
   "packagesNone": "Aucun paquet supplementaire.",
   "packagesOffline": "Le noyau tourne sans reseau : aucune installation possible.",
   "plotlyMissing": "Figure Plotly recue, mais la bibliotheque de rendu n'est pas chargee.",
-  "plotlyFullscreen": "Plein ecran"
+  "plotlyFullscreen": "Plein ecran",
+  "confirmYes": "Confirmer",
+  "confirmNo": "Annuler"
 }

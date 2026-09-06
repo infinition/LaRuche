@@ -88,6 +88,56 @@ fn noeud_repond(url: &str) -> bool {
 /// de repertoire, car le chemin `target/<profil>/` est COMPILE dans le binaire -
 /// lancer la coque depuis un dossier vide ne l'empeche donc pas de retrouver le
 /// noeud du depot, et le « mode client » demarrait un serveur local malgre tout.
+/// Le dossier ou deposer un fichier telecharge.
+///
+/// `dirs` est deja une dependance du noeud, pas du bureau: plutot que de l'ajouter
+/// pour une ligne, on lit les variables que les trois systemes renseignent. Un
+/// echec rend `None`, et l'appelant laisse alors la webview decider.
+fn dossier_telechargements() -> Option<PathBuf> {
+    #[cfg(windows)]
+    let base = std::env::var_os("USERPROFILE").map(PathBuf::from);
+    #[cfg(not(windows))]
+    let base = std::env::var_os("HOME").map(PathBuf::from);
+
+    let base = base?;
+    let telechargements = base.join("Downloads");
+    if telechargements.is_dir() {
+        return Some(telechargements);
+    }
+    // Sous Linux le dossier porte le nom de la langue de session.
+    let localise = base.join("Telechargements");
+    if localise.is_dir() {
+        return Some(localise);
+    }
+    base.is_dir().then_some(base)
+}
+
+/// Un nom de fichier tire de l'URL, quand la webview n'en propose aucun.
+///
+/// Une URL `blob:` n'a qu'un identifiant opaque, donc rien d'utilisable: on rend
+/// alors un nom horodate plutot qu'un vide, qui ferait echouer l'ecriture.
+fn nom_de_telechargement(url: &tauri::Url) -> String {
+    let candidat = url
+        .path_segments()
+        .and_then(|mut s| s.next_back())
+        .map(str::to_string)
+        .unwrap_or_default();
+    let propre: String = candidat
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || ".-_".contains(*c))
+        .collect();
+    if propre.len() >= 3 && propre.contains('.') {
+        return propre;
+    }
+    format!(
+        "laruche-{}.bin",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    )
+}
+
 /// Ou l'empaqueteur a pu deposer le noeud, selon la cible.
 ///
 /// Tauri copie `resources` a un endroit qui depend du format, et seule la
@@ -522,6 +572,45 @@ fn main() {
                 // comportement normal dans un navigateur, un passage par le
                 // noeud ici, qui sait ouvrir le navigateur du systeme.
                 .initialization_script(&script_init)
+                // Sans ce gestionnaire, un telechargement ne fait RIEN ici.
+                //
+                // Un graphique se sauve par un `<a download>` sur une URL blob:
+                // dans un navigateur, le fichier part dans les telechargements
+                // sans qu'on ait rien a ecrire. Dans cette webview, la demande
+                // arrive sans destination et personne ne repond: pas de fichier,
+                // pas de dialogue, pas d'erreur. Un bouton mort de plus.
+                //
+                // On depose donc dans le dossier Telechargements du compte, et on
+                // le dit dans le journal plutot que d'ouvrir un selecteur: la page
+                // a deja choisi un nom de fichier, et une boite de dialogue pour
+                // confirmer un choix deja fait n'apporte rien.
+                .on_download(|_webview, evenement| match evenement {
+                    tauri::webview::DownloadEvent::Requested { url, destination } => {
+                        if destination.as_os_str().is_empty() {
+                            let nom = nom_de_telechargement(&url);
+                            // Sans dossier connu on ne touche a rien: laisser la
+                            // webview decider vaut mieux que de refuser, elle a
+                            // parfois un defaut que nous n'avons pas.
+                            if let Some(dossier) = dossier_telechargements() {
+                                *destination = dossier.join(nom);
+                            }
+                        }
+                        true
+                    }
+                    tauri::webview::DownloadEvent::Finished { url, path, success } => {
+                        if success {
+                            eprintln!(
+                                "LaRuche: telechargement enregistre dans {}",
+                                path.map(|p| p.display().to_string())
+                                    .unwrap_or_else(|| "(chemin inconnu)".into())
+                            );
+                        } else {
+                            eprintln!("LaRuche: telechargement echoue pour {url}");
+                        }
+                        true
+                    }
+                    _ => true,
+                })
                 .build()?;
 
             // Des que la cible est connue, la fenetre y va. Un fil de plus plutot
