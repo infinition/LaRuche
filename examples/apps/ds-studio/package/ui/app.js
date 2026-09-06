@@ -31,6 +31,11 @@
   var notebook = null;
   var runner = null;
   var kernel = null;
+  /* Ce que la detection au demarrage a trouve, garde pour un carnet neuf.
+     Un carnet restaure reste sur SON noyau, ce qui est juste et ce qui
+     enfermait: sans cette memoire, un carnet neuf heritait du noyau courant
+     et il n'existait aucun chemin pour revenir a Python. */
+  var kernelsAvailable = { js: true, python: false, preferred: 'js' };
   var kernelStatus = { state: 'loading', progress: 0, messageKey: 'kernelStarting' };
 
   var theme = 'dark';
@@ -235,6 +240,7 @@
     setBoot(5, 'kernelDetecting');
 
     var availability = await Kernels.detect();
+    kernelsAvailable = availability;
     var restored = await restore();
 
     /* Un carnet restaure garde SON langage, un carnet neuf prend le meilleur.
@@ -549,6 +555,13 @@
 
     if (library.notebooks.length >= MAX_NOTEBOOKS) {
       throw new Error('The library holds at most ' + MAX_NOTEBOOKS + ' notebooks. Delete one first.');
+    }
+
+    /* Un carnet neuf n'a pas de cellules, donc aucun langage a preserver: il
+       part sur le meilleur noyau disponible. C'est la seule porte de sortie
+       quand la session a demarre sur un carnet ecrit dans l'autre langage. */
+    if (kernelsAvailable[kernelsAvailable.preferred] && kernel.id !== kernelsAvailable.preferred) {
+      await basculerNoyau(kernelsAvailable.preferred);
     }
 
     var created = Notebooks.create({ title: title || '' });
@@ -1472,6 +1485,36 @@
   /* Ce que le noyau porte vraiment, roues chargees puis ajouts par micropip.
    * La liste vient du noyau et non d'un registre tenu a part: deux comptes
    * separes finissent toujours par diverger, et c'est celui qui ment qu'on lit. */
+  /* Remplace le noyau en cours d'execution.
+   *
+   * Tout ce qui vivait dans l'ancien espace de noms disparait, et c'est
+   * inevitable: deux interpreteurs ne partagent pas leurs variables. On le dit
+   * plutot que de laisser l'utilisateur decouvrir que ses variables se sont
+   * evaporees. Si le nouveau noyau ne demarre pas, on garde l'ancien. */
+  async function basculerNoyau(voulu) {
+    var ancien = kernel;
+    var candidat = Kernels.create(voulu, store);
+    try {
+      await candidat.init(function(progress, messageKey){
+        setBoot(progress, messageKey);
+        reportStatus('loading', messageKey, progress);
+      });
+    } catch (erreur) {
+      toast(t('kernelPythonFailed', { message: String(erreur.message || erreur) }), 'error');
+      kernel = ancien;
+      return false;
+    }
+    kernel = candidat;
+    if (ancien && typeof ancien.reset === 'function') {
+      try { ancien.reset(); } catch (e) {}
+    }
+    setBoot(100, 'kernelReady');
+    await reportStatus('ready', 'kernelReady', 100);
+    renderPackages();
+    renderVariables();
+    return true;
+  }
+
   function renderPackages() {
     var liste = element('packageList');
     if (!liste) return;
