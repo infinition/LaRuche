@@ -906,7 +906,7 @@ mod tests_super_admin {
     #[test]
     fn un_utilisateur_plus_ancien_ne_prime_pas_sur_un_admin() {
         let vieux = compte("Codex Verif", auth_user::UserRole::User, 90);
-        let patron = compte("infinition", auth_user::UserRole::Admin, 60);
+        let patron = compte("admin", auth_user::UserRole::Admin, 60);
         let attendu = patron.id;
         let m = table(vec![vieux, patron]);
         assert_eq!(super_admin_id(&m), Some(attendu));
