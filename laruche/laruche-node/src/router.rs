@@ -232,6 +232,14 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
                 .layer(axum::extract::DefaultBodyLimit::max(128 * 1024)),
         )
         .route(
+            // Le corps porte le contenu d'un fichier entier, la ou le stockage
+            // JSON ne porte qu'une valeur: la limite suit MAX_FILE_BYTES, avec
+            // la marge de l'encodage JSON par dessus.
+            "/api/apps/:id/files",
+            post(apps::files::handle)
+                .layer(axum::extract::DefaultBodyLimit::max(3 * 1024 * 1024)),
+        )
+        .route(
             "/api/apps/install",
             post(apps::api::install)
                 .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024)),

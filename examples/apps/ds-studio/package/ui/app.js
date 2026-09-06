@@ -2058,6 +2058,21 @@
       return kernelSnapshot();
     });
 
+    /* Le pont fichiers, expose au noyau Python par une seule fonction.
+       Le noyau ignore le SDK et doit continuer de l'ignorer: lui passer l'objet
+       entier le rendrait dependant d'une surface qui bouge, alors qu'il n'a
+       besoin que d'un verbe et d'une charge utile. */
+    window.__dsFiles = function(op, payload){
+      var args = payload || {};
+      if (op === 'read') return sdk.files.read(args.path);
+      if (op === 'write') return sdk.files.write(args.path, args.content, args.append);
+      if (op === 'delete') return sdk.files.delete(args.path);
+      if (op === 'exists') return sdk.files.exists(args.path);
+      if (op === 'list') return sdk.files.list(args.path);
+      if (op === 'mkdir') return sdk.files.mkdir(args.path);
+      return Promise.reject(new Error('unknown file operation: ' + op));
+    };
+
     sdk.actions.register('packages.list', function(){
       return {
         source: kernel ? (kernel.source || 'builtin') : 'none',

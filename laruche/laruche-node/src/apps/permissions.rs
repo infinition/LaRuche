@@ -30,6 +30,18 @@ pub(crate) fn catalog() -> Vec<PermissionDescriptor> {
             title_en: "Invoke authorized agents (uses model tokens)",
         },
         PermissionDescriptor {
+            id: super::model::NETWORK_PERMISSION,
+            risk: "high",
+            title_fr: "Joindre les hotes declares par le paquet",
+            title_en: "Reach the hosts declared by the package",
+        },
+        PermissionDescriptor {
+            id: "laruche.files",
+            risk: "high",
+            title_fr: "Lire et ecrire des fichiers dans son dossier",
+            title_en: "Read and write files in its own folder",
+        },
+        PermissionDescriptor {
             id: "storage.private",
             risk: "low",
             title_fr: "Stockage privé de l'app",
@@ -50,10 +62,21 @@ pub(crate) fn catalog() -> Vec<PermissionDescriptor> {
     ]
 }
 
+/// A capability the node actually implements.
+///
+/// The consent screen greys out anything absent here, which is the right
+/// default: a checkbox that grants nothing is worse than no checkbox, because
+/// the user believes they decided something. The corollary is that a name
+/// belongs in this list the day its enforcement exists, and not a day earlier.
 pub(crate) fn is_available(permission: &str) -> bool {
     matches!(
         permission,
-        "storage.private" | "ui.locale.read" | "ui.theme.read" | "agents.invoke"
+        "storage.private"
+            | "ui.locale.read"
+            | "ui.theme.read"
+            | "agents.invoke"
+            | "laruche.files"
+            | super::model::NETWORK_PERMISSION
     )
 }
 
@@ -95,6 +118,44 @@ pub(crate) fn validate_grants(
 mod tests {
     use super::*;
     use crate::apps::AppManifest;
+
+    /// Every catalogued capability must also be available, and the reverse.
+    ///
+    /// The consent screen greys out whatever `is_available` rejects, so a name
+    /// present in one list and absent from the other produces a checkbox that
+    /// either cannot be ticked or grants something the screen never described.
+    /// network.fetch spent its first hours in exactly that state.
+    #[test]
+    fn le_catalogue_et_la_disponibilite_disent_la_meme_chose() {
+        for descripteur in catalog() {
+            assert!(
+                is_available(descripteur.id),
+                "{} est au catalogue mais indisponible",
+                descripteur.id
+            );
+        }
+        for connue in [
+            "storage.private",
+            "ui.locale.read",
+            "ui.theme.read",
+            "agents.invoke",
+            "laruche.files",
+            super::super::model::NETWORK_PERMISSION,
+        ] {
+            assert!(is_available(connue), "{connue} devrait etre disponible");
+            assert!(
+                catalog().iter().any(|d| d.id == connue),
+                "{connue} est disponible mais absente du catalogue"
+            );
+        }
+    }
+
+    #[test]
+    fn une_capacite_inconnue_reste_indisponible() {
+        assert!(!is_available("files.write"));
+        assert!(!is_available("network"));
+        assert!(!is_available("network.fetch.all"));
+    }
 
     fn manifest(required: &[&str], optional: &[&str]) -> AppManifest {
         let required = serde_json::to_string(required).unwrap();

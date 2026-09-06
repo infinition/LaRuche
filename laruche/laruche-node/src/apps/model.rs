@@ -263,7 +263,13 @@ impl AppManifest {
         validate_permissions(&self.permissions)?;
         validate_network(self.network.as_ref(), &self.permissions)?;
         validate_contributions(&self.contributes)?;
-        if self.guide.len() > 16_384 || self.actions.len() > 64 {
+        // Le guide voyage dans chaque requete au modele, ou le corps plafonne
+        // autour de 76800 octets: un guide de 24 KiB en mange donc pres du tiers,
+        // et c'est deja beaucoup. Le plafond monte quand meme, parce qu'une App
+        // qui expose deux langages et une API de fichiers ne tient pas en 16 KiB
+        // et qu'un guide ampute coute plus cher qu'un guide long: le modele
+        // improvise sur la partie manquante.
+        if self.guide.len() > 24_576 || self.actions.len() > 64 {
             return Err("guide or action catalogue too large".into());
         }
         let mut names = std::collections::HashSet::new();

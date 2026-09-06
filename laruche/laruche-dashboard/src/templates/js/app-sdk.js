@@ -116,6 +116,15 @@
       act:function(agentId,sessionId,stateAction,prompt){return call('agents.run',{agentId:agentId,sessionId:sessionId,stateAction:stateAction,prompt:prompt||'',act:true});},
       reset:function(agentId,sessionId){return call('agents.run',{agentId:agentId,sessionId:sessionId,prompt:'',reset:true});}
     }),
+    files:Object.freeze({
+      read:function(path){ return call('files.read',{path:path}).then(function(r){ return r.content; }); },
+      write:function(path,content,append){ return call('files.write',{path:path,content:String(content==null?'':content),append:!!append}); },
+      append:function(path,content){ return call('files.write',{path:path,content:String(content==null?'':content),append:true}); },
+      delete:function(path){ return call('files.delete',{path:path}); },
+      exists:function(path){ return call('files.exists',{path:path}).then(function(r){ return !!r.exists; }); },
+      list:function(path){ return call('files.list',{path:path||''}).then(function(r){ return r.entries; }); },
+      mkdir:function(path){ return call('files.mkdir',{path:path}); }
+    }),
     storage:Object.freeze({
       get:function(key){ return call('storage.get',{key:key}).then(function(result){ return result.value; }); },
       set:function(key,value){ return call('storage.set',{key:key,value:value}); },

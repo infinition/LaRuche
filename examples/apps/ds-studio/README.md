@@ -220,6 +220,19 @@ navigateur.
   le depot. Le chemin de detection, l'echec propre et le repli sont testes ;
   l'execution Python elle-meme demande de lancer le script de vendoring.
 
+## Versions 1.4.0 et 1.5.0
+
+- Le noyau Python demarre depuis le CDN quand aucun runtime n'est vendorise,
+  charge numpy, pandas, matplotlib, scikit-learn puis installe seaborn et plotly
+  par micropip, et applique `pyodide_http.patch_all()`. Il faut pour cela que
+  l'utilisateur accorde `network.fetch`.
+- Les figures matplotlib et seaborn sont capturees en PNG, une figure plotly est
+  rendue en interactif par plotly.js. Un onglet Paquets installe a la volee, et
+  `packages.list` et `packages.install` exposent la meme chose a un agent.
+- `laruche.files` ouvre un dossier de fichiers reels, propre a cette App et a ce
+  compte, avec `await laruche.files.read/write/list`. Aucun chemin n'en sort: un
+  saut de parent, un chemin absolu ou un lien symbolique sont refuses.
+
 ## Correction 1.3.3
 
 - La section 10 interdisait le reseau, le disque et le shell « depuis une
