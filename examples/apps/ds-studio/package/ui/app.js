@@ -237,8 +237,14 @@
     var availability = await Kernels.detect();
     var restored = await restore();
 
-    var wanted = restored && restored.kernelId === 'python' && availability.python
-      ? 'python'
+    /* Un carnet restaure garde SON langage, un carnet neuf prend le meilleur.
+     *
+     * Les cellules d'un carnet ont ete ecrites pour un noyau precis. Le faire
+     * tourner sous l'autre parce que celui-ci vient de devenir disponible
+     * casserait chaque cellule, et le bandeau de discordance arriverait apres
+     * coup. On ne retrograde que si le noyau demande est absent. */
+    var wanted = restored && restored.kernelId
+      ? (restored.kernelId === 'python' && !availability.python ? 'js' : restored.kernelId)
       : availability.preferred;
 
     kernel = Kernels.create(wanted, store);

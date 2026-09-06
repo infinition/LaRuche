@@ -762,12 +762,32 @@
     return ['load', 'datasets', 'show', 'table', 'bar', 'line', 'area', 'scatter', 'pie', 'hist', 'pd', 'np'];
   };
 
-  /* Probes for the vendored runtime without loading it. */
+  /* Y a-t-il un interpreteur a notre portee, sans le charger.
+   *
+   * Deux reponses possibles et il faut les essayer dans cet ordre, parce que le
+   * runtime vendorise ne coute rien et que le CDN coute un aller-retour.
+   *
+   * Cette fonction n'a longtemps regarde que le paquet. Le chemin CDN existait
+   * dans init(), et init() n'est appelee que sur un noyau Python: comme rien
+   * n'etait vendorise, available() repondait faux, le noyau Python n'etait
+   * jamais cree, et son chemin reseau restait mort. L'App tournait en langage
+   * maison avec network.fetch accordee et personne ne comprenait pourquoi.
+   *
+   * Pour le CDN c'est la CSP qui repond a notre place: sans la capacite, la
+   * requete est bloquee et la promesse est rejetee. On ne teste donc pas la
+   * permission, on teste ce qu'elle permet, ce qui ne peut pas se desynchroniser
+   * d'elle. */
   function available() {
     if (typeof fetch !== 'function' || typeof document === 'undefined') return Promise.resolve(false);
     return fetch(MANIFEST, { credentials: 'omit' })
       .then(function(response){ return response.ok; })
-      .catch(function(){ return false; });
+      .catch(function(){ return false; })
+      .then(function(vendorise){
+        if (vendorise) return true;
+        return fetch(CDN + 'pyodide.js', { method: 'HEAD', mode: 'cors', credentials: 'omit' })
+          .then(function(response){ return response.ok; })
+          .catch(function(){ return false; });
+      });
   }
 
   return Object.freeze({
