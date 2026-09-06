@@ -36,6 +36,12 @@ pub(crate) fn catalog() -> Vec<PermissionDescriptor> {
             title_en: "Reach the hosts declared by the package",
         },
         PermissionDescriptor {
+            id: "laruche.memory",
+            risk: "high",
+            title_fr: "Lire la memoire de LaRuche et lui proposer des faits",
+            title_en: "Read LaRuche's memory and propose facts to it",
+        },
+        PermissionDescriptor {
             id: "laruche.files",
             risk: "high",
             title_fr: "Lire et ecrire des fichiers dans son dossier",
@@ -76,6 +82,7 @@ pub(crate) fn is_available(permission: &str) -> bool {
             | "ui.theme.read"
             | "agents.invoke"
             | "laruche.files"
+            | "laruche.memory"
             | super::model::NETWORK_PERMISSION
     )
 }
@@ -140,6 +147,7 @@ mod tests {
             "ui.theme.read",
             "agents.invoke",
             "laruche.files",
+            "laruche.memory",
             super::super::model::NETWORK_PERMISSION,
         ] {
             assert!(is_available(connue), "{connue} devrait etre disponible");

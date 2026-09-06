@@ -2073,6 +2073,58 @@
       return Promise.reject(new Error('unknown file operation: ' + op));
     };
 
+    /* Le carnet, depuis Python. Aucune capacite ne le garde, et c'est voulu:
+       le noyau tourne dans l'App, donc une cellule qui enregistre un dataset est
+       l'App qui ecrit son propre etat. Une permission n'aurait rien a refuser,
+       et une case qui n'accorde rien est pire que pas de case. */
+    window.__dsNotebook = function(op, payload){
+      var args = payload || {};
+      if (op === 'datasets') {
+        return Promise.resolve(Object.keys(store.all()).sort());
+      }
+      if (op === 'save') {
+        return Promise.resolve()
+          .then(function(){
+            return store.addCsv(args.name, args.text, { delimiter: args.delimiter || ',', source: 'python' });
+          })
+          .then(function(entree){
+            renderDatasets();
+            if (kernel && kernel.pushDatasets) kernel.pushDatasets(true);
+            return { name: entree.name, rows: entree.frame.length };
+          });
+      }
+      if (op === 'remove') {
+        store.remove(args.name);
+        renderDatasets();
+        if (kernel && kernel.pushDatasets) kernel.pushDatasets(true);
+        return Promise.resolve({ removed: true });
+      }
+      if (op === 'cell') {
+        var cellule = notebook.addCell({ source: String(args.source || ''), type: args.type || 'code' });
+        render();
+        return Promise.resolve({ cellId: cellule.id });
+      }
+      if (op === 'state') {
+        return Promise.resolve({
+          notebookId: notebook.id,
+          title: notebook.title,
+          cells: notebook.cells.length,
+          datasets: Object.keys(store.all()).sort()
+        });
+      }
+      return Promise.reject(new Error('unknown notebook operation: ' + op));
+    };
+
+    window.__dsMemory = function(op, payload){
+      var args = payload || {};
+      if (op === 'search') return sdk.memory.search(args.query, args.limit);
+      if (op === 'read') return sdk.memory.read(args.nodeId);
+      if (op === 'list') return sdk.memory.list();
+      if (op === 'propose') return sdk.memory.propose(args.nodeId, args.content, args.tags);
+      if (op === 'write') return sdk.memory.write(args.nodeId, args.content, args.tags);
+      return Promise.reject(new Error('unknown memory operation: ' + op));
+    };
+
     sdk.actions.register('packages.list', function(){
       return {
         source: kernel ? (kernel.source || 'builtin') : 'none',

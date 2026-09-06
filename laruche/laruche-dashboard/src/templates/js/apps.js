@@ -61,7 +61,7 @@ LaRuche.Apps = (function(){
   var activeBridge = null;
   var dockBridge = null;
   var docked = null;
-  var supportedCapabilities = ['storage.private','ui.theme.read','ui.locale.read','agents.invoke','laruche.files','network.fetch'];
+  var supportedCapabilities = ['storage.private','ui.theme.read','ui.locale.read','agents.invoke','laruche.files','laruche.memory','network.fetch'];
   var hostId = crypto.randomUUID();
   var hostTimer = null;
   var hostConfig = {agents:[],policies:{}};
@@ -264,6 +264,34 @@ LaRuche.Apps = (function(){
     });
   }
 
+  /* La memoire de LaRuche, qui n'appartient pas a l'App.
+     Un fait ecrit ici est relu des mois plus tard par autre chose, d'ou le
+     defaut: proposer plutot qu'ecrire. */
+  function backendMemory(bridge,method,params){
+    requireCapability(bridge,'laruche.memory');
+    var operation=method.slice('memory.'.length);
+    if(['search','read','list','write'].indexOf(operation)===-1) throw bridgeFailure('not_found','Unknown memory method');
+    var body={op:operation};
+    if(operation==='search'){ body.query=params&&params.query; if(params&&params.limit)body.limit=params.limit; }
+    if(operation==='read') body.nodeId=params&&params.nodeId;
+    if(operation==='write'){ body.nodeId=params&&params.nodeId; body.content=(params&&params.content)||''; if(params&&params.tags)body.tags=params.tags; if(params&&params.direct)body.direct=true; }
+    return fetch(LaRuche.API.base+'/api/apps/'+encodeURIComponent(bridge.app.id)+'/memory',{
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    }).then(function(response){
+      return response.json().catch(function(){ return null; }).then(function(payload){
+        if(!response.ok){
+          var error=payload&&payload.error;
+          var fallback=response.status===401?'authentication_required':response.status===403?'permission_denied':response.status===404?'app_not_found':response.status===409?'app_disabled':(response.status===400||response.status===422)?'validation_failed':'memory_unavailable';
+          throw bridgeFailure(error&&error.code||fallback,error&&error.message||'Memory request failed',response.status>=500);
+        }
+        return payload||{};
+      });
+    }).catch(function(error){
+      if(error&&error.code) throw error;
+      throw bridgeFailure('memory_unavailable','Memory unavailable',true);
+    });
+  }
+
   function handleBridgeRequest(bridge,method,params){
     if(method==='ui.setStatus'){
       if(['loading','ready','error'].indexOf(params.state)===-1||typeof params.message!=='string'||params.message.length>200)throw new Error('Invalid App status');
@@ -279,6 +307,9 @@ LaRuche.Apps = (function(){
     if(method==='agents.run'){
       requireCapability(bridge,'agents.invoke');
       return hostApi('/api/apps/agents/run',{hostId:hostId,instanceId:bridge.instanceId,appId:bridge.app.id,agentId:params.agentId,sessionId:params.sessionId,prompt:params.prompt,reset:!!params.reset,act:!!params.act,stateAction:params.stateAction||null});
+    }
+    if(method.indexOf('memory.')===0){
+      return backendMemory(bridge,method,params||{});
     }
     if(method.indexOf('files.')===0){
       return backendFiles(bridge,method,params||{});

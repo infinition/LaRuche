@@ -240,6 +240,11 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
                 .layer(axum::extract::DefaultBodyLimit::max(3 * 1024 * 1024)),
         )
         .route(
+            "/api/apps/:id/memory",
+            post(apps::memory::handle)
+                .layer(axum::extract::DefaultBodyLimit::max(64 * 1024)),
+        )
+        .route(
             "/api/apps/install",
             post(apps::api::install)
                 .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024)),

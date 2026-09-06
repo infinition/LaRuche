@@ -116,6 +116,13 @@
       act:function(agentId,sessionId,stateAction,prompt){return call('agents.run',{agentId:agentId,sessionId:sessionId,stateAction:stateAction,prompt:prompt||'',act:true});},
       reset:function(agentId,sessionId){return call('agents.run',{agentId:agentId,sessionId:sessionId,prompt:'',reset:true});}
     }),
+    memory:Object.freeze({
+      search:function(query,limit){ return call('memory.search',{query:query,limit:limit}); },
+      read:function(nodeId){ return call('memory.read',{nodeId:nodeId}); },
+      list:function(){ return call('memory.list',{}); },
+      propose:function(nodeId,content,tags){ return call('memory.write',{nodeId:nodeId,content:String(content==null?'':content),tags:tags||[]}); },
+      write:function(nodeId,content,tags){ return call('memory.write',{nodeId:nodeId,content:String(content==null?'':content),tags:tags||[],direct:true}); }
+    }),
     files:Object.freeze({
       read:function(path){ return call('files.read',{path:path}).then(function(r){ return r.content; }); },
       write:function(path,content,append){ return call('files.write',{path:path,content:String(content==null?'':content),append:!!append}); },

@@ -9,6 +9,7 @@
 pub(crate) mod api;
 pub(crate) mod assets;
 pub(crate) mod files;
+pub(crate) mod memory;
 mod installer;
 mod model;
 pub(crate) mod permissions;
