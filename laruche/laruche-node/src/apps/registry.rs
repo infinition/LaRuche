@@ -346,6 +346,34 @@ impl AppRegistry {
     /// `ui` directory. Callers must still open the path without following a swapped
     /// link; packages are immutable after installation, and the asset handler also
     /// checks metadata immediately before reading.
+    /// Hosts this App's frame may reach, once the user has granted them.
+    ///
+    /// Empty unless the package declares them AND `network.fetch` is granted AND
+    /// the App is enabled on its active version. Anything short of all three
+    /// leaves the sandbox exactly as tight as it is by default, which is what a
+    /// user who never approved the exception is entitled to.
+    pub(crate) fn network_hosts(&self, id: &str, version: &str) -> Vec<String> {
+        let Some(record) = self.records.get(id) else {
+            return Vec::new();
+        };
+        if !record.enabled || record.error.is_some() || record.active_version != version {
+            return Vec::new();
+        }
+        if !record
+            .granted_permissions
+            .iter()
+            .any(|p| p == super::model::NETWORK_PERMISSION)
+        {
+            return Vec::new();
+        }
+        record
+            .manifest
+            .as_ref()
+            .and_then(|m| m.network.as_ref())
+            .map(|n| n.hosts.clone())
+            .unwrap_or_default()
+    }
+
     pub(crate) fn resolve_ui_asset(
         &self,
         id: &str,

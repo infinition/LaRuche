@@ -4,6 +4,9 @@ use std::path::{Component, Path};
 
 pub(crate) const APP_API_VERSION: u32 = 1;
 
+/// Gates [`AppNetwork`]. Declared in the manifest, granted by the user.
+pub(crate) const NETWORK_PERMISSION: &str = "network.fetch";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct AppManifest {
@@ -27,12 +30,38 @@ pub(crate) struct AppManifest {
     pub(crate) backend: Option<AppBackend>,
     #[serde(default)]
     pub(crate) permissions: AppPermissions,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) network: Option<AppNetwork>,
     #[serde(default)]
     pub(crate) contributes: Contributions,
     #[serde(default)]
     pub(crate) guide: String,
     #[serde(default)]
     pub(crate) actions: Vec<AppAction>,
+}
+
+/// The hosts a sandboxed App frame may reach, on top of its own package.
+///
+/// An App can normally talk to nothing: its Content-Security-Policy names its
+/// own versioned asset directory and that is all. That default is the point of
+/// the sandbox and it does not change, because this field is absent from every
+/// package that does not ask for it.
+///
+/// It exists for one shape of App that the default makes impossible. A notebook
+/// running real Python needs an interpreter and wheels, and carrying them inside
+/// the archive hits the 32 MiB cap long before pandas and matplotlib are both
+/// aboard. Vendoring is the safer answer whenever it fits; when it does not, the
+/// choice is between an App that cannot exist and an exception the user sees.
+///
+/// So the exception is declared here, pinned to exact hostnames, and it only
+/// reaches the policy once `network.fetch` has actually been granted. No
+/// wildcards, no schemes, no paths, no ports: a host is written in full or it is
+/// unreachable. And it widens that App's frame only, never another's.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct AppNetwork {
+    #[serde(default)]
+    pub(crate) hosts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -232,6 +261,7 @@ impl AppManifest {
             }
         }
         validate_permissions(&self.permissions)?;
+        validate_network(self.network.as_ref(), &self.permissions)?;
         validate_contributions(&self.contributes)?;
         if self.guide.len() > 16_384 || self.actions.len() > 64 {
             return Err("guide or action catalogue too large".into());
@@ -348,6 +378,53 @@ fn validate_permissions(permissions: &AppPermissions) -> Result<(), String> {
     Ok(())
 }
 
+/// A declared host list is only meaningful next to the permission that gates it.
+///
+/// Requiring `network.fetch` in the manifest is what makes the exception visible
+/// at install time. Without it the hosts would sit in the package, granted by
+/// nobody, and the first person to read the policy would find an opening no
+/// consent screen had ever mentioned.
+fn validate_network(network: Option<&AppNetwork>, permissions: &AppPermissions) -> Result<(), String> {
+    let Some(network) = network else {
+        return Ok(());
+    };
+    if network.hosts.is_empty() || network.hosts.len() > 8 {
+        return Err("network.hosts must list between 1 and 8 hosts".into());
+    }
+    let declare = permissions
+        .required
+        .iter()
+        .chain(&permissions.optional)
+        .any(|p| p == NETWORK_PERMISSION);
+    if !declare {
+        return Err(format!(
+            "network.hosts requires the {NETWORK_PERMISSION} permission to be declared"
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for host in &network.hosts {
+        // A hostname and nothing else. Anything carrying a scheme, a port, a
+        // path or a wildcard is refused rather than sanitised: quietly repairing
+        // one would mean granting something the reviewer never read.
+        if host.len() < 4
+            || host.len() > 253
+            || !host.contains('.')
+            || host.starts_with(['.', '-'])
+            || host.ends_with(['.', '-'])
+            || host.contains("..")
+            || !host
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b".-".contains(&b))
+        {
+            return Err(format!("invalid network host: {host}"));
+        }
+        if !seen.insert(host) {
+            return Err(format!("duplicate network host: {host}"));
+        }
+    }
+    Ok(())
+}
+
 fn validate_contributions(contributions: &Contributions) -> Result<(), String> {
     for (kind, values, max) in [
         ("tool", &contributions.tools, 100usize),
@@ -392,6 +469,58 @@ mod tests {
         let parsed = AppManifest::parse_and_validate(&manifest("ui/index.html")).unwrap();
         assert_eq!(parsed.id, "dev.laruche.test");
         assert!(parsed.ui.unwrap().views[0].detachable);
+    }
+
+    fn manifest_reseau(permissions: &str, hosts: &str) -> String {
+        format!(
+            r#"{{
+              "apiVersion": 1,
+              "id": "dev.laruche.test",
+              "name": "Test",
+              "version": "1.2.3",
+              "description": "A test app",
+              "publisher": {{"name": "LaRuche"}},
+              "ui": {{"views": [{{"id": "main", "title": "Main", "entry": "ui/index.html"}}]}},
+              "permissions": {{"required": ["storage.private"], "optional": [{permissions}]}},
+              "network": {{"hosts": [{hosts}]}}
+            }}"#
+        )
+    }
+
+    #[test]
+    fn un_manifeste_peut_declarer_des_hotes_avec_la_permission() {
+        let m = AppManifest::parse_and_validate(&manifest_reseau(
+            r#""network.fetch""#,
+            r#""cdn.jsdelivr.net", "pypi.org""#,
+        ))
+        .unwrap();
+        assert_eq!(m.network.unwrap().hosts.len(), 2);
+    }
+
+    /// Hosts without the permission would be an opening no consent screen shows.
+    #[test]
+    fn des_hotes_sans_la_permission_sont_refuses() {
+        let erreur = AppManifest::parse_and_validate(&manifest_reseau("", r#""cdn.jsdelivr.net""#))
+            .unwrap_err();
+        assert!(erreur.contains("network.fetch"), "got: {erreur}");
+    }
+
+    /// A scheme, a port, a path or a wildcard is refused rather than repaired:
+    /// silently fixing one grants something nobody reviewed.
+    #[test]
+    fn un_hote_qui_n_est_pas_un_nom_d_hote_est_refuse() {
+        for mauvais in [
+            r#""https://cdn.jsdelivr.net""#,
+            r#""cdn.jsdelivr.net:443""#,
+            r#""cdn.jsdelivr.net/pyodide""#,
+            r#""*.jsdelivr.net""#,
+            r#""CDN.JSDELIVR.NET""#,
+            r#""localhost""#,
+        ] {
+            let sortie =
+                AppManifest::parse_and_validate(&manifest_reseau(r#""network.fetch""#, mauvais));
+            assert!(sortie.is_err(), "{mauvais} aurait du etre refuse");
+        }
     }
 
     #[test]
