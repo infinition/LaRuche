@@ -526,6 +526,7 @@
     adoptNotebook(loaded);
     if (kernel && kernel.reset) await kernel.reset();
     renderVariables();
+    renderPackages();
     schedulePersist();
     return loaded;
   }
@@ -550,6 +551,7 @@
     adoptNotebook(created);
     if (kernel && kernel.reset) await kernel.reset();
     renderVariables();
+    renderPackages();
     await persist();
     return created;
   }
@@ -600,6 +602,7 @@
       if (event.cellId) renderCell(event.cellId, { keepEditor: true });
       else renderCells();
       renderVariables();
+      renderPackages();
     }
     paintToolbar();
     renderSummary();
@@ -667,6 +670,7 @@
     renderCells();
     renderDatasets();
     renderVariables();
+    renderPackages();
     renderQuota();
     renderSummary();
     paintToolbar();
@@ -815,7 +819,65 @@
     }
     if (output.kind === 'table') return buildTable(output);
     if (output.kind === 'chart') return buildChart(output);
+    if (output.kind === 'plotly') return buildPlotly(output);
     return null;
+  }
+
+  /* Une figure Plotly arrive en JSON et se dessine cote navigateur.
+   *
+   * Le noyau Python n'emet que `fig.to_json()`: c'est plotly.js qui rend, et il
+   * n'est charge que sur le chemin CDN. Sans lui la figure existe quand meme, et
+   * il vaut mieux le dire que d'afficher un cadre vide dont personne ne saurait
+   * s'il calcule encore. */
+  function buildPlotly(output) {
+    var figure = document.createElement('figure');
+    figure.className = 'output output-plotly';
+    if (typeof window.Plotly === 'undefined') {
+      var absent = document.createElement('p');
+      absent.className = 'output-note';
+      absent.textContent = t('plotlyMissing');
+      figure.appendChild(absent);
+      return figure;
+    }
+    var cible = document.createElement('div');
+    cible.className = 'plotly-target';
+    figure.appendChild(cible);
+
+    var mise = Object.assign({}, output.layout || {});
+    // Le graphique suit le theme de l'hote plutot que le blanc par defaut de
+    // Plotly, sinon une figure interactive tranche avec tout le reste du carnet.
+    mise.paper_bgcolor = 'rgba(0,0,0,0)';
+    mise.plot_bgcolor = 'rgba(0,0,0,0)';
+    mise.font = Object.assign({ color: getComputedStyle(document.body).color }, mise.font || {});
+    mise.margin = mise.margin || { l: 48, r: 16, t: output.title ? 40 : 16, b: 44 };
+    mise.autosize = true;
+
+    try {
+      window.Plotly.newPlot(cible, output.data || [], mise, {
+        responsive: true,
+        displaylogo: false
+      });
+    } catch (erreur) {
+      cible.textContent = String((erreur && erreur.message) || erreur);
+      return figure;
+    }
+
+    var plein = document.createElement('button');
+    plein.type = 'button';
+    plein.className = 'apps-btn';
+    plein.textContent = t('plotlyFullscreen');
+    plein.addEventListener('click', function(){
+      if (figure.requestFullscreen) {
+        figure.requestFullscreen().then(function(){
+          window.Plotly.Plots.resize(cible);
+        }).catch(function(){});
+      }
+    });
+    var rangee = document.createElement('div');
+    rangee.className = 'output-actions';
+    rangee.appendChild(plein);
+    figure.appendChild(rangee);
+    return figure;
   }
 
   var PAGE_SIZE = 25;
@@ -1363,6 +1425,74 @@
     });
   }
 
+  /* Installe un paquet PyPI dans le noyau en cours.
+   *
+   * micropip n'existe que sur le chemin reseau: un noyau vendorise embarque ce
+   * qu'on lui a mis et rien d'autre, et un noyau interne ne parle pas Python du
+   * tout. Le dire est plus utile qu'un bouton qui echoue sans expliquer. */
+  function installerPaquet() {
+    var champ = element('packageName');
+    var statut = element('packageStatus');
+    var nom = (champ.value || '').trim();
+    if (!nom) return;
+    if (!kernel || typeof kernel.installer !== 'function' || kernel.source !== 'cdn') {
+      statut.textContent = t('packagesOffline');
+      return;
+    }
+    var bouton = element('packageInstall');
+    bouton.disabled = true;
+    statut.textContent = t('packagesInstalling', { name: nom });
+    kernel.installer([nom]).then(function(bilan){
+      if (bilan.failed.length) {
+        statut.textContent = t('packagesFailed', {
+          name: bilan.failed[0].name,
+          error: bilan.failed[0].error
+        });
+      } else {
+        statut.textContent = t('packagesInstalled', { name: nom });
+        champ.value = '';
+      }
+      renderPackages();
+    }).catch(function(erreur){
+      statut.textContent = t('packagesFailed', {
+        name: nom,
+        error: String((erreur && erreur.message) || erreur)
+      });
+    }).then(function(){
+      bouton.disabled = false;
+    });
+  }
+
+  /* Ce que le noyau porte vraiment, roues chargees puis ajouts par micropip.
+   * La liste vient du noyau et non d'un registre tenu a part: deux comptes
+   * separes finissent toujours par diverger, et c'est celui qui ment qu'on lit. */
+  function renderPackages() {
+    var liste = element('packageList');
+    if (!liste) return;
+    liste.textContent = '';
+    var noms = [];
+    if (kernel) {
+      noms = (kernel.packages || []).concat(kernel.installed || []);
+    }
+    noms = noms.filter(function(nom, index){ return noms.indexOf(nom) === index; }).sort();
+    var bouton = element('packageInstall');
+    if (bouton) bouton.disabled = !kernel || kernel.source !== 'cdn';
+    if (!noms.length) {
+      var vide = document.createElement('li');
+      vide.className = 'muted small';
+      vide.textContent = t('packagesNone');
+      liste.appendChild(vide);
+      return;
+    }
+    noms.forEach(function(nom){
+      var item = document.createElement('li');
+      var code = document.createElement('code');
+      code.textContent = nom;
+      item.appendChild(code);
+      liste.appendChild(item);
+    });
+  }
+
   function renderVariables() {
     var list = element('variableList');
     list.textContent = '';
@@ -1507,12 +1637,17 @@
           other.classList.toggle('is-active', active);
           other.setAttribute('aria-selected', String(active));
         });
-        ['data', 'vars', 'agent'].forEach(function(name){
+        ['data', 'vars', 'packages', 'agent'].forEach(function(name){
           var panel = element('panel' + name.charAt(0).toUpperCase() + name.slice(1));
           panel.hidden = name !== tab.dataset.panel;
           panel.classList.toggle('is-active', name === tab.dataset.panel);
         });
       });
+    });
+
+    element('packageInstall').addEventListener('click', installerPaquet);
+    element('packageName').addEventListener('keydown', function(event){
+      if (event.key === 'Enter') installerPaquet();
     });
 
     element('refreshAgentsBtn').addEventListener('click', refreshAgents);
@@ -1728,6 +1863,7 @@
           lines.push('');
         }
         if (output.kind === 'chart') lines.push('_' + t('chartPlaceholder', { title: output.title || output.chart }) + '_', '');
+        if (output.kind === 'plotly') lines.push('_' + t('chartPlaceholder', { title: output.title || 'plotly' }) + '_', '');
       });
       if (cell.error) lines.push('> ' + cell.error.message, '');
     });
@@ -1922,6 +2058,33 @@
       return kernelSnapshot();
     });
 
+    sdk.actions.register('packages.list', function(){
+      return {
+        source: kernel ? (kernel.source || 'builtin') : 'none',
+        canInstall: !!(kernel && kernel.source === 'cdn'),
+        packages: ((kernel && kernel.packages) || []).concat((kernel && kernel.installed) || [])
+      };
+    });
+
+    /* Installer refuse plutot que d'essayer quand le noyau ne peut pas: un
+       agent a qui l'on repond "ok" sur une installation impossible ecrira la
+       cellule suivante avec un import qui echouera loin de la cause. */
+    sdk.actions.register('packages.install', function(args){
+      var noms = Array.isArray(args.packages) ? args.packages : [args.name];
+      noms = noms.filter(function(n){ return typeof n === 'string' && n.trim(); });
+      if (!noms.length) throw new Error('packages.install needs name or packages');
+      if (!kernel || typeof kernel.installer !== 'function' || kernel.source !== 'cdn') {
+        throw new Error(
+          'This kernel cannot install packages. It is either the built-in language kernel ' +
+          'or a vendored Python runtime: only the network-backed Python kernel has micropip.'
+        );
+      }
+      return kernel.installer(noms).then(function(bilan){
+        renderPackages();
+        return bilan;
+      });
+    });
+
     sdk.actions.register('notebook.state', function(args){
       return stateSnapshot(args.includeOutputs);
     });
@@ -2056,6 +2219,7 @@
         });
         notebook.touch({ type: 'kernel.reset' });
         renderVariables();
+      renderPackages();
         return {
           reset: true,
           revision: notebook.revision,
@@ -2082,6 +2246,7 @@
       }
       kernel.setVariable(name, value);
       renderVariables();
+      renderPackages();
       return { name: name, variables: kernel.variables(), revision: notebook.revision };
     });
 
@@ -2090,6 +2255,7 @@
       var removed = kernel.deleteVariable(String(args.name));
       if (!removed) throw new Error('No variable named "' + args.name + '"');
       renderVariables();
+      renderPackages();
       return { deleted: args.name, variables: kernel.variables(), revision: notebook.revision };
     });
 

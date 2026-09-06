@@ -667,6 +667,14 @@ th.sorted-desc::after { content: " ↓"; color: var(--amber); }
 
 .output-chart { position: relative; }
 
+/* Plotly dessine dans ce conteneur et lit sa hauteur au montage: sans hauteur
+   explicite il rendrait dans un bloc de zero pixel et n'afficherait rien. */
+.output-plotly { position: relative; margin: 0; }
+.plotly-target { width: 100%; min-height: 320px; }
+.output-plotly .output-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.output-plotly:fullscreen { background: var(--bg, #101014); padding: 16px; }
+.output-plotly:fullscreen .plotly-target { height: calc(100vh - 80px); }
+
 .chart-holder {
   position: relative;
   border-radius: 6px;

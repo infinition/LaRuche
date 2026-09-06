@@ -97,6 +97,7 @@
         <div class="tabs" role="tablist">
           <button type="button" class="tab is-active" role="tab" aria-selected="true" data-panel="data" id="tabData" data-i18n="tabData">Donnees</button>
           <button type="button" class="tab" role="tab" aria-selected="false" data-panel="vars" id="tabVars" data-i18n="tabVariables">Variables</button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-panel="packages" id="tabPackages" data-i18n="tabPackages">Paquets</button>
           <button type="button" class="tab" role="tab" aria-selected="false" data-panel="agent" id="tabAgent" data-i18n="tabAgent">Agent</button>
         </div>
 
@@ -116,6 +117,17 @@
         <div class="panel" id="panelVars" role="tabpanel" aria-labelledby="tabVars" hidden>
           <ul class="variable-list" id="variableList"></ul>
           <p class="muted small" id="variableEmpty" data-i18n="noVariable">Aucune variable. Executez une cellule.</p>
+        </div>
+
+        <div class="panel" id="panelPackages" role="tabpanel" aria-labelledby="tabPackages" hidden>
+          <p class="muted small" data-i18n="packagesHint">Paquets Python installes dans ce noyau.</p>
+          <label class="field">
+            <span data-i18n="tabPackages">Paquets</span>
+            <input type="text" id="packageName" autocomplete="off" spellcheck="false" data-i18n-placeholder="packagesPlaceholder">
+          </label>
+          <button type="button" class="button" id="packageInstall" data-i18n="packagesInstall">Installer</button>
+          <p class="muted small" id="packageStatus" role="status"></p>
+          <ul class="dataset-list" id="packageList"></ul>
         </div>
 
         <div class="panel" id="panelAgent" role="tabpanel" aria-labelledby="tabAgent" hidden>

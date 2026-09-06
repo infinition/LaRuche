@@ -28,9 +28,28 @@
   var VENDOR = './vendor/pyodide/';
   var MANIFEST = VENDOR + 'studio-manifest.json';
 
+  /* Deux facons d'obtenir un interpreteur, et l'ordre compte.
+   *
+   * Vendorise: le runtime voyage dans le paquet, l'App n'a besoin d'aucun
+   * reseau, et c'est toujours le meilleur choix quand ca rentre. Mais l'archive
+   * plafonne a 32 Mio compresses, et le coeur seul en pese une dizaine: numpy et
+   * pandas passent encore, matplotlib deja plus.
+   *
+   * CDN: ce que fait le plugin Obsidian. Il faut alors que le paquet declare
+   * `network.fetch` et ses hotes, et que l'utilisateur les ait accordes, sinon
+   * la CSP du bac a sable bloque le script et on le dit clairement. */
+  var CDN = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
+  var PLOTLY_JS = 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js';
+
+  /* Les roues livrees avec Pyodide, chargees d'un bloc. Celles qui n'y sont pas
+   * passent par micropip juste apres, en pur Python. */
+  var ROUES = ['numpy', 'pandas', 'matplotlib', 'scikit-learn', 'micropip', 'pyodide-http'];
+  var VIA_MICROPIP = ['seaborn', 'plotly'];
+
   var TABLE_MARK = '__DS_TABLE__';
   var CHART_MARK = '__DS_CHART__';
   var IMAGE_MARK = '__DS_IMAGE__';
+  var PLOTLY_MARK = '__DS_PLOTLY__';
   var END_MARK = '__DS_END__';
 
   /* Helpers injected once, so a cell can use the same vocabulary as the
@@ -44,6 +63,7 @@
     '_DS_TABLE = "' + TABLE_MARK + '"',
     '_DS_CHART = "' + CHART_MARK + '"',
     '_DS_IMAGE = "' + IMAGE_MARK + '"',
+    '_DS_PLOTLY = "' + PLOTLY_MARK + '"',
     '_DS_END = "' + END_MARK + '"',
     '_DS_SOURCES = {}',
     '',
@@ -199,7 +219,37 @@
     '    plt.close("all")',
     '',
     'if _DS_HAS_PLT:',
-    '    plt.show = _ds_flush_figures'
+    '    plt.show = _ds_flush_figures',
+    '',
+    'try:',
+    '    import seaborn as sns',
+    '    _DS_HAS_SNS = True',
+    'except ImportError:',
+    '    _DS_HAS_SNS = False',
+    '',
+    'try:',
+    '    import plotly.io as pio',
+    '    import plotly.graph_objects as go',
+    '    import plotly.express as px',
+    '    _DS_HAS_PLOTLY = True',
+    'except ImportError:',
+    '    _DS_HAS_PLOTLY = False',
+    '',
+    'def _ds_plotly(fig):',
+    '    if not _DS_HAS_PLOTLY:',
+    '        raise RuntimeError("plotly is not available in this kernel")',
+    '    print(_DS_PLOTLY + fig.to_json() + _DS_END)',
+    '',
+    'if _DS_HAS_PLOTLY:',
+    '    go.Figure.show = lambda self, *a, **k: _ds_plotly(self)',
+    '    pio.show = lambda fig, *a, **k: _ds_plotly(fig)',
+    '',
+    'try:',
+    '    import pyodide_http',
+    '    pyodide_http.patch_all()',
+    '    _DS_HAS_HTTP = True',
+    'except Exception:',
+    '    _DS_HAS_HTTP = False'
   ].join('\n');
 
   function PythonKernel(store) {
@@ -274,39 +324,107 @@
     });
   }
 
+  /* Le runtime vendorise s'il existe, le CDN sinon.
+   *
+   * L'absence du manifeste n'est pas une erreur: c'est l'etat normal d'un paquet
+   * qui n'a pas ete vendorise, et il reste alors le chemin reseau. Ce qui est une
+   * erreur, c'est de n'avoir ni l'un ni l'autre, et le message le dit avec le nom
+   * exact de la permission a accorder plutot qu'un echec de chargement de script
+   * que personne ne saurait interpreter. */
   PythonKernel.prototype.init = function(onProgress) {
     var self = this;
     var report = onProgress || function(){};
 
     report(5, 'kernelReadingManifest');
     return fetch(MANIFEST, { credentials: 'omit' }).then(function(response){
-      if (!response.ok) throw new Error('runtime manifest missing');
-      return response.json();
+      return response.ok ? response.json() : null;
+    }).catch(function(){
+      return null;
     }).then(function(manifest){
       self.manifest = manifest;
+      self.source = manifest ? 'vendored' : 'cdn';
+      var base = manifest ? VENDOR : CDN;
       report(15, 'kernelLoadingRuntime');
-      return loadScript(VENDOR + 'pyodide.js');
+      return loadScript(base + 'pyodide.js').catch(function(erreur){
+        if (self.source === 'cdn') {
+          throw new Error(
+            'The Python runtime is neither bundled with this App nor reachable. ' +
+            'Grant this App the network.fetch permission so it can load Pyodide from ' +
+            'cdn.jsdelivr.net, or vendor the runtime with tools/vendor_pyodide.py and ' +
+            'rebuild the package.'
+          );
+        }
+        throw erreur;
+      });
     }).then(function(){
       if (typeof window.loadPyodide !== 'function') {
         throw new Error('pyodide.js did not expose loadPyodide');
       }
       report(30, 'kernelStartingInterpreter');
-      return window.loadPyodide({ indexURL: VENDOR });
+      return window.loadPyodide({ indexURL: self.manifest ? VENDOR : CDN });
     }).then(function(pyodide){
       self.pyodide = pyodide;
-      var packages = (self.manifest && self.manifest.packages) || [];
+      var packages = self.manifest ? (self.manifest.packages || []) : ROUES;
+      self.packages = packages.slice();
       if (!packages.length) return null;
-      report(55, 'kernelLoadingPackages');
+      report(45, 'kernelLoadingPackages');
       return pyodide.loadPackage(packages);
     }).then(function(){
-      report(85, 'kernelPreparing');
+      // Pur Python, absent des roues livrees avec Pyodide. Chaque echec est
+      // garde et rapporte: un carnet sans seaborn reste utilisable, un carnet
+      // qui croit l'avoir ne l'est pas.
+      if (self.source !== 'cdn') return null;
+      report(65, 'kernelInstallingPackages');
+      return self.installer(VIA_MICROPIP);
+    }).then(function(){
+      report(80, 'kernelPreparing');
       return self.pyodide.runPythonAsync(PREAMBLE);
+    }).then(function(){
+      // Plotly rend cote JavaScript: sans sa bibliotheque, une figure emise
+      // n'aurait rien pour la dessiner. Son absence n'empeche pas le reste.
+      if (self.source !== 'cdn') return null;
+      report(90, 'kernelLoadingRuntime');
+      return loadScript(PLOTLY_JS).then(function(){
+        self.plotly = typeof window.Plotly !== 'undefined';
+      }).catch(function(){
+        self.plotly = false;
+      });
     }).then(function(){
       return self.pushDatasets(true);
     }).then(function(){
       self.ready = true;
       report(100, 'kernelReady');
     });
+  };
+
+  /* Installe des paquets par micropip, et rend ce qui a echoue.
+   *
+   * Sert au demarrage pour seaborn et plotly, et a la demande depuis l'onglet
+   * Packages ou depuis une action d'agent. Un nom refuse n'interrompt jamais la
+   * serie: on installe ce qui peut l'etre et on nomme le reste. */
+  PythonKernel.prototype.installer = function(noms) {
+    var self = this;
+    if (!this.pyodide || !noms || !noms.length) return Promise.resolve({ installed: [], failed: [] });
+    var restants = noms.slice();
+    var installes = [];
+    var echecs = [];
+    function suivant() {
+      if (!restants.length) {
+        self.installed = (self.installed || []).concat(installes);
+        return Promise.resolve({ installed: installes, failed: echecs });
+      }
+      var nom = restants.shift();
+      return self.pyodide
+        .runPythonAsync('import micropip\nawait micropip.install("' + String(nom).replace(/"/g, '') + '")')
+        .then(function(){
+          installes.push(nom);
+        })
+        .catch(function(erreur){
+          echecs.push({ name: nom, error: String((erreur && erreur.message) || erreur).slice(0, 400) });
+        })
+        .then(suivant);
+    }
+    return suivant();
   };
 
   /* Datasets cross into Python as CSV text, which pandas reads natively and
@@ -366,7 +484,7 @@
 
     function earliestMark(text) {
       var best = null;
-      [TABLE_MARK, CHART_MARK, IMAGE_MARK].forEach(function(token){
+      [TABLE_MARK, CHART_MARK, IMAGE_MARK, PLOTLY_MARK].forEach(function(token){
         var index = text.indexOf(token);
         if (index === -1) return;
         if (!best || index < best.start) best = { start: index, token: token };
@@ -382,6 +500,20 @@
     function decode(token, payload) {
       if (token === IMAGE_MARK) {
         emit({ kind: 'image', source: 'data:image/png;base64,' + payload.trim(), title: '' });
+        return;
+      }
+      if (token === PLOTLY_MARK) {
+        try {
+          var figure = JSON.parse(payload);
+          emit({
+            kind: 'plotly',
+            data: figure.data || [],
+            layout: figure.layout || {},
+            title: (figure.layout && figure.layout.title && figure.layout.title.text) || ''
+          });
+        } catch (erreur) {
+          emit({ kind: 'text', text: 'plotly figure could not be read: ' + erreur.message });
+        }
         return;
       }
       try {

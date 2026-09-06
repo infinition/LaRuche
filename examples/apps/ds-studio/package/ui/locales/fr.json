@@ -144,5 +144,17 @@
   "previousPage": "Page precedente",
   "nextPage": "Page suivante",
   "dragToRotate": "Glisser pour tourner",
-  "kernelLanguageMismatch": "Le langage de ce carnet ne correspond pas au noyau actif. Son exécution est bloquée. Rétablis le noyau requis ou crée un nouveau carnet."
+  "kernelLanguageMismatch": "Le langage de ce carnet ne correspond pas au noyau actif. Son exécution est bloquée. Rétablis le noyau requis ou crée un nouveau carnet.",
+  "kernelInstallingPackages": "Installation des paquets Python...",
+  "tabPackages": "Paquets",
+  "packagesHint": "Paquets Python installes dans ce noyau. Ajoutez-en un par son nom PyPI.",
+  "packagesPlaceholder": "nom du paquet, par exemple statsmodels",
+  "packagesInstall": "Installer",
+  "packagesInstalling": "Installation de {name}...",
+  "packagesInstalled": "{name} installe.",
+  "packagesFailed": "Echec pour {name} : {error}",
+  "packagesNone": "Aucun paquet supplementaire.",
+  "packagesOffline": "Le noyau tourne sans reseau : aucune installation possible.",
+  "plotlyMissing": "Figure Plotly recue, mais la bibliotheque de rendu n'est pas chargee.",
+  "plotlyFullscreen": "Plein ecran"
 }

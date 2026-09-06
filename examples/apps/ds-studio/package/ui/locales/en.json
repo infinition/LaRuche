@@ -144,5 +144,17 @@
   "previousPage": "Previous page",
   "nextPage": "Next page",
   "dragToRotate": "Drag to rotate",
-  "kernelLanguageMismatch": "This notebook uses a different language from the active kernel. Execution is blocked. Restore the required runtime or create a new notebook."
+  "kernelLanguageMismatch": "This notebook uses a different language from the active kernel. Execution is blocked. Restore the required runtime or create a new notebook.",
+  "kernelInstallingPackages": "Installing Python packages...",
+  "tabPackages": "Packages",
+  "packagesHint": "Python packages installed in this kernel. Add one by its PyPI name.",
+  "packagesPlaceholder": "package name, for example statsmodels",
+  "packagesInstall": "Install",
+  "packagesInstalling": "Installing {name}...",
+  "packagesInstalled": "{name} installed.",
+  "packagesFailed": "{name} failed: {error}",
+  "packagesNone": "No extra package.",
+  "packagesOffline": "The kernel is running without network: nothing can be installed.",
+  "plotlyMissing": "A Plotly figure arrived, but its rendering library is not loaded.",
+  "plotlyFullscreen": "Fullscreen"
 }
