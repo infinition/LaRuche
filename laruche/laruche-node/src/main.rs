@@ -1733,22 +1733,39 @@ async fn main() -> Result<()> {
         // TUI exited: save state and shutdown
         save_persistent_state(&tui_state).await;
     } else {
-        // --no-tui mode: spawn server + system tray (Windows)
-        let (tray_shutdown_tx, tray_shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-
-        // Spawn systray on a dedicated OS thread (requires win32 message pump)
-        let tray_port = config.api_port;
-        std::thread::spawn(move || {
-            systray::run_systray(tray_port, tray_shutdown_tx);
-        });
+        // --no-tui mode: spawn the server, and the system tray where one exists.
+        //
+        // Le canal du tray n'existe QUE sous Windows, et ce n'est pas un detail
+        // de style. Ailleurs, `run_systray` etait un no-op qui prenait le Sender
+        // et rendait la main: le Sender etait donc droppe, le oneshot ferme, et
+        // un oneshot ferme resout immediatement. Le `select!` comptait cette
+        // resolution comme un « Quit » du tray, si bien que `laruche-node
+        // --no-tui` se coupait une milliseconde apres son demarrage sous Linux.
+        // Le bureau qui le lance dans ce mode attendait alors quarante-cinq
+        // secondes avant d'annoncer que LaRuche n'avait pas demarre.
+        //
+        // Pas de tray, pas de canal, pas de branche: il n'y a plus rien qui
+        // puisse se fermer tout seul.
+        #[cfg(windows)]
+        let tray_shutdown_rx = {
+            let (tray_shutdown_tx, rx) = tokio::sync::oneshot::channel::<()>();
+            // Spawn systray on a dedicated OS thread (requires win32 message pump)
+            let tray_port = config.api_port;
+            std::thread::spawn(move || {
+                systray::run_systray(tray_port, tray_shutdown_tx);
+            });
+            rx
+        };
 
         // Spawn HTTP server
         tokio::spawn(async move {
             serve_with_optional_tls(app, addr, tls_cert.zip(tls_key)).await;
         });
 
-        // Wait for either Ctrl+C or tray "Quit"
         let save_state = state.clone();
+
+        // Wait for either Ctrl+C or tray "Quit"
+        #[cfg(windows)]
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 info!("Ctrl+C received: shutting down...");
@@ -1757,6 +1774,13 @@ async fn main() -> Result<()> {
                 info!("Quit from system tray: shutting down...");
             }
         }
+
+        #[cfg(not(windows))]
+        {
+            let _ = tokio::signal::ctrl_c().await;
+            info!("Ctrl+C received: shutting down...");
+        }
+
         save_persistent_state(&save_state).await;
     }
 

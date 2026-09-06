@@ -1152,7 +1152,7 @@
     footer.appendChild(toggle);
 
     footer.appendChild(buildDownloadRow([
-      { label: t('downloadSvg'), filename: 'chart.svg', text: rendered.svg, type: 'image/svg+xml' },
+      { label: t('downloadSvg'), filename: 'chart.svg', text: svgAutonome(rendered), type: 'image/svg+xml' },
       { label: t('downloadPng'), filename: 'chart.png', png: rendered }
     ]));
     wrapper.appendChild(footer);
@@ -1286,11 +1286,26 @@
     if (revoke) setTimeout(function(){ URL.revokeObjectURL(href); }, 4000);
   }
 
+  /* Un SVG destine a un fichier porte ses dimensions reelles.
+   *
+   * A l'ecran il est en width="100%" height="auto" pour suivre son conteneur, et
+   * c'est exactement ce qu'il ne faut pas dans un fichier: charge comme Image,
+   * un pourcentage n'est pas une dimension intrinseque, et le navigateur retombe
+   * sur 300x150, la taille par defaut d'un element remplace. Le dessin etait
+   * alors mis en boite dans un coin du canvas puis rogne, ce qui se voyait
+   * surtout sur un nuage 3D dont les proportions ne sont pas celles-la. */
+  function svgAutonome(rendered) {
+    return String(rendered.svg).replace(
+      'width="100%" height="auto"',
+      'width="' + rendered.width + '" height="' + rendered.height + '"'
+    );
+  }
+
   /* Rasterises the chart through a canvas. The sandbox allows downloads and
    * blob: images, so this needs no network and no library. */
   function exportPng(rendered, filename) {
     var scale = 2;
-    var blob = new Blob([rendered.svg], { type: 'image/svg+xml;charset=utf-8' });
+    var blob = new Blob([svgAutonome(rendered)], { type: 'image/svg+xml;charset=utf-8' });
     var url = URL.createObjectURL(blob);
     var image = new Image();
     image.onload = function(){
@@ -1299,7 +1314,7 @@
       canvas.height = rendered.height * scale;
       var context = canvas.getContext('2d');
       context.scale(scale, scale);
-      context.drawImage(image, 0, 0);
+      context.drawImage(image, 0, 0, rendered.width, rendered.height);
       URL.revokeObjectURL(url);
       canvas.toBlob(function(output){
         if (!output) { toast(t('exportFailed'), 'error'); return; }

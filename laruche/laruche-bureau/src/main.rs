@@ -88,6 +88,36 @@ fn noeud_repond(url: &str) -> bool {
 /// de repertoire, car le chemin `target/<profil>/` est COMPILE dans le binaire -
 /// lancer la coque depuis un dossier vide ne l'empeche donc pas de retrouver le
 /// noeud du depot, et le « mode client » demarrait un serveur local malgre tout.
+/// Ou l'empaqueteur a pu deposer le noeud, selon la cible.
+///
+/// Tauri copie `resources` a un endroit qui depend du format, et seule la
+/// disposition Windows etait ecrite ici. Sous deb et AppImage l'executable vit
+/// dans `usr/bin` tandis que les ressources vont dans `usr/lib/<produit>/bin`,
+/// si bien que le bureau cherchait `usr/bin/bin/laruche-node` et
+/// `usr/bin/laruche-node`, deux chemins qui n'existent pas. Il annoncait alors
+/// « Cette application ne contient pas de noeud » et se rabattait sur la
+/// decouverte reseau, pour finir accroche a une ruche du LAN.
+///
+/// Liste explicite plutot que `resource_dir()` de Tauri: cette fonction n'a ni
+/// `AppHandle` ni `PackageInfo` sous la main, et une liste de chemins se lit et
+/// se teste, ce qu'une resolution enfouie dans une dependance ne fait pas.
+fn emplacements_noeud(a_cote: &std::path::Path, nom: &str) -> Vec<PathBuf> {
+    let parent = a_cote.parent().map(std::path::Path::to_path_buf);
+    let mut liste = vec![
+        // Installeurs Windows: le noeud est dans `bin/` a cote de l'exe.
+        a_cote.join("bin").join(nom),
+        // Archive extraite a la main: tout au meme endroit.
+        a_cote.join(nom),
+    ];
+    if let Some(parent) = parent {
+        // deb et AppImage: exe dans `usr/bin`, ressources dans `usr/lib/LaRuche/bin`.
+        liste.push(parent.join("lib").join("LaRuche").join("bin").join(nom));
+        // Bundle macOS: exe dans `Contents/MacOS`, ressources dans `Contents/Resources`.
+        liste.push(parent.join("Resources").join("bin").join(nom));
+    }
+    liste
+}
+
 fn chemin_noeud() -> Option<PathBuf> {
     if std::env::var("LARUCHE_SANS_NOEUD").is_ok_and(|v| v != "0" && !v.is_empty()) {
         return None;
@@ -98,13 +128,12 @@ fn chemin_noeud() -> Option<PathBuf> {
         "laruche-node"
     };
     let a_cote = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    // `bin/` (ou l'installeur depose le noeud) et le dossier de l'exe (extraction
-    // manuelle d'une archive). On prend le PLUS RECENT des deux, et non le premier
-    // trouve: en developpement, `bin/` garde la copie du dernier empaquetage, qui
-    // gagnait en silence sur le binaire fraichement compile a cote. On testait alors
-    // une version d'il y a plusieurs heures sans le savoir - une route ajoutee dans la
+    // On prend le PLUS RECENT des candidats, et non le premier trouve: en
+    // developpement, `bin/` garde la copie du dernier empaquetage, qui gagnait en
+    // silence sur le binaire fraichement compile a cote. On testait alors une
+    // version d'il y a plusieurs heures sans le savoir - une route ajoutee dans la
     // minute repondait 404 sans aucune trace pour l'expliquer.
-    let mut candidats: Vec<(std::time::SystemTime, PathBuf)> = [a_cote.join("bin").join(nom), a_cote.join(nom)]
+    let mut candidats: Vec<(std::time::SystemTime, PathBuf)> = emplacements_noeud(&a_cote, nom)
         .into_iter()
         .filter_map(|p| {
             let t = std::fs::metadata(&p).ok()?.modified().ok()?;
@@ -542,4 +571,51 @@ fn main() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests_emplacements {
+    use super::emplacements_noeud;
+    use std::path::{Path, PathBuf};
+
+    /// Compare en normalisant les separateurs.
+    ///
+    /// Sous Windows, joindre a un chemin ecrit avec des barres obliques donne un
+    /// melange des deux: `/usr/bin` + `bin` rend `/usr/binin`. Comparer sans
+    /// normaliser faisait echouer le test sur la plateforme ou il tourne, alors
+    /// que le code vise justement l'autre.
+    fn contient(liste: &[PathBuf], fin: &str) -> bool {
+        let plat = |s: &str| s.replace('\\', "/");
+        liste
+            .iter()
+            .any(|p| plat(&p.to_string_lossy()).ends_with(&plat(fin)))
+    }
+
+    /// Les quatre dispositions que produisent les empaqueteurs.
+    ///
+    /// Seule la premiere etait couverte, et c'est pour cela que le bureau ne
+    /// trouvait pas son noeud sous Linux: il cherchait `usr/bin/bin/laruche-node`
+    /// et `usr/bin/laruche-node`, aucun des deux n'existant dans un `.deb`.
+    #[test]
+    fn les_dispositions_des_empaqueteurs_sont_toutes_couvertes() {
+        let liste = emplacements_noeud(Path::new("/usr/bin"), "laruche-node");
+        assert!(contient(&liste, "/usr/bin/bin/laruche-node"), "installeur Windows");
+        assert!(contient(&liste, "/usr/bin/laruche-node"), "archive extraite");
+        assert!(
+            contient(&liste, "/usr/lib/LaRuche/bin/laruche-node"),
+            "deb et AppImage: {liste:?}"
+        );
+        assert!(
+            contient(&liste, "/usr/Resources/bin/laruche-node"),
+            "bundle macOS: {liste:?}"
+        );
+    }
+
+    /// Un exe a la racine n'a pas de parent: la liste doit rester utilisable.
+    #[test]
+    fn un_exe_sans_parent_ne_fait_pas_paniquer() {
+        let liste = emplacements_noeud(Path::new("/"), "laruche-node");
+        assert!(!liste.is_empty());
+        assert!(contient(&liste, "bin/laruche-node"));
+    }
 }

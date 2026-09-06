@@ -64,10 +64,12 @@ pub fn run_systray(port: u16, shutdown_tx: tokio::sync::oneshot::Sender<()>) {
     }
 }
 
-#[cfg(not(windows))]
-pub fn run_systray(_port: u16, _shutdown_tx: tokio::sync::oneshot::Sender<()>) {
-    // No-op on non-Windows
-}
+// Pas de `run_systray` hors Windows, et surtout pas un no-op.
+//
+// Celui qui existait ici prenait le Sender du canal d'arret et rendait la main,
+// donc le droppait, donc fermait le oneshot que `main.rs` attendait. Le noeud se
+// coupait une milliseconde apres son demarrage. Un no-op qui detruit une
+// ressource qu'on lui confie n'est pas un no-op.
 
 /// Generate a yellow hexagon on transparent background as RGBA bytes.
 // Windows seulement, comme son unique appelant `run_systray`: sans ce cfg, la
