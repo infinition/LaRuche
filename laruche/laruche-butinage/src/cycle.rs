@@ -25,6 +25,13 @@ use std::time::Duration;
 /// burn one model call per pass until the pass ceiling).
 const MAX_PASSES_BLOQUEES: u32 = 3;
 
+/// How many times a claimed completion may be sent back for lack of evidence.
+///
+/// Bounded on purpose: the controller must be able to refuse a landing without
+/// being able to trap the mission in a loop of refusals. Once spent, the run
+/// ends as a failure that names what was missing, never as a quiet success.
+const MAX_RELANCES_FIN: usize = 2;
+
 /// Cooldown (passes) after a failed cognitive consolidation before retrying it
 /// (each attempt costs an auxiliary LLM call).
 const GEL_CONSOLIDATION: usize = 3;
@@ -112,6 +119,12 @@ pub async fn butiner(
     let mut winddown_emis = false;
     // Pre-landing self-check consumed (one bounce max per butinage).
     let mut verif_faite = false;
+    // Durable mission state, kept beside the transcript rather than inside it.
+    //
+    // The transcript is what the model sees, and compaction rewrites it. What
+    // was actually observed, which acceptance checks hold, and whether an app is
+    // waiting on a human must survive that, so they live here instead.
+    let mut controle = crate::mission::ControleMission::default();
 
     loop {
         if est_annule(annulation) {
@@ -382,8 +395,46 @@ pub async fn butiner(
         match cap(&ctx, issue) {
             Decision::Poser(fin) => {
                 if matches!(fin, FinDeVol::Accomplie) {
+                    // An app that says it is waiting on the human is not a mission
+                    // that succeeded, and not one that failed either. Filing it as
+                    // Accomplie is how "your turn" became a finished game.
+                    if controle.attente_app.as_deref().is_some_and(|w| w == "human" || w == "user") {
+                        let motif = "The app is waiting for the human. The mission resumes on their next move.";
+                        carnet.itineraire.finaliser();
+                        emet.emettre(Evenement::Fin(texte_final.clone()));
+                        return Ok(Bilan::nouveau(
+                            texte_final,
+                            FinDeVol::AttenteEvenement(motif.into()),
+                            carnet.passe + 1,
+                        ));
+                    }
+                    // Landing is a claim. It is checked against what was actually
+                    // observed, never against how confident the sentence sounds.
+                    let plan_ouvert = carnet.itineraire.a_des_ouvertes();
+                    if let Some(obstacle) = controle.obstacle_fin(plan_ouvert, &texte_final) {
+                        if controle.relances_fin < MAX_RELANCES_FIN {
+                            controle.relances_fin += 1;
+                            controle.tracer(carnet.passe, "fin_refusee", obstacle.clone(), 0);
+                            emet.emettre(Evenement::Statut(
+                                "🔎 Completion sent back: unverified.".into(),
+                            ));
+                            carnet.historique.push(Message::nudge(obstacle));
+                            carnet.passe += 1;
+                            continue;
+                        }
+                        // Budget spent. Say what was missing; do not call it done.
+                        carnet.itineraire.finaliser();
+                        controle.tracer(carnet.passe, "fin_bloquee", obstacle.clone(), 0);
+                        emet.emettre(Evenement::Fin(texte_final.clone()));
+                        return Ok(Bilan::nouveau(
+                            texte_final,
+                            FinDeVol::BoucleSterile(obstacle),
+                            carnet.passe + 1,
+                        ));
+                    }
                     carnet.itineraire.finaliser();
                 }
+                controle.terminer(&fin);
                 emet.emettre(Evenement::Fin(texte_final.clone()));
                 return Ok(Bilan::nouveau(texte_final, fin, carnet.passe + 1));
             }
@@ -417,10 +468,24 @@ pub async fn butiner(
                 if let Some(bilan) = moisson.arret {
                     return Ok(bilan); // clean stop: sterile loop / interruption
                 }
+                let mut progres = false;
+                for (appel, res, lecture) in &moisson.observations {
+                    progres |= controle.observer(appel, res, *lecture, carnet.passe);
+                }
                 if moisson.executes > 0 {
-                    // Real progress: rearm the sterile-relaunch budget.
-                    carnet.rearmer_auto();
                     passes_bloquees = 0;
+                    // A tool ran. Whether anything MOVED is another question, and
+                    // only the answer refills the relaunch budget. Rearming on
+                    // mere execution is what let an agent read twenty files in a
+                    // row, inside an app it never acted on, and keep going for as
+                    // long as the pass ceiling allowed.
+                    if progres {
+                        controle.sans_progres = 0;
+                        carnet.rearmer_auto();
+                    } else {
+                        controle.sans_progres += 1;
+                        controle.tracer(carnet.passe, "sans_progres", "tools ran, nothing moved", 0);
+                    }
                 } else {
                     // EVERY call was blocked: no execution happened. A stuck model
                     // re-emitting the same blocked call must not burn the pass ceiling.
@@ -1214,10 +1279,27 @@ It is Sunday.".into()),
         assert_eq!(bilan.texte, "voici la réponse directe");
     }
 
+    /// A registry whose only tool answers a board waiting on the human.
+    struct OutilsEtat;
+    #[async_trait]
+    impl Outils for OutilsEtat {
+        async fn executer(&self, _a: &Appel) -> ResultatOutil {
+            ResultatOutil::ok(r#"{"waitingFor":"human","turn":"white"}"#)
+        }
+        fn concurrence_sure(&self, _a: &Appel) -> bool {
+            true
+        }
+    }
+
     #[tokio::test]
     async fn plan_force_l_auto_continuation() {
         // 1) post a plan (1 step); 2) text only (step still open), must relaunch;
-        // 3) mission_accomplie, end. Pass 2 must NOT conclude.
+        // 3) mission_accomplie while the step is STILL open.
+        //
+        // This used to land as Accomplie, and the open step was then quietly
+        // marked abandoned: the engine reported success over work it had never
+        // done. The completion is now sent back, and once that budget is spent
+        // the run ends naming what was missing.
         let four = FournisseurScript::scenario(vec![
             rep_appel("plan", json!({"steps": ["chercher la source"]})),
             rep_texte("je réfléchis à voix haute mais je n'agis pas"),
@@ -1227,8 +1309,48 @@ It is Sunday.".into()),
         let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None, None)
             .await
             .unwrap();
-        assert_eq!(bilan.fin, FinDeVol::Accomplie);
+        match bilan.fin {
+            FinDeVol::BoucleSterile(motif) => {
+                assert!(motif.contains("open plan steps"), "got: {motif}")
+            }
+            autre => panic!("expected the completion to be refused, got {autre:?}"),
+        }
         assert!(carnet.auto_continue >= 1 || carnet.passe >= 2, "auto-continuation must have triggered");
+    }
+
+    #[tokio::test]
+    async fn un_plan_ferme_laisse_conclure() {
+        // The other half of the contract: the gate must refuse an unfinished
+        // mission WITHOUT blocking a finished one. Same script, except the model
+        // re-emits its plan with the step marked done before landing.
+        let four = FournisseurScript::scenario(vec![
+            rep_appel("plan", json!({"steps": ["chercher la source"]})),
+            rep_appel("plan", json!({"items": [{"task": "chercher la source", "status": "done"}]})),
+            rep_appel("mission_accomplie", json!({"resume": "ok"})),
+        ]);
+        let mut carnet = Carnet::ouvrir("mission", ModeMission::Standard, t0());
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(bilan.fin, FinDeVol::Accomplie);
+    }
+
+    #[tokio::test]
+    async fn une_app_qui_attend_l_humain_n_est_pas_une_mission_finie() {
+        // An app answering waitingFor=human is neither success nor failure. It
+        // used to be filed as Accomplie, which is how "your turn" ended a game.
+        let four = FournisseurScript::scenario(vec![
+            rep_appel("app_call", json!({"appId": "jeu", "action": "game.state"})),
+            rep_appel("mission_accomplie", json!({"resume": "à toi de jouer"})),
+        ]);
+        let mut carnet = Carnet::ouvrir("joue", ModeMission::Standard, t0());
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsEtat, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        match bilan.fin {
+            FinDeVol::AttenteEvenement(motif) => assert!(motif.contains("waiting for the human")),
+            autre => panic!("expected AttenteEvenement, got {autre:?}"),
+        }
     }
 
     #[tokio::test]

@@ -123,6 +123,12 @@ pub enum FinDeVol {
     Interrompue,
     /// The tool requests a clarification (hands control back).
     Clarification(String),
+    /// Suspended until something outside acts: a human's move, an app event.
+    ///
+    /// Distinct from Accomplie, which claims the objective is met, and from
+    /// BoucleSterile, which blames the model. Folding this case into either
+    /// one is what turned `waitingFor: human` into a finished mission.
+    AttenteEvenement(String),
     /// Clean stop by the vigie (sterile loop detected).
     BoucleSterile(String),
     /// Tier 3 supervisor escalated to a human (stalled past the nudge budget).

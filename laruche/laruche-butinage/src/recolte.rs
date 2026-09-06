@@ -34,8 +34,17 @@ pub struct Moisson {
     /// `Some(bilan)`: the loop must land (sterile loop / interruption).
     pub arret: Option<Bilan>,
     /// Number of calls that actually EXECUTED (blocked calls do not count).
-    /// The loop uses it to decide whether real progress happened this pass.
+    ///
+    /// A count, and only a count. It says a tool ran, never that anything moved
+    /// forward: twenty file reads score twenty here. Use it to detect a pass
+    /// where nothing ran at all, and read `observations` for progress.
     pub executes: usize,
+    /// What each executed call actually returned, in order.
+    ///
+    /// The loop hands these to the mission controller, which decides what counts
+    /// as progress. The results are kept whole here, before the observation cap
+    /// shortens them for the model.
+    pub observations: Vec<(Appel, ResultatOutil, bool)>,
 }
 
 /// Splits calls into batches: `(read_only, indices)`. Consecutive safe calls are
@@ -62,9 +71,13 @@ async fn executer_borne(outils: &dyn Outils, appel: &Appel, defaut_secs: u64) ->
     match tokio::time::timeout(std::time::Duration::from_secs(secs), outils.executer(appel)).await
     {
         Ok(r) => r,
-        Err(_) => ResultatOutil::echec(format!(
-            "Tool `{}` timed out after {secs}s. The operation was aborted; try a narrower \
-             scope, different arguments, or another tool.",
+        // The wait was abandoned here. That says nothing about the other side:
+        // the write may have landed, the message may have been sent. Announcing
+        // an abort invited the model to simply run the call again.
+        Err(_) => ResultatOutil::indetermine(format!(
+            "Tool `{}` did not answer within {secs}s. It was NOT cancelled and may \
+             still have taken effect: read the resulting state before retrying, and \
+             prefer a narrower scope or another tool.",
             appel.nom
         )),
     }
@@ -96,6 +109,7 @@ pub async fn recolter(
 ) -> Moisson {
     let parallele = reglages.profil.parallelisme();
     let mut executes = 0usize;
+    let mut observations: Vec<(Appel, ResultatOutil, bool)> = Vec::new();
 
     // Intra-pass dedup: local models routinely emit the SAME call twice in one message.
     // Only the first occurrence executes; duplicates get a synthetic observation (a
@@ -114,7 +128,7 @@ pub async fn recolter(
 
     for (sur, idxs) in partitionner(appels, outils) {
         if annule(annulation) {
-            return Moisson { arret: Some(bilan_interrompu(carnet)), executes };
+            return Moisson { arret: Some(bilan_interrompu(carnet)), executes, observations };
         }
         if sur && parallele && idxs.len() > 1 {
             // ── Parallel batch (read-only) ──
@@ -140,7 +154,7 @@ pub async fn recolter(
             let mut resultats: HashMap<usize, (ResultatOutil, u64)> = HashMap::new();
             for groupe in a_lancer.chunks(MAX_PARALLELE) {
                 if annule(annulation) {
-                    return Moisson { arret: Some(bilan_interrompu(carnet)), executes };
+                    return Moisson { arret: Some(bilan_interrompu(carnet)), executes, observations };
                 }
                 for &i in groupe {
                     emet.emettre(Evenement::AppelOutil { nom: appels[i].nom.clone() });
@@ -163,10 +177,15 @@ pub async fn recolter(
                     pousser_blocage(carnet, &appels[i], msg, emet);
                 } else if let Some((res, ms)) = resultats.remove(&i) {
                     executes += 1;
+                    observations.push((
+                        appels[i].clone(),
+                        res.clone(),
+                        outils.concurrence_sure(&appels[i]),
+                    ));
                     if let Some(bilan) =
                         appliquer(&appels[i], res, ms, carnet, reglages, outils, vigie, emet)
                     {
-                        return Moisson { arret: Some(bilan), executes };
+                        return Moisson { arret: Some(bilan), executes, observations };
                     }
                 }
             }
@@ -174,7 +193,7 @@ pub async fn recolter(
             // ── Sequential (mutating, approval, or non-parallel profile) ──
             for &i in &idxs {
                 if annule(annulation) {
-                    return Moisson { arret: Some(bilan_interrompu(carnet)), executes };
+                    return Moisson { arret: Some(bilan_interrompu(carnet)), executes, observations };
                 }
                 let appel = &appels[i];
                 if doublons.contains(&i) {
@@ -190,15 +209,16 @@ pub async fn recolter(
                 let res = executer_borne(outils, appel, reglages.timeout_outil_secs).await;
                 let ms = t0.elapsed().as_millis() as u64;
                 executes += 1;
+                observations.push((appel.clone(), res.clone(), outils.concurrence_sure(appel)));
                 if let Some(bilan) =
                     appliquer(appel, res, ms, carnet, reglages, outils, vigie, emet)
                 {
-                    return Moisson { arret: Some(bilan), executes };
+                    return Moisson { arret: Some(bilan), executes, observations };
                 }
             }
         }
     }
-    Moisson { arret: None, executes }
+    Moisson { arret: None, executes, observations }
 }
 
 /// Caps an observation to `max` characters, keeping head + tail (the head carries the
@@ -410,9 +430,11 @@ mod tests {
                 .await;
         assert!(moisson.arret.is_none());
         assert_eq!(moisson.executes, 1);
-        // a tool_result is still reinjected (never omitted)
+        // a tool_result is still reinjected (never omitted), and it must not
+        // claim the call was cancelled: the remote side may well have run it.
         let obs = carnet.historique.last().unwrap();
-        assert!(obs.contenu.contains("timed out"));
+        assert!(obs.contenu.contains("did not answer"), "got: {}", obs.contenu);
+        assert!(!obs.contenu.contains("aborted"), "got: {}", obs.contenu);
     }
 
     #[tokio::test]

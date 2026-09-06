@@ -6,9 +6,10 @@
 
 use crate::issue::Appel;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 /// Result of a tool call.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResultatOutil {
     pub ok: bool,
     pub sortie: String,
@@ -21,14 +22,27 @@ pub struct ResultatOutil {
     /// outil qui rend une image et dont l'image n'arrive pas est un outil qui
     /// ment sur ce qu'il fait.
     pub images: Vec<String>,
+    /// The remote effect is UNKNOWN, as opposed to known to have failed.
+    ///
+    /// A timeout is the ordinary case: the call was abandoned on this side,
+    /// which proves nothing about the other. Treating it as a clean failure is
+    /// how a payment gets sent twice and a file gets appended twice. The
+    /// mission controller refuses to conclude while one of these is open, and
+    /// requires the state to be read back first.
+    #[serde(default)]
+    pub incertain: bool,
 }
 
 impl ResultatOutil {
     pub fn ok(s: impl Into<String>) -> Self {
-        Self { ok: true, sortie: s.into(), images: Vec::new() }
+        Self { ok: true, sortie: s.into(), images: Vec::new(), incertain: false }
     }
     pub fn echec(s: impl Into<String>) -> Self {
-        Self { ok: false, sortie: s.into(), images: Vec::new() }
+        Self { ok: false, sortie: s.into(), images: Vec::new(), incertain: false }
+    }
+    /// A failure whose remote effect is unknown. See [`ResultatOutil::incertain`].
+    pub fn indetermine(s: impl Into<String>) -> Self {
+        Self { ok: false, sortie: s.into(), images: Vec::new(), incertain: true }
     }
     /// Fingerprint of the result (stagnation detection by the vigie).
     pub fn empreinte(&self) -> u64 {

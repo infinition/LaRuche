@@ -2478,7 +2478,12 @@ mod tests_profil_pour {
 pub struct RapportMission {
     pub texte: String,
     /// Terminal reason, stable snake_case: accomplie | plafond | erreur | interrompue |
-    /// clarification | boucle_sterile | escalade | budget.
+    /// clarification | attente_evenement | boucle_sterile | escalade | budget.
+    ///
+    /// `attente_evenement` is neither a success nor a failure: the mission is
+    /// suspended until something outside acts, a human's move for instance.
+    /// Callers that score runs treat it as not-accomplished today, which is
+    /// accurate but conflates waiting with failing.
     pub fin: String,
     pub succes: bool,
     pub passes: usize,
@@ -2499,6 +2504,7 @@ fn fin_str(f: &but::FinDeVol) -> &'static str {
         but::FinDeVol::Erreur(_) => "erreur",
         but::FinDeVol::Interrompue => "interrompue",
         but::FinDeVol::Clarification(_) => "clarification",
+        but::FinDeVol::AttenteEvenement(_) => "attente_evenement",
         but::FinDeVol::BoucleSterile(_) => "boucle_sterile",
         but::FinDeVol::Escalade(_) => "escalade",
         but::FinDeVol::Budget => "budget",
