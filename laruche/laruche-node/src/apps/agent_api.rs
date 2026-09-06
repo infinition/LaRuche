@@ -187,7 +187,7 @@ pub(crate) async fn sync(
     }
     {
         let mut hosts = state.app_runtime.hosts.lock().unwrap();
-        hosts.retain(|_, h| h.touched.elapsed() < Duration::from_secs(15));
+        hosts.retain(|_, h| h.touched.elapsed() < super::runtime::PRESENCE_HOTE);
         if hosts.len() > 128 && !hosts.contains_key(&(owner, body.host_id.clone())) {
             return Err(error(StatusCode::TOO_MANY_REQUESTS, "Host limit reached"));
         }
@@ -341,7 +341,7 @@ pub(crate) async fn command(
     if kind == "app_list" {
         let hosts = state.app_runtime.hosts.lock().unwrap();
         let list:Vec<_>=registry.list().into_iter().filter(|a|state.app_runtime.allows(owner,&a.id,principal,"discover")).map(|a|{
-            let instances:Vec<_>=hosts.iter().filter(|((u,_),h)|*u==owner&&h.touched.elapsed()<Duration::from_secs(15)).flat_map(|(_,h)|h.instances.iter().filter(|i|i.app_id==a.id).cloned()).collect();
+            let instances:Vec<_>=hosts.iter().filter(|((u,_),h)|*u==owner&&h.touched.elapsed()<super::runtime::PRESENCE_HOTE).flat_map(|(_,h)|h.instances.iter().filter(|i|i.app_id==a.id).cloned()).collect();
             json!({"appId":a.id,"name":a.manifest.as_ref().map(|m|&m.name),"enabled":a.enabled,"description":a.manifest.as_ref().map(|m|&m.description),"instances":instances,"canOpen":state.app_runtime.allows(owner,&a.id,principal,"open")})
         }).collect();
         return Ok(json!({"apps":list}));
@@ -373,7 +373,7 @@ pub(crate) async fn command(
                 .lock()
                 .unwrap()
                 .iter()
-                .filter(|((u, _), h)| *u == owner && h.touched.elapsed() < Duration::from_secs(15))
+                .filter(|((u, _), h)| *u == owner && h.touched.elapsed() < super::runtime::PRESENCE_HOTE)
                 .flat_map(|(_, h)| {
                     h.instances
                         .iter()
@@ -553,7 +553,7 @@ pub(crate) async fn run(
         let live = hosts
             .get(&(owner, body.host_id.clone()))
             .map(|h| {
-                h.touched.elapsed() < Duration::from_secs(15)
+                h.touched.elapsed() < super::runtime::PRESENCE_HOTE
                     && h.instances
                         .iter()
                         .any(|i| i.instance_id == body.instance_id && i.app_id == body.app_id)

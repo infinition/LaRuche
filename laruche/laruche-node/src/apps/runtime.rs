@@ -116,6 +116,22 @@ pub(crate) struct Instance {
     #[serde(default)]
     pub progress: Option<u8>,
 }
+/// Combien de temps une vue reste consideree connectee sans donner signe.
+///
+/// Le navigateur bat toutes les secondes, ce qui laissait quinze secondes une
+/// marge confortable. Sauf que les navigateurs BRIDENT les minuteries d'un
+/// onglet en arriere-plan, jusqu'a une fois par minute: il suffisait que
+/// l'utilisateur regarde ailleurs quinze secondes pour que l'hote soit purge,
+/// et l'action suivante de l'agent repondait "App view is not connected" sur
+/// une vue pourtant ouverte devant lui. L'agent rouvrait alors la vue, heritait
+/// d'un nouvel instanceId, et perdait le fil de ce qu'il faisait.
+///
+/// Quatre-vingt-dix secondes survivent a un battement ramene a la minute. Ce
+/// n'est pas une detection de presence fine, et ce n'etait pas le but: une vue
+/// vraiment fermee est signalee par la synchronisation suivante, qui ne la
+/// listera plus, sans attendre l'expiration.
+pub(crate) const PRESENCE_HOTE: Duration = Duration::from_secs(90);
+
 pub(crate) struct Host {
     pub touched: Instant,
     pub instances: Vec<Instance>,
@@ -264,7 +280,7 @@ impl Runtime {
         }
         let host = {
             let mut hosts = self.hosts.lock().unwrap();
-            hosts.retain(|_, h| h.touched.elapsed() < Duration::from_secs(15));
+            hosts.retain(|_, h| h.touched.elapsed() < PRESENCE_HOTE);
             let matching: Vec<_> = hosts
                 .iter()
                 .filter(|((owner, _), h)| {

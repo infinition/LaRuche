@@ -497,6 +497,15 @@ LaRuche.Apps = (function(){
     return fetch(LaRuche.API.base+path,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {};}).then(function(data){if(!r.ok)throw new Error(data.error&&data.error.message||'Request failed ('+r.status+')');return data;});});
   }
   function liveBridges(){return [activeBridge,dockBridge].concat(Array.from(detachedBridges)).filter(function(b){return b&&b.ready;});}
+  /* Le battement reprend des que l'onglet redevient visible.
+     Un navigateur bride les minuteries d'un onglet en arriere-plan jusqu'a une
+     fois par minute. Attendre le prochain tic bride laissait la vue absente
+     pendant une minute apres le retour de l'utilisateur, alors qu'elle etait
+     sous ses yeux. */
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible' && hostTimer){ clearTimeout(hostTimer); hostTimer=null; syncHost(); }
+  });
+
   function syncHost(){
     var instances=liveBridges().map(function(b){return {instanceId:b.instanceId,appId:b.app.id,version:b.app.activeVersion,viewId:b.view.id,ready:b.appReady,status:b.appStatus,progress:b.progress};});
     hostApi('/api/apps/host/sync',{hostId:hostId,instances:instances}).then(function(data){
