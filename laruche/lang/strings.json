@@ -5168,8 +5168,8 @@
     "fr": "Ce que LaRuche sait de toi (injecté dans son contexte). Toi seul peux l'éditer : l'agent ne peut pas y toucher."
   },
   "shell.profilePlaceholder": {
-    "en": "E.g. My name is Infinition. I'm a polymath developer (Rust, AI). I prefer concise, direct answers. Timezone: Europe/Paris…",
-    "fr": "Ex : Je m'appelle Infinition. Développeur polymathe (Rust, IA). Je préfère des réponses concises et directes. Fuseau : Europe/Paris…"
+    "en": "E.g. Software engineer (Rust, Python). I prefer concise, direct answers with minimal boilerplate. Timezone: UTC+1.",
+    "fr": "Ex : Ingénieur logiciel (Rust, Python). Je préfère des réponses concises, directes et sans superflu. Fuseau horaire : UTC+1."
   },
   "shell.reconnecting": {
     "en": "Reconnecting...",
