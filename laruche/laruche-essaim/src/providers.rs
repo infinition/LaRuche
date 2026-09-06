@@ -205,6 +205,12 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
             .unwrap_or(0)
     };
 
+    // Le premier tour utilisateur porte l'enonce de la mission, ce qui lui vaut
+    // d'etre epargne par les leviers qui suivent. Son index sert jusqu'au dernier.
+    let premier_user = reduit["messages"]
+        .as_array()
+        .and_then(|ms| ms.iter().position(|m| m["role"] == "user"));
+
     if taille(&reduit) > limite {
         // EVERY message is a candidate except the system prompt and the first user
         // turn, which carries the mission itself. Restricting this to `role == "tool"`
@@ -212,9 +218,6 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
         // correlation comes back as a `user` message, and the curator sends the whole
         // mission transcript as ONE user message (measured: 109 KB, the largest body
         // of the run). Trimming what we can see beats refusing to look.
-        let premier_user = reduit["messages"]
-            .as_array()
-            .and_then(|ms| ms.iter().position(|m| m["role"] == "user"));
         let mut par_taille: Vec<(usize, usize)> = reduit["messages"]
             .as_array()
             .map(|ms| {
@@ -341,6 +344,43 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
     // Dernier recours, quand il ne reste plus rien a rendre.
     if taille(&reduit) > limite {
         elaguer_les_plus_vieux(&mut reduit, limite);
+    }
+
+    // Le premier tour utilisateur, epargne par tout ce qui precede, y compris par
+    // `elaguer_les_plus_vieux`.
+    //
+    // On l'epargne parce qu'il porte l'enonce. Mais le curateur y fusionne aussi
+    // la transcription, et le 5 septembre ce seul message pesait 130664 octets:
+    // 78% d'un corps de 168306, pour une limite de 76800. Les trois autres
+    // messages ont ete rognes de 303 caracteres chacun, ce qui ne change rien, et
+    // le corps est parti tel quel. La passerelle l'a coupe puis refuse, et la
+    // relance a renvoye le meme corps. Quatre fois de suite.
+    //
+    // Le proteger entierement revenait donc a garantir le refus. On garde sa
+    // TETE, ou vit l'enonce, et on coupe la queue fusionnee: l'objectif survit,
+    // ce qui etait le but de la protection.
+    if taille(&reduit) > limite {
+        if let Some(i) = premier_user {
+            for garde in [8_000usize, 4_000, 2_000, 1_000] {
+                if taille(&reduit) <= limite {
+                    break;
+                }
+                let Some(texte) = reduit["messages"][i]["content"].as_str().map(str::to_string)
+                else {
+                    break;
+                };
+                let total = texte.chars().count();
+                if total <= garde + 200 {
+                    continue;
+                }
+                let tete: String = texte.chars().take(garde).collect();
+                reduit["messages"][i]["content"] = serde_json::json!(format!(
+                    "{tete}\n\n[... {} chars cut to fit the request budget. The objective \
+                     above is intact; read back what you need with a tool ...]",
+                    total - garde
+                ));
+            }
+        }
     }
 
     // Le corps part quand meme: la limite est un garde place SOUS un mur observe,
@@ -2132,6 +2172,41 @@ mod tests {
     /// yield nothing, otherwise the same ids are emitted again, the consumer
     /// appends them, and the next request carries `tool_calls: [X, X]` which the
     /// API rejects with `Duplicate value for 'tool_call_id'`.
+    /// Le corps refuse du 5 septembre 2026, reduit a sa forme.
+    ///
+    /// Le curateur fusionne la transcription dans le PREMIER tour utilisateur,
+    /// celui que tous les leviers epargnaient pour proteger l'enonce. Ce message
+    /// pesait 130664 octets a lui seul, 78% d'un corps de 168306 pour une limite
+    /// de 76800. Les trois autres ont ete rognes de 303 caracteres chacun, ce qui
+    /// ne change rien, et le corps est parti tel quel: coupe par la passerelle,
+    /// refuse, puis renvoye a l'identique par chaque relance. Quatre fois.
+    ///
+    /// L'enonce doit survivre, la queue fusionnee non.
+    #[test]
+    fn le_premier_tour_utilisateur_obese_est_rogne_sans_perdre_l_enonce() {
+        let enonce = "Creer un notebook avec une visualisation 3D";
+        let body = serde_json::json!({
+            "model": "deepseek-v4-flash",
+            "tools": [],
+            "messages": [
+                { "role": "system", "content": "s".repeat(17_000) },
+                { "role": "user", "content": format!("{enonce}{}", "T".repeat(130_000)) },
+                { "role": "assistant", "content": "a".repeat(7_000) },
+                { "role": "tool", "content": "o".repeat(400) }
+            ]
+        });
+        let avant = json_ascii(&serde_json::to_string(&body).unwrap()).len();
+        assert!(avant > 150_000, "la forme doit reproduire le corps refuse, got {avant}");
+
+        let apres = reduire_sous_budget(&body, 76_800).unwrap();
+        let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
+        assert!(corps <= 76_800, "le corps doit tenir, got {corps}");
+
+        let premier = apres["messages"][1]["content"].as_str().unwrap();
+        assert!(premier.starts_with(enonce), "l'enonce doit survivre en tete");
+        assert!(premier.contains("cut to fit the request budget"));
+    }
+
     /// The curator sends the whole mission transcript as ONE user message.
     ///
     /// The reordering, locked down: trimming observations is enough, so the agent
