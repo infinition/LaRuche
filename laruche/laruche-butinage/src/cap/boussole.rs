@@ -150,7 +150,7 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
             if ctx.relance_dispo() {
                 Decision::Relancer(nudge::DEMARRER_PLAN.to_string())
             } else {
-                Decision::Poser(FinDeVol::Accomplie)
+                Decision::Poser(FinDeVol::BoucleSterile("plan was never executed".into()))
             }
         }
 
@@ -184,6 +184,12 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
             // stop=Outils turn is a tool problem first.
             if t.vide && ctx.relance_dispo() {
                 return Decision::Relancer(nudge::REPONSE_VIDE.to_string());
+            }
+            // Exhausted recovery is an incomplete mission, never a success.
+            if t.tronquee || t.malforme || t.vide {
+                return Decision::Poser(FinDeVol::BoucleSterile(
+                    "model recovery exhausted: response remained empty, truncated or malformed".into(),
+                ));
             }
             // Rail 3: long search not thorough enough, push a bit. BOUNDED by
             //   relance_max over STERILE turns (auto_continue resets to 0 as soon as a
@@ -314,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn reponse_vide_relance_puis_rend_la_main() {
+    fn reponse_vide_relance_puis_signale_echec() {
         let mut t = base_texte();
         t.texte = String::new();
         t.vide = true;
@@ -322,10 +328,20 @@ mod tests {
             Decision::Relancer(n) => assert!(n.contains("empty")),
             autre => panic!("expected Relancer, got {autre:?}"),
         }
-        // bounded: sterile relaunches exhausted -> end of turn even if empty
+        // Exhaustion is visible as an incomplete mission.
         let mut c = ctx();
         c.auto_continue = 3;
-        assert_eq!(cap(&c, texte(t)), Decision::Poser(FinDeVol::Accomplie));
+        assert!(matches!(cap(&c, texte(t)), Decision::Poser(FinDeVol::BoucleSterile(_))));
+    }
+
+    #[test]
+    fn plan_et_appel_malforme_epuises_ne_sont_pas_des_succes() {
+        let mut c = ctx();
+        c.auto_continue = c.relance_max;
+        assert!(matches!(cap(&c, Issue::PlanEnregistre), Decision::Poser(FinDeVol::BoucleSterile(_))));
+        let mut t = base_texte();
+        t.malforme = true;
+        assert!(matches!(cap(&c, texte(t)), Decision::Poser(FinDeVol::BoucleSterile(_))));
     }
 
     #[test]
@@ -406,7 +422,7 @@ mod tests {
         c.auto_continue = 2; // < 3, one more resume
         assert!(matches!(cap(&c, texte(t.clone())), Decision::Relancer(_)));
         c.auto_continue = 3; // == relance_max, yield control
-        assert_eq!(cap(&c, texte(t)), Decision::Poser(FinDeVol::Accomplie));
+        assert!(matches!(cap(&c, texte(t)), Decision::Poser(FinDeVol::BoucleSterile(_))));
     }
 
     #[test]

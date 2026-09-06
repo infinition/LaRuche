@@ -229,6 +229,13 @@ impl but::Fournisseur for FournisseurPont {
         let mut raisonnement: Option<String> = None;
 
         while let Some(chunk) = stream.next().await {
+            if chunk.finish_reason.as_deref() == Some("stream_error") {
+                return Err(but::ErreurFournisseur {
+                    status: 0,
+                    retry_after: None,
+                    corps: "Provider stream interrupted before a complete response was received".into(),
+                });
+            }
             if chunk.finish_reason.is_some() {
                 finish = chunk.finish_reason.clone();
             }

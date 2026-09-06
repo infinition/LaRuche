@@ -1169,21 +1169,10 @@ async fn openai_chat_stream(
         // Actual usage (if the server includes it: OpenAI with stream_options, llama.cpp by default).
         let mut in_tok: Option<u64> = None;
         let mut out_tok: Option<u64> = None;
-        // Reasoning models stream chain-of-thought in `reasoning_content`. We accumulate it but
-        // never stream it as the answer. Only if the model produced NO `content` at all (e.g. a
-        // broken "flash" proxy) do we surface the reasoning as a last resort, so the turn is not
-        // silently empty. `reasoning_emitted` guards against emitting it twice.
+        // Reasoning is retained separately and must never become the final answer.
         let mut content_streamed = false;
         let mut reasoning_acc = String::new();
-        let mut reasoning_emitted = false;
-        // Whether some chunk ever carried an explicit `finish_reason` before we hit
-        // `[DONE]`. A well-behaved OpenAI-compatible stream always stamps one on the
-        // last content-bearing chunk; some relays (observed on deepseek-v4-flash's
-        // "flash" proxy) truncate on their own output-token cap and just go straight
-        // to `[DONE]` without ever saying so. Without this flag that case defaulted
-        // to "stop" (normal end), which hid the truncation from the caller's
-        // auto-resume rail and left the turn silently cut mid-sentence/mid-code.
-        let mut finish_vu = false;
+        let mut terminal_reason: Option<String> = None;
 
         loop {
             match response.chunk().await {
@@ -1198,44 +1187,14 @@ async fn openai_chat_stream(
                         }
                         if line.is_empty() || line == "data: [DONE]" {
                             if line == "data: [DONE]" {
-                                // Last resort: model produced only reasoning and no content, and the
-                                // stream ends via [DONE] without an in-chunk finish_reason.
-                                if !content_streamed && !reasoning_emitted {
-                                    let r = reasoning_acc.trim();
-                                    if !r.is_empty() {
-                                        // Defensive: a malformed stream could send [DONE] twice;
-                                        // the flag prevents re-emitting the reasoning block.
-                                        #[allow(unused_assignments)]
-                                        {
-                                            reasoning_emitted = true;
-                                        }
-                                        let _ = tx
-                                            .send(OllamaChunk {
-                                                text: r.to_string(),
-                                                done: false,
-                                                finish_reason: None,
-                                                eval_count: None,
-                                                eval_duration: None,
-                                                prompt_eval_count: None,
-                                                tool_calls: None,
-                                                reasoning: None,
-                                            })
-                                            .await;
-                                    }
-                                }
-                                // Finalize the accumulated tool_calls (ordered by index).
-                                let tool_calls = finaliser_tool_calls(&mut tool_call_acc);
-                                // No explicit finish_reason ever arrived before [DONE]. If
-                                // real content was streamed, that silence is the signature
-                                // of a relay that cut the response on its own cap without
-                                // saying so - report "length" so classer_stop() and the
-                                // truncation rail see it, instead of a clean "stop" that
-                                // hides the cut and leaves the turn silently unfinished.
-                                let finish_reason = if !finish_vu && content_streamed {
-                                    Some("length".to_string())
-                                } else {
-                                    Some("stop".to_string())
+                                let incomplete_tools = terminal_reason.is_none() && !tool_call_acc.is_empty();
+                                let tool_calls = if incomplete_tools { None } else {
+                                    finaliser_tool_calls(&mut tool_call_acc)
                                 };
+                                // [DONE] closes transport; it must not replace a native terminal reason.
+                                let finish_reason = terminal_reason.clone().or_else(|| {
+                                    Some(if incomplete_tools { "stream_error" } else if content_streamed { "length" } else { "stop" }.to_string())
+                                });
                                 let _ = tx
                                     .send(OllamaChunk {
                                         text: String::new(),
@@ -1269,7 +1228,7 @@ async fn openai_chat_stream(
                             // final chunk (empty `choices`), AFTER the finish_reason chunk. That
                             // chunk has no content and no finish_reason, so the emission below
                             // would drop it and the gauge/budget would see 0 tokens. Emit a
-                            // trailing done-chunk carrying the usage so it is never lost.
+                            // trailing metadata chunk carrying usage without changing termination.
                             let usage_only = parsed["usage"].is_object()
                                 && parsed["choices"]
                                     .as_array()
@@ -1279,8 +1238,8 @@ async fn openai_chat_stream(
                                 let _ = tx
                                     .send(OllamaChunk {
                                         text: String::new(),
-                                        done: true,
-                                        finish_reason: Some("stop".to_string()),
+                                        done: false,
+                                        finish_reason: None,
                                         eval_count: out_tok,
                                         eval_duration: None,
                                         prompt_eval_count: in_tok,
@@ -1290,7 +1249,7 @@ async fn openai_chat_stream(
                                     .await;
                                 continue;
                             }
-                            let mut text = parsed["choices"][0]["delta"]["content"]
+                            let text = parsed["choices"][0]["delta"]["content"]
                                 .as_str()
                                 .unwrap_or("")
                                 .to_string();
@@ -1308,17 +1267,7 @@ async fn openai_chat_stream(
                                 .map(str::to_string);
                             let done = finish_reason.is_some();
                             if done {
-                                finish_vu = true;
-                            }
-
-                            // Last resort: if the model produced NO content at all, surface the
-                            // accumulated reasoning on the final chunk so the turn is not silently empty.
-                            if done && !content_streamed && !reasoning_emitted && text.is_empty() {
-                                let r = reasoning_acc.trim();
-                                if !r.is_empty() {
-                                    text = r.to_string();
-                                    reasoning_emitted = true;
-                                }
+                                terminal_reason = finish_reason.clone();
                             }
 
                             // Parse the tool_calls delta (OpenAI streaming format)
@@ -1390,18 +1339,11 @@ async fn openai_chat_stream(
                     }
                 }
                 Ok(None) => {
-                    // The connection closed without ever sending `[DONE]` - a raw
-                    // disconnect/timeout, not a graceful end. Same silent-truncation
-                    // risk as the `[DONE]`-without-finish_reason case above: without
-                    // this, the caller saw the stream just stop (finish stays `None`),
-                    // classer_stop() read that as a normal end of turn, and a response
-                    // cut by a dropped connection went undetected.
-                    let tool_calls = finaliser_tool_calls(&mut tool_call_acc);
-                    let finish_reason = if !finish_vu && content_streamed {
-                        Some("length".to_string())
-                    } else {
-                        Some("stop".to_string())
-                    };
+                    // A stream without a native terminal event is incomplete. Never
+                    // execute partially assembled tool calls from that response.
+                    let finish_reason = Some(terminal_reason.clone()
+                        .unwrap_or_else(|| "stream_error".to_string()));
+                    let tool_calls = None;
                     let _ = tx
                         .send(OllamaChunk {
                             text: String::new(),
@@ -1418,6 +1360,12 @@ async fn openai_chat_stream(
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading OpenAI stream");
+                    let _ = tx.send(OllamaChunk {
+                        text: String::new(), done: true,
+                        finish_reason: Some("stream_error".to_string()),
+                        eval_count: None, eval_duration: None, prompt_eval_count: None,
+                        tool_calls: None, reasoning: None,
+                    }).await;
                     return;
                 }
             }
@@ -2711,3 +2659,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "provider_stream_tests.rs"]
+mod provider_stream_tests;

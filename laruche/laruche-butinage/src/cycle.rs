@@ -381,7 +381,9 @@ pub async fn butiner(
         let etait_fin = matches!(issue, Issue::MissionAccomplie { .. });
         match cap(&ctx, issue) {
             Decision::Poser(fin) => {
-                carnet.itineraire.finaliser();
+                if matches!(fin, FinDeVol::Accomplie) {
+                    carnet.itineraire.finaliser();
+                }
                 emet.emettre(Evenement::Fin(texte_final.clone()));
                 return Ok(Bilan::nouveau(texte_final, fin, carnet.passe + 1));
             }
