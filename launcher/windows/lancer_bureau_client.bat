@@ -17,7 +17,7 @@ REM  LARUCHE_BIND_LAN=1. Sans ca elle s'annonce sur le reseau mais
 REM  n'ecoute que sur elle-meme, et le selecteur l'affichera comme
 REM  « injoignable ». Utilise decouvrir_ruches.bat pour verifier.
 REM ============================================================
-cd /d "%~dp0laruche"
+cd /d "%~dp0..\..\laruche"
 
 REM C'est CETTE variable qui fait le mode client: la coque ne cherche meme pas de
 REM noeud a demarrer et passe directement a la decouverte reseau. Une ruse de

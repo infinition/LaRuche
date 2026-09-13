@@ -11,7 +11,7 @@ REM  RUCHE_MOTEUR=butinage plus bas est desormais REDONDANT: butinage
 REM  est le moteur par defaut, et l'ancien (brain) est deprecie. La
 REM  ligne reste explicite, elle ne coute rien et elle documente.
 REM ============================================================
-cd /d "%~dp0laruche"
+cd /d "%~dp0..\..\laruche"
 
 REM --- Moteur agentique : butinage (nouveau) au lieu de l'ancien brain.rs ---
 set "RUCHE_MOTEUR=butinage"

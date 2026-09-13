@@ -13,7 +13,7 @@ REM  s'annonce sur le reseau mais n'ecoute que sur elle-meme: il faut
 REM  la demarrer avec LARUCHE_BIND_LAN=1 pour qu'elle accepte les
 REM  connexions venant d'ailleurs.
 REM ============================================================
-cd /d "%~dp0laruche"
+cd /d "%~dp0..\..\laruche"
 
 set "LARUCHE_DECOUVRIR=1"
 

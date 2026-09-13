@@ -12,7 +12,7 @@ REM  demarre le noeud, et qui l'arrete en se fermant. Si un
 REM  noeud tourne deja (ce .bat-la, ou le service Windows), elle
 REM  s'y raccroche et le laisse vivre apres elle.
 REM ============================================================
-cd /d "%~dp0laruche"
+cd /d "%~dp0..\..\laruche"
 
 REM --- Moteur agentique : butinage ---
 set "RUCHE_MOTEUR=butinage"
@@ -26,7 +26,7 @@ REM --- Foyer de la ruche (memoire, sessions, skills, secrets) ---
 REM   Par defaut: %%APPDATA%%\LaRuche, le meme quel que soit le lanceur.
 REM   Decommente pour travailler SUR LaRuche: l'agent voit alors le code source
 REM   dans son repertoire de travail, ce qui n'est pas le cas depuis AppData.
-REM set "LARUCHE_DATA_DIR=%~dp0laruche"
+REM set "LARUCHE_DATA_DIR=%~dp0..\..\laruche"
 
 REM --- Rendre CETTE ruche joignable depuis le reseau (telephone, autre PC) ---
 REM   Par defaut le noeud n'ecoute que sur 127.0.0.1: rien de ce qui n'est pas

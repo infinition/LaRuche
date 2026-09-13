@@ -176,9 +176,18 @@ cargo build --release -p laruche-node -p laruche-bureau
 cargo run --release -p laruche-bureau
 ```
 
-On Windows, `lancer_bureau.bat` performs the build and opens the desktop application.
-`lancer_bureau_client.bat` starts the network client, and `decouvrir_ruches.bat` reports
-which hives are visible over mDNS.
+Launchers are grouped by platform in [`launcher/`](launcher/README.md). Each launcher
+builds the application before starting it:
+
+| Platform | Desktop application | Butinage in the browser |
+| --- | --- | --- |
+| Windows | `launcher/windows/lancer_bureau.bat` | `launcher/windows/lancer_butinage.bat` |
+| macOS (double-click in Finder) | `launcher/macos/lancer_bureau.command` | `launcher/macos/lancer_butinage.command` |
+| Linux (run from a terminal) | `./launcher/Linux/lancer_bureau.sh` | `./launcher/Linux/lancer_butinage.sh` |
+
+On Windows, `launcher/windows/lancer_bureau_client.bat` starts the network client,
+`launcher/windows/decouvrir_ruches.bat` reports which hives are visible over mDNS,
+and `launcher/windows/lancer_embeddings.bat` prepares the embedding server.
 
 For a server-only installation:
 
