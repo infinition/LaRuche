@@ -158,5 +158,10 @@
   "plotlyMissing": "Figure Plotly recue, mais la bibliotheque de rendu n'est pas chargee.",
   "plotlyFullscreen": "Plein ecran",
   "confirmYes": "Confirmer",
-  "confirmNo": "Annuler"
+  "confirmNo": "Annuler",
+  "zoomGroup": "Zoom de l'interface",
+  "zoomIn": "Agrandir",
+  "zoomOut": "Reduire",
+  "zoomReset": "Revenir a 100%",
+  "inspectorToggle": "Replier ou deplier le volet"
 }

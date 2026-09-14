@@ -158,5 +158,10 @@
   "plotlyMissing": "A Plotly figure arrived, but its rendering library is not loaded.",
   "plotlyFullscreen": "Fullscreen",
   "confirmYes": "Confirm",
-  "confirmNo": "Cancel"
+  "confirmNo": "Cancel",
+  "zoomGroup": "Interface zoom",
+  "zoomIn": "Zoom in",
+  "zoomOut": "Zoom out",
+  "zoomReset": "Back to 100%",
+  "inspectorToggle": "Collapse or expand the panel"
 }

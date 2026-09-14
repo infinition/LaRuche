@@ -22,6 +22,7 @@
   --red: #ff6b6b;
   --blue: #3987e5;
   --code-bg: #14141c;
+  --halo: rgba(245, 166, 35, 0.45);
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
   --radius: 12px;
   --radius-sm: 8px;
@@ -39,6 +40,7 @@
   --muted: #66655f;
   --line: rgba(0, 0, 0, 0.1);
   --line-strong: rgba(0, 0, 0, 0.18);
+  --halo: rgba(176, 107, 0, 0.35);
   --amber: #b06b00;
   --amber-2: #c2410c;
   --green: #12805c;
@@ -160,9 +162,13 @@ button, select, input, textarea {
 .shell {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  height: 100dvh;
-  max-height: 100%;
+  /* `zoom` met toute la coque a l'echelle, mise en page comprise, donc un
+     graphique recoit plus de pixels logiques quand on dezoome. En contrepartie
+     une hauteur en dvh serait elle aussi mise a l'echelle et laisserait une
+     bande vide: on la divise par le meme facteur pour retomber sur la fenetre. */
+  zoom: var(--zoom, 1);
+  height: calc(100dvh / var(--zoom, 1));
+  max-height: calc(100% / var(--zoom, 1));
   min-width: 0;
   padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
            max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
@@ -373,7 +379,15 @@ button, select, input, textarea {
   border-left: 3px solid transparent;
   border-radius: var(--radius);
   padding: 8px;
-  transition: border-color 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+/* Le bloc sur lequel l'agent travaille. Un halo, pas un deplacement: la vue
+   a deja suivi, ce liseré dit seulement lequel des blocs a l'ecran est celui
+   qui bouge. Assez discret pour ne pas lutter avec une cellule en erreur. */
+.cell.is-active {
+  border-left-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--halo), 0 0 18px -4px var(--halo);
 }
 
 .cell.is-running { border-left-color: var(--amber); }
@@ -733,6 +747,41 @@ th.sorted-desc::after { content: " ↓"; color: var(--amber); }
   min-height: 0;
   max-height: 46vh;
 }
+
+/* Replie, l'inspecteur ne garde que sa rangee d'onglets. Pendant que l'agent
+   travaille, le carnet a besoin de la hauteur, mais faire disparaitre le volet
+   ferait oublier qu'il existe: les titres restent, et cliquer dessus le
+   rouvre. */
+.inspector.is-collapsed { max-height: none; }
+.inspector.is-collapsed .panel { display: none; }
+.inspector .tabs { cursor: pointer; }
+.tab-toggle {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 6px;
+  cursor: pointer;
+  transition: transform 160ms ease;
+}
+.inspector.is-collapsed .tab-toggle { transform: rotate(180deg); }
+.tab-toggle:hover { color: var(--text); }
+
+.zoom-group { display: flex; align-items: center; gap: 2px; }
+.zoom-value {
+  min-width: 46px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.zoom-value:hover { color: var(--text); border-color: var(--line-strong); }
 
 .tabs {
   display: flex;

@@ -711,6 +711,52 @@ const SCENARIO = `
       check('remonter coupe le suivi', Math.abs(pane.scrollTop - avant) < 4,
         'scrollTop=' + Math.round(pane.scrollTop) + ' attendu=' + Math.round(avant));
 
+      /* La sequence reelle d'une demonstration: l'agent ajoute plusieurs
+       * cellules d'un trait, PUIS les execute depuis la premiere. La vue doit
+       * alors remonter sur la cellule qui travaille, et non rester au bas du
+       * carnet ou plus rien ne se passe. */
+      var etatRun = (await window.__harness.call('notebook.state')).result;
+      await window.__harness.call('notebook.new', { revision: etatRun.revision, title: 'Execution' });
+      await sleep(150);
+      var ids = [];
+      for (var k = 0; k < 7; k++) {
+        var e = (await window.__harness.call('notebook.state')).result;
+        var ajoutee = (await window.__harness.call('cell.add', {
+          type: 'markdown',
+          source: 'Bloc ' + k + ' ' + 'texte de remplissage '.repeat(30),
+          revision: e.revision
+        })).result;
+        ids.push(ajoutee && (ajoutee.cellId || ajoutee.id));
+      }
+      await sleep(250);
+      check('le carnet deborde avant execution', pane.scrollHeight > pane.clientHeight + 200,
+        pane.scrollHeight + ' vs ' + pane.clientHeight);
+
+      /* L'agent revient travailler sur la PREMIERE cellule, comme il le fait
+       * quand il execute le carnet depuis le debut. */
+      var premiere = document.querySelector('[data-cell-id]');
+      var idPremiere = premiere.getAttribute('data-cell-id');
+      var avantCentrage = pane.scrollTop;
+      var etatMaj = (await window.__harness.call('notebook.state')).result;
+      await window.__harness.call('cell.update', {
+        cellId: idPremiere, mode: 'replace',
+        source: 'Bloc 0 repris par l agent ' + 'texte de remplissage '.repeat(30),
+        revision: etatMaj.revision
+      });
+      await sleep(300);
+      premiere = document.querySelector('[data-cell-id="' + idPremiere + '"]');
+      var boite = premiere.getBoundingClientRect();
+      var volet = pane.getBoundingClientRect();
+      var visible = boite.bottom > volet.top && boite.top < volet.bottom;
+      var halo = document.querySelector('.cell.is-active');
+      check('un halo marque le bloc travaille', !!halo && halo.getAttribute('data-cell-id') === idPremiere,
+        halo ? halo.getAttribute('data-cell-id') : 'aucun');
+      check('un seul bloc porte le halo', document.querySelectorAll('.cell.is-active').length === 1,
+        document.querySelectorAll('.cell.is-active').length);
+      check('la vue remonte sur la cellule qui travaille', visible,
+        'scrollTop ' + Math.round(avantCentrage) + ' -> ' + Math.round(pane.scrollTop) +
+        ' | cellule ' + Math.round(boite.top - volet.top) + ' du haut du volet');
+
       /* Le lecteur redescend au bas: le suivi doit se raccrocher. */
       pane.scrollTop = pane.scrollHeight;
       pane.dispatchEvent(new Event('scroll'));
@@ -719,6 +765,34 @@ const SCENARIO = `
       check('redescendre raccroche le suivi', auBas(),
         'scrollTop=' + Math.round(pane.scrollTop) + ' hauteur=' + pane.scrollHeight);
 
+      /* Le zoom, le halo et le volet repliable. */
+      var racine = document.documentElement;
+      var avantZoom = getComputedStyle(document.querySelector('.shell')).zoom;
+      document.getElementById('zoomOutBtn').click();
+      await sleep(120);
+      check('dezoomer change l echelle de la coque',
+        getComputedStyle(document.querySelector('.shell')).zoom !== avantZoom,
+        avantZoom + ' -> ' + getComputedStyle(document.querySelector('.shell')).zoom);
+      check('la coque remplit toujours la fenetre apres dezoom',
+        Math.abs(document.querySelector('.shell').getBoundingClientRect().height - window.innerHeight) < 8,
+        Math.round(document.querySelector('.shell').getBoundingClientRect().height) + ' pour ' + window.innerHeight);
+      document.getElementById('zoomValue').click();
+      await sleep(120);
+      check('le libelle revient a 100%', document.getElementById('zoomValue').textContent === '100%',
+        document.getElementById('zoomValue').textContent);
+
+      var volet = document.getElementById('inspector');
+      var deplie = volet.querySelector('.panel.is-active').getBoundingClientRect().height;
+      document.getElementById('inspectorToggle').click();
+      await sleep(120);
+      check('replier cache le contenu du volet', volet.classList.contains('is-collapsed') &&
+        volet.querySelector('.panel.is-active').getBoundingClientRect().height === 0, 'deplie ' + Math.round(deplie));
+      check('les onglets restent visibles une fois replie',
+        volet.querySelector('.tabs').getBoundingClientRect().height > 10,
+        Math.round(volet.querySelector('.tabs').getBoundingClientRect().height));
+      document.getElementById('tabVars').click();
+      await sleep(120);
+      check('choisir un onglet deplie le volet', !volet.classList.contains('is-collapsed'));
     } catch (error) {
       check('suivi du carnet teste', false, String(error && error.stack || error));
     }

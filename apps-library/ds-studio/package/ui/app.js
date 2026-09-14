@@ -17,6 +17,8 @@
   var Frames = window.StudioFrame;
   var i18n = window.StudioI18n.create();
 
+  var KEY_ZOOM = 'studio.zoom.v1';
+  var KEY_INSPECTEUR = 'studio.inspector.v1';
   var KEY_LIBRARY = 'studio.lib.v1';
   var KEY_NOTEBOOK = 'studio.nb.';
   var KEY_DATA = 'studio.data.v1.';
@@ -293,6 +295,16 @@
 
     if (notebook.cells.some(function(cell){ return cell.restored; })) {
       toast(t('restoredResults'));
+    }
+
+    /* Relu avant l'affichage, pour que la coque n'apparaisse pas a 100% puis
+     * ne saute a la taille voulue sous les yeux du lecteur. */
+    if (sdk) {
+      var zoomRange = await sdk.storage.get(KEY_ZOOM).catch(function(){ return null; });
+      if (typeof zoomRange === 'number') appliquerZoom(zoomRange, false);
+      var repliRange = await sdk.storage.get(KEY_INSPECTEUR).catch(function(){ return null; });
+      appliquerInspecteur(typeof repliRange === 'boolean' ? repliRange
+        : !window.matchMedia('(min-width: 900px)').matches, false);
     }
 
     element('boot').hidden = true;
@@ -671,32 +683,100 @@
     stickToBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight <= STICK_THRESHOLD;
   }
 
-  /* Suit l'endroit ou l'agent travaille, pas seulement la fin du carnet.
+  /* Suit l'endroit ou l'agent travaille, et le montre par son debut.
    *
-   * Une cellule ajoutee au milieu est amenee au centre, pour qu'on voie
-   * arriver sa sortie; la derniere cellule ramene au bas, ou un tableau ou un
-   * graphique peut etre plus haut que la fenetre.
+   * Viser le bas du carnet ne marche que si la derniere cellule tient dans le
+   * volet. Un graphique ou un grand tableau est plus haut que lui: on se
+   * retrouvait alors calle sur sa fin, sans jamais voir ce qui venait
+   * d'apparaitre. Centrer une cellule trop haute a le meme defaut, en montrant
+   * son milieu.
    *
-   * Deux trames d'attente: la cellule qui declenche ceci est mise en page a la
+   * Donc: une cellule qui tient est centree, une cellule trop haute est
+   * alignee par son haut, et on ne descend jamais plus bas que necessaire. */
+  /* Zoom de l'interface.
+   *
+   * Un graphique large ne rentre pas dans un panneau etroit, et le reduire
+   * seul le rendrait illisible a cote d'un texte reste grand. `zoom` agit sur
+   * la mise en page entiere: le graphique recoit plus de pixels logiques, et
+   * tout garde ses proportions. Le reglage est range dans le stockage prive de
+   * l'App, donc par utilisateur, et relu au demarrage. */
+  var ZOOMS = [60, 70, 80, 90, 100, 110, 125, 150];
+  var zoomActuel = 100;
+
+  function appliquerZoom(valeur, persister) {
+    var proche = ZOOMS.reduce(function(a, b){
+      return Math.abs(b - valeur) < Math.abs(a - valeur) ? b : a;
+    }, ZOOMS[0]);
+    zoomActuel = proche;
+    document.documentElement.style.setProperty('--zoom', String(proche / 100));
+    var etiquette = element('zoomValue');
+    if (etiquette) etiquette.textContent = proche + '%';
+    if (persister && sdk) sdk.storage.set(KEY_ZOOM, proche).catch(function(){});
+  }
+
+  function decalerZoom(pas) {
+    var i = ZOOMS.indexOf(zoomActuel);
+    appliquerZoom(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + pas))], true);
+  }
+
+  /* Le volet du bas, replie ou non.
+   *
+   * En colonne il prend jusqu'a 46% de la hauteur, ce qui est beaucoup pendant
+   * qu'un agent ecrit dans le carnet. Replie il ne garde que ses onglets: on
+   * sait qu'il est la, on le rouvre d'un clic, et le carnet recupere la place.
+   * Le choix est retenu; sans choix enregistre, on part replie seulement quand
+   * la mise en page est en colonne, c'est-a-dire quand la place manque. */
+  var inspecteurReplie = false;
+
+  function appliquerInspecteur(replie, persister) {
+    inspecteurReplie = !!replie;
+    var volet = element('inspector');
+    if (volet) volet.classList.toggle('is-collapsed', inspecteurReplie);
+    var bouton = element('inspectorToggle');
+    if (bouton) bouton.setAttribute('aria-expanded', String(!inspecteurReplie));
+    if (persister && sdk) sdk.storage.set(KEY_INSPECTEUR, inspecteurReplie).catch(function(){});
+  }
+
+  var MARGE_SUIVI = 12;
+
+  function positionPour(pane, target) {
+    var boite = target.getBoundingClientRect();
+    var volet = pane.getBoundingClientRect();
+    var haut = pane.scrollTop + (boite.top - volet.top);
+    var visible = pane.clientHeight;
+    var cible = boite.height <= visible - 2 * MARGE_SUIVI
+      ? haut - (visible - boite.height) / 2
+      : haut - MARGE_SUIVI;
+    return Math.max(0, Math.min(cible, pane.scrollHeight - visible));
+  }
+
+  /* Le halo dit ou l'agent travaille, sans deplacer quoi que ce soit. */
+  function marquerActive(cellId) {
+    var precedent = document.querySelector('.cell.is-active');
+    if (precedent && precedent.getAttribute('data-cell-id') !== cellId) {
+      precedent.classList.remove('is-active');
+    }
+    if (!cellId) return;
+    var actuel = document.querySelector('[data-cell-id="' + cellId + '"]');
+    if (actuel) actuel.classList.add('is-active');
+  }
+
+  /* Deux trames d'attente: la cellule qui declenche ceci est mise en page a la
    * premiere, donc sa hauteur n'est connue qu'a la seconde. */
   function followAgent(cellId) {
     var pane = notebookPane();
     if (!pane) return;
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){
+        marquerActive(cellId);
         if (!stickToBottom) return;
-        var cells = notebook.cells;
-        var last = cells.length ? cells[cells.length - 1].id : null;
-        var target = cellId && cellId !== last
-          ? document.querySelector('[data-cell-id="' + cellId + '"]')
-          : null;
+        var target = cellId && document.querySelector('[data-cell-id="' + cellId + '"]');
         ownScroll = true;
         /* Toujours instantane. Un defilement anime emet des evenements pendant
          * toute sa duree, et le drapeau serait retombe au milieu: la position
          * relue aurait alors coupe le suivi que ce defilement etait en train
          * de servir. */
-        if (target) target.scrollIntoView({ block: 'center', inline: 'nearest' });
-        else pane.scrollTop = pane.scrollHeight;
+        pane.scrollTop = target ? positionPour(pane, target) : pane.scrollHeight;
         releaseOwnScroll();
       });
     });
@@ -1791,8 +1871,18 @@
 
     notebookPane().addEventListener('scroll', updateStickiness, { passive: true });
 
+    element('zoomInBtn').addEventListener('click', function(){ decalerZoom(1); });
+    element('zoomOutBtn').addEventListener('click', function(){ decalerZoom(-1); });
+    element('zoomValue').addEventListener('click', function(){ appliquerZoom(100, true); });
+
+    element('inspectorToggle').addEventListener('click', function(event){
+      event.stopPropagation();
+      appliquerInspecteur(!inspecteurReplie, true);
+    });
     document.querySelectorAll('.tab').forEach(function(tab){
       tab.addEventListener('click', function(){
+        /* Choisir un onglet veut dire vouloir le lire: on deplie. */
+        if (inspecteurReplie) appliquerInspecteur(false, true);
         document.querySelectorAll('.tab').forEach(function(other){
           var active = other === tab;
           other.classList.toggle('is-active', active);

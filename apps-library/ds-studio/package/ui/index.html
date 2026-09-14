@@ -79,6 +79,11 @@
         <button type="button" class="button" id="stopBtn" data-i18n="stopAll" disabled>Arreter</button>
         <button type="button" class="button" id="clearBtn" data-i18n="clearOutputs">Vider</button>
       </div>
+      <div class="toolbar-group zoom-group" role="group" data-i18n-aria-label="zoomGroup">
+        <button type="button" class="icon-button" id="zoomOutBtn" data-i18n-title="zoomOut" data-i18n-aria-label="zoomOut">-</button>
+        <button type="button" class="zoom-value" id="zoomValue" data-i18n-title="zoomReset" data-i18n-aria-label="zoomReset">100%</button>
+        <button type="button" class="icon-button" id="zoomInBtn" data-i18n-title="zoomIn" data-i18n-aria-label="zoomIn">+</button>
+      </div>
       <div class="toolbar-group toolbar-end">
         <button type="button" class="button" id="importBtn" data-i18n="importData">Importer</button>
         <button type="button" class="button" id="exportBtn" data-i18n="exportNotebook">Exporter</button>
@@ -104,6 +109,7 @@
           <button type="button" class="tab" role="tab" aria-selected="false" data-panel="vars" id="tabVars" data-i18n="tabVariables">Variables</button>
           <button type="button" class="tab" role="tab" aria-selected="false" data-panel="packages" id="tabPackages" data-i18n="tabPackages">Paquets</button>
           <button type="button" class="tab" role="tab" aria-selected="false" data-panel="agent" id="tabAgent" data-i18n="tabAgent">Agent</button>
+          <button type="button" class="tab-toggle" id="inspectorToggle" aria-expanded="true" data-i18n-title="inspectorToggle" data-i18n-aria-label="inspectorToggle">&#9662;</button>
         </div>
 
         <div class="panel is-active" id="panelData" role="tabpanel" aria-labelledby="tabData">
