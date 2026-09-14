@@ -151,16 +151,16 @@ recording. Each capture requires approval.
 | `memory_update_node` | Rename or update a node. |
 | `memory_suggest_nodes` | Suggest destinations for uncategorized items. |
 | `memory_consolidate` | Merge related items with model-assisted review. |
-
-Cognitive memory replaced an earlier flat knowledge base, `knowledge_add` and
-`knowledge_search`. That module is still compiled but no longer registered: recall goes
-through `memory_search`, which reads a graph of nodes rather than a list of embedded
-strings.
 | `skill_list` | List skills stored in cognitive memory. |
 | `skill_view` | Read one skill. |
 | `skill_create` | Propose or create a skill. |
 | `skill_patch` | Update a skill. |
 | `skill_delete` | Delete a skill. |
+
+Cognitive memory replaced an earlier flat knowledge base, `knowledge_add` and
+`knowledge_search`. That module is still compiled but no longer registered: recall goes
+through `memory_search`, which reads a graph of nodes rather than a list of embedded
+strings.
 
 ## Automation, channels and history
 

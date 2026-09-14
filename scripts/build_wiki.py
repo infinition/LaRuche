@@ -131,6 +131,32 @@ PAGE_ORDER = {
 }
 
 
+SEPARATEUR = re.compile(r"^[\s|:\-]+$")
+
+
+def tables_cassees(md):
+    """Pipe blocks the renderer cannot read as a table.
+
+    An edit that inserts a paragraph in the middle of a table leaves the rows after it
+    with no header, and the page then renders them as stray text. Worth catching here,
+    where it is one line of output, rather than in a browser.
+    """
+    lignes, i, fence, mauvais = md.split("\n"), 0, False, []
+    while i < len(lignes):
+        if lignes[i].lstrip().startswith("```"):
+            fence = not fence
+        if not fence and lignes[i].lstrip().startswith("|"):
+            debut, bloc = i, []
+            while i < len(lignes) and lignes[i].lstrip().startswith("|"):
+                bloc.append(lignes[i])
+                i += 1
+            if len(bloc) < 2 or not SEPARATEUR.match(bloc[1]):
+                mauvais.append(debut + 1)
+            continue
+        i += 1
+    return mauvais
+
+
 def titre(markdown, slug):
     """First level-1 heading, falling back to the slug."""
     m = re.search(r"(?m)^#\s+(.+?)\s*$", markdown)
@@ -297,6 +323,8 @@ def main():
     # docs/, not a page, and a missing one shows as a broken image to every visitor.
     casses, medias = set(), set()
     for slug, md in pages.items():
+        for ligne in tables_cassees(md):
+            casses.add("%s line %d -> pipe block with no header row" % (slug, ligne))
         for image, cible in re.findall(r"(!?)\[[^\]]*\]\(([^)]+)\)", md):
             if cible.startswith(("http", "#", "mailto:", "/")):
                 continue
