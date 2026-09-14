@@ -1917,7 +1917,6 @@ LaRuche.Chat = (function(){
   // Trois guetteurs couvrent les trois cas.
   var _chatStick = true, _chatScrollBound = false, _chatBtn = null;
   var _chatTickPlanifie = false, _chatAnimation = null, _chatGeneration = 0;
-  var _chatPositionGeste = null;
   // La derniere position que NOUS avons posee. Un evenement de defilement
   // rapporte une position, jamais son auteur: la comparer est ce qui reste
   // pour distinguer les notres de celles du lecteur.
@@ -1965,7 +1964,6 @@ LaRuche.Chat = (function(){
   }
 
   function _chatSuspendre(c){
-    _chatPositionGeste=c.scrollTop;
     _chatStick=false;
     _chatAnnulerAnimation();
     _chatMajFleche();
@@ -2019,7 +2017,6 @@ LaRuche.Chat = (function(){
         _chatAnnulerAnimation();
       }
       _chatStick=auBas;
-      _chatPositionGeste=auBas ? null : c.scrollTop;
       _chatMajFleche();
     },{passive:true});
     c.addEventListener('wheel',_chatNavigation,{passive:true});
@@ -2043,7 +2040,7 @@ LaRuche.Chat = (function(){
     document.addEventListener('visibilitychange',function(){if(_chatStick) _chatColler(false);});
     var btn=document.getElementById('chatJumpBtn');
     if(btn) btn.addEventListener('click',function(){
-      _chatStick=true; _chatPositionGeste=null; _chatMajFleche(); _chatColler(true);
+      _chatStick=true; _chatMajFleche(); _chatColler(true);
     });
     _chatScrollBound=true;
     _chatMajFleche();
@@ -2051,7 +2048,7 @@ LaRuche.Chat = (function(){
 
   function scrollToBottom(force){
     _bindChatScroll();
-    if(force){ _chatStick=true; _chatPositionGeste=null; _chatMajFleche(); }
+    if(force){ _chatStick=true; _chatMajFleche(); }
     if(!_chatStick) return;
     _chatPlanifierColle();
   }
