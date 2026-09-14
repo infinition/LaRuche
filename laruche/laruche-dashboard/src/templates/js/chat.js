@@ -1921,6 +1921,16 @@ LaRuche.Chat = (function(){
   // rapporte une position, jamais son auteur: la comparer est ce qui reste
   // pour distinguer les notres de celles du lecteur.
   var _chatPositionEcrite = null;
+  /* Un doigt ou une souris pose sur le fil. Tirer la barre de defilement
+     n'emet ni molette, ni tactile, ni touche: le seul signe qu'un humain en
+     est l'auteur est qu'un bouton etait ENFONCE quand la position a bouge. */
+  var _chatPointeurPose = false;
+  /* Suspendre le suivi alors qu'on est DEJA en bas etait sans effet: le
+     raccrochage au bas ne demande rien a personne, et il annulait la
+     suspension dans la foulee. La recherche dans l'historique partait donc
+     vers son message puis se faisait ramener au bas aussitot. Il faut avoir
+     quitte le bas une fois avant de pouvoir y revenir. */
+  var _chatAQuitteLeBas = true;
   var TOLERANCE_BAS = 6;
 
   function _chatEcrire(c, valeur){
@@ -1965,6 +1975,7 @@ LaRuche.Chat = (function(){
 
   function _chatSuspendre(c){
     _chatStick=false;
+    _chatAQuitteLeBas=!_chatAuBas(c);
     _chatAnnulerAnimation();
     _chatMajFleche();
   }
@@ -2006,19 +2017,36 @@ LaRuche.Chat = (function(){
     var c=document.getElementById('chatContainer'); if(!c) return;
     c.addEventListener('scroll',function(){
       var auBas=_chatAuBas(c);
-      if(_chatStick===auBas) return;
-      // Se raccrocher au bas est juste quel qu'en soit l'auteur. Decrocher ne
-      // l'est pas: nos propres ecritures produisent des evenements sans arret,
-      // et seul un defilement qui n'est pas le notre en a le droit. C'est ce
-      // qui couvre le seul geste que ni la molette ni le clavier n'annoncent:
-      // tirer la barre de defilement.
+      if(!auBas) _chatAQuitteLeBas=true;
+      if(_chatStick===auBas || (auBas && !_chatAQuitteLeBas)) return;
+      /* Se raccrocher au bas est juste quel qu'en soit l'auteur: le bas est
+         exactement la position ou suivre est ce qu'on veut.
+
+         Decrocher demande un GESTE. La molette, le tactile et le clavier se
+         signalent d'eux-memes; il ne reste ici que la barre de defilement, et
+         elle se reconnait a ce qu'un bouton est enfonce.
+
+         Tout le reste est du mouvement que personne n'a demande: le navigateur
+         recadre la position quand une carte d'outil est remplacee par un
+         resultat plus court, une image qui arrive change la hauteur, un
+         redessin decale le contenu. Les traiter comme un geste, c'est lacher
+         le suivi en plein travail de l'agent, et c'est ce qui se passait quand
+         il enchainait outil, texte, outil. */
       if(!auBas){
+        if(!_chatPointeurPose) return;
         if(_chatPositionEcrite!==null && Math.abs(Math.round(c.scrollTop)-_chatPositionEcrite)<=2) return;
         _chatAnnulerAnimation();
       }
       _chatStick=auBas;
       _chatMajFleche();
     },{passive:true});
+    c.addEventListener('pointerdown',function(){ _chatPointeurPose=true; },{passive:true});
+    /* Relache sur la fenetre: une barre de defilement se lache souvent hors du
+       fil, et un bouton qu'on croit encore enfonce ferait passer le prochain
+       recadrage pour un geste. */
+    ['pointerup','pointercancel','blur'].forEach(function(nom){
+      window.addEventListener(nom,function(){ _chatPointeurPose=false; },{passive:true});
+    });
     c.addEventListener('wheel',_chatNavigation,{passive:true});
     c.addEventListener('touchmove',_chatNavigation,{passive:true});
     c.addEventListener('keydown',_chatNavigation);
@@ -2040,7 +2068,7 @@ LaRuche.Chat = (function(){
     document.addEventListener('visibilitychange',function(){if(_chatStick) _chatColler(false);});
     var btn=document.getElementById('chatJumpBtn');
     if(btn) btn.addEventListener('click',function(){
-      _chatStick=true; _chatMajFleche(); _chatColler(true);
+      _chatStick=true; _chatAQuitteLeBas=true; _chatMajFleche(); _chatColler(true);
     });
     _chatScrollBound=true;
     _chatMajFleche();
@@ -2048,7 +2076,7 @@ LaRuche.Chat = (function(){
 
   function scrollToBottom(force){
     _bindChatScroll();
-    if(force){ _chatStick=true; _chatMajFleche(); }
+    if(force){ _chatStick=true; _chatAQuitteLeBas=true; _chatMajFleche(); }
     if(!_chatStick) return;
     _chatPlanifierColle();
   }

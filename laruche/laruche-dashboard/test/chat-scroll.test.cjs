@@ -60,11 +60,42 @@ async function scenario(){
     check('a click in the empty thread does not detach',following());
     add(120);await sleep(120);
     check('streaming continues after a click',following()&&atBottom());
-    // Tirer la barre n'emet ni molette, ni tactile, ni touche: seule la
-    // position change, et elle n'est pas une de celles que le fil a posees.
+    // Tirer la barre n'emet ni molette, ni tactile, ni touche. Son seul signe
+    // est qu'un bouton est ENFONCE pendant que la position bouge.
+    c.dispatchEvent(new PointerEvent('pointerdown',{button:0,bubbles:true}));
     c.scrollTop=100;c.dispatchEvent(new Event('scroll'));await sleep(30);
     check('scrollbar navigation pauses following',!following());
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
     btn.click();await sleep(400);
+    /* Un agent qui utilise un outil, ecrit, puis en utilise un autre fait
+       VARIER la hauteur du fil: une carte d'outil en cours est remplacee par
+       son resultat, souvent plus court. Le navigateur recadre alors scrollTop
+       tout seul, et l'evenement qui suit rapporte une position que le fil n'a
+       pas ecrite. La prendre pour un geste du lecteur decrochait le suivi en
+       plein travail de l'agent, sans que rien ne l'explique. */
+    const grosse=add(900);await sleep(150);
+    check('following after a tall tool card',following()&&atBottom());
+    grosse.style.height='80px';c.dispatchEvent(new Event('scroll'));await sleep(120);
+    check('a tool card shrinking does not detach',following());
+    add(60);await sleep(150);
+    check('following resumes after the shrink',following()&&atBottom());
+    // Un recadrage du navigateur, sans aucun bouton enfonce, n'est pas un geste.
+    c.scrollTop-=150;c.dispatchEvent(new Event('scroll'));await sleep(60);
+    check('an unasked scroll does not detach',following());
+    add(80);await sleep(150);
+    check('following catches up after an unasked scroll',following()&&atBottom());
+    /* Et la meme chose en pire: plusieurs remplacements d'affilee. */
+    for(let i=0;i<4;i++){
+      const carte=add(500);await sleep(60);
+      carte.style.height='40px';c.dispatchEvent(new Event('scroll'));await sleep(60);
+      add(120);await sleep(60);
+    }
+    check('following survives repeated tool cycles',following()&&atBottom());
+    c.dispatchEvent(new PointerEvent('pointerdown',{button:0,bubbles:true}));
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+    c.scrollTop-=200;c.dispatchEvent(new Event('scroll'));await sleep(60);
+    check('a released pointer does not keep detaching',following());
+    add(80);await sleep(150);
     c.dispatchEvent(new Event('touchmove',{bubbles:true}));
     c.scrollTop-=200;c.dispatchEvent(new Event('scroll'));await sleep(30);
     check('touch navigation pauses following',!following());
