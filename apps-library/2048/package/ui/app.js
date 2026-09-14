@@ -213,6 +213,11 @@
     return Object.assign({board:state.board.slice(),score:state.score,best:state.best,moves:state.moves,revision:revision,
       agent:player?player.view():null,analysis:description.legalMoves.length?analysis:null},description);
   }
+  function setAgentGoal(goal){
+    state.agentGoal=goal;
+    state.keepPlaying=goal==='max_score';
+    document.getElementById('maximizeScore').checked=state.keepPlaying;
+  }
   async function bindAgent(){
     var select=document.getElementById('agentPlayer'),info=document.getElementById('agentStatus');
     var saved=state.agent;
@@ -284,7 +289,8 @@
     document.getElementById('refreshAgents').onclick=refresh;
     direQuiJoue(player.view());
     document.getElementById('agentTurn').onclick=function(){if(select.value)player.start(select.value,false);};
-    document.getElementById('agentAuto').onclick=function(){if(select.value){if(document.getElementById('maximizeScore').checked){state.keepPlaying=true;revision++;render();}player.start(select.value,true);}};
+    document.getElementById('maximizeScore').checked=state.agentGoal!=='2048';
+    document.getElementById('agentAuto').onclick=function(){if(select.value){setAgentGoal(document.getElementById('maximizeScore').checked?'max_score':'2048');revision++;render();player.start(select.value,true);}};
     if(locale==='en')document.getElementById('maximizeLabel').textContent='Maximize score, beyond 2048';
     document.getElementById('agentPause').onclick=function(){player.pause();};
     select.onchange=function(){player.pause();};
@@ -295,7 +301,7 @@
       if(!agents.some(function(a){return a.id===id;}))throw new Error('Authorize this agent in Apps → Permissions → App → Agents first.');
       if(args.revision!==revision)throw new Error(perimee(args.revision));
       // The request explicitly chooses score maximization, including beyond 2048.
-      if(args.goal==='max_score')state.keepPlaying=true;
+      if(args.goal)setAgentGoal(args.goal);
       revision++;select.value=id;player.start(id,true);render();await saveChain;return snapshot();
     });
     if(locale==='en')document.getElementById('agentTurn').textContent='One turn';

@@ -368,6 +368,8 @@
     if (!state.over && state.turn !== state.humanSide) {
       scheduleOpponentMove();
     }
+    // A human's winning move also has to end the waiting agent session.
+    if (player) player.wake();
   }
 
   function scheduleOpponentMove() {

@@ -35,8 +35,8 @@
         var after=options.state();
         if(after.revision===revision)throw new Error('No move applied; choose an exact legal action from the new state.');
         failures=0;lastMove={model:result&&result.model,text:result&&String(result.text||'').slice(0,500)};detail='';
-        if(!continuous){active=false;save();paint('paused');}
-        else if(after.over){active=false;save();paint('finished');}
+        if(after.over){active=false;save();paint('finished');}
+        else if(!continuous){active=false;save();paint('paused');}
         else if(!options.canPlay(after))paint('waiting');
         else {paint('ready');schedule(Math.max(options.delay===undefined?80:options.delay,(options.minimumInterval||0)-(Date.now()-started)));}
       }catch(error){
@@ -46,8 +46,8 @@
         // replay cached coordinates: the next act reads a fresh game state.
         if(observed.revision!==revision){
           failures=0;
-          if(!continuous){active=false;save();paint('paused');}
-          else if(observed.over){active=false;save();paint('finished');}
+          if(observed.over){active=false;save();paint('finished');}
+          else if(!continuous){active=false;save();paint('paused');}
           else if(!options.canPlay(observed))paint('waiting');
           else schedule(options.delay||80);
         }else{
