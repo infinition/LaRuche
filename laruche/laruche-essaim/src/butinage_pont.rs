@@ -3004,7 +3004,7 @@ pub async fn executer_avec_bilan(
     ));
 
     let four = FournisseurPont {
-        routes: routes_secours(&config),
+        routes: routes_secours(config),
         route_active: Arc::new(0.into()),
         context_tokens: config.context_max_tokens,
         provider: config.provider.clone(),
@@ -3017,7 +3017,7 @@ pub async fn executer_avec_bilan(
         tx: tx.clone(),
         credential_pool: config.credential_pool.clone(),
         effort: config.reasoning_effort.clone(),
-        text_tools: protocole_texte_pour(&config),
+        text_tools: protocole_texte_pour(config),
     };
     // Approval channel (UI popup) shared with the tools via Mutex (sequential mutating
     // execution: no contention). `None` => Ask tools executed without confirmation.
@@ -3352,7 +3352,7 @@ pub async fn reprendre_carnet(
         ..but::Reglages::default()
     };
     let four = FournisseurPont {
-        routes: routes_secours(&config),
+        routes: routes_secours(config),
         route_active: Arc::new(0.into()),
         context_tokens: config.context_max_tokens,
         provider: config.provider.clone(),
@@ -3365,7 +3365,7 @@ pub async fn reprendre_carnet(
         tx: tx.clone(),
         credential_pool: config.credential_pool.clone(),
         effort: config.reasoning_effort.clone(),
-        text_tools: protocole_texte_pour(&config),
+        text_tools: protocole_texte_pour(config),
     };
     let outils = OutilsPont {
         run_id: Some(carnet.id.clone()),

@@ -88,7 +88,7 @@ async fn reasoning_only_never_becomes_answer() {
         chunks
             .iter()
             .filter_map(|c| c.finish_reason.as_deref())
-            .last(),
+            .next_back(),
         Some("length")
     );
 }

@@ -69,9 +69,9 @@ async fn main() -> anyhow::Result<()> {
         max_tokens: 1024,
         ..Default::default()
     };
-    let mut registry = AbeilleRegistry::new();
-    enregistrer_abeilles_builtin(&mut registry);
-    enregistrer_memoire(&mut registry, mem.clone());
+    let registry = AbeilleRegistry::new();
+    enregistrer_abeilles_builtin(&registry);
+    enregistrer_memoire(&registry, mem.clone());
 
     // ─── Conv: a request RELATED to the skill -> automatic recall ──────────────
     println!("════════ 1. Related task -> the skill must be RECALLED (SkillApplied) ════════");

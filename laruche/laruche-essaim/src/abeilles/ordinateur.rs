@@ -2313,7 +2313,9 @@ mod tests {
         let ctx = ContextExecution::default();
         let temoin = format!("laruche {}", std::process::id());
 
-        std::process::Command::new("notepad.exe")
+        // Le handle est garde: ce test ouvre une vraie fenetre, et la refermer
+        // a la fin est ce qui le rend relancable sans nettoyer a la main.
+        let mut bloc_notes = std::process::Command::new("notepad.exe")
             .spawn()
             .expect("notepad");
         tokio::time::sleep(Duration::from_millis(1500)).await;
@@ -2388,6 +2390,9 @@ mod tests {
             out.output.chars().take(600).collect::<String>()
         );
         println!("Texte relu dans l'arbre: ok");
+
+        let _ = bloc_notes.kill();
+        let _ = bloc_notes.wait();
     }
 
     #[test]

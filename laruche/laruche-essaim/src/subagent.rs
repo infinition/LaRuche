@@ -409,8 +409,10 @@ mod tests {
 
     #[test]
     fn config_sous_agent_limite_iterations_et_recursion() {
-        let mut parent = EssaimConfig::default();
-        parent.max_iterations = 20;
+        let parent = EssaimConfig {
+            max_iterations: 20,
+            ..Default::default()
+        };
 
         let child = config_sous_agent(&parent);
 

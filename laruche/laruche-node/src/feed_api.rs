@@ -566,6 +566,9 @@ mod tests_ordre_feed {
             (meme_seconde, "plus ancien"),
             (ms(1_788_345_000), "d'avant"),
         ];
+        // `sort_by_key` trierait pareil, mais ce test reproduit a l'identique le tri
+        // de la ligne 440, dont la stabilite est justement ce qui est verifie ici.
+        #[allow(clippy::unnecessary_sort_by)]
         evts.sort_by(|a, b| b.0.cmp(&a.0));
         assert_eq!(
             evts.iter().map(|e| e.1).collect::<Vec<_>>(),

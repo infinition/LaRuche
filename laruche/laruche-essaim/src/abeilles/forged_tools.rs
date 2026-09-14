@@ -194,6 +194,89 @@ impl Abeille for ForgedToolAbeille {
     }
 }
 
+/// Registers every `forged_tools/<name>/tool.json` found under `dir`.
+pub fn charger_outils_forges(dir: &Path, registry: &AbeilleRegistry) -> usize {
+    charger_manifestes(dir, MANIFESTE, registry, false)
+}
+
+/// Reads the previous `plugins/<name>/plugin.json` layout without creating new
+/// legacy data. Canonical manifests are loaded afterwards and win on conflicts.
+pub fn charger_outils_herites(dir: &Path, registry: &AbeilleRegistry) -> usize {
+    charger_manifestes(dir, MANIFESTE_HERITE, registry, true)
+}
+
+fn charger_manifestes(
+    dir: &Path,
+    manifeste_nom: &str,
+    registry: &AbeilleRegistry,
+    heritage: bool,
+) -> usize {
+    let mut count = 0;
+    let _ = std::fs::create_dir_all(dir);
+
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!(error = %e, directory = %dir.display(), "Failed to read forged tools directory");
+            return 0;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path.is_file() && path.extension().is_some_and(|e| e == "json") {
+            if let Some(stem) = path.file_stem().map(|s| s.to_string_lossy().to_string()) {
+                tracing::warn!(
+                    file = %path.display(),
+                    expected = %dossier_outil_forge(dir, &stem).join(manifeste_nom).display(),
+                    "Loose forged tool JSON ignored: move it into its own folder"
+                );
+            }
+            continue;
+        }
+
+        if !path.is_dir() {
+            continue;
+        }
+        let manifeste = path.join(manifeste_nom);
+        if !manifeste.exists() {
+            continue;
+        }
+
+        match std::fs::read_to_string(&manifeste) {
+            Ok(content) => match serde_json::from_str::<ForgedToolDefinition>(&content) {
+                Ok(mut def) => {
+                    // forged_tool_delete resolves a forged tool by folder name, so a manifest
+                    // declaring something else registers a tool nobody can remove.
+                    let dossier_nom = path.file_name().unwrap_or_default().to_string_lossy();
+                    if dossier_nom != def.name {
+                        tracing::warn!(
+                            folder = %dossier_nom,
+                            declared = %def.name,
+                            "Forged tool folder and name differ: forged_tool_delete will not find it"
+                        );
+                    }
+                    def.dossier = path.clone();
+                    tracing::info!(forged_tool = %def.name, file = %manifeste.display(), legacy = heritage, "Loaded forged tool");
+                    registry.enregistrer(Box::new(ForgedToolAbeille::new(def)));
+                    count += 1;
+                }
+                Err(e) => {
+                    tracing::warn!(file = %manifeste.display(), error = %e, "Failed to parse forged tool")
+                }
+            },
+            Err(e) => {
+                tracing::warn!(file = %manifeste.display(), error = %e, "Failed to read forged tool")
+            }
+        }
+    }
+    if count > 0 {
+        tracing::info!(count, dir = %dir.display(), legacy = heritage, "Forged tools loaded");
+    }
+    count
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -360,87 +443,4 @@ mod tests {
         assert!(result.success);
         assert!(result.output.contains("plugins/chemin_legacy/run.py"));
     }
-}
-
-/// Registers every `forged_tools/<name>/tool.json` found under `dir`.
-pub fn charger_outils_forges(dir: &Path, registry: &AbeilleRegistry) -> usize {
-    charger_manifestes(dir, MANIFESTE, registry, false)
-}
-
-/// Reads the previous `plugins/<name>/plugin.json` layout without creating new
-/// legacy data. Canonical manifests are loaded afterwards and win on conflicts.
-pub fn charger_outils_herites(dir: &Path, registry: &AbeilleRegistry) -> usize {
-    charger_manifestes(dir, MANIFESTE_HERITE, registry, true)
-}
-
-fn charger_manifestes(
-    dir: &Path,
-    manifeste_nom: &str,
-    registry: &AbeilleRegistry,
-    heritage: bool,
-) -> usize {
-    let mut count = 0;
-    let _ = std::fs::create_dir_all(dir);
-
-    let entries = match std::fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(e) => {
-            tracing::warn!(error = %e, directory = %dir.display(), "Failed to read forged tools directory");
-            return 0;
-        }
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-
-        if path.is_file() && path.extension().is_some_and(|e| e == "json") {
-            if let Some(stem) = path.file_stem().map(|s| s.to_string_lossy().to_string()) {
-                tracing::warn!(
-                    file = %path.display(),
-                    expected = %dossier_outil_forge(dir, &stem).join(manifeste_nom).display(),
-                    "Loose forged tool JSON ignored: move it into its own folder"
-                );
-            }
-            continue;
-        }
-
-        if !path.is_dir() {
-            continue;
-        }
-        let manifeste = path.join(manifeste_nom);
-        if !manifeste.exists() {
-            continue;
-        }
-
-        match std::fs::read_to_string(&manifeste) {
-            Ok(content) => match serde_json::from_str::<ForgedToolDefinition>(&content) {
-                Ok(mut def) => {
-                    // forged_tool_delete resolves a forged tool by folder name, so a manifest
-                    // declaring something else registers a tool nobody can remove.
-                    let dossier_nom = path.file_name().unwrap_or_default().to_string_lossy();
-                    if dossier_nom != def.name {
-                        tracing::warn!(
-                            folder = %dossier_nom,
-                            declared = %def.name,
-                            "Forged tool folder and name differ: forged_tool_delete will not find it"
-                        );
-                    }
-                    def.dossier = path.clone();
-                    tracing::info!(forged_tool = %def.name, file = %manifeste.display(), legacy = heritage, "Loaded forged tool");
-                    registry.enregistrer(Box::new(ForgedToolAbeille::new(def)));
-                    count += 1;
-                }
-                Err(e) => {
-                    tracing::warn!(file = %manifeste.display(), error = %e, "Failed to parse forged tool")
-                }
-            },
-            Err(e) => {
-                tracing::warn!(file = %manifeste.display(), error = %e, "Failed to read forged tool")
-            }
-        }
-    }
-    if count > 0 {
-        tracing::info!(count, dir = %dir.display(), legacy = heritage, "Forged tools loaded");
-    }
-    count
 }

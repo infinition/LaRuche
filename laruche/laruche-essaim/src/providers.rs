@@ -2140,7 +2140,7 @@ mod tests {
 
         // Meme modele: le raisonnement repart.
         let rendu = rejouer_raisonnement(&m, "deepseek-v4-flash");
-        assert_eq!(rendu.as_deref(), Some("je reflechis"));
+        assert_eq!(rendu, Some("je reflechis"));
 
         // Autre modele: rien, meme si le champ est la.
         assert!(rejouer_raisonnement(&m, "gpt-4o").is_none());

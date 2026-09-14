@@ -388,8 +388,10 @@ mod tests {
 
     #[test]
     fn les_lectures_de_code_ne_sont_pas_un_progres_dans_une_app() {
-        let mut m = ControleMission::default();
-        m.app_active = Some("notebook".into());
+        let mut m = ControleMission {
+            app_active: Some("notebook".into()),
+            ..Default::default()
+        };
         for i in 0..20 {
             let a = Appel::nouveau("file_read", json!({"path":i}));
             assert!(!m.observer(&a, &ResultatOutil::ok(format!("source {i}")), true, i));

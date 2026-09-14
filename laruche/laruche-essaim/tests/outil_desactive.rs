@@ -10,8 +10,10 @@ async fn un_outil_desactive_est_refuse_a_lexecution() {
     // A registry with one real tool is enough: what is under test is the guard, not
     // the tool. `mission_list` need not even exist for a refusal to be correct.
     let registre = AbeilleRegistry::new();
-    let mut ctx = ContextExecution::default();
-    ctx.disabled_tools = vec!["mission_list".to_string()];
+    let ctx = ContextExecution {
+        disabled_tools: vec!["mission_list".to_string()],
+        ..Default::default()
+    };
 
     let r = registre
         .executer("mission_list", serde_json::json!({}), &ctx)

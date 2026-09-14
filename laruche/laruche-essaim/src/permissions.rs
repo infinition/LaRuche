@@ -211,8 +211,10 @@ mod tests {
 
     #[test]
     fn permission_decision_plan_denies_writes() {
-        let mut cfg = EssaimConfig::default();
-        cfg.permission_mode = PermissionMode::Plan;
+        let cfg = EssaimConfig {
+            permission_mode: PermissionMode::Plan,
+            ..Default::default()
+        };
         let ctx = ContextExecution::default();
         let decision = decision_permission(
             &cfg,
@@ -226,8 +228,10 @@ mod tests {
 
     #[test]
     fn permission_decision_explicit_deny_beats_auto() {
-        let mut cfg = EssaimConfig::default();
-        cfg.permission_mode = PermissionMode::Auto;
+        let mut cfg = EssaimConfig {
+            permission_mode: PermissionMode::Auto,
+            ..Default::default()
+        };
         cfg.permission_rules.push(PermissionRule {
             source: RuleSource::Policy,
             behavior: PermissionBehavior::Deny,

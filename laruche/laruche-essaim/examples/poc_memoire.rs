@@ -65,9 +65,9 @@ async fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut registry = AbeilleRegistry::new();
-    enregistrer_abeilles_builtin(&mut registry);
-    enregistrer_memoire(&mut registry, mem.clone());
+    let registry = AbeilleRegistry::new();
+    enregistrer_abeilles_builtin(&registry);
+    enregistrer_memoire(&registry, mem.clone());
 
     let (tx, _) = tokio::sync::broadcast::channel::<ChatEvent>(512);
     spawn_printer(&tx);

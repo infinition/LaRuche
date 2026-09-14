@@ -222,9 +222,11 @@ mod tests {
 
     #[test]
     fn candidats_defaut_inclut_modele_principal_et_fallbacks() {
-        let mut config = EssaimConfig::default();
-        config.model = "main".into();
-        config.fallback_models = vec!["fb1".into(), "fb2".into()];
+        let config = EssaimConfig {
+            model: "main".into(),
+            fallback_models: vec!["fb1".into(), "fb2".into()],
+            ..Default::default()
+        };
 
         let candidates = candidats_ou_defaut(&config, vec![]);
 

@@ -655,8 +655,10 @@ mod tests {
         drop(writer);
 
         let (sender, mut receiver) = mpsc::unbounded_channel();
-        let mut ctx = ContextExecution::default();
-        ctx.live_output = Some(sender);
+        let ctx = ContextExecution {
+            live_output: Some(sender),
+            ..Default::default()
+        };
         let captured = capture_process_stream(reader, ctx, "shell_exec", "stdout", 1024)
             .await
             .unwrap();

@@ -445,8 +445,8 @@ fn test_session_compacter_uses_structured_summary_and_tool_result_store() {
 
 #[test]
 fn test_registry_creation_and_tool_list() {
-    let mut registry = laruche_essaim::AbeilleRegistry::new();
-    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&mut registry);
+    let registry = laruche_essaim::AbeilleRegistry::new();
+    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&registry);
 
     let names = registry.noms();
     assert!(
@@ -472,8 +472,8 @@ fn test_registry_creation_and_tool_list() {
 
 #[test]
 fn test_registry_schema_complet() {
-    let mut registry = laruche_essaim::AbeilleRegistry::new();
-    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&mut registry);
+    let registry = laruche_essaim::AbeilleRegistry::new();
+    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&registry);
 
     let schema = registry.schema_complet();
     let tools = schema
@@ -491,13 +491,15 @@ fn test_registry_schema_complet() {
 
 #[test]
 fn test_dynamic_tool_selection_keeps_core_and_adds_relevant_tools() {
-    let mut registry = laruche_essaim::AbeilleRegistry::new();
-    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&mut registry);
+    let registry = laruche_essaim::AbeilleRegistry::new();
+    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&registry);
     let full_len = registry.schema_complet().as_array().unwrap().len();
 
-    let mut cfg = EssaimConfig::default();
-    cfg.dynamic_tool_selection = true;
-    cfg.tool_selection_limit = 9;
+    let cfg = EssaimConfig {
+        dynamic_tool_selection: true,
+        tool_selection_limit: 9,
+        ..Default::default()
+    };
 
     let schema = schema_outils_pour_prompt(
         &registry,
@@ -515,13 +517,15 @@ fn test_dynamic_tool_selection_keeps_core_and_adds_relevant_tools() {
 
 #[test]
 fn test_dynamic_tool_selection_respects_disabled_tools() {
-    let mut registry = laruche_essaim::AbeilleRegistry::new();
-    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&mut registry);
+    let registry = laruche_essaim::AbeilleRegistry::new();
+    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&registry);
 
-    let mut cfg = EssaimConfig::default();
-    cfg.dynamic_tool_selection = true;
-    cfg.tool_selection_limit = 12;
-    cfg.disabled_tools = vec!["shell_exec".to_string()];
+    let cfg = EssaimConfig {
+        dynamic_tool_selection: true,
+        tool_selection_limit: 12,
+        disabled_tools: vec!["shell_exec".to_string()],
+        ..Default::default()
+    };
 
     let schema = schema_outils_pour_prompt(&registry, &cfg, "execute une commande shell");
     let names: Vec<&str> = schema
@@ -536,8 +540,8 @@ fn test_dynamic_tool_selection_respects_disabled_tools() {
 
 #[tokio::test]
 async fn test_registry_execute_unknown_tool() {
-    let mut registry = laruche_essaim::AbeilleRegistry::new();
-    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&mut registry);
+    let registry = laruche_essaim::AbeilleRegistry::new();
+    laruche_essaim::abeilles::enregistrer_abeilles_builtin(&registry);
 
     let result = registry
         .executer("nonexistent_tool", serde_json::json!({}), &default_ctx())
