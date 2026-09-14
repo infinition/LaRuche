@@ -7,7 +7,8 @@ SOURCE = ROOT / "package"
 DIST = ROOT / "dist"
 
 # Keep the installed games self-contained, with one scheduler source.
-(SOURCE / "ui" / "game-agent.js").write_bytes((ROOT.parent / "shared" / "game-agent.js").read_bytes())
+for partage in ("game-agent.js", "app-zoom.js"):
+    (SOURCE / "ui" / partage).write_bytes((ROOT.parent / "shared" / partage).read_bytes())
 
 manifest = json.loads((SOURCE / "app.json").read_text(encoding="utf-8"))
 DIST.mkdir(exist_ok=True)

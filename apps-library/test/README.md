@@ -9,6 +9,18 @@ Requirements: Node, Playwright, Chromium and a built LaRuche node. Set `NODE_PAT
 is supplied by a separate runtime. Optional `CHROME_PATH` selects a browser;
 `LARUCHE_TEST_BINARY` selects the node executable (otherwise the debug binary is used).
 
+## Game layout
+
+```bash
+python apps-library/2048/build.py
+node apps-library/test/layout.test.cjs
+```
+
+Measures the real boxes in a real browser at five panel sizes and four zoom levels:
+the board stays square, its cells stay equal and square, it fits the space it is
+given, and nothing pushes the App outside its frame. Needs Chrome or Edge and
+nothing else, and skips with a message if it finds neither.
+
 ## Bidirectional bridge
 
 ```powershell

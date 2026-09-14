@@ -2,7 +2,7 @@
   'use strict';
   var sdk=window.LaRucheApp;
   var engine=window.Game2048Engine;
-  var storageKey='game.state.v1';
+  var storageKey='game.state.v1', zoomKey='game.zoom.v1', zoom=null;
   var state=null;
   var previous=null;
   var saveChain=Promise.resolve();
@@ -150,13 +150,29 @@
     });
   }
 
+  /* Le plateau et les tuiles suivent la largeur du conteneur, donc dezoomer
+     leur donne plus de pixels logiques au lieu de tout rapetisser. */
+  function brancherZoom(){
+    if(!window.AppZoom)return;
+    var etiquette=document.getElementById('zoomValue');
+    zoom=window.AppZoom.create({
+      load:function(){return sdk.storage.get(zoomKey);},
+      save:function(v){return sdk.storage.set(zoomKey,v);},
+      label:function(t){if(etiquette)etiquette.textContent=t;}
+    });
+    document.getElementById('zoomIn').onclick=function(){zoom.decaler(1);};
+    document.getElementById('zoomOut').onclick=function(){zoom.decaler(-1);};
+    etiquette.onclick=function(){zoom.reinitialiser();};
+    return zoom.restaurer();
+  }
+
   function start(){
     bind();
     sdk.ready().then(function(context){
       locale=context.locale==='en'?'en':'fr';
       document.documentElement.dataset.hostTheme=context.theme||'default';
       applyLocale();
-      return sdk.storage.get(storageKey);
+      return Promise.resolve(brancherZoom()).then(function(){return sdk.storage.get(storageKey);});
     }).then(function(saved){
       var restored=validState(saved);
       state=restored?saved:fresh(0);
@@ -206,6 +222,32 @@
         {paused:'En pause',ready:'Partie active',thinking:'L’agent réfléchit…',waiting:'En attente de Continuer',retry:'Erreur temporaire · reprise automatique',permission:'En attente d’autorisation · Apps → Permissions → App → Agents',finished:'Partie terminée'};
       return (dict[view.status]||view.status)+(view.detail?' · '+view.detail:'');
     }
+    /* Trois choses portaient le meme mot "agent" sans que rien ne les separe:
+       la conversation du chat, l'agent choisi ici, et l'heuristique locale. Ce
+       qui suit nomme celui qui joue a cet instant, et dit ce qu'est le menu. */
+    var quiJoue=document.getElementById('quiJoue');
+    function direQuiJoue(view){
+      if(!quiJoue)return;
+      var fini=engine.describe(state.board,state.keepPlaying).waitingFor!=='move';
+      var agentActif=!!(view&&view.active);
+      var pense=!!(view&&view.busy);
+      quiJoue.className='qui-joue'+(fini?'':agentActif?' agent':' toi');
+      quiJoue.textContent=fini?(locale==='en'?'Game over':'Partie terminée')
+        :agentActif?(pense?(locale==='en'?'The agent is choosing its move':'L’agent choisit son coup')
+                          :(locale==='en'?'The agent is playing':'L’agent joue'))
+        :(locale==='en'?'Your turn':'À toi de jouer');
+    }
+    var aide=document.getElementById('agentAide');
+    if(aide){
+      var en=locale==='en';
+      aide.textContent=en
+        ? '"LaRuche" is your active model, called by this App one move at a time. It is not the chat conversation.'
+        : '« LaRuche » est ton modèle actif, appelé par l’App un coup à la fois. Ce n’est pas la conversation du chat.';
+      aide.title=en
+        ? 'This App calls the chosen agent itself, so closing or stopping the chat does not stop it; the App view must stay open. "One turn" plays a single move. "Auto" keeps playing until the game ends or you pause.'
+        : 'L’App appelle elle-même l’agent choisi : fermer ou arrêter le chat ne l’interrompt pas, mais la vue de l’App doit rester ouverte. « Un tour » joue un seul coup. « Auto » enchaîne jusqu’à la fin de la partie ou une pause.';
+    }
+
     player=window.GameAgent.create({
       state:function(){return Object.assign({revision:revision},engine.describe(state.board,state.keepPlaying));},
       canPlay:function(s){return s.waitingFor==='move';},
@@ -220,6 +262,7 @@
         document.getElementById('agentAuto').setAttribute('aria-pressed',String(view.active&&view.continuous));
         document.getElementById('agentAuto').textContent=view.active&&view.continuous?(locale==='en'?'Playing':'Partie active'):'Auto';
         document.getElementById('agentPause').disabled=!view.active;
+        direQuiJoue(view);
       },
       act:function(id,lastError){
         var prompt='Maximize 2048 score and tile size. Read exact merge rules and current legalMoves. The state includes expectimax analysis of legal directions with actual after-slide boards BEFORE the unknown random tile. Prefer high utility, preserve space and a stable large-tile corner; compare rather than cycling random directions. Utility is a heuristic, not guaranteed future score. Choose exactly ONE legal direction with this revision. Return only game.move action JSON, without commentary. Never reset.';
@@ -239,6 +282,7 @@
       }catch(e){info.textContent=e.message;}
     }
     document.getElementById('refreshAgents').onclick=refresh;
+    direQuiJoue(player.view());
     document.getElementById('agentTurn').onclick=function(){if(select.value)player.start(select.value,false);};
     document.getElementById('agentAuto').onclick=function(){if(select.value){if(document.getElementById('maximizeScore').checked){state.keepPlaying=true;revision++;render();}player.start(select.value,true);}};
     if(locale==='en')document.getElementById('maximizeLabel').textContent='Maximize score, beyond 2048';

@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="./styles.css">
   <script src="/apps-runtime/v1.js" defer></script>
   <script src="./game.js" defer></script>
+  <script src="./app-zoom.js" defer></script>
   <script src="./ai.js" defer></script>
   <script src="./game-agent.js" defer></script>
   <script src="./app.js" defer></script>
@@ -67,12 +68,18 @@
         </label>
       </div>
       <div class="toolbar-actions">
+        <div class="zoom-group" role="group" id="zoomGroup">
+          <button type="button" id="zoomOut" title="Reduire l'affichage">-</button>
+          <button type="button" id="zoomValue" class="zoom-value" title="Revenir a 100%">100%</button>
+          <button type="button" id="zoomIn" title="Agrandir l'affichage">+</button>
+        </div>
         <button id="undoBtn" type="button" class="button secondary" disabled data-i18n="undo">Annuler</button>
         <button id="newGameBtn" type="button" class="button primary" data-i18n="newGame">Nouvelle partie</button>
       </div>
     </section>
 
     <section class="game-wrap" aria-label="Damier">
+      <div class="plateau">
       <div id="board" class="board" role="grid" aria-label="Plateau de jeu de dames"></div>
       <div id="overlay" class="overlay" hidden>
         <strong id="overlayTitle"></strong>
@@ -80,6 +87,7 @@
         <div class="overlay-actions">
           <button id="restartBtn" type="button" class="button primary" data-i18n="newGame">Nouvelle partie</button>
         </div>
+      </div>
       </div>
     </section>
 
@@ -97,9 +105,11 @@
         <button id="agentPauseBtn" class="button secondary" type="button" disabled data-i18n="pause">Pause</button>
       </div>
       <p id="agentStatus" role="status" data-i18n="waitingUser">En attente de votre coup.</p>
+      <p class="agent-aide" id="agentAide"></p>
     </section>
 
     <footer>
+      <p class="qui-joue" id="quiJoue" role="status"></p>
       <span id="saveStatus" class="save-status">Connexion a LaRuche...</span>
       <span id="moveCount">0 coups</span>
     </footer>

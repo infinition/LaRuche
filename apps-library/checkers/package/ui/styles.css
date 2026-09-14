@@ -42,9 +42,19 @@ button, select {
   font: inherit;
 }
 
+/* L'App tient dans son cadre, sans barre de defilement, et ses tailles se
+   mesurent sur le CONTENEUR et non sur la fenetre: une unite de fenetre
+   mesure toute la fenetre de LaRuche, pas le panneau lateral. C'est aussi ce
+   qui rend le zoom utile, une requete media voyant toujours la fenetre non
+   zoomee. */
 .app-shell {
   width: min(100%, 620px);
-  min-height: 100vh;
+  height: calc(100dvh / var(--zoom, 1));
+  max-height: calc(100% / var(--zoom, 1));
+  zoom: var(--zoom, 1);
+  container-type: inline-size;
+  container-name: jeu;
+  overflow: hidden;
   margin: 0 auto;
   padding-top: max(14px, env(safe-area-inset-top));
   padding-bottom: max(14px, env(safe-area-inset-bottom));
@@ -72,7 +82,7 @@ button, select {
 
 h1 {
   margin: 0;
-  font-size: clamp(24px, 6vw, 36px);
+  font-size: clamp(19px, 5.6cqw, 34px);
   line-height: 1.1;
   letter-spacing: -0.04em;
 }
@@ -219,10 +229,29 @@ h1 {
   background: linear-gradient(135deg, var(--amber), var(--amber-2));
 }
 
+/* La place qui reste, et rien d'autre. Conteneur de TAILLE, donc le damier
+   peut prendre le plus petit de ses deux cotes et rester carre. Un
+   aspect-ratio dans un flex n'y arrive pas: quand max-width mord, la largeur
+   se cale mais la hauteur, deja fixee par le flex, ne suit pas. */
 .game-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+  container-name: place;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+}
+
+/* Zoomer fort finit par ne plus laisser de place. En dessous de ce plancher,
+   c'est cette zone qui defile, et le reste de l'App ne bouge pas. */
+.plateau {
   position: relative;
-  width: 100%;
-  aspect-ratio: 1;
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
+  min-width: 200px;
+  min-height: 200px;
   padding: 8px;
   border: 1px solid var(--board-border);
   border-radius: 14px;
@@ -234,8 +263,8 @@ h1 {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   gap: 2px;
   user-select: none;
   touch-action: none;
@@ -362,7 +391,7 @@ h1 {
 }
 
 .overlay strong {
-  font-size: clamp(22px, 5vw, 32px);
+  font-size: clamp(17px, 4.6cqw, 30px);
   color: var(--text);
 }
 
@@ -450,11 +479,7 @@ footer {
   50% { transform: scale(1.15); opacity: 1; }
 }
 
-@media (max-width: 480px) {
-  .app-shell {
-    padding: 10px;
-    gap: 10px;
-  }
+@container jeu (max-width: 480px) {
   .scores {
     gap: 4px;
   }
@@ -480,3 +505,20 @@ footer {
     transition: none !important;
   }
 }
+
+/* Zoom, et qui joue. */
+.zoom-group { display: flex; align-items: center; gap: 2px; }
+.zoom-group button { min-height: 28px; padding: 4px 7px; border: 1px solid var(--line, rgba(255,255,255,.09));
+  border-radius: 7px; color: var(--muted); background: var(--panel-2, #22222b); cursor: pointer;
+  font-size: 11px; font-weight: 750; }
+.zoom-group button:hover { color: var(--text); }
+.zoom-value { min-width: 46px; font-variant-numeric: tabular-nums; }
+.qui-joue { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 11px;
+  font-weight: 750; color: var(--muted); letter-spacing: .02em; }
+.qui-joue::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.qui-joue.toi, .qui-joue.toi::before { color: var(--green, #5dd39e); }
+.qui-joue.toi::before { background: var(--green, #5dd39e); }
+.qui-joue.agent { color: var(--amber); }
+.qui-joue.agent::before { background: var(--amber); animation: pulseJoueur 1.4s ease-in-out infinite; }
+.agent-aide { width: 100%; margin: 0; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
+@keyframes pulseJoueur { 50% { opacity: .35; } }

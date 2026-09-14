@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="./styles.css">
   <script src="/apps-runtime/v1.js" defer></script>
   <script src="./game.js" defer></script>
+  <script src="./app-zoom.js" defer></script>
   <script src="./ai.js" defer></script>
   <script src="./game-agent.js" defer></script>
   <script src="./app.js" defer></script>
@@ -27,12 +28,18 @@
     <section class="toolbar">
       <p id="instructions">Utilise les flèches, ZQSD ou glisse sur la grille.</p>
       <div class="toolbar-actions">
+        <div class="zoom-group" role="group" id="zoomGroup">
+          <button type="button" id="zoomOut" title="Reduire l'affichage">-</button>
+          <button type="button" id="zoomValue" class="zoom-value" title="Revenir a 100%">100%</button>
+          <button type="button" id="zoomIn" title="Agrandir l'affichage">+</button>
+        </div>
         <button id="undo" type="button" class="button secondary" disabled data-i18n="undo">Annuler</button>
         <button id="newGame" type="button" class="button primary" data-i18n="newGame">Nouvelle partie</button>
       </div>
     </section>
 
     <section class="game-wrap" aria-label="2048">
+      <div class="plateau">
       <div id="board" class="board" role="grid" aria-label="Grille 2048"></div>
       <div id="overlay" class="overlay" hidden>
         <strong id="overlayTitle"></strong>
@@ -41,6 +48,7 @@
           <button id="continueGame" type="button" class="button secondary" hidden data-i18n="continue">Continuer</button>
           <button id="restartGame" type="button" class="button primary" data-i18n="restart">Rejouer</button>
         </div>
+      </div>
       </div>
     </section>
 
@@ -58,9 +66,11 @@
       <button id="agentAuto" class="button secondary" type="button" disabled>Auto</button>
       <button id="agentPause" class="button secondary" type="button" disabled>Pause</button>
       <p id="agentStatus" role="status">Autorise un agent dans Apps → Permissions.</p>
+      <p class="agent-aide" id="agentAide"></p>
     </section>
 
     <footer>
+      <p class="qui-joue" id="quiJoue" role="status"></p>
       <span id="saveStatus" class="save-status">Connexion à LaRuche...</span>
       <span id="moveCount">0 coups</span>
     </footer>

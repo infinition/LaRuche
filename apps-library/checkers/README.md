@@ -69,3 +69,20 @@ comme le fait celui de DS Studio.
 
 Un refus de revision nomme la valeur courante. Sans elle, il faut relire l'etat
 avant de pouvoir reessayer, et la revision a souvent encore bouge entre-temps.
+
+## Zoom et mise en page, en 1.4.0
+
+Un zoom garde entre deux ouvertures, et un damier qui prend le plus petit des
+deux cotes de la place qu'on lui laisse au lieu de tenir sa forme d'un
+`aspect-ratio` dans un flex, lequel ne sait pas retrecir sa hauteur quand
+`max-width` mord. Les tailles sont passees en unites de conteneur : une unite
+de fenetre mesure toute la fenetre de LaRuche et non le panneau, ce qui faisait
+sortir le bas de l'App hors du cadre.
+
+L'interface dit aussi qui joue a cet instant, et ce que designe chaque mot.
+« IA locale » est la recherche de l'App elle-meme, sans aucun modele derriere.
+« LaRuche » dans le menu des agents est le modele actif, appele par l'App un
+coup a la fois : ce n'est pas la conversation du chat, la fermer ne l'arrete
+pas, mais la vue de l'App doit rester ouverte.
+
+`apps-library/test/layout.test.cjs` mesure la geometrie dans un vrai navigateur.

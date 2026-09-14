@@ -65,3 +65,28 @@ state again before it can retry, and by then the revision has often moved once m
 The guide also says the App's private store on disk is out of bounds: everything
 about the board is reachable through the actions, and a reply that looks incomplete
 is a reason to read `game.state` again, not to go around it.
+
+## Zoom et mise en page, en 1.5.0
+
+Un zoom, garde entre deux ouvertures, dans le stockage prive de l'App. Il agit
+sur toute la mise en page : dezoomer donne au plateau plus de pixels logiques
+au lieu de tout rapetisser.
+
+Deux defauts de geometrie partaient avec. Les lignes de la grille n'etaient pas
+declarees, et une piste `1fr` garde un plancher a la taille de son contenu :
+pour des colonnes de 132 px, on obtenait trois lignes de 145.875 et une
+derniere, vide, de 90.375. Les cases n'etaient donc ni carrees ni egales.
+`minmax(0, 1fr)` retire ce plancher.
+
+Les tailles etaient exprimees en unites de fenetre, qui mesurent toute la
+fenetre de LaRuche et non le panneau : dans un panneau de 870 px au sein d'une
+fenetre de 2000, le titre restait a son maximum et le bas de l'App passait hors
+du cadre. Ce sont maintenant des unites de conteneur, et les requetes media
+sont devenues des requetes de conteneur.
+
+Enfin le plateau tenait sa forme d'un `aspect-ratio` dans un flex, qui ne sait
+pas retrecir sa hauteur quand `max-width` mord : il devenait deux fois plus
+haut que large des qu'on dezoomait. Il prend desormais le plus petit des deux
+cotes de la place qu'on lui laisse.
+
+`apps-library/test/layout.test.cjs` mesure tout cela dans un vrai navigateur.

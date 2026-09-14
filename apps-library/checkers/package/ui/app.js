@@ -5,6 +5,7 @@
   var engine = window.CheckersEngine;
   var ai = window.CheckersAI;
   var storageKey = 'checkers.state.v1';
+  var zoomKey = 'checkers.zoom.v1', zoom = null;
 
   var state = null;
   var previous = null;
@@ -318,6 +319,7 @@
     updateTurnBanner();
     renderBoard();
     checkGameOver();
+    direQuiJoue();
   }
 
   function handleSquareClick(index) {
@@ -467,6 +469,53 @@
     return (labels[view.status]||view.status)+(view.detail?' · '+view.detail:'');
   }
 
+  /* Le damier suit la largeur de son conteneur, donc dezoomer lui donne plus
+     de pixels logiques au lieu de tout rapetisser. Le reglage est garde dans
+     le stockage prive de l'App, donc par utilisateur. */
+  function brancherZoom() {
+    if (!window.AppZoom) return;
+    var etiquette = document.getElementById('zoomValue');
+    zoom = window.AppZoom.create({
+      load: function(){ return sdk.storage.get(zoomKey); },
+      save: function(v){ return sdk.storage.set(zoomKey, v); },
+      label: function(t){ if (etiquette) etiquette.textContent = t; }
+    });
+    document.getElementById('zoomIn').onclick = function(){ zoom.decaler(1); };
+    document.getElementById('zoomOut').onclick = function(){ zoom.decaler(-1); };
+    etiquette.onclick = function(){ zoom.reinitialiser(); };
+    return zoom.restaurer();
+  }
+
+  /* Trois choses portaient le meme mot "agent" sans que rien ne les separe: la
+     conversation du chat, l'agent choisi dans le menu, et l'IA locale. Ceci
+     nomme celui qui joue a cet instant. */
+  function direQuiJoue() {
+    var noeud = document.getElementById('quiJoue');
+    if (!noeud) return;
+    var vue = player ? player.view() : null;
+    var en = locale === 'en';
+    var aMoi = !state.over && state.turn === state.humanSide;
+    var parAgent = state.opponentMode === 'agent';
+    noeud.className = 'qui-joue' + (state.over ? '' : aMoi ? ' toi' : parAgent ? ' agent' : '');
+    noeud.textContent = state.over ? (en ? 'Game over' : 'Partie terminée')
+      : aMoi ? (en ? 'Your turn' : 'À toi de jouer')
+      : parAgent ? (vue && vue.busy ? (en ? 'The agent is choosing its move' : 'L’agent choisit son coup')
+                                    : (en ? 'The agent plays' : 'L’agent joue'))
+      : (en ? 'The local engine plays' : 'Le moteur local joue');
+  }
+
+  function direCeQuEstLAgent() {
+    var noeud = document.getElementById('agentAide');
+    if (!noeud) return;
+    var en = locale === 'en';
+    noeud.textContent = en
+      ? '"Local engine" is this App\'s own search, no model. "LaRuche" is your active model, called by the App one move at a time, and is not the chat conversation.'
+      : '« IA locale » est la recherche de l’App, sans modèle. « LaRuche » est ton modèle actif, appelé par l’App un coup à la fois, et non la conversation du chat.';
+    noeud.title = en
+      ? 'This App calls the chosen agent itself, so closing or stopping the chat does not stop it; the App view must stay open. "Agent turn" plays a single move. "Game active" answers each of your moves until the game ends or you pause.'
+      : 'L’App appelle elle-même l’agent choisi : fermer ou arrêter le chat ne l’interrompt pas, mais la vue de l’App doit rester ouverte. « Tour agent » joue un seul coup. « Partie active » répond à chacun de tes coups jusqu’à la fin ou une pause.';
+  }
+
   function createPlayer() {
     seat=state.agentSeat || seat;state.agentSeat=seat;
     player=window.GameAgent.create({
@@ -479,6 +528,7 @@
         agentBusy=view.busy;
         var info=document.getElementById('agentStatus');if(info)info.textContent=playerLabel(view);
         var pause=document.getElementById('agentPauseBtn');if(pause)pause.disabled=!view.active;
+        direQuiJoue();
         var auto=document.getElementById('agentAutoBtn');if(auto){auto.setAttribute('aria-pressed',String(view.active&&view.continuous));auto.textContent=view.active&&view.continuous?(locale==='en'?'Game active':'Partie active'):t('autoPlay');}
         updateTurnBanner();
       },
@@ -658,6 +708,8 @@
       document.documentElement.dataset.hostTheme = context.theme || 'default';
       await loadTranslations(locale);
       applyLocale();
+      direCeQuEstLAgent();
+      await brancherZoom();
 
       var saved = await sdk.storage.get(storageKey);
       if (validStoredState(saved)) {
