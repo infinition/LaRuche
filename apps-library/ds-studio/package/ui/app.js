@@ -639,31 +639,65 @@
       }
     }
 
-    if (stickToBottom && FOLLOW_EVENTS[event.type]) followBottom();
+    if (stickToBottom && FOLLOW_EVENTS[event.type]) followAgent(event.cellId);
   }
 
   function notebookPane() {
     return document.querySelector('.notebook-pane');
   }
 
-  /* Called from the pane's own scroll handler, so it reflects what the reader
-   * did, whether with the wheel, the scrollbar or a touch drag. Our own
-   * own jump lands exactly at the bottom, so it reads as still following. */
+  /* Le suivi ne doit juger que ce que le LECTEUR a fait.
+   *
+   * Redessiner la liste vide le conteneur, ce qui ramene le defilement en
+   * haut, puis le remet ou il etait. Ces deux ecritures emettent chacune un
+   * evenement `scroll`, et ils arrivent AVANT les trames de `followAgent`.
+   * Le suivi se coupait donc tout seul des que le carnet depassait un ecran:
+   * la position relue etait le haut du carnet, jamais le bas, et l'agent
+   * pouvait ecrire dix cellules sans que la vue bouge.
+   *
+   * Le drapeau couvre nos propres ecritures. Il tombe dans une trame
+   * d'animation, et non apres un delai: la specification place la livraison
+   * des evenements de defilement avant les rappels de trame, donc ce qui nous
+   * appartient est deja passe quand il se leve. */
+  var ownScroll = false;
+  function releaseOwnScroll() {
+    requestAnimationFrame(function(){ ownScroll = false; });
+  }
+
   function updateStickiness() {
+    if (ownScroll) return;
     var pane = notebookPane();
     if (!pane) return;
     stickToBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight <= STICK_THRESHOLD;
   }
 
-  /* Deferred by two frames: the cell that triggered this is laid out on the
-   * first, so scrollHeight is only final on the second. */
-  function followBottom() {
+  /* Suit l'endroit ou l'agent travaille, pas seulement la fin du carnet.
+   *
+   * Une cellule ajoutee au milieu est amenee au centre, pour qu'on voie
+   * arriver sa sortie; la derniere cellule ramene au bas, ou un tableau ou un
+   * graphique peut etre plus haut que la fenetre.
+   *
+   * Deux trames d'attente: la cellule qui declenche ceci est mise en page a la
+   * premiere, donc sa hauteur n'est connue qu'a la seconde. */
+  function followAgent(cellId) {
     var pane = notebookPane();
     if (!pane) return;
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){
         if (!stickToBottom) return;
-        pane.scrollTop = pane.scrollHeight;
+        var cells = notebook.cells;
+        var last = cells.length ? cells[cells.length - 1].id : null;
+        var target = cellId && cellId !== last
+          ? document.querySelector('[data-cell-id="' + cellId + '"]')
+          : null;
+        ownScroll = true;
+        /* Toujours instantane. Un defilement anime emet des evenements pendant
+         * toute sa duree, et le drapeau serait retombe au milieu: la position
+         * relue aurait alors coupe le suivi que ce defilement etait en train
+         * de servir. */
+        if (target) target.scrollIntoView({ block: 'center', inline: 'nearest' });
+        else pane.scrollTop = pane.scrollHeight;
+        releaseOwnScroll();
       });
     });
   }
@@ -700,6 +734,9 @@
     var container = element('cells');
     var pane = notebookPane();
     var previousTop = pane ? pane.scrollTop : 0;
+    /* Leve avant de vider: le vidage ramene le defilement en haut de lui-meme,
+     * et cet evenement-la nous appartient aussi. */
+    if (pane) ownScroll = true;
     container.textContent = '';
     notebook.cells.forEach(function(cell){
       container.appendChild(buildCell(cell));
@@ -708,9 +745,13 @@
     /* A textarea reports scrollHeight 0 while detached, so the editors are
      * sized once they are in the document, not while being built. */
     container.querySelectorAll('[data-role="editor"]').forEach(autosize);
-    /* Emptying the list clamps the pane to the top; put the reader back where
-     * they were, before any scroll event is dispatched. */
-    if (pane) pane.scrollTop = previousTop;
+    /* Vider la liste colle le volet en haut. On rend au lecteur la position
+     * qu'il avait, sauf s'il suivait l'agent: dans ce cas la position d'avant
+     * est deja perimee, c'est la fin du carnet qu'il veut voir. */
+    if (pane) {
+      pane.scrollTop = stickToBottom ? pane.scrollHeight : previousTop;
+      releaseOwnScroll();
+    }
   }
 
   function renderCell(cellId, options) {

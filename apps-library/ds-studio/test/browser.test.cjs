@@ -662,8 +662,65 @@ const SCENARIO = `
       var afterFirst = (await window.__harness.call('notebook.state')).result;
       await window.__harness.call('data.remove', { name: 'nuage', revision: afterFirst.revision });
       check('datasets removed', document.querySelectorAll('#datasetList .dataset').length === 0);
+
     } catch (error) {
       check('scenario completed', false, String(error && error.stack || error));
+    }
+
+    try {
+      /* Un carnet neuf, pour partir d'un etat connu quoi qu'aient laisse les
+         etapes precedentes. La revision courante est exigee a chaque mutation. */
+      var courant = (await window.__harness.call('notebook.state')).result;
+      await window.__harness.call('notebook.new', { revision: courant.revision, title: 'Suivi' });
+      await sleep(150);
+      /* Le carnet suit l'agent, et lache prise quand le lecteur s'en mele.
+       *
+       * La regression corrigee ici: redessiner la liste remet le defilement en
+       * haut puis le restaure, et ces ecritures emettaient un evenement lu
+       * comme un geste du lecteur. Le suivi se coupait donc tout seul des que
+       * le carnet depassait un ecran, et l'agent ecrivait sans que rien bouge. */
+      var pane = document.querySelector('.notebook-pane');
+      function auBas(){ return pane.scrollHeight - pane.scrollTop - pane.clientHeight <= 48; }
+      async function remplir(n){
+        for (var i = 0; i < n; i++) {
+          var etat = (await window.__harness.call('notebook.state')).result;
+          await window.__harness.call('cell.add', {
+            type: 'markdown',
+            source: 'Remplissage ' + i + ' ' + 'texte de remplissage '.repeat(30),
+            revision: etat.revision
+          });
+        }
+        await sleep(200);
+      }
+
+      await remplir(14);
+      check('le carnet deborde apres remplissage', pane.scrollHeight > pane.clientHeight + 100,
+        pane.scrollHeight + ' vs ' + pane.clientHeight);
+      var doc = document.scrollingElement;
+      check('le carnet suit l agent jusqu au bas', auBas(),
+        'volet ' + Math.round(pane.scrollTop) + '/' + pane.scrollHeight + ' visible ' + pane.clientHeight +
+        ' | document ' + Math.round(doc.scrollTop) + '/' + doc.scrollHeight + ' visible ' + doc.clientHeight +
+        ' | largeur ' + window.innerWidth);
+
+      /* Le lecteur remonte: le suivi doit lacher et ne plus rien imposer. */
+      pane.scrollTop = 0;
+      pane.dispatchEvent(new Event('scroll'));
+      await sleep(80);
+      var avant = pane.scrollTop;
+      await remplir(2);
+      check('remonter coupe le suivi', Math.abs(pane.scrollTop - avant) < 4,
+        'scrollTop=' + Math.round(pane.scrollTop) + ' attendu=' + Math.round(avant));
+
+      /* Le lecteur redescend au bas: le suivi doit se raccrocher. */
+      pane.scrollTop = pane.scrollHeight;
+      pane.dispatchEvent(new Event('scroll'));
+      await sleep(80);
+      await remplir(2);
+      check('redescendre raccroche le suivi', auBas(),
+        'scrollTop=' + Math.round(pane.scrollTop) + ' hauteur=' + pane.scrollHeight);
+
+    } catch (error) {
+      check('suivi du carnet teste', false, String(error && error.stack || error));
     }
 
     await report();
@@ -742,7 +799,7 @@ function wrapScenario() {
     '--no-default-browser-check',
     '--disable-extensions',
     '--user-data-dir=' + profile,
-    '--window-size=1280,900',
+    '--window-size=' + (process.env.DS_WINDOW || '1280,900'),
     url
   ], { stdio: 'ignore', windowsHide: true });
 
