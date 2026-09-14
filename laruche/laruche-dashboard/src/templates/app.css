@@ -3715,6 +3715,8 @@ html[data-fond-bas="1"] .status-bar { background: transparent; }
 .app-access-summary p { margin:6px 0; }
 .apps-access select,.apps-access input:not([type=checkbox]),.apps-access textarea { border:1px solid var(--border); background:var(--bg-input,var(--bg-panel)); color:var(--text); border-radius:6px; padding:8px; font:inherit; min-width:0; }
 .apps-access input[type=checkbox] { accent-color:var(--amber); width:17px; height:17px; }
+.app-bulk { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
+.app-bulk .apps-btn { font-size:11px; padding:4px 10px; }
 .app-right-row { display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); padding:12px 0; }
 .app-right-row>div { flex:1; min-width:0; }
 .app-right-row small,.app-package-grant small,.app-agent-card small { display:block; color:var(--text-muted); font-size:11px; margin-top:4px; }
