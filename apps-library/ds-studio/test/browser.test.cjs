@@ -253,7 +253,22 @@ const SCENARIO = `
       }
       check('stale revision refused', refused);
 
-      /* 6. Add, stream into, and run a cell. */
+      /* 6. Add, stream into, and run a cell.
+       *
+       * La meme analyse dans la langue que le noyau vient d'annoncer. L'ecrire
+       * toujours en langage studio marchait tant que rien n'etait vendorise:
+       * des que Pyodide est livre avec le paquet, le noyau est Python et
+       * sum(montant) n'y designe rien. */
+      var enPython = kernel.language === 'python';
+      var suite = enPython
+        ? '\\ntotal = v.groupby("annee", as_index=False).agg(ca=("montant", "sum"))'
+        : '\\ntotal = v.groupby("annee").agg(ca = sum(montant))';
+      var analyse = enPython
+        ? 'v = load("ventes")\\ntotal = v.groupby("annee", as_index=False).agg(ca=("montant", "sum"))' +
+          '\\nshow(total)\\nbar(total, x="annee", y="ca", title="CA par annee")'
+        : 'v = load("ventes")\\ntotal = v.groupby("annee").agg(ca = sum(montant))' +
+          '\\nshow(total)\\nbar(total, x = "annee", y = "ca", title = "CA par annee")';
+
       var cell = (await window.__harness.call('cell.add', {
         source: 'v = load("ventes")',
         revision: current.revision
@@ -262,7 +277,7 @@ const SCENARIO = `
 
       await window.__harness.call('cell.update', {
         cellId: cell.cellId,
-        source: '\\ntotal = v.groupby("annee").agg(ca = sum(montant))',
+        source: suite,
         mode: 'append',
         revision: cell.revision
       });
@@ -276,7 +291,7 @@ const SCENARIO = `
 
       await window.__harness.call('cell.update', {
         cellId: cell.cellId,
-        source: 'v = load("ventes")\\ntotal = v.groupby("annee").agg(ca = sum(montant))\\nshow(total)\\nbar(total, x = "annee", y = "ca", title = "CA par annee")',
+        source: analyse,
         mode: 'replace',
         revision: afterAppend.revision
       });
@@ -686,6 +701,29 @@ const SCENARIO = `
         (await window.__harness.call('vars.list')).result.variables.length === 0);
       check('datasets survive a reset',
         (await window.__harness.call('data.list')).result.datasets.length === 2);
+
+      /* Ce que le noyau se donne au demarrage doit survivre a une
+       * reinitialisation. La liste des noms gardes etait tenue a la main et
+       * avait derive: changer de carnet suffisait a effacer scatter3d, seaborn,
+       * plotly et l'objet laruche, donc l'acces aux fichiers et a la memoire. */
+      if (kernel.language === 'python') {
+        var nomsCell = (await window.__harness.call('cell.add', {
+          source: "print(sorted([n for n in dir() if not n.startswith('_')]))",
+          revision: (await window.__harness.call('notebook.state')).result.revision
+        })).result;
+        var nomsJob = (await window.__harness.call('cell.run',
+          { cellId: nomsCell.cellId, revision: nomsCell.revision })).result;
+        var nomsRes = await waitFor(function(){
+          return window.__harness.call('job.status', { jobId: nomsJob.jobId }).then(function(r){
+            return r.result.status === 'ok' || r.result.status === 'error' ? r.result : null;
+          });
+        }, 'the namespace listing');
+        var vus = String((nomsRes.outputs || [{}])[0].text || '');
+        ['scatter3d', 'laruche', 'load', 'show', 'bar', 'pd', 'np'].forEach(function(nom){
+          check('le noyau garde ' + nom + ' apres une reinitialisation',
+            vus.indexOf("'" + nom + "'") >= 0, vus.slice(0, 200));
+        });
+      }
 
       /* 21. A dataset can be read back out. */
       var exported = (await window.__harness.call('data.export', { name: 'nuage', limit: 5 })).result;

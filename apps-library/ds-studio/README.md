@@ -298,6 +298,27 @@ d'images via actions, Worker avec interruption dure, validation du runtime Pyodi
 et execution sans navigateur. Les telechargements de fichiers et d'images sont deja
 disponibles manuellement dans l'interface du carnet.
 
+### Correctif 1.8.1, ce que le noyau Python garde
+
+Reinitialiser le noyau, ou simplement changer de carnet, effacait huit noms que
+le demarrage avait poses : `scatter3d`, `laruche`, `sns`, `px`, `go`, `pio`,
+`micropip` et `pyodide_http`. Perdre `laruche`, c'est perdre l'acces aux
+fichiers et a la memoire que le guide de l'App promet, sans que rien ne le
+dise. La liste des noms gardes etait tenue a la main et avait derive de ce que
+le preambule definit ; elle est maintenant relevee au demarrage, donc elle ne
+peut plus se desynchroniser.
+
+Une couleur passee a un graphique atteignait l'attribut `fill` du SVG sans
+controle depuis une cellule Python. Le langage studio refusait deja tout ce qui
+n'est pas hexadecimal ; le noyau Python le refuse avec les memes mots, et le
+rendu filtre a son tour, au seul endroit par ou toutes les couleurs passent.
+
+Le test de bout en bout ecrivait ses cellules en langage studio quel que soit
+le noyau annonce. Cela tenait tant que rien n'etait vendorise ; depuis que
+Pyodide est livre avec le paquet, quatorze controles echouaient sur des
+cellules qui ne pouvaient pas s'executer. Il ecrit desormais dans la langue que
+`kernel.status` annonce.
+
 ### Version 1.8.0, coloration du texte en cours d'edition
 
 Le code Python et le langage studio sont colores pendant la frappe, et le

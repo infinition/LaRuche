@@ -642,11 +642,18 @@
     return { svg: wrap(builder, width, height, spec.title), width: width, height: height };
   }
 
+  /* Une couleur fournie par l'appelant finit dans un attribut fill du SVG.
+   * Seul du parfaitement hexadecimal passe, donc rien d'arbitraire n'y arrive.
+   * Le langage studio refusait deja le reste en amont, mais un noyau Python
+   * ecrit du Python ordinaire et n'a pas ce filtre: la garde a sa place ici,
+   * au seul endroit par ou toutes les couleurs passent. */
+  var HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
   function withOverrides(base, colors) {
     if (!colors || !colors.length) return base;
     var merged = base.slice();
     for (var i = 0; i < colors.length && i < merged.length; i += 1) {
-      if (colors[i]) merged[i] = colors[i];
+      if (colors[i] && HEX.test(String(colors[i]).trim())) merged[i] = String(colors[i]).trim();
     }
     return merged;
   }

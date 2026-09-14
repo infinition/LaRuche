@@ -109,6 +109,27 @@
     '',
     'table = show',
     '',
+    '# Seul du parfaitement hexadecimal atteint le SVG: le langage studio',
+    '# refusait deja le reste, un noyau Python ecrit du Python ordinaire',
+    '# et na pas ce filtre. La garde lui manquait.',
+    'def _ds_hex(text):',
+    '    if len(text) not in (4, 7) or text[0] != "#":',
+    '        return False',
+    '    return all(c in "0123456789abcdefABCDEF" for c in text[1:])',
+    '',
+    'def _ds_colors(color):',
+    '    if color is None:',
+    '        return None',
+    '    entries = [color] if isinstance(color, str) else list(color)',
+    '    out = []',
+    '    for entry in entries:',
+    '        text = str(entry).strip()',
+    '        if not _ds_hex(text):',
+    '            raise ValueError(',
+    '                \'color must be a hex value such as \"#ccff00\", got \"%s\"\' % text)',
+    '        out.append(text)',
+    '    return out',
+    '',
     'def _ds_dtype(series):',
     '    kind = series.dtype.kind',
     '    if kind in "iufc":',
@@ -143,7 +164,7 @@
     '    _ds_emit(_DS_CHART, {',
     '        "chart": kind, "title": title, "labels": labels, "series": payload,',
     '        "stacked": bool(stacked), "horizontal": bool(horizontal),',
-    '        "colors": ([color] if isinstance(color, str) else color),',
+    '        "colors": _ds_colors(color),',
     '        "axis": {"x": xcol, "y": ", ".join(ycols)},',
     '    })',
     '',
@@ -167,7 +188,7 @@
     '    _ds_emit(_DS_CHART, {',
     '        "chart": "scatter3d", "title": title, "points": pts,',
     '        "axis": {"x": str(x), "y": str(y), "z": str(z), "series": series},',
-    '        "colors": ([color] if isinstance(color, str) else color),',
+    '        "colors": _ds_colors(color),',
     '    })',
     '',
     'def bar(data, **kw): _ds_chart("bar", data, **kw)',
@@ -183,7 +204,7 @@
     '        "labels": [str(v) for v in data[labcol]],',
     '        "series": [{"name": str(valcol), "values": [_ds_clean(v) for v in data[valcol]]}],',
     '        "axis": {"x": str(labcol), "y": str(valcol)},',
-    '        "colors": ([color] if isinstance(color, str) else color),',
+    '        "colors": _ds_colors(color),',
     '    })',
     '',
     'def hist(data, column=None, bins=12, title="", color=None):',
@@ -194,7 +215,7 @@
     '        "labels": [str(round(float(e), 3)) for e in edges[:-1]],',
     '        "series": [{"name": "count", "values": [int(c) for c in counts]}],',
     '        "axis": {"x": str(col), "y": "count"},',
-    '        "colors": ([color] if isinstance(color, str) else color),',
+    '        "colors": _ds_colors(color),',
     '    })',
     '',
     'try:',
@@ -502,6 +523,19 @@
         self.plotly = false;
       });
     }).then(function(){
+      /* Ce que le noyau vient de se donner: le preambule, les modules
+       * importes, l'objet du pont. C'est exactement ce qu'un reinitialisation
+       * doit rendre, et c'est pour cela qu'on le releve au lieu de le decrire.
+       *
+       * La liste etait tenue a la main, et elle avait derive de ce que le
+       * preambule definit: changer de carnet effacait scatter3d, seaborn,
+       * plotly, pyodide_http, micropip et l'objet laruche, c'est-a-dire
+       * l'acces aux fichiers et a la memoire que le guide promet. */
+      var releve = self.pyodide.runPython(
+        '_DS_BASE = frozenset(globals())\n' +
+        'json.dumps(sorted(n for n in _DS_BASE if not n.startswith("_")))'
+      );
+      try { self.baseNames = JSON.parse(releve); } catch (erreur) { self.baseNames = null; }
       return self.pushDatasets(true);
     }).then(function(){
       self.ready = true;
@@ -742,10 +776,12 @@
     var self = this;
     if (!this.ready) return Promise.resolve();
     return this.pyodide.runPythonAsync(
-      'for _k in [k for k in list(globals()) if not k.startswith("_") and k not in ' +
-      '("sys","io","json","base64","pd","np","plt","matplotlib","show","table","bar","line",' +
-      '"area","scatter","pie","hist","load","datasets")]:\n' +
-      '    del globals()[_k]\n'
+      /* Sans instantane on n'efface rien: rendre un noyau amoindri est pire
+       * que de laisser des variables en place. */
+      '_ds_base = globals().get("_DS_BASE")\n' +
+      'if _ds_base:\n' +
+      '    for _k in [k for k in list(globals()) if not k.startswith("_") and k not in _ds_base]:\n' +
+      '        del globals()[_k]\n'
     ).then(function(){
       self.syncedNames = '';
       return self.pushDatasets(true);
@@ -759,7 +795,9 @@
   };
 
   PythonKernel.prototype.completions = function() {
-    return ['load', 'datasets', 'show', 'table', 'bar', 'line', 'area', 'scatter', 'pie', 'hist', 'pd', 'np'];
+    return this.baseNames ||
+      ['load', 'datasets', 'show', 'table', 'bar', 'line', 'area', 'scatter', 'scatter3d',
+        'pie', 'hist', 'pd', 'np'];
   };
 
   /* Y a-t-il un interpreteur a notre portee, sans le charger.
