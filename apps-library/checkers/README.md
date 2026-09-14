@@ -55,3 +55,17 @@ distincte et ne doit servir que si l'utilisateur demande une nouvelle partie.
 Il n'y a pas encore de compteur de repetition ou de regle de nulle automatique.
 Ces limites sont explicites dans le guide. Les tests couvrent aussi les directions
 des pions, les rafles non maximales, la promotion et les chemins ambigus.
+
+## Ce que dit l'etat en 1.3.1
+
+`legalMoves` vaut `null` quand ce n'est pas le tour de l'agent : la question ne se
+pose pas, et `waitingFor` dit qui joue. Une liste vide est une autre reponse, et
+elle n'apparait que pendant son propre tour : aucun coup possible, partie perdue.
+Les deux rendaient `[]`, et un agent qui lit une liste vide alors qu'il voit des
+pions sur le plateau en conclut que l'etat lui arrive tronque. Celui de la
+demonstration est alle chercher le vrai etat dans le stockage prive de l'App, sur
+le disque. Le guide du manifeste dit maintenant que ce stockage est hors limites,
+comme le fait celui de DS Studio.
+
+Un refus de revision nomme la valeur courante. Sans elle, il faut relire l'etat
+avant de pouvoir reessayer, et la revision a souvent encore bouge entre-temps.

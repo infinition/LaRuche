@@ -57,3 +57,11 @@ to the human's Continue button at victory, not restart or send impossible moves.
 Grant `game.state` and `game.move`, approve `agents.invoke` and select the allowed agent
 in native App Permissions. Use One turn or Auto. The model must copy a current legal
 direction and revision; the engine remains the authority even if it ignores the guide.
+
+## What a refusal says, in 1.4.1
+
+A refused revision names the current value. Without it the caller has to read the
+state again before it can retry, and by then the revision has often moved once more.
+The guide also says the App's private store on disk is out of bounds: everything
+about the board is reachable through the actions, and a reply that looks incomplete
+is a reason to read `game.state` again, not to go around it.

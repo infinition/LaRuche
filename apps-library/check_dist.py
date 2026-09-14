@@ -58,6 +58,27 @@ def verifier(archive: Path, source: Path) -> tuple[list[str], list[str]]:
     return ecarts, generes
 
 
+def copies_partagees() -> list[str]:
+    """Un fichier de `shared/` recopie dans un paquet peut etre commite perime.
+
+    Le build recopie a chaque fois, donc la copie est juste apres un build.
+    Elle ne l'est plus si quelqu'un modifie l'original et commite sans
+    reconstruire, et l'App installee tourne alors sur l'ancienne version.
+    """
+    ecarts = []
+    partage = RACINE / "shared"
+    if not partage.is_dir():
+        return ecarts
+    for origine in sorted(partage.glob("*.js")):
+        for copie in sorted(RACINE.glob("*/package/ui/" + origine.name)):
+            if copie.read_bytes() != origine.read_bytes():
+                ecarts.append(
+                    "%s differs from shared/%s. Run that App's build.py."
+                    % (copie.relative_to(RACINE), origine.name)
+                )
+    return ecarts
+
+
 def main() -> int:
     apps = sorted(p.parent.parent for p in RACINE.glob("*/package/app.json"))
     if not apps:
@@ -65,6 +86,9 @@ def main() -> int:
         return 1
 
     problemes = 0
+    for ecart in copies_partagees():
+        print(ecart)
+        problemes += 1
     for app in apps:
         version = json.loads((app / "package" / "app.json").read_text(encoding="utf-8"))["version"]
         archives = sorted((app / "dist").glob("*.laruche-app")) if (app / "dist").is_dir() else []

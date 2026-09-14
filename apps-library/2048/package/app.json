@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "id": "dev.laruche.2048",
   "name": "2048",
-  "version": "1.3.0",
+  "version": "1.4.1",
   "description": "Jeu 2048 local avec sauvegarde privée, commandes tactiles et vue détachable.",
   "publisher": {
     "name": "LaRuche"
@@ -33,12 +33,107 @@
       "ui.locale.read",
       "ui.theme.read"
     ],
-    "optional": ["agents.invoke"]
+    "optional": [
+      "agents.invoke"
+    ]
   },
-  "guide": "# LaRuche 2048: read before playing\n## Objective\n2048 is a one-player sliding-tile puzzle, not an adversarial game. The primary objective is to create a tile of value 2048. Only after the human explicitly chooses Continue should play pursue larger tiles and a higher score. A high score alone does not mean 2048 was reached. There is no second player or alternating color.\nUse this installed App (dev.laruche.2048), not an external 2048 website or newly generated HTML.\n\n## Board and scoring\nboard is an array of exactly 16 nonnegative integers, row-major on a 4x4 grid. index=row*4+column, row 0 top, column 0 left. Indexes 0..3 are the first row and 12..15 the last. Zero means empty; occupied cells contain powers of two starting at 2.\nThe initial board has two random tiles. score counts points earned by merges, best is the recorded high score, moves counts successful directions, revision is an opaque optimistic-concurrency value. Do not derive the revision from score or move count.\n\n## A complete move\nOnly four directions exist: left, right, up, down. One move slides ALL tiles as far as possible in that direction, not a chosen tile. Ignore zero gaps while sliding. Adjacent equal tiles merge into their doubled value, and each tile can participate in at most one merge during that move. A freshly merged tile cannot merge again until a later move.\nExamples BEFORE the new random tile appears:\n- [2,0,2,0] left -> [4,0,0,0], score +4.\n- [2,2,2,2] left -> [4,4,0,0], score +8, NOT [8,0,0,0].\n- [2,2,4,0] left -> [4,4,0,0], score +4, NOT [8,0,0,0].\n- [2,2,2,0] right -> [0,0,2,4], score +4.\n- [2,4,8,16] left does not change that row and earns no points.\nAfter a direction that changes the board, ONE empty square receives a random tile: 2 with probability 90%, 4 with probability 10%. The server/App reports the actual result; never invent the random square or claim a deterministic future board.\nAn unchanged direction is not a legal turn and must not be sent. A direction may be legal without making a merge, because moving into empty space is useful. Use the returned legalMoves rather than guessing.\n\n## Reading victory, pause and defeat\ngame.state returns goal, rules, board, score, best, moves, revision, won, keepPlaying, needsContinue, over, waitingFor and legalMoves.\n- won=true means a 2048-or-larger tile exists. It stays true during extended play.\n- needsContinue=true means the victory overlay is waiting for the HUMAN to press Continue. legalMoves is empty then, even if the board could otherwise move. Stop and congratulate the human; do not mistake this for a loss or reset the board.\n- keepPlaying=true means Continue was chosen; larger tiles may be pursued.\n- over=true means no direction can change the board. A full board is not automatically over: equal adjacent neighbors can still merge.\n- waitingFor is move, humanContinue or finished. Only move allows an agent action.\nIf no legal move exists, report the actual reason using these fields. Do not repeatedly call the LLM, move, undo or restart on its own.\n\n## Exact agent workflow\n1. app_list -> app_guide for dev.laruche.2048 -> app_open its game view -> app_wait until ready. Use the selected instanceId when several views are connected.\n2. Call game.state with {}. Read the goal/rules and current legalMoves. Respect any new instructions from the human.\n3. If waitingFor=move, choose ONE direction appearing in legalMoves.\n4. Call game.move with ONLY {direction: chosenDirection, revision: currentRevision}.\n5. Read its returned actual board, score and terminal status. Replan from this state after every move; randomness and human input invalidate cached boards.\nFor host tools: app_call({appId:\"dev.laruche.2048\",instanceId,action:\"game.move\",arguments:{direction,revision}}).\nFor the App's agents.act turn: return ONLY {\"action\":\"game.move\",\"arguments\":{\"direction\":\"CHOSEN_LEGAL_DIRECTION\",\"revision\":CURRENT_REVISION}}, replacing the placeholders with actual state values. No Markdown fence, commentary, board or invented arguments.\n\n## Planning suggestions, not additional rules\nPrefer keeping empty squares and maintaining a stable corner for the largest tile, with large values arranged monotonically along an edge. Try not to isolate small tiles behind large ones. Compare the allowed moves and their possible random outcomes. Merging immediately is not always better than preserving space; avoid a rigid direction pattern when it would trap the board.\nOnly legalMoves defines what can be played, not these heuristics. Do not fabricate rollouts, scores or guarantees. You may reason about possible outcomes, but the next observed state is the truth.\n\n## Safety and recovery\nStale revision: reread game.state, then choose again. Illegal move: inspect legalMoves and waitingFor; do not spam the rejected direction. Permission denied: ask for native App action permission, never bypass it with a shell, DOM injection or another website. Loading: app_wait. Disconnected: open the view again and wait.\nNever automatically retry a timed-out mutation, as it may have executed. First inspect the actual state.\ngame.new is a separate destructive action replacing the board (best score retained). It needs both its own permission and an explicit user request for a new game. Do not use it to raise your success rate, escape a loss, clear the victory overlay or handle an error.\nThe human can play, undo or restart between your actions. The latest revision must always be respected. Auto mode schedules one model turn at a time; Pause lets the current turn finish and cancels subsequent scheduled turns.\nYou cannot watch the board between turns: nothing notifies you when the human plays, so never promise to keep an eye on it. The App calls you again when the user presses Agent turn or Auto. If a message says it is your turn, call game.state before answering, because the state you remember is older than the board.\nThe latest board is saved through private App storage, not browser localStorage. Wait for Synced before closing. Independent windows do not synchronize live; use one playing instance.",
+  "guide": "## Continuous play, preferred for a whole game\nAfter app_open/app_wait, read game.state once, then call game.agent with {mode:\"start\", agentId:\"laruche\", revision:CURRENT} to hand the turn loop to the App. For 2048 score maximization add goal:\"max_score\". For checkers, the App waits for each human move and calls the selected agent for the opposite side, keeping the game active. Do not run a polling loop, call task_complete to claim the game is over, or play both sides. The chat can yield while the App remains active: report \"game active, waiting for your move\" when appropriate. game.agent mode:\"pause\" stops ongoing play. Only over=true means the game ended. \nThe agent must be authorized under Apps → Permissions: agents.invoke AND App → Agents → LaRuche (or the chosen named agent), plus game.state/game.move action access. No permission is granted by game.agent. If unavailable, describe the native permission setting precisely. Never silently substitute another provider. The LaRuche entry uses the current active model (local or API); custom agents use their selected provider/model.\nState includes agent.active/status and analysis. Analysis is deterministic local search to help the LLM compare legal moves, not a guarantee or a hidden substitute player. Every actual move is chosen by the LLM and validated by the game engine. Use the ranked legal options, avoid inventing coordinates. The loop always rereads state after errors; never repeat a mutation from old arguments. It survives temporary provider errors while the app is open; closing the view suspends execution, and saved auto-play resumes when it is reopened with permission. User Pause, manual takeover (2048), new game and undo invalidate late model answers.\n\n# LaRuche 2048: read before playing\n## Objective\n2048 is a one-player sliding-tile puzzle, not an adversarial game. The primary objective is to create a tile of value 2048. Only after the human explicitly chooses Continue should play pursue larger tiles and a higher score. A high score alone does not mean 2048 was reached. There is no second player or alternating color.\nUse this installed App (dev.laruche.2048), not an external 2048 website or newly generated HTML.\n\n## Board and scoring\nboard is an array of exactly 16 nonnegative integers, row-major on a 4x4 grid. index=row*4+column, row 0 top, column 0 left. Indexes 0..3 are the first row and 12..15 the last. Zero means empty; occupied cells contain powers of two starting at 2.\nThe initial board has two random tiles. score counts points earned by merges, best is the recorded high score, moves counts successful directions, revision is an opaque optimistic-concurrency value. Do not derive the revision from score or move count.\n\n## A complete move\nOnly four directions exist: left, right, up, down. One move slides ALL tiles as far as possible in that direction, not a chosen tile. Ignore zero gaps while sliding. Adjacent equal tiles merge into their doubled value, and each tile can participate in at most one merge during that move. A freshly merged tile cannot merge again until a later move.\nExamples BEFORE the new random tile appears:\n- [2,0,2,0] left -> [4,0,0,0], score +4.\n- [2,2,2,2] left -> [4,4,0,0], score +8, NOT [8,0,0,0].\n- [2,2,4,0] left -> [4,4,0,0], score +4, NOT [8,0,0,0].\n- [2,2,2,0] right -> [0,0,2,4], score +4.\n- [2,4,8,16] left does not change that row and earns no points.\nAfter a direction that changes the board, ONE empty square receives a random tile: 2 with probability 90%, 4 with probability 10%. The server/App reports the actual result; never invent the random square or claim a deterministic future board.\nAn unchanged direction is not a legal turn and must not be sent. A direction may be legal without making a merge, because moving into empty space is useful. Use the returned legalMoves rather than guessing.\n\n## Reading victory, pause and defeat\ngame.state returns goal, rules, board, score, best, moves, revision, won, keepPlaying, needsContinue, over, waitingFor and legalMoves.\n- won=true means a 2048-or-larger tile exists. It stays true during extended play.\n- needsContinue=true means the victory overlay is waiting for the HUMAN to press Continue. legalMoves is empty then, even if the board could otherwise move. Stop and congratulate the human; do not mistake this for a loss or reset the board.\n- keepPlaying=true means Continue was chosen; larger tiles may be pursued.\n- over=true means no direction can change the board. A full board is not automatically over: equal adjacent neighbors can still merge.\n- waitingFor is move, humanContinue or finished. Only move allows an agent action.\nIf no legal move exists, report the actual reason using these fields. Do not repeatedly call the LLM, move, undo or restart on its own.\n\n## Exact agent workflow\n1. app_list -> app_guide for dev.laruche.2048 -> app_open its game view -> app_wait until ready. Use the selected instanceId when several views are connected.\n2. Call game.state with {}. Read the goal/rules and current legalMoves. Respect any new instructions from the human.\n3. If waitingFor=move, choose ONE direction appearing in legalMoves.\n4. Call game.move with ONLY {direction: chosenDirection, revision: currentRevision}.\n5. Read its returned actual board, score and terminal status. Replan from this state after every move; randomness and human input invalidate cached boards.\nFor host tools: app_call({appId:\"dev.laruche.2048\",instanceId,action:\"game.move\",arguments:{direction,revision}}).\nFor the App's agents.act turn: return ONLY {\"action\":\"game.move\",\"arguments\":{\"direction\":\"CHOSEN_LEGAL_DIRECTION\",\"revision\":CURRENT_REVISION}}, replacing the placeholders with actual state values. No Markdown fence, commentary, board or invented arguments.\n\n## Planning suggestions, not additional rules\nPrefer keeping empty squares and maintaining a stable corner for the largest tile, with large values arranged monotonically along an edge. Try not to isolate small tiles behind large ones. Compare the allowed moves and their possible random outcomes. Merging immediately is not always better than preserving space; avoid a rigid direction pattern when it would trap the board.\nOnly legalMoves defines what can be played, not these heuristics. Do not fabricate rollouts, scores or guarantees. You may reason about possible outcomes, but the next observed state is the truth.\n\n## Safety and recovery\nStale revision: the message names the current value, so reread game.state, choose again from the new board, and send the revision that state returns. Never resend the refused one. Illegal move: inspect legalMoves and waitingFor; do not spam the rejected direction. Permission denied: ask for native App action permission, never bypass it with a shell, DOM injection or another website. Loading: app_wait. Disconnected: open the view again and wait.\nNever automatically retry a timed-out mutation, as it may have executed. First inspect the actual state.\ngame.new is a separate destructive action replacing the board (best score retained). It needs both its own permission and an explicit user request for a new game. Do not use it to raise your success rate, escape a loss, clear the victory overlay or handle an error.\nThe human can play, undo or restart between your actions. The latest revision must always be respected. Auto mode schedules one model turn at a time; Pause invalidates any pending model decision and cancels subsequent turns. Temporary errors retain active play with bounded retry delays; permissions failures wait for access without bypassing it.\nYou cannot watch the board between turns: nothing notifies you when the human plays, so never promise to keep an eye on it. The App calls you again when the user presses Agent turn or Auto. If a message says it is your turn, call game.state before answering, because the state you remember is older than the board.\nEverything about this game is reachable through the actions above, and the App keeps its board in a private store on disk. Reading or writing that store with file or shell tools is out of bounds, even though your own tools can reach the files: what the actions do not return is not returned on purpose. If a reply looks incomplete, read game.state again rather than going around it. The latest board is saved through private App storage, not browser localStorage. Wait for Synced before closing. Independent windows do not synchronize live; use one playing instance.",
   "actions": [
-    {"name":"game.state","description":"Read the board, score, legal moves and revision.","viewId":"game","readOnly":true,"inputSchema":{"type":"object","properties":{},"additionalProperties":false}},
-    {"name":"game.move","description":"Play one legal direction at the exact current revision.","viewId":"game","inputSchema":{"type":"object","properties":{"direction":{"type":"string","enum":["left","right","up","down"]},"revision":{"type":"integer","minimum":0}},"required":["direction","revision"],"additionalProperties":false}},
-    {"name":"game.new","description":"Start a new game, replacing the current board.","viewId":"game","inputSchema":{"type":"object","properties":{"revision":{"type":"integer","minimum":0}},"required":["revision"],"additionalProperties":false}}
+    {
+      "name": "game.state",
+      "description": "Read the board, score, legal moves and revision.",
+      "viewId": "game",
+      "readOnly": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game.move",
+      "description": "Play one legal direction at the exact current revision.",
+      "viewId": "game",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "up",
+              "down"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "direction",
+          "revision"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game.new",
+      "description": "Start a new game, replacing the current board.",
+      "viewId": "game",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game.agent",
+      "description": "Start or pause ongoing agent play for this game. Start schedules turns automatically until game over or an explicit pause; waits without LLM calls during human turns. Requires an authorized App agent.",
+      "viewId": "game",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "start",
+              "pause"
+            ]
+          },
+          "agentId": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "An authorized agent id from the App agent list. Default laruche uses the active local or API model."
+          },
+          "goal": {
+            "type": "string",
+            "enum": [
+              "2048",
+              "max_score"
+            ],
+            "description": "max_score explicitly continues beyond the 2048 milestone until no legal move remains."
+          }
+        },
+        "required": [
+          "revision",
+          "mode"
+        ],
+        "additionalProperties": false
+      }
+    }
   ]
 }

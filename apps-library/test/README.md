@@ -21,7 +21,8 @@ Uses a controlled local streaming provider, not a real LLM. Covers installation 
 permissions UI, agent library, opening/Ready, valid and stale game moves, two independent
 agent contexts, user isolation and live revocation during a model request.
 Also checks that the checkers agent can play white when the human chooses black,
-and that it cannot play the subsequent human turn.
+that it cannot play the subsequent human turn, that a refused revision names the current
+one, and that legalMoves is null rather than empty when it is not the agent's turn.
 
 ## DS Studio persistence
 

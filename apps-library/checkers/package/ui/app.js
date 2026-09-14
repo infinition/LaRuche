@@ -17,7 +17,7 @@
   var translations = {};
 
   var agentBusy = false;
-  var agentAuto = false;
+  var player = null, analysisRevision = -1, analysis = null;
   var agentTimer = null;
   var seat = 'checkers-' + Date.now().toString(36);
 
@@ -384,8 +384,8 @@
         }
       }, 400);
     } else if (state.opponentMode === 'agent') {
-      if (agentAuto) {
-        triggerAgentTurn();
+      if (player && player.view().active) {
+        player.wake();
       } else if (agentStatus) agentStatus.textContent = t('agentTurn');
     }
   }
@@ -394,7 +394,10 @@
     var isAgentTurn = !state.over && state.opponentMode === 'agent' && state.turn !== state.humanSide;
     var legal = engine.legalMoves(state.board, state.turn);
 
+    if(isAgentTurn && analysisRevision!==revision){analysis=ai.analyze(engine,state.board,state.turn);analysisRevision=revision;}
     return {
+      agent:player?player.view():null,
+      analysis:isAgentTurn?analysis:null,
       board: state.board.slice(),
       turn: state.turn,
       humanSide: state.humanSide,
@@ -405,14 +408,19 @@
       piecesRemaining: engine.countPieces(state.board),
       moves: state.moves,
       revision: revision,
-      legalMoves: isAgentTurn ? legal : [],
+      /* null: ce n'est pas votre tour, la question ne se pose pas.
+         [] quand c'est votre tour: vous n'avez aucun coup, vous avez perdu.
+         Les deux rendaient [], et un agent qui lit une liste vide alors qu'il
+         voit des pions sur le plateau conclut que l'etat lui arrive tronque.
+         Il est alle chercher le vrai etat dans le stockage prive de l'App. */
+      legalMoves: isAgentTurn ? legal : null,
       over: state.over,
       winner: state.winner
     };
   }
 
   function newGame() {
-    clearTimeout(agentTimer); agentTimer = null; agentAuto = false;
+    clearTimeout(agentTimer); agentTimer = null; if (player) player.reset();
     previous = null;
     selectedSquare = null;
     validMovesForSelected = [];
@@ -436,7 +444,7 @@
 
   function undo() {
     if (!previous || state.over) return;
-    clearTimeout(agentTimer); agentTimer = null; agentAuto = false;
+    clearTimeout(agentTimer); agentTimer = null; if (player) player.reset();
     state = previous;
     previous = null;
     selectedSquare = null;
@@ -450,39 +458,41 @@
     persist();
   }
 
-  async function triggerAgentTurn() {
-    if (agentBusy || state.over || state.opponentMode !== 'agent' || state.turn === state.humanSide) return;
-    var select = document.getElementById('agentSelect');
-    var info = document.getElementById('agentStatus');
-    var agentId = select ? select.value : '';
+  function playerLabel(view) {
+    var en=locale==='en';
+    var labels=en?{paused:'Paused',ready:'Game active',thinking:'Agent thinking…',waiting:'Game active · waiting for your move',
+      retry:'Temporary error · retrying automatically',permission:'Waiting for agent access · Apps → Permissions → App → Agents',finished:'Game finished'}:
+      {paused:'En pause',ready:'Partie active',thinking:'L’agent réfléchit…',waiting:'Partie active · en attente de ton coup',
+      retry:'Erreur temporaire · reprise automatique',permission:'En attente d’autorisation · Apps → Permissions → App → Agents',finished:'Partie terminée'};
+    return (labels[view.status]||view.status)+(view.detail?' · '+view.detail:'');
+  }
 
-    if (!agentId) {
-      if (info) info.textContent = t('permissionRequired') +
-        (agentAuto ? ' ' + t('autoStopped') : '');
-      agentAuto = false;
-      return;
-    }
+  function createPlayer() {
+    seat=state.agentSeat || seat;state.agentSeat=seat;
+    player=window.GameAgent.create({
+      state:function(){return {revision:revision,over:state.over,turn:state.turn,humanSide:state.humanSide,opponentMode:state.opponentMode};},
+      canPlay:function(s){return s.opponentMode==='agent'&&s.turn!==s.humanSide;},
+      list:function(){return sdk.agents.list();},
+      invalidate:function(){revision++;},
+      save:function(settings){state.agent=settings;persist();},
+      changed:function(view){
+        agentBusy=view.busy;
+        var info=document.getElementById('agentStatus');if(info)info.textContent=playerLabel(view);
+        var pause=document.getElementById('agentPauseBtn');if(pause)pause.disabled=!view.active;
+        var auto=document.getElementById('agentAutoBtn');if(auto){auto.setAttribute('aria-pressed',String(view.active&&view.continuous));auto.textContent=view.active&&view.continuous?(locale==='en'?'Game active':'Partie active'):t('autoPlay');}
+        updateTurnBanner();
+      },
+      act:function(id,lastError){
+        var prompt='Play the agent side in this LaRuche 8x8 checkers game. The engine supplies the exact variant rules, complete legal paths and bounded tactical analysis. Compare the ranked alternatives: score is from your side, not a proof of victory. Prefer favorable exchanges, safe promotion and avoid forced losses. Copy ONE full legal path with from, to and revision. Never play for the human or reset. Return only the game.move action JSON.';
+        if(lastError)prompt+=' Previous attempt failed: '+lastError.slice(0,300)+'. Reassess this NEW state.';
+        return sdk.agents.act(id,seat,'game.state',prompt,{allowedActions:['game.move'],freshState:true,expectedRevision:revision});
+      }
+    });
+  }
 
-    agentBusy = true;
-    updateTurnBanner();
-    if (info) info.textContent = t('thinking');
-
-    try {
-      var prompt = 'Win this LaRuche 8x8 checkers game as ' + (state.humanSide === 'white' ? 'black' : 'white') + '. Read the supplied guide and state.rules first. Check waitingFor=agent and over=false. Copy one complete legalMoves entry, including its path, into game.move arguments {from,to,path,revision}. A capture chain is one whole turn. Do not move for the human, reset the board or use international 10x10 rules. Return the single action JSON required by the host.';
-      var res = await sdk.agents.act(agentId, seat, 'game.state', prompt);
-      if (info) info.textContent = (res.model || 'Agent') + ' · ' + (res.text || 'OK');
-    } catch (e) {
-      /* La reponse auto se coupe sur une erreur, sinon elle rejouerait la meme
-         panne en boucle. Mais il faut le dire: un statut qui n'affiche que le
-         message laisse croire que la partie reprendra seule, et on attend un
-         tour qui ne viendra jamais. */
-      var etaitAuto = agentAuto;
-      agentAuto = false;
-      if (info) info.textContent = e.message + (etaitAuto ? ' ' + t('autoStopped') : '');
-    } finally {
-      agentBusy = false;
-      updateTurnBanner();
-    }
+  function triggerAgentTurn(){
+    var select=document.getElementById('agentSelect');
+    if(player&&select.value)player.start(select.value,false);
   }
 
   function bindEvents() {
@@ -515,7 +525,7 @@
     var opponentMode = document.getElementById('opponentMode');
     if (opponentMode) {
       opponentMode.addEventListener('change', function() {
-        clearTimeout(agentTimer); agentTimer = null; agentAuto = false;
+        clearTimeout(agentTimer); agentTimer = null; if (player) player.reset();
         state.opponentMode = opponentMode.value;
         revision += 1;
         var agentSection = document.getElementById('agentSection');
@@ -536,23 +546,11 @@
     if (agentTurnBtn) agentTurnBtn.addEventListener('click', triggerAgentTurn);
 
     var agentAutoBtn = document.getElementById('agentAutoBtn');
-    if (agentAutoBtn) {
-      agentAutoBtn.addEventListener('click', function() {
-        agentAuto = true;
-        if (state.turn !== state.humanSide) {
-          triggerAgentTurn();
-        }
-      });
-    }
-
-    var agentPauseBtn = document.getElementById('agentPauseBtn');
-    if (agentPauseBtn) {
-      agentPauseBtn.addEventListener('click', function() {
-        agentAuto = false;
-        var info = document.getElementById('agentStatus');
-        if (info) info.textContent = t('waitingUser');
-      });
-    }
+    if(agentAutoBtn)agentAutoBtn.addEventListener('click',function(){
+      var id=document.getElementById('agentSelect').value;if(id&&player)player.start(id,true);
+    });
+    document.getElementById('agentPauseBtn').addEventListener('click',function(){if(player)player.pause();});
+    document.getElementById('agentSelect').addEventListener('change',function(){if(player)player.pause();});
   }
 
   function refreshAgentList() {
@@ -563,7 +561,8 @@
       return;
     }
 
-    sdk.agents.list().then(function(agents) {
+    return sdk.agents.list().then(function(agents) {
+      var selected=(player&&player.view().agentId)||select.value||(state.agent&&state.agent.agentId)||'laruche';
       if (!select) return;
       select.innerHTML = '';
       if (!agents || agents.length === 0) {
@@ -571,7 +570,8 @@
         opt.value = '';
         opt.textContent = t('noAgentFound');
         select.appendChild(opt);
-        if (info) info.textContent = t('permissionRequired');
+        document.getElementById('agentAutoBtn').disabled=true;
+        if (info) info.textContent = locale==='en'?'Apps → Permissions: enable agents.invoke and authorize LaRuche or another agent.':'Apps → Permissions : active agents.invoke et autorise LaRuche ou un autre agent.';
         return;
       }
       agents.forEach(function(a) {
@@ -580,10 +580,19 @@
         o.textContent = (a.avatar || '') + ' ' + a.name;
         select.appendChild(o);
       });
-      if (info) info.textContent = t('statusReady');
+      if(agents.some(function(a){return a.id===selected;}))select.value=selected;
+      document.getElementById('agentAutoBtn').disabled=false;
+      if (info && (!player||!player.view().active)) info.textContent = t('statusReady');
     }).catch(function(err) {
       if (info) info.textContent = err.message;
     });
+  }
+
+  /* Un refus qui ne dit pas la valeur courante oblige a relire l'etat avant
+     de pouvoir reessayer, et le tour d'apres la revision a encore bouge. */
+  function perimee(recue) {
+    return 'Stale revision ' + recue + ', current is ' + revision +
+      '. Read game.state again and use the revision it returns.';
   }
 
   function registerSdkActions() {
@@ -598,7 +607,7 @@
         throw new Error('Game is already over');
       }
       if (args.revision !== revision) {
-        throw new Error('Stale revision: read game.state again');
+        throw new Error(perimee(args.revision));
       }
       if (state.turn === state.humanSide) {
         throw new Error('Not agent turn: waiting for human move');
@@ -611,9 +620,21 @@
       return snapshot();
     });
 
+    sdk.actions.register('game.agent',async function(args){
+      if(args.revision!==revision)throw new Error(perimee(args.revision));
+      if(args.mode==='pause'){player.pause();await saveChain;return snapshot();}
+      if(state.opponentMode!=='agent')throw new Error('Select Agent opponent mode first.');
+      var id=args.agentId||'laruche';
+      var agents=await sdk.agents.list();
+      if(!agents.some(function(a){return a.id===id;}))throw new Error('Authorize this agent in Apps → Permissions → App → Agents first.');
+      if(args.revision!==revision)throw new Error(perimee(args.revision));
+      revision++;document.getElementById('agentSelect').value=id;player.start(id,true);
+      await saveChain;return snapshot();
+    });
+
     sdk.actions.register('game.new', async function(args) {
       if (args.revision !== revision) {
-        throw new Error('Stale revision');
+        throw new Error(perimee(args.revision));
       }
       newGame();
       await saveChain;
@@ -663,7 +684,9 @@
       render();
       await sdk.ui.setTitle(t('title'));
       registerSdkActions();
-      refreshAgentList();
+      createPlayer();
+      await refreshAgentList();
+      if(state.agent&&state.agent.active&&state.agent.continuous)player.start(state.agent.agentId,true);
       await sdk.ui.setStatus('ready', t('statusReady'), 100);
 
       if (!state.over && state.turn !== state.humanSide) {

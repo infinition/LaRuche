@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="./styles.css">
   <script src="/apps-runtime/v1.js" defer></script>
   <script src="./game.js" defer></script>
+  <script src="./ai.js" defer></script>
+  <script src="./game-agent.js" defer></script>
   <script src="./app.js" defer></script>
 </head>
 <body>
@@ -50,6 +52,7 @@
     </nav>
     <section class="agent-player" aria-label="Agent player">
       <label>Agent <select id="agentPlayer"><option value="">Autorisations requises</option></select></label>
+      <label><input type="checkbox" id="maximizeScore" checked> <span id="maximizeLabel">Viser le score maximal, au-delà de 2048</span></label>
       <button id="refreshAgents" class="button secondary" type="button">↻</button>
       <button id="agentTurn" class="button primary" type="button" disabled>Un tour</button>
       <button id="agentAuto" class="button secondary" type="button" disabled>Auto</button>

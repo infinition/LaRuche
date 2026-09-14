@@ -9,7 +9,7 @@
   var saveRevision=0;
   var locale='fr';
   var touchStart=null;
-  var revision=0, agentBusy=false, agentAuto=false, agentTimer=null;
+  var revision=0, player=null, analysisRevision=-1, analysis=null;
   var seat='game-'+Date.now().toString(36);
 
   var copy={
@@ -99,10 +99,11 @@
     revision+=1;
     render();
     persist();
+    if(player)player.wake();
   }
 
   function newGame(){
-    agentAuto=false; clearTimeout(agentTimer); agentTimer=null;
+    if(player)player.reset();
     previous=state?clone(state):null;
     state=fresh(state&&state.best);
     revision+=1;seat='game-'+Date.now().toString(36);
@@ -110,6 +111,7 @@
     persist();
   }
 
+  function humanPlay(direction){if(player&&player.view().active)player.pause();play(direction);}
   function bind(){
     document.addEventListener('keydown',function(event){
       if(/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;
@@ -117,10 +119,10 @@
       var direction=directions[event.key];
       if(!direction) return;
       event.preventDefault();
-      play(direction);
+      humanPlay(direction);
     });
     document.querySelectorAll('[data-direction]').forEach(function(button){
-      button.addEventListener('click',function(){ play(button.dataset.direction); });
+      button.addEventListener('click',function(){ humanPlay(button.dataset.direction); });
     });
     var board=document.getElementById('board');
     board.addEventListener('pointerdown',function(event){ touchStart={x:event.clientX,y:event.clientY,id:event.pointerId}; board.setPointerCapture(event.pointerId); });
@@ -130,14 +132,15 @@
       var dy=event.clientY-touchStart.y;
       touchStart=null;
       if(Math.max(Math.abs(dx),Math.abs(dy))<28) return;
-      play(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+      humanPlay(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
     });
     board.addEventListener('pointercancel',function(){ touchStart=null; });
     document.getElementById('newGame').addEventListener('click',newGame);
     document.getElementById('restartGame').addEventListener('click',newGame);
-    document.getElementById('continueGame').addEventListener('click',function(){ state.keepPlaying=true; revision++; render(); persist(); });
+    document.getElementById('continueGame').addEventListener('click',function(){ state.keepPlaying=true; revision++; render(); persist(); if(player)player.wake(); });
     document.getElementById('undo').addEventListener('click',function(){
       if(!previous) return;
+      if(player)player.pause();
       var current=clone(state);
       state=previous;
       revision+=1;
@@ -163,15 +166,15 @@
       if(restored) setSaveStatus('saved');
       else persist();
       return sdk.ui.setTitle('2048');
-    }).then(function(){
+    }).then(async function(){
       sdk.actions.register('game.state',snapshot);
       sdk.actions.register('game.move',async function(args){
-        if(args.revision!==revision)throw new Error('Stale revision: read game.state again');
+        if(args.revision!==revision)throw new Error(perimee(args.revision));
         if(snapshot().legalMoves.indexOf(args.direction)===-1)throw new Error('Illegal move');
         play(args.direction);await saveChain;return snapshot();
       });
-      sdk.actions.register('game.new',async function(args){if(args.revision!==revision)throw new Error('Stale revision');newGame();await saveChain;return snapshot();});
-      bindAgent();
+      sdk.actions.register('game.new',async function(args){if(args.revision!==revision)throw new Error(perimee(args.revision));newGame();await saveChain;return snapshot();});
+      await bindAgent();
       return sdk.ui.setStatus('ready','2048 prêt',100);
     }).catch(function(error){
       state=fresh(0);
@@ -181,27 +184,79 @@
     });
   }
 
-  function snapshot(){return Object.assign({board:state.board.slice(),score:state.score,best:state.best,moves:state.moves,revision:revision},engine.describe(state.board,state.keepPlaying));}
-  function bindAgent(){
+  /* Un refus qui ne dit pas la valeur courante oblige a relire l'etat avant
+     de pouvoir reessayer, et le tour d'apres la revision a encore bouge. */
+  function perimee(recue) {
+    return 'Stale revision ' + recue + ', current is ' + revision +
+      '. Read game.state again and use the revision it returns.';
+  }
+
+  function snapshot(){
+    var description=engine.describe(state.board,state.keepPlaying);
+    if(description.legalMoves.length&&analysisRevision!==revision){analysis=window.Game2048AI.analyze(engine,state.board);analysisRevision=revision;}
+    return Object.assign({board:state.board.slice(),score:state.score,best:state.best,moves:state.moves,revision:revision,
+      agent:player?player.view():null,analysis:description.legalMoves.length?analysis:null},description);
+  }
+  async function bindAgent(){
     var select=document.getElementById('agentPlayer'),info=document.getElementById('agentStatus');
-    function refresh(){sdk.agents.list().then(function(agents){select.innerHTML='';agents.forEach(function(a){var o=document.createElement('option');o.value=a.id;o.textContent=(a.avatar||'')+' '+a.name;select.appendChild(o);});document.getElementById('agentTurn').disabled=!agents.length;document.getElementById('agentAuto').disabled=!agents.length;info.textContent=agents.length?(locale==='en'?'Ready for an agent turn.':'Prêt pour un tour agent.'):(locale==='en'?'Authorize an agent in App Permissions.':'Autorise un agent dans les permissions de l’App.');}).catch(function(e){info.textContent=e.message;});}
-    async function turn(){
-      if(agentBusy||!select.value)return;
-      if(!snapshot().legalMoves.length){agentAuto=false;info.textContent=text(snapshot().won?'wonText':'lostText');return;}
-      agentBusy=true;
-      document.getElementById('agentTurn').disabled=true;document.getElementById('agentAuto').disabled=true;document.getElementById('agentPause').disabled=false;
-      info.textContent=locale==='en'?'Agent thinking…':'L’agent réfléchit…';
-      try{var result=await sdk.agents.act(select.value,seat,'game.state','Read the supplied guide, goal and rules. Reach a 2048 tile, then pursue higher score only after the human continues. Select ONE direction from the current legalMoves, using the exact revision. Preserve empty squares and keep large tiles organized. Return only game.move action JSON; do not reset or invent a future random tile.');info.textContent=result.model+' · '+result.text;}
-      catch(e){var etaitAuto=agentAuto;agentAuto=false;info.textContent=e.message+(etaitAuto?' '+text('autoStopped'):'');}
-      finally{agentBusy=false;document.getElementById('agentTurn').disabled=false;document.getElementById('agentAuto').disabled=false;document.getElementById('agentPause').disabled=!agentAuto;}
-      if(agentAuto&&snapshot().legalMoves.length)agentTimer=setTimeout(function(){agentTimer=null;if(agentAuto)turn();},2200);else agentAuto=false;
+    var saved=state.agent;
+    seat=state.agentSeat||seat;state.agentSeat=seat;
+    function label(view){
+      var dict=locale==='en'?{paused:'Paused',ready:'Playing',thinking:'Agent thinking…',waiting:'Waiting for Continue',retry:'Temporary error · retrying automatically',permission:'Waiting for access · Apps → Permissions → App → Agents',finished:'Game over'}:
+        {paused:'En pause',ready:'Partie active',thinking:'L’agent réfléchit…',waiting:'En attente de Continuer',retry:'Erreur temporaire · reprise automatique',permission:'En attente d’autorisation · Apps → Permissions → App → Agents',finished:'Partie terminée'};
+      return (dict[view.status]||view.status)+(view.detail?' · '+view.detail:'');
+    }
+    player=window.GameAgent.create({
+      state:function(){return Object.assign({revision:revision},engine.describe(state.board,state.keepPlaying));},
+      canPlay:function(s){return s.waitingFor==='move';},
+      list:function(){return sdk.agents.list();},
+      delay:60,minimumInterval:520,
+      invalidate:function(){revision++;},
+      save:function(settings){state.agent=settings;persist();},
+      changed:function(view){
+        info.textContent=label(view);
+        document.getElementById('agentTurn').disabled=view.busy||!select.value;
+        document.getElementById('agentAuto').disabled=!select.value;
+        document.getElementById('agentAuto').setAttribute('aria-pressed',String(view.active&&view.continuous));
+        document.getElementById('agentAuto').textContent=view.active&&view.continuous?(locale==='en'?'Playing':'Partie active'):'Auto';
+        document.getElementById('agentPause').disabled=!view.active;
+      },
+      act:function(id,lastError){
+        var prompt='Maximize 2048 score and tile size. Read exact merge rules and current legalMoves. The state includes expectimax analysis of legal directions with actual after-slide boards BEFORE the unknown random tile. Prefer high utility, preserve space and a stable large-tile corner; compare rather than cycling random directions. Utility is a heuristic, not guaranteed future score. Choose exactly ONE legal direction with this revision. Return only game.move action JSON, without commentary. Never reset.';
+        if(lastError)prompt+=' Previous attempt: '+lastError.slice(0,300)+'. Reassess the new state.';
+        return sdk.agents.act(id,seat,'game.state',prompt,{allowedActions:['game.move'],freshState:true,expectedRevision:revision});
+      }
+    });
+    async function refresh(){
+      try{
+        var wanted=player.view().agentId||select.value||(saved&&saved.agentId)||'laruche';
+        var agents=await sdk.agents.list();select.innerHTML='';
+        agents.forEach(function(a){var o=document.createElement('option');o.value=a.id;o.textContent=(a.avatar||'')+' '+a.name;select.appendChild(o);});
+        if(agents.some(function(a){return a.id===wanted;}))select.value=wanted;
+        document.getElementById('agentTurn').disabled=!agents.length;
+        document.getElementById('agentAuto').disabled=!agents.length;
+        if(!player.view().active)info.textContent=agents.length?(locale==='en'?'Ready':'Prêt'):(locale==='en'?'Apps → Permissions: authorize LaRuche or another agent.':'Apps → Permissions : autorise LaRuche ou un autre agent.');
+      }catch(e){info.textContent=e.message;}
     }
     document.getElementById('refreshAgents').onclick=refresh;
-    document.getElementById('agentTurn').onclick=turn;
-    document.getElementById('agentAuto').onclick=function(){agentAuto=true;turn();};
-    document.getElementById('agentPause').onclick=function(){agentAuto=false;clearTimeout(agentTimer);agentTimer=null;this.disabled=true;info.textContent=agentBusy?(locale==='en'?'Pause after this turn.':'Pause après le tour en cours.'):(locale==='en'?'Paused.':'En pause.');};
-    if(locale==='en'){document.getElementById('agentTurn').textContent='One turn';document.getElementById('agentPlayer').options[0].textContent='Permission required';}
-    refresh();
+    document.getElementById('agentTurn').onclick=function(){if(select.value)player.start(select.value,false);};
+    document.getElementById('agentAuto').onclick=function(){if(select.value){if(document.getElementById('maximizeScore').checked){state.keepPlaying=true;revision++;render();}player.start(select.value,true);}};
+    if(locale==='en')document.getElementById('maximizeLabel').textContent='Maximize score, beyond 2048';
+    document.getElementById('agentPause').onclick=function(){player.pause();};
+    select.onchange=function(){player.pause();};
+    sdk.actions.register('game.agent',async function(args){
+      if(args.revision!==revision)throw new Error(perimee(args.revision));
+      if(args.mode==='pause'){player.pause();await saveChain;return snapshot();}
+      var id=args.agentId||'laruche',agents=await sdk.agents.list();
+      if(!agents.some(function(a){return a.id===id;}))throw new Error('Authorize this agent in Apps → Permissions → App → Agents first.');
+      if(args.revision!==revision)throw new Error(perimee(args.revision));
+      // The request explicitly chooses score maximization, including beyond 2048.
+      if(args.goal==='max_score')state.keepPlaying=true;
+      revision++;select.value=id;player.start(id,true);render();await saveChain;return snapshot();
+    });
+    if(locale==='en')document.getElementById('agentTurn').textContent='One turn';
+    await refresh();
+    if(saved&&saved.active&&saved.continuous)player.start(saved.agentId,true);
   }
 
   if(sdk && engine) start();

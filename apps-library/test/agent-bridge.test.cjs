@@ -73,6 +73,9 @@ async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await
     let state=await call('game.state');
     await call('game.move',{direction:state.legalMoves[0],revision:state.revision});
     const stale=await api.post(base+'/api/apps/command',{data:{appId:'dev.laruche.2048',action:'game.move',arguments:{direction:'left',revision:state.revision},instanceId:opened.instanceId}});assert(!stale.ok(),'stale move must fail');
+    // Le refus doit nommer la valeur courante: sans elle il faut relire l'etat
+    // avant de pouvoir reessayer, et la revision a encore bouge entre-temps.
+    const staleText=await stale.text();assert(/current is \d+/.test(staleText),'stale refusal must name the current revision: '+staleText);
     const game=page.frameLocator('#lrDock iframe');
     await game.locator('#refreshAgents').click();
     await until(async()=>game.locator('#agentPlayer option').count(),'agent list');
@@ -113,7 +116,11 @@ async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await
     let cs=await cc('game.state');assert.equal(cs.agentSide,'white');assert.equal(cs.waitingFor,'agent');assert(cs.rules.captures.includes('compulsory'));
     const cf=page.frames().find(f=>f.url().includes('/apps-assets/'+checkers.id+'/'));
     await cf.evaluate(async id=>LaRucheApp.agents.act(id,'white-test','game.state','Follow the complete rules and select one legal move.'),agent.id);
-    cs=await cc('game.state');assert.equal(cs.turn,'black');assert.equal(cs.waitingFor,'human');assert.deepEqual(cs.legalMoves,[]);
+    cs=await cc('game.state');assert.equal(cs.turn,'black');assert.equal(cs.waitingFor,'human');
+    // null, pas []: une liste vide veut dire "aucun coup possible, partie
+    // perdue", et un agent qui la lit alors que le plateau est plein en
+    // conclut que l'etat lui arrive tronque.
+    assert.equal(cs.legalMoves,null,'legalMoves must be null when it is not the agent turn');
     const forbidden=await api.post(base+'/api/apps/command',{data:{appId:checkers.id,instanceId:co.instanceId,action:'game.move',arguments:{from:1,to:10,revision:cs.revision}}});assert(!forbidden.ok(),'model cannot play for human');
     await page.screenshot({path:path.join(home,'checkers.png')});
     assert.deepEqual(errors,[]);

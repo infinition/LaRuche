@@ -33,7 +33,8 @@
     return score;
   }
 
-  function minimax(engine, board, depth, alpha, beta, isMaximizing) {
+  function minimax(engine, board, depth, alpha, beta, isMaximizing, budget) {
+    if (budget && ++budget.nodes > budget.limit) throw budget;
     var turn = isMaximizing ? 'white' : 'black';
     var moves = engine.legalMoves(board, turn);
 
@@ -48,7 +49,7 @@
       var maxEval = -Infinity;
       for (var i = 0; i < moves.length; i += 1) {
         var nextBoard = engine.applyMove(board, moves[i]);
-        var evaluation = minimax(engine, nextBoard, depth - 1, alpha, beta, false);
+        var evaluation = minimax(engine, nextBoard, depth - 1, alpha, beta, false, budget);
         maxEval = Math.max(maxEval, evaluation);
         alpha = Math.max(alpha, evaluation);
         if (beta <= alpha) break;
@@ -58,7 +59,7 @@
       var minEval = Infinity;
       for (var j = 0; j < moves.length; j += 1) {
         var nextBoard2 = engine.applyMove(board, moves[j]);
-        var evaluation2 = minimax(engine, nextBoard2, depth - 1, alpha, beta, true);
+        var evaluation2 = minimax(engine, nextBoard2, depth - 1, alpha, beta, true, budget);
         minEval = Math.min(minEval, evaluation2);
         beta = Math.min(beta, evaluation2);
         if (beta <= alpha) break;
@@ -97,7 +98,35 @@
     return bestMove;
   }
 
+  // Iterative deepening: retain only fully evaluated root iterations so a
+  // budget cutoff cannot favor whichever move happened to be searched first.
+  function analyze(engine, board, turn, settings) {
+    settings = settings || {};
+    var moves = engine.legalMoves(board, turn), ranked = [], completed = 0;
+    var budget = {nodes:0, limit:settings.nodeLimit || 10000};
+    var sign = turn === 'white' ? 1 : -1;
+    ranked = moves.map(function(move){
+      var next = engine.applyMove(board, move);
+      return Object.assign({}, move, {score:sign * evaluateBoard(engine, next),
+        promotes: !engine.isKing(board[move.from]) && engine.isKing(next[move.to])});
+    });
+    for (var depth = 1; depth <= (settings.depth || 5); depth++) {
+      try {
+        var iteration = ranked.map(function(move){
+          var next = engine.applyMove(board, move);
+          return Object.assign({}, move, {score:sign * minimax(engine, next, depth - 1,
+            -Infinity, Infinity, turn !== 'white', budget)});
+        });
+        ranked = iteration.sort(function(a,b){return b.score-a.score;});
+        completed = depth;
+      } catch (cutoff) { if(cutoff !== budget) throw cutoff; break; }
+    }
+    return {method:'Bounded alpha-beta; higher score favors the agent. Not a proof of a forced win.',
+      depth:completed,nodes:budget.nodes,candidates:ranked};
+  }
+
   return Object.freeze({
+    analyze: analyze,
     chooseBestMove: chooseBestMove
   });
 });
