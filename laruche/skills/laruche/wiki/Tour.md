@@ -1,7 +1,9 @@
 # A tour of LaRuche
 
 The rest of this wiki explains how LaRuche works. This page shows what it does. Every
-recording and screenshot below comes from a running hive, driven by a local model.
+recording and screenshot below comes from a running hive. The model named in the corner
+of a capture is whichever one that hive was configured with at the time; nothing here
+depends on it.
 
 ## Three things a chat window does not do
 
