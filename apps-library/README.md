@@ -12,7 +12,7 @@ Read them when writing your own.
 | [2048](2048) | 1.3.0 | The whole surface at its smallest: the SDK bridge, private saved games, keyboard and touch input, detachable views, and an agent that can take one turn or play on its own |
 | [Checkers](checkers) | 1.2.1 | Turn ownership enforced by the engine, so an agent playing out of turn is refused rather than trusted |
 | [WASM Lab](wasm-demo) | 1.0.0 | A browser WebAssembly module running inside the sandbox |
-| [DS Studio](ds-studio) | 1.7.4 | A Python notebook an agent drives through twenty-seven declared actions, with datasets, charts, kept results and a notebook library |
+| [DS Studio](ds-studio) | 1.7.5 | A Python notebook an agent drives through twenty-seven declared actions, with datasets, charts, kept results and a notebook library |
 
 ## Building them
 
@@ -28,6 +28,17 @@ python apps-library/ds-studio/build.py
 Each writes its archive into its own `dist/`, which is not tracked by git. In LaRuche,
 open **Apps**, click **Installer**, pick the archive, then enable it and choose its
 permissions. An App always arrives disabled: an update is never silent.
+
+An archive is a snapshot, and an edit under `package/` does not reach one already built.
+`check_dist.py` compares them, so a correction cannot be handed over without being in
+what gets installed:
+
+```bash
+python apps-library/check_dist.py
+```
+
+Bump the manifest version before rebuilding when the previous one is already installed:
+the node refuses to replace a version it already holds.
 
 `package_app.py` does the same for a directory of your own:
 
