@@ -7,7 +7,7 @@ tools: [file_read]
 
 # LaRuche, expliquee par elle-meme
 
-Ce skill embarque le wiki complet de LaRuche, 31 pages, 160 Ko de markdown. C'est
+Ce skill embarque le wiki complet de LaRuche, 34 pages, 182 Ko de markdown. C'est
 la MEME source que le site publie: `wiki/` a la racine du depot, dont `docs/wiki.html`
 et ce dossier sont deux sorties generees par `scripts/build_wiki.py`. Ce qui est ecrit
 ici fait donc foi. Ne repondez jamais de memoire sur le fonctionnement de LaRuche:
@@ -57,7 +57,8 @@ vous ne les demandez pas.
 | `wiki/concepts/Watchers.md` | Watchers | A watcher is a standing condition. It observes something, decides whether that means anything, and reacts. |
 | `wiki/concepts/Automation.md` | Automation | The automation hub gathers everything the hive does on its own: crons, missions, the kanban, and [watchers](Watchers). |
 | `wiki/concepts/Skills-and-Curator.md` | Skills and the Curator | A skill is a markdown file: instructions, examples, and conventions for a category of task. |
-| `wiki/concepts/Apps-and-Forged-Tools.md` | Apps and Forged Tools | LaRuche has two extension formats with different jobs. |
+| `wiki/concepts/Apps.md` | Apps | An App is an installable package that brings its own interface into LaRuche, and can declare actions an agent is allowed to call. |
+| `wiki/concepts/Forged-Tools.md` | Forged Tools | A Forged Tool is an atomic command the agent can call like a built-in tool. |
 | **Guides** | | |
 | `wiki/guides/Computer-and-Browser.md` | Computer and Browser | LaRuche can act on the desktop, the user's Chrome session and visual inputs. |
 | `wiki/guides/Chrome-Extension.md` | Chrome Extension | The LaRuche extension lets `browser` control the Chrome instance the user already has open, including its tabs and signed-in... |
@@ -72,6 +73,8 @@ vous ne les demandez pas.
 | `wiki/reference/Configuration.md` | Configuration | Two layers: supported environment variables set at launch, and the Settings UI for everything that can change live. |
 | `wiki/reference/Providers-and-Profiles.md` | Providers and profiles | Most confusion about "which model am I actually talking to" comes from one idea that is never stated: **the active model is a... |
 | `wiki/reference/Tools.md` | Tools | A default node build registers over a hundred built-in tools. |
+| `wiki/reference/App-Manifest.md` | The App manifest | needs to know before running any of its code. |
+| `wiki/reference/App-SDK.md` | The App SDK | Every capability an [App](Apps) has reaches it through this one object. |
 | `wiki/reference/Evals.md` | Knowing whether an engine change helped | Prompts and loops are the easiest part of an agent to change and the hardest part to judge. |
 | `wiki/reference/Brand-Glossary.md` | Brand Glossary | The hive speaks French. The brand vocabulary is part of LaRuche's identity and stays French in the code, the UI, and the docs;... |
 

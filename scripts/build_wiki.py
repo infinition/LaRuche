@@ -109,7 +109,8 @@ PAGE_ORDER = {
         "Watchers",
         "Automation",
         "Skills-and-Curator",
-        "Apps-and-Forged-Tools",
+        "Apps",
+        "Forged-Tools",
     ],
     "guides": [
         "Computer-and-Browser",
@@ -125,6 +126,8 @@ PAGE_ORDER = {
         "Configuration",
         "Providers-and-Profiles",
         "Tools",
+        "App-Manifest",
+        "App-SDK",
         "Evals",
         "Brand-Glossary",
     ],

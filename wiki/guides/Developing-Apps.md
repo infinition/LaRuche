@@ -4,6 +4,12 @@ Apps can be developed and installed without rebuilding LaRuche. The current host
 HTML, CSS, JavaScript and browser WebAssembly. Rust is needed only when changing the host
 itself, not when adding or updating an App.
 
+This page is the workflow: build, install, update, test. Two reference pages carry the
+detail it does not repeat. [The App manifest](App-Manifest) covers every field of
+`app.json` and what validation refuses. [The App SDK](App-SDK) covers every method a page
+can call, with its errors and limits. [Apps](Apps) explains the sandbox, the permission
+model and how a version is chosen.
+
 ## Try the reference Apps
 
 From the repository root:
@@ -276,9 +282,11 @@ is not an authorization mechanism, in either protocol.
   120 requests per minute. Package upload: 32 MiB.
 - Wait for pending saves before closing or moving a view. Opening a new view reloads it;
   in-memory state is not transferred. Independent windows have no live state synchronization.
-- Browser hosts heartbeat every second and expire after 15 seconds without contact. Sleeping
-  or aggressively throttled tabs may disconnect. Background/server-only App execution is
-  not implemented.
+- Browser hosts report their instances once a second, and the node considers a host
+  present for ninety seconds after its last report. A sleeping or heavily throttled tab
+  eventually disappears from what an agent can see. An App action has fifteen seconds to
+  answer before the host gives up on it. Background or server-only App execution is not
+  implemented.
 - Agent calls: four simultaneous model requests per node, 30 requests/minute per user,
   120-second model timeout, 256 contexts, 16 history messages/48 KiB per context. Maximum
   model response: 48 KiB. No budget accounting or automatic LLM repair loop is provided yet.

@@ -81,7 +81,7 @@ Four paths, none of which require rebuilding the engine. Skills are markdown and
 procedure. Forged Tools are a JSON manifest plus a command, and add one callable tool.
 MCP servers bring their own tools into the registry at runtime. Apps are installable
 interfaces that can also declare actions an agent may call. See
-[Apps and Forged Tools](Apps-and-Forged-Tools) and [MCP](MCP).
+[Apps](Apps), [Forged Tools](Forged-Tools) and [MCP](MCP).
 
 ## What is the license?
 

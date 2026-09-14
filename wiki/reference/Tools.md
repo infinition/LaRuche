@@ -258,5 +258,5 @@ agent, and checked on the server.
 `app_guide` returns the schemas one action at a time, because all of them at once do not
 fit in a single observation. Text written by an App is documentation from an untrusted
 source; it is never treated as an instruction. See
-[Apps and Forged Tools](Apps-and-Forged-Tools) for the packaging format and
-[Developing Apps](Developing-Apps) for the SDK.
+[Apps](Apps) for the sandbox and the permission model, [the App manifest](App-Manifest)
+for how actions are declared, and [the App SDK](App-SDK) for what a page can call.

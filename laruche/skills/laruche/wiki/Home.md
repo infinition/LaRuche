@@ -42,7 +42,8 @@ and is the only tool count worth quoting.
 - [Table Ronde](Table-Ronde) - multi-agent debate, specialist teams, tools and arbitration
 - [Watchers](Watchers) - event reflexes with compiled rules
 - [Skills and the Curator](Skills-and-Curator) - the skill library and how it grows itself
-- [Apps and Forged Tools](Apps-and-Forged-Tools) - installable interfaces versus JSON-backed tools
+- [Apps](Apps) - installable interfaces, their sandbox, permissions and actions
+- [Forged Tools](Forged-Tools) - one JSON manifest and one command
 - [Automation](Automation) - crons, missions, kanban
 
 ## Guides
