@@ -98,7 +98,7 @@ SECTION_LABELS = {
 }
 # Page order inside a folder. Unlisted pages follow, alphabetically.
 PAGE_ORDER = {
-    "": ["Home", "FAQ", "Security"],
+    "": ["Home", "Tour", "FAQ", "Security"],
     "getting-started": ["Installation", "Desktop-App", "Quick-Start", "Local-Models"],
     "concepts": [
         "Architecture",
@@ -226,6 +226,22 @@ def resume(markdown):
     return fini if len(fini) <= 130 else fini[:127].rsplit(" ", 1)[0] + "..."
 
 
+# Une reference media dans une page: `![legende](media/x.webp)`.
+MEDIA = re.compile(r"^!\[([^\]]*)\]\(([^)\s]+)\)$", re.M)
+
+
+def sans_media(texte):
+    """La meme page, pour un lecteur qui ne peut pas ouvrir une image.
+
+    Le skill part dans le binaire et se lit dans le contexte du modele. Une balise
+    d'image y coute des jetons et ne montre rien; la legende, elle, dit ce que la
+    capture montre. On garde donc la legende, en clair, et on jette le chemin.
+    """
+    return MEDIA.sub(
+        lambda m: ("[%s]" % m.group(1)) if m.group(1) else "", texte
+    )
+
+
 def forger_skill(sections, pages, dossiers):
     """Rewrite laruche/skills/laruche/ from the same corpus that feeds the site.
 
@@ -250,11 +266,12 @@ def forger_skill(sections, pages, dossiers):
             rel = ("%s/%s.md" % (dossier, slug)) if dossier else ("%s.md" % slug)
             cible = os.path.join(racine_md, rel.replace("/", os.sep))
             os.makedirs(os.path.dirname(cible), exist_ok=True)
+            texte = sans_media(pages[slug])
             with io.open(cible, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write(pages[slug])
-            total += len(pages[slug])
+                fh.write(texte)
+            total += len(texte)
             lignes.append("| `wiki/%s` | %s | %s |"
-                          % (rel, page["title"], resume(pages[slug]).replace("|", "/")))
+                          % (rel, page["title"], resume(texte).replace("|", "/")))
 
     corps = MODELE_SKILL % {
         "n": sum(len(s["pages"]) for s in sections),
@@ -276,10 +293,28 @@ def main():
     connus = {p["slug"] for s in sections for p in s["pages"]}
 
     # Report internal links that point nowhere, they would render as dead entries.
-    casses = set()
+    # A media reference is checked against the disk instead: it names a file under
+    # docs/, not a page, and a missing one shows as a broken image to every visitor.
+    casses, medias = set(), set()
     for slug, md in pages.items():
-        for cible in re.findall(r"\[[^\]]*\]\(([^)]+)\)", md):
+        for image, cible in re.findall(r"(!?)\[[^\]]*\]\(([^)]+)\)", md):
             if cible.startswith(("http", "#", "mailto:", "/")):
+                continue
+            if image:
+                chemin = os.path.join(os.path.dirname(TARGET), cible.replace("/", os.sep))
+                if os.path.isfile(chemin):
+                    medias.add(cible)
+                else:
+                    casses.add("%s -> %s (file not in docs/)" % (slug, cible))
+                if cible.endswith(".mp4"):
+                    poster = cible[:-4] + "-poster.webp"
+                    affiche = os.path.join(
+                        os.path.dirname(TARGET), poster.replace("/", os.sep)
+                    )
+                    if os.path.isfile(affiche):
+                        medias.add(poster)
+                    else:
+                        casses.add("%s -> %s (poster missing)" % (slug, poster))
                 continue
             page = cible.split("#", 1)[0]
             if page and page not in connus:
@@ -288,6 +323,12 @@ def main():
     data = json.dumps(
         {"sections": sections, "pages": pages}, ensure_ascii=False, separators=(",", ":")
     )
+    # The corpus travels inside a <script> block, and the HTML parser closes that block
+    # at the first `</script>` it sees, wherever it sees it. The Apps guide shows a page
+    # including the SDK, so it contains one inside a code fence; everything after it was
+    # dropped, `var WIKI` never finished, and the published wiki rendered blank.
+    # `<\/` is a valid escape in both JSON and JavaScript and reads back as `</`.
+    data = data.replace("</", "<\\/")
 
     with io.open(TARGET, encoding="utf-8", newline="") as fh:
         html = fh.read()
@@ -314,6 +355,12 @@ def main():
             print("    %s" % c)
     else:
         print("\n  every internal link resolves")
+    if medias:
+        poids = sum(
+            os.path.getsize(os.path.join(os.path.dirname(TARGET), m.replace("/", os.sep)))
+            for m in medias
+        )
+        print("  %d media files referenced, %.1f MB" % (len(medias), poids / 1048576.0))
 
 
 if __name__ == "__main__":
