@@ -7,7 +7,7 @@ tools: [file_read]
 
 # LaRuche, expliquee par elle-meme
 
-Ce skill embarque le wiki complet de LaRuche, 34 pages, 182 Ko de markdown. C'est
+Ce skill embarque le wiki complet de LaRuche, 34 pages, 184 Ko de markdown. C'est
 la MEME source que le site publie: `wiki/` a la racine du depot, dont `docs/wiki.html`
 et ce dossier sont deux sorties generees par `scripts/build_wiki.py`. Ce qui est ecrit
 ici fait donc foi. Ne repondez jamais de memoire sur le fonctionnement de LaRuche:

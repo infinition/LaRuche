@@ -27,6 +27,14 @@ get `'wasm-unsafe-eval'`, which is what makes browser WebAssembly work inside th
 An App therefore reaches nothing by default, LaRuche's own API included. Its only route
 out is the bridge, and everything on that bridge is a declared permission.
 
+**Do not add a `Content-Security-Policy` meta tag to your page.** The host already sends
+one, written with absolute URLs. A page-authored policy can only narrow what the host
+allows, and the usual way to write one narrows it to nothing: the frame is sandboxed
+without `allow-same-origin`, so its origin is opaque, and in an opaque origin `'self'`
+matches no URL at all. The two policies are enforced together, so `script-src 'self'`
+blocks every script the App loads, including the SDK. What is left on screen is the
+static HTML, with no styles and no bridge, and the agent is told the App did not connect.
+
 ## Permissions
 
 Permissions are declared in `app.json`, as `required` or `optional`, and granted by the

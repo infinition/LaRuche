@@ -8,7 +8,12 @@
   <meta name="apple-touch-icon" content="./icon.svg">
   <meta name="theme-color" content="#101014">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' /apps-runtime/; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self';">
+  <!-- Pas de CSP ici. Le noeud en envoie une, en en-tete, batie sur des URL
+       absolues. Celle qui vivait ici etait batie sur 'self', et le cadre d'une
+       App est un bac a sable sans allow-same-origin: son origine est opaque, et
+       dans une origine opaque 'self' ne designe rien. Les deux politiques se
+       croisent, donc tout script et toute feuille de style de l'App etaient
+       bloques, sans qu'il reste autre chose a l'ecran que le HTML statique. -->
   <title>Checkers</title>
   <link rel="stylesheet" href="./styles.css">
   <script src="/apps-runtime/v1.js" defer></script>

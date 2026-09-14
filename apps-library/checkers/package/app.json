@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "id": "dev.laruche.checkers",
   "name": "Checkers",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Dames LaRuche 8x8, dames courtes et blancs en premier, avec tours stricts et integration agent.",
   "publisher": {
     "name": "LaRuche"
@@ -76,7 +76,11 @@
           },
           "path": {
             "type": "array",
-            "items": {"type":"integer","minimum":0,"maximum":63},
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 63
+            },
             "minItems": 2,
             "maxItems": 13,
             "description": "Exact full path from legalMoves: origin and every landing. Required to disambiguate capture chains."

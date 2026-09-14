@@ -93,6 +93,18 @@ version, rebuild and install again. Existing versions cannot be overwritten thro
 installer. Re-enable the version and choose its permissions. Storage uses the App identifier,
 so give your saved data its own versioned keys and migrate it when its shape changes.
 
+## Do not write your own Content-Security-Policy
+
+The host sends one with every page, built from absolute URLs. Adding a meta tag of your
+own cannot loosen it and will almost certainly break the App: an App frame is sandboxed
+without `allow-same-origin`, so its origin is opaque, and `'self'` matches nothing in an
+opaque origin. `default-src 'self'` therefore blocks every script and stylesheet the page
+loads, the SDK included.
+
+The symptom is recognisable. The page shows its static HTML, unstyled, and never gets
+further; `app_open` fails with `App did not connect` because no script ever ran to answer
+the bridge. If an App looks frozen on its own loading screen, check for a meta CSP first.
+
 ## WASM and isolation
 
 Place browser-targeted `.wasm` files inside `ui/` and load them using
