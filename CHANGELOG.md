@@ -1,8 +1,18 @@
 # Changelog
 
-## Non publie
+## [1.7.0] - 2026-09-14
 
 ### Change
+
+- Lanceurs harmonises sur Windows, Linux et macOS : compilation des Apps,
+  bureau client, decouverte reseau et embeddings.
+- DS Studio 1.8.1 : suivi de la cellule active, coloration du code et corrections
+  de persistance du noyau Python.
+- Dames 1.4.1 et 2048 1.5.1 : boucle agent, reprise sur erreur, fin de partie et
+  selection de l'objectif 2048 corriges.
+- Suivi du chat maintenu pendant les mises a jour du contenu ; une action de
+  navigation de l'utilisateur suspend le suivi.
+
 
 - Apps de reference : guides LLM complets pour 2048 1.2.0 et Dames 1.1.0, rappels
   des regles dans l'etat, camp agent dynamique, rafles identifiees par chemin, victoire
