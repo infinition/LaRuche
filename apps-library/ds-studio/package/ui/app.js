@@ -1015,6 +1015,10 @@
     editor.value = cell.source;
     editor.setAttribute('aria-label', t(cell.type === 'markdown' ? 'noteEditorLabel' : 'codeEditorLabel'));
     autosize(editor);
+    colorier(editor);
+    /* Une cellule longue defile a l'interieur du textarea: la couche coloree
+     * doit defiler avec elle, sinon le texte peint glisse sous le curseur. */
+    editor.addEventListener('scroll', function(){ colorier(editor); }, { passive: true });
 
     article.querySelector('[data-role="kind"]').textContent =
       t(cell.type === 'markdown' ? 'kindNote' : 'kindCode');
@@ -1033,14 +1037,19 @@
     runButton.disabled = cell.type !== 'code';
     runButton.classList.toggle('is-busy', cell.status === 'running' || cell.status === 'queued');
 
+    var enveloppe = article.querySelector('[data-role="editorWrap"]');
     var preview = article.querySelector('[data-role="notePreview"]');
     if (cell.type === 'markdown') {
       preview.innerHTML = renderMarkdown(cell.source);
       preview.hidden = false;
       editor.hidden = true;
+      enveloppe.hidden = true;
       preview.addEventListener('dblclick', function(){
         preview.hidden = true;
         editor.hidden = false;
+        enveloppe.hidden = false;
+        autosize(editor);
+        colorier(editor);
         editor.focus();
       });
     }
@@ -1052,6 +1061,24 @@
   function autosize(editor) {
     editor.style.height = 'auto';
     editor.style.height = Math.min(520, Math.max(48, editor.scrollHeight)) + 'px';
+  }
+
+  /* Repeint la couche coloree sous un textarea.
+   *
+   * La langue vient du noyau: la meme cellule de code se lit en Python ou dans
+   * le langage studio, et teindre `groupby` comme un verbe n'a de sens que
+   * pour le second. */
+  function colorier(editor) {
+    if (!editor || !window.StudioColorier) return;
+    var encre = editor.parentElement &&
+      editor.parentElement.querySelector('[data-role="ink"]');
+    if (!encre) return;
+    var article = editor.closest('.cell');
+    var type = article && article.classList.contains('kind-markdown') ? 'markdown' : 'code';
+    encre.innerHTML = window.StudioColorier.teinter(editor.value, type,
+      kernel && kernel.language);
+    encre.scrollTop = editor.scrollTop;
+    encre.scrollLeft = editor.scrollLeft;
   }
 
   function renderOutputs(container, cell) {
@@ -2125,6 +2152,7 @@
     if (!editor) return;
     var article = editor.closest('.cell');
     autosize(editor);
+    colorier(editor);
     var cell = notebook.cell(article.dataset.cellId);
     cell.source = editor.value;
     cell.updatedAt = Date.now();

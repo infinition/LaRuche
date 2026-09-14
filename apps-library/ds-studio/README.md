@@ -298,6 +298,30 @@ d'images via actions, Worker avec interruption dure, validation du runtime Pyodi
 et execution sans navigateur. Les telechargements de fichiers et d'images sont deja
 disponibles manuellement dans l'interface du carnet.
 
+### Version 1.8.0, coloration du texte en cours d'edition
+
+Le code Python et le langage studio sont colores pendant la frappe, et le
+Markdown distingue ses niveaux de titre, le gras, l'italique, le code, les
+citations, les puces et les liens.
+
+Un textarea ne sait pas colorer son contenu. Le meme texte est donc peint dans
+un element place dessous, et le champ de saisie passe au-dessus en texte
+transparent: le curseur, la selection, l'annulation et la dictee restent ceux
+du navigateur. Les deux boites doivent alors partager exactement la meme
+metrique, ce qui fixe une regle: un jeton peut changer de couleur et de
+graisse, jamais de taille. Un titre Markdown est donc mis en gras et non en
+grand, la fonte a chasse fixe gardant la meme avance en gras.
+
+La coloration s'arrete au-dela de quarante mille caracteres dans une cellule,
+ou repeindre a chaque frappe se sentirait sous les doigts. Le texte reste
+lisible, simplement sans couleur.
+
+Pour regarder l'App soi-meme, avec le meme hote bouchonne que les tests :
+
+```sh
+DS_SERVE=8731 node apps-library/ds-studio/test/browser.test.cjs
+```
+
 ### Correctif 1.7.11, suivi de l'agent
 
 Le suivi ne se coupe plus sur un simple evenement `scroll` provoque par un

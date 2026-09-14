@@ -952,6 +952,14 @@ function wrapScenario() {
 }
 
 (async function main() {
+  /* Servir sans lancer de navigateur, pour regarder l'App soi-meme. Le meme
+     hote bouchonne que les tests, donc ce qu'on voit est ce qu'ils mesurent. */
+  if (process.env.DS_SERVE) {
+    const seul = await serve(Number(process.env.DS_SERVE) || 0);
+    process.stdout.write('DS Studio: http://127.0.0.1:' + seul.port + '/frame.html\n');
+    return;
+  }
+
   const browser = findBrowser();
   if (!browser) {
     process.stdout.write('DS Studio browser: skipped, no Chrome or Edge found. Set CHROME_PATH to run it.\n');

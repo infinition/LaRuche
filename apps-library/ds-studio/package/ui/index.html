@@ -22,6 +22,7 @@
   <script src="./lib/csv.js" defer></script>
   <script src="./lib/chart.js" defer></script>
   <script src="./lib/lang.js" defer></script>
+  <script src="./lib/colorier.js" defer></script>
   <script src="./lib/store.js" defer></script>
   <script src="./notebook.js" defer></script>
   <script src="./kernel/kernel-js.js" defer></script>
@@ -192,7 +193,10 @@
             <button type="button" class="icon-button danger" data-action="delete" data-i18n-title="deleteCell" data-i18n-aria-label="deleteCell">×</button>
           </div>
         </div>
-        <textarea class="editor" data-role="editor" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        <div class="editor-wrap" data-role="editorWrap">
+          <pre class="editor-ink" data-role="ink" aria-hidden="true"></pre>
+          <textarea class="editor" data-role="editor" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        </div>
         <div class="note-preview" data-role="notePreview" hidden></div>
         <div class="outputs" data-role="outputs"></div>
       </div>

@@ -511,22 +511,127 @@ button, select, input, textarea {
 .icon-button.danger:hover { color: var(--red); }
 .icon-button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 
-.editor {
+/* Le texte colore est peint dans .editor-ink, et le textarea passe au-dessus
+   en texte transparent. Les deux boites doivent donc partager exactement la
+   meme metrique: tout ce qui decide de la position d'un caractere est mis en
+   commun ici, et rien ne doit etre redefini d'un seul cote. */
+.editor-wrap {
+  position: relative;
+  display: block;
   width: 100%;
-  min-height: 48px;
-  resize: vertical;
-  background: var(--code-bg);
-  border: 1px solid var(--line);
+}
+
+.editor,
+.editor-ink {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-family: var(--mono);
   font-size: 13px;
+  font-weight: 400;
+  font-variant-ligatures: none;
   line-height: 1.55;
+  letter-spacing: normal;
   tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.editor {
+  /* Un textarea est inline-block par defaut: sa boite de ligne ajoute sous lui
+     l'espace des jambages, et la couche coloree, calee sur le conteneur,
+     devenait plus haute que lui de quelques pixels. */
+  display: block;
+  position: relative;
+  z-index: 1;
+  min-height: 48px;
+  resize: vertical;
+  border-color: var(--line);
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
   overflow: hidden;
 }
 
+/* Le texte du textarea est transparent, donc une selection opaque masquerait
+   la couche coloree. Translucide, elle se lit par-dessus. */
+.editor::selection { background: rgba(245, 166, 35, 0.32); }
+.editor::selection { background: color-mix(in srgb, var(--amber) 32%, transparent); }
+
+.editor-ink {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--code-bg);
+  color: var(--text);
+  pointer-events: none;
+}
+
+/* Le redimensionnement manuel du textarea ne doit pas laisser la couche
+   coloree derriere: elle suit la hauteur de la boite qui la contient. */
+.editor-wrap { min-height: 48px; }
+
 .editor:focus { outline: 2px solid var(--amber); outline-offset: -1px; border-color: transparent; }
+
+/* Couleurs des jetons. Elles ne changent que la teinte et la graisse: une
+   taille differente decalerait les caracteres sous le curseur. */
+:root {
+  --t-com: #7a7689;
+  --t-str: #8fd694;
+  --t-num: #c8a5f7;
+  --t-kw: #ff9d5c;
+  --t-nat: #74c0f0;
+  --t-fn: #f2d488;
+  --t-arg: #c9c5d4;
+  --t-sig: #a09cb0;
+  --t-soi: #f5a623;
+  --t-lien: #6fb4f5;
+}
+:root[data-host-theme="light"] {
+  --t-com: #7b776f;
+  --t-str: #1f7a45;
+  --t-num: #6b3fb5;
+  --t-kw: #b1480a;
+  --t-nat: #1d5fa8;
+  --t-fn: #8a6200;
+  --t-arg: #45433e;
+  --t-sig: #6b6960;
+  --t-soi: #b06b00;
+  --t-lien: #2a78d6;
+}
+
+.t-com { color: var(--t-com); font-style: italic; }
+.t-str { color: var(--t-str); }
+.t-num { color: var(--t-num); }
+.t-kw { color: var(--t-kw); font-weight: 700; }
+.t-nat { color: var(--t-nat); }
+.t-fn { color: var(--t-fn); }
+.t-arg { color: var(--t-arg); }
+.t-sig { color: var(--t-sig); }
+.t-soi { color: var(--t-soi); font-style: italic; }
+.t-deco { color: var(--t-soi); }
+
+/* Markdown en cours d'edition. La hierarchie se lit a la graisse et a la
+   couleur, jamais a la taille. */
+.t-md-t1 { color: var(--amber); font-weight: 700; }
+.t-md-t2 { color: var(--text); font-weight: 700; }
+.t-md-t3 { color: var(--t-nat); font-weight: 700; }
+.t-md-t4 { color: var(--muted); font-weight: 700; }
+.t-md-gras { font-weight: 700; color: var(--text); }
+.t-md-ital { font-style: italic; color: var(--text); }
+.t-md-barre { color: var(--muted); text-decoration: line-through; }
+.t-md-code { color: var(--t-str); }
+.t-md-cloture { color: var(--t-sig); }
+.t-md-cite { color: var(--muted); font-style: italic; }
+.t-md-filet { color: var(--t-sig); }
+.t-md-puce { color: var(--amber); font-weight: 700; }
+.t-md-lien { color: var(--t-lien); text-decoration: underline; }
 
 .note-preview > :first-child { margin-top: 0; }
 .note-preview > :last-child { margin-bottom: 0; }

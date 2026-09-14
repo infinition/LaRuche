@@ -12,7 +12,7 @@ Read them when writing your own.
 | [2048](2048) | 1.3.0 | The whole surface at its smallest: the SDK bridge, private saved games, keyboard and touch input, detachable views, and an agent that can take one turn or play on its own |
 | [Checkers](checkers) | 1.2.1 | Turn ownership enforced by the engine, so an agent playing out of turn is refused rather than trusted |
 | [WASM Lab](wasm-demo) | 1.0.0 | A browser WebAssembly module running inside the sandbox |
-| [DS Studio](ds-studio) | 1.7.11 | A Python notebook an agent drives through twenty-seven declared actions, with datasets, charts, kept results and a notebook library |
+| [DS Studio](ds-studio) | 1.8.0 | A Python notebook an agent drives through twenty-seven declared actions, with datasets, charts, kept results and a notebook library |
 
 ## Building them
 

@@ -91,6 +91,45 @@
     pane.scrollTop = 0;
     pane.dispatchEvent(new Event('scroll'));
     check('scrollbar navigation pauses following', !button.hidden);
+    // La couche coloree doit rester exactement sous le texte saisi: memes
+    // metriques, meme retour a la ligne, meme hauteur. Un ecart se voit tout
+    // de suite a l'usage, et ne se rattrape pas.
+    var code = (await mutate('cell.add', {type:'code', source:'# somme des ventes\ntotal = load("ventes").groupby("an").agg(ca = sum(montant))\nshow(total)\n'})).cellId;
+    await sleep(400);
+    var champ = document.querySelector('[data-cell-id="' + code + '"] [data-role="editor"]');
+    var encre = document.querySelector('[data-cell-id="' + code + '"] [data-role="ink"]');
+    var bc = champ.getBoundingClientRect(), be = encre.getBoundingClientRect();
+    check('la couche coloree se superpose au champ',
+      Math.abs(bc.left - be.left) < 1 && Math.abs(bc.top - be.top) < 1 &&
+      Math.abs(bc.width - be.width) < 1 && Math.abs(bc.height - be.height) < 1,
+      JSON.stringify({champ: [bc.left, bc.top, bc.width, bc.height], encre: [be.left, be.top, be.width, be.height]}));
+    var sc = getComputedStyle(champ), se = getComputedStyle(encre);
+    check('les deux boites partagent la metrique du texte',
+      ['fontFamily','fontSize','lineHeight','letterSpacing','padding','borderWidth','whiteSpace','tabSize','overflowWrap']
+        .every(function(k){ return sc[k] === se[k]; }),
+      ['fontFamily','fontSize','lineHeight','letterSpacing','padding','borderWidth','whiteSpace','tabSize','overflowWrap']
+        .filter(function(k){ return sc[k] !== se[k]; }).join(','));
+    check('le commentaire et le verbe sont colores',
+      !!encre.querySelector('.t-com') && !!encre.querySelector('.t-nat'),
+      encre.innerHTML.slice(0, 120));
+    // Le texte peint doit occuper le meme nombre de lignes que le texte saisi.
+    check('la couche coloree tient la meme hauteur de texte',
+      Math.abs(encre.scrollHeight - champ.scrollHeight) <= 2,
+      encre.scrollHeight + ' vs ' + champ.scrollHeight);
+
+    var note = (await mutate('cell.add', {type:'markdown', source:'# Titre\n\nUn **gras** ici.\n'})).cellId;
+    await sleep(300);
+    document.querySelector('[data-cell-id="' + note + '"] [data-role="notePreview"]')
+      .dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+    await sleep(300);
+    var encreNote = document.querySelector('[data-cell-id="' + note + '"] [data-role="ink"]');
+    check('le titre et le gras se distinguent dans la note',
+      !!encreNote.querySelector('.t-md-t1') && !!encreNote.querySelector('.t-md-gras'),
+      encreNote.innerHTML.slice(0, 160));
+    check('un titre de note est bien en gras',
+      getComputedStyle(encreNote.querySelector('.t-md-t1')).fontWeight === '700',
+      getComputedStyle(encreNote.querySelector('.t-md-t1')).fontWeight);
+
     await mutate('notebook.new', {title:'Nouveau carnet'});
     await sleep(200);
     check('new notebook resets following', button.hidden && !document.querySelector('.is-focus-bloc'));
