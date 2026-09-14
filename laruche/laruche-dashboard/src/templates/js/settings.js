@@ -378,6 +378,12 @@ LaRuche.i18n.add({
   'settings.mixtureModelsHint':  {fr:'Utilisés uniquement par l’outil Mixture quand aucun candidat n’est fourni.', en:'Used only by the Mixture tool when no candidates are supplied.'},
   'settings.memoryReviewModel':  {fr:'Modèle d’enrichissement mémoire', en:'Memory enrichment model'},
   'settings.memoryReviewHint':   {fr:'Optionnel · utilisé seulement pour enrichir un nœud mémoire.', en:'Optional · used only when enriching a memory node.'},
+  'settings.missionBudget':      {fr:'Budget jetons par mission', en:'Mission token budget'},
+  'settings.missionBudgetHint':  {fr:'Enveloppe totale entrée + sortie d’une mission, relances, compaction et sous-agents compris. 0 = sans plafond de jetons ; les limites de passes et de délais restent actives.', en:'Total input plus output envelope for one mission, retries, compaction and sub-agents included. 0 = no token ceiling; the pass and timeout limits still apply.'},
+  'settings.fallbackRoutes':     {fr:'Routes de secours', en:'Fallback routes'},
+  'settings.fallbackRoutesHint': {fr:'Huit routes au maximum, essayées dans l’ordre quand la principale échoue. Une route porte son provider, son modèle, son endpoint et sa fenêtre : un simple nom de modèle ne suffit pas à changer de fournisseur. Pour une clé, écrivez une référence du coffre (@@NOM) plutôt que la clé elle-même ; laissée vide, la clé déjà enregistrée est conservée.', en:'At most eight routes, tried in order when the main one fails. A route carries its provider, model, endpoint and window: a bare model name is not enough to change provider. For a key, write a vault reference (@@NAME) rather than the key itself; left empty, the key already stored is kept.'},
+  'settings.fallbackRoutesBad':  {fr:'Routes de secours : JSON invalide, rien n’a été envoyé.', en:'Fallback routes: invalid JSON, nothing was sent.'},
+  'settings.fallbackRoutesRefused': {fr:'Routes de secours refusées : huit au maximum, chacune avec provider, model et une fenêtre d’au moins 256.', en:'Fallback routes refused: eight at most, each with provider, model and a window of at least 256.'},
   'settings.codexRuntimeHint':   {fr:'Codex gère actuellement ses propres paramètres : Température et Max tokens ne lui sont pas envoyés. Ces valeurs restent actives pour les autres providers.', en:'Codex currently manages its own parameters: Temperature and Max tokens are not sent to it. These values still apply to other providers.'},
   'settings.modelExample':       {fr:'ex: gpt-4o',       en:'e.g.: gpt-4o'},
   'settings.activeLabel':        {fr:'Actif : ',         en:'Active: '},
@@ -1382,6 +1388,10 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.narrowCtxThreshold')+'">'+LaRuche.i18n.t('settings.narrowCtxLabel')+'</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.mixtureModelsHint')+'">'+LaRuche.i18n.t('settings.mixtureModels')+'</span><input type="text" id="cfgProvFallback" class="form-input" style="width:180px;padding:2px 6px;" value="'+LaRuche.Utils.esc(provCfg.fallback_models||'')+'" placeholder="model-a, model-b"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.memoryReviewHint')+'">'+LaRuche.i18n.t('settings.memoryReviewModel')+'</span><input type="text" id="cfgProvReview" class="form-input" style="width:180px;padding:2px 6px;" value="'+LaRuche.Utils.esc(provCfg.review_model||'')+'" placeholder="'+LaRuche.i18n.t('settings.optional')+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.missionBudgetHint')+'">'+LaRuche.i18n.t('settings.missionBudget')+'</span><input type="number" id="cfgMissionBudget" class="form-input" style="width:110px;padding:2px 6px;" min="0" step="1000" value="'+(provCfg.mission_budget_tokens||0)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:6px;flex-direction:column;align-items:stretch;gap:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.fallbackRoutes')+'</span>'+
+      '<div style="font-size:10px;color:var(--text-dim);line-height:1.4">'+LaRuche.i18n.t('settings.fallbackRoutesHint')+'</div>'+
+      '<textarea id="cfgFallbackRoutes" class="form-input" rows="6" spellcheck="false" style="width:100%;padding:4px 6px;font-family:var(--font-mono,monospace);font-size:11px;" placeholder=\'[{"provider":"openai","model":"gpt-4o-mini","api_key":"@@OPENAI","context_max_tokens":128000}]\'>'+LaRuche.Utils.esc(JSON.stringify(provCfg.fallback_profiles||[], null, 2))+'</textarea></div>'+
       '</details>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveRuntimeCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.apply')+'</button></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.contextCompaction')+'</div>'+
@@ -5387,15 +5397,42 @@ var st = document.getElementById('kanban-statut')?document.getElementById('kanba
     // every time this form is saved.
     var auxiliary = {
       fallback_models: document.getElementById('cfgProvFallback').value,
-      review_model: document.getElementById('cfgProvReview').value
+      review_model: document.getElementById('cfgProvReview').value,
+      mission_budget_tokens: Math.max(0, parseInt(document.getElementById('cfgMissionBudget').value,10) || 0)
     };
+    // Malformed routes stop the whole save, rather than sending the rest and leaving
+    // the user believing the routes went with it. The node validates them again: this
+    // check is here to name the mistake while the text is still on screen.
+    var routesRaw = (document.getElementById('cfgFallbackRoutes').value || '').trim();
+    if (routesRaw === '') {
+      auxiliary.fallback_profiles = [];
+    } else {
+      var routes;
+      try { routes = JSON.parse(routesRaw); } catch (e) {
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.fallbackRoutesBad'), 'err');
+        return;
+      }
+      if (!Array.isArray(routes)) {
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.fallbackRoutesBad'), 'err');
+        return;
+      }
+      auxiliary.fallback_profiles = routes;
+    }
     // What was just written must never be read back from the cache.
     _invalidateGeneral();
     Promise.all([
       fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
       fetch(LaRuche.API.base+'/api/config/provider',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(auxiliary)})
     ])
-      .then(function(responses){ if(responses.every(function(r){return r.ok;})) LaRuche.Toast.show(LaRuche.i18n.t('settings.generationApplied'),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); })
+      .then(function(responses){
+        if (!responses.every(function(r){return r.ok;})) { LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); return null; }
+        // The provider endpoint answers 200 with an `error` field when the routes are
+        // refused. Reading only the HTTP status would report a save that did not happen.
+        return responses[1].json().then(function(d){
+          if (d && d.error) LaRuche.Toast.show(LaRuche.i18n.t('settings.fallbackRoutesRefused'),'err');
+          else LaRuche.Toast.show(LaRuche.i18n.t('settings.generationApplied'),'ok');
+        });
+      })
       .catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
   }
 

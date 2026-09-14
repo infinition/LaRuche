@@ -57,6 +57,30 @@ pub(crate) async fn api_save_channel_model(
     Json(serde_json::json!({"ok": true}))
 }
 
+/// A fallback route as the browser is allowed to see it.
+///
+/// A route may carry a credential. What leaves the node is the vault REFERENCE when
+/// the key is one (`@@NAME`, `${NAME}` or `{{NAME}}`), because a reference is not a
+/// secret and the form has to be able to show it and send it back. A literal key is
+/// replaced by an empty string: a secret that never reaches the browser cannot be
+/// read out of it. `api_key_set` says that one exists, and the setter puts it back
+/// when the field returns empty.
+fn route_publique(route: &laruche_essaim::config::ProfilSecours) -> serde_json::Value {
+    let reference = ["@@", "${", "{{"]
+        .iter()
+        .any(|marque| route.api_key.contains(marque));
+    serde_json::json!({
+        "provider": route.provider,
+        "model": route.model,
+        "api_key": if reference { route.api_key.as_str() } else { "" },
+        "api_key_set": !route.api_key.is_empty(),
+        "api_base": route.api_base,
+        "ollama_url": route.ollama_url,
+        "context_max_tokens": route.context_max_tokens,
+        "text_tools": route.text_tools,
+    })
+}
+
 /// GET /api/config/provider: get current LLM provider settings.
 pub(crate) async fn api_get_provider_config(
     State(state): State<Arc<AppState>>,
@@ -69,6 +93,7 @@ pub(crate) async fn api_get_provider_config(
         "model": ec.model,
         "ollama_url": ec.ollama_url,
         "fallback_models": ec.fallback_models.join(", "),
+        "fallback_profiles": ec.fallback_profiles.iter().map(route_publique).collect::<Vec<_>>(),
         "mission_budget_tokens": ec.mission_budget_tokens,
         "review_model": ec.review_model,
         "max_tokens": ec.max_tokens,
@@ -236,6 +261,48 @@ pub(crate) async fn api_save_provider_config(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
     let mut cg = state.essaim_config.write().await;
+    // Validated BEFORE anything is written. This setter applies field by field, so a
+    // refusal in the middle used to leave the provider changed and the rest dropped.
+    // Malformed routes now cost nothing: the request is refused whole.
+    let routes_validees = match body.get("fallback_profiles") {
+        None => None,
+        Some(brut) => {
+            let Ok(mut routes) =
+                serde_json::from_value::<Vec<laruche_essaim::config::ProfilSecours>>(brut.clone())
+            else {
+                return Json(serde_json::json!({"error":"invalid fallback_profiles"}));
+            };
+            if routes.len() > 8
+                || !routes.iter().all(|r| {
+                    !r.model.trim().is_empty()
+                        && !r.provider.trim().is_empty()
+                        && r.context_max_tokens >= 256
+                })
+            {
+                return Json(serde_json::json!({"error":"invalid fallback_profiles"}));
+            }
+            // A literal key never leaves the node, so the form sends it back empty. An
+            // empty field therefore means "unchanged", not "cleared": the key stored
+            // for the same provider and model is carried over. Clearing one is done by
+            // removing the route. Without this, opening Settings and pressing Apply
+            // would silently strip every fallback credential.
+            for route in &mut routes {
+                if route.api_key.trim().is_empty() {
+                    if let Some(ancienne) = cg
+                        .fallback_profiles
+                        .iter()
+                        .find(|r| r.provider == route.provider && r.model == route.model)
+                    {
+                        route.api_key = ancienne.api_key.clone();
+                    }
+                }
+            }
+            Some(routes)
+        }
+    };
+    if let Some(routes) = routes_validees {
+        cg.fallback_profiles = routes;
+    }
     if let Some(provider) = body["provider"].as_str() {
         let p = provider.to_lowercase();
         if matches!(p.as_str(), "ollama" | "openai" | "anthropic") {
@@ -259,21 +326,6 @@ pub(crate) async fn api_save_provider_config(
     if let Some(url) = body["ollama_url"].as_str() {
         if !url.is_empty() {
             cg.ollama_url = url.to_string();
-        }
-    }
-    if let Some(routes) = body.get("fallback_profiles") {
-        match serde_json::from_value::<Vec<laruche_essaim::config::ProfilSecours>>(routes.clone()) {
-            Ok(routes)
-                if routes.len() <= 8
-                    && routes.iter().all(|r| {
-                        !r.model.trim().is_empty()
-                            && !r.provider.trim().is_empty()
-                            && r.context_max_tokens >= 256
-                    }) =>
-            {
-                cg.fallback_profiles = routes
-            }
-            _ => return Json(serde_json::json!({"error":"invalid fallback_profiles"})),
         }
     }
     if let Some(budget) = body["mission_budget_tokens"].as_u64() {
@@ -306,4 +358,59 @@ pub(crate) async fn api_save_provider_config(
     drop(cg);
     save_persistent_state(&state).await;
     Json(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::route_publique;
+    use laruche_essaim::config::ProfilSecours;
+
+    fn route(api_key: &str) -> ProfilSecours {
+        ProfilSecours {
+            provider: "openai".into(),
+            model: "gpt-4o-mini".into(),
+            api_key: api_key.into(),
+            api_base: None,
+            ollama_url: None,
+            context_max_tokens: 128_000,
+            text_tools: false,
+        }
+    }
+
+    /// A literal key does not reach the browser, and the form still knows one exists.
+    #[test]
+    fn une_cle_litterale_ne_sort_jamais_du_noeud() {
+        let vue = route_publique(&route("sk-a-real-secret-value"));
+        assert_eq!(vue["api_key"], "");
+        assert_eq!(vue["api_key_set"], true);
+        assert!(!vue.to_string().contains("sk-a-real-secret-value"));
+    }
+
+    /// A vault reference is not a secret: it is shown, so it can be re-saved.
+    #[test]
+    fn une_reference_de_coffre_reste_visible() {
+        for reference in ["@@OPENAI", "${OPENAI}", "{{OPENAI}}"] {
+            let vue = route_publique(&route(reference));
+            assert_eq!(vue["api_key"], reference);
+            assert_eq!(vue["api_key_set"], true);
+        }
+    }
+
+    /// A route without a credential says so, rather than claiming a hidden one.
+    #[test]
+    fn une_route_sans_cle_ne_pretend_pas_en_avoir_une() {
+        let vue = route_publique(&route(""));
+        assert_eq!(vue["api_key"], "");
+        assert_eq!(vue["api_key_set"], false);
+    }
+
+    /// The extra field the browser receives does not break the round trip.
+    #[test]
+    fn la_vue_publique_se_relit_comme_une_route() {
+        let vue = route_publique(&route("@@OPENAI"));
+        let relue: ProfilSecours = serde_json::from_value(vue).unwrap();
+        assert_eq!(relue.provider, "openai");
+        assert_eq!(relue.api_key, "@@OPENAI");
+        assert_eq!(relue.context_max_tokens, 128_000);
+    }
 }
