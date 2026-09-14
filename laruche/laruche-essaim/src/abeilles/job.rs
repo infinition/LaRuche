@@ -53,14 +53,14 @@ impl Abeille for SubmitJob {
     async fn executer(
         &self,
         args: serde_json::Value,
-        _ctx: &ContextExecution,
+        ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
         let script = args["script"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing 'script' argument"))?;
         let label = args["label"].as_str();
 
-        let job_id = self.queue.submit(script, label).await;
+        let job_id = self.queue.submit_in_context(script, label, ctx).await?;
 
         tracing::info!(job_id = %job_id, script_len = script.len(), "Job submitted in background");
 
@@ -126,7 +126,11 @@ impl Abeille for CheckJobStatus {
             }
             Some(JobStatus::Completed { output, elapsed }) => {
                 let truncated = if output.len() > 2000 {
-                    format!("{}... [truncated, {} chars]", &output[..2000], output.len())
+                    format!(
+                        "{}... [truncated, {} chars]",
+                        output.chars().take(2000).collect::<String>(),
+                        output.len()
+                    )
                 } else {
                     output.clone()
                 };
@@ -141,6 +145,40 @@ impl Abeille for CheckJobStatus {
             None => Ok(ResultatAbeille::ok(format!(
                 "Job {job_id}: UNKNOWN (not yet submitted or already cleaned up)."
             ))),
+        }
+    }
+}
+
+/// Cancel only a job owned by this run.
+pub struct CancelJob {
+    pub queue: Arc<JobQueue>,
+}
+#[async_trait]
+impl Abeille for CancelJob {
+    fn nom(&self) -> &str {
+        "cancel_job"
+    }
+    fn description(&self) -> &str {
+        "Cancel a background job owned by this run. External effects may require reconciliation."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({"type":"object","required":["job_id"],"properties":{"job_id":{"type":"string"}}})
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::NeedsApproval
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let id = args["job_id"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("job_id required"))?;
+        if self.queue.cancel(id, ctx.run_id.as_deref()).await {
+            Ok(ResultatAbeille::ok("Cancellation requested"))
+        } else {
+            anyhow::bail!("Job is not running or belongs to another run")
         }
     }
 }

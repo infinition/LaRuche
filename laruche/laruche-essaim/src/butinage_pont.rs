@@ -63,7 +63,11 @@ use tokio::sync::broadcast;
 
 // ───────────────────────── Provider (LLM) ─────────────────────────
 
+#[derive(Clone)]
 struct FournisseurPont {
+    routes: Vec<crate::config::ProfilSecours>,
+    route_active: Arc<std::sync::atomic::AtomicUsize>,
+    context_tokens: u32,
     provider: String,
     model: String,
     api_key: String,
@@ -79,6 +83,97 @@ struct FournisseurPont {
     /// Reasoning effort for THIS provider instance. The main run takes the user's
     /// setting; auxiliary runs (curateur, scouts) take the lighter aux setting.
     effort: String,
+    text_tools: bool,
+}
+
+fn routes_secours(config: &EssaimConfig) -> Vec<crate::config::ProfilSecours> {
+    let mut routes = config.fallback_profiles.clone();
+    routes.extend(
+        config
+            .fallback_models
+            .iter()
+            .map(|model| crate::config::ProfilSecours {
+                provider: config.provider.clone(),
+                model: model.clone(),
+                api_key: config.api_key.clone(),
+                api_base: config.api_base.clone(),
+                ollama_url: Some(config.ollama_url.clone()),
+                context_max_tokens: config.context_max_tokens,
+                text_tools: protocole_texte_pour(config),
+            }),
+    );
+    routes.truncate(8);
+    routes
+}
+
+#[async_trait]
+impl but::Fournisseur for FournisseurPont {
+    async fn repondre(
+        &self,
+        messages: &[but::Message],
+        schemas: &[serde_json::Value],
+    ) -> std::result::Result<but::ReponseModele, but::ErreurFournisseur> {
+        use std::sync::atomic::Ordering::Relaxed;
+        let first = self.route_active.load(Relaxed).min(self.routes.len());
+        let mut last = None;
+        for index in first..=self.routes.len() {
+            let mut candidate = self.clone();
+            if index > 0 {
+                let route = &self.routes[index - 1];
+                candidate.provider = route.provider.clone();
+                candidate.model = route.model.clone();
+                candidate.api_key = route.api_key.clone();
+                candidate.api_base = route.api_base.clone();
+                if let Some(url) = &route.ollama_url {
+                    candidate.ollama_url = url.clone();
+                }
+                candidate.context_tokens = route.context_max_tokens;
+                candidate.text_tools = route.text_tools;
+            }
+            // Fallbacks may have smaller windows: never silently discard protected context.
+            let chars = messages.iter().map(|m| m.cout_chars()).sum::<usize>()
+                + schemas.iter().map(|s| s.to_string().len()).sum::<usize>();
+            if chars / 4 + candidate.max_tokens as usize > candidate.context_tokens as usize {
+                last = Some(but::ErreurFournisseur {
+                    status: 400,
+                    retry_after: None,
+                    corps: "context window exceeded for fallback profile".into(),
+                });
+                continue;
+            }
+            let mut clean = messages.to_vec();
+            for msg in &mut clean {
+                if msg.reasoning_model.as_deref() != Some(candidate.model.as_str()) {
+                    msg.reasoning = None;
+                    msg.reasoning_model = None;
+                }
+            }
+            let result = candidate.repondre_unique(&clean, schemas).await;
+            match result {
+                Ok(response) => {
+                    if index != first {
+                        let _ = self.tx.send(ChatEvent::Status {
+                            message: format!(
+                                "Provider fallback active: {} / {}",
+                                candidate.provider, candidate.model
+                            ),
+                        });
+                    }
+                    self.route_active.store(index, Relaxed);
+                    return Ok(response);
+                }
+                Err(e) if matches!(e.status, 0 | 401 | 403 | 408 | 429 | 500..=599) => {
+                    last = Some(e);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Err(last.unwrap_or(but::ErreurFournisseur {
+            status: 503,
+            retry_after: Some("60".into()),
+            corps: "No eligible provider profile".into(),
+        }))
+    }
 }
 
 impl FournisseurPont {
@@ -97,13 +192,25 @@ impl FournisseurPont {
                 return crate::secrets::substituer(&k);
             }
         }
+        if let Some(pool) = &self.credential_pool {
+            let pool = pool.read().await;
+            if pool.entries.iter().any(|e| {
+                e.provider == self.provider
+                    && (e.invalid
+                        || e.cooldown_until
+                            .is_some_and(|t| t > chrono::Utc::now().timestamp()))
+                    && crate::secrets::substituer(&e.api_key)
+                        == crate::secrets::substituer(&self.api_key)
+            }) {
+                return String::new();
+            }
+        }
         crate::secrets::substituer(&self.api_key)
     }
 }
 
-#[async_trait]
-impl but::Fournisseur for FournisseurPont {
-    async fn repondre(
+impl FournisseurPont {
+    async fn repondre_unique(
         &self,
         messages: &[but::Message],
         schemas: &[serde_json::Value],
@@ -144,14 +251,13 @@ impl but::Fournisseur for FournisseurPont {
                 .map(|m| serde_json::to_string(m).map(|s| s.len()).unwrap_or(0))
                 .sum::<usize>()
                 + taille_schemas;
-            let apres = crate::images::au_budget_corps(
-                &mut msgs,
-                taille_schemas,
-                crate::images::CORPS_MAX,
-            );
+            let apres =
+                crate::images::au_budget_corps(&mut msgs, taille_schemas, crate::images::CORPS_MAX);
             if apres < avant {
                 tracing::info!(
-                    avant, apres, plafond = crate::images::CORPS_MAX,
+                    avant,
+                    apres,
+                    plafond = crate::images::CORPS_MAX,
                     "corps ramene sous le plafond de l'endpoint"
                 );
             }
@@ -165,6 +271,13 @@ impl but::Fournisseur for FournisseurPont {
         // load-balances by usage) when one is configured, otherwise the static key. The key
         // may be a `${NAME}` vault reference, so it is substituted inside choisir_cle.
         let api_key = self.choisir_cle().await;
+        if api_key.is_empty() && !self.api_key.is_empty() {
+            return Err(but::ErreurFournisseur {
+                status: 429,
+                retry_after: Some("60".into()),
+                corps: "No healthy credential available".into(),
+            });
+        }
 
         let mut stream = match crate::providers::provider_chat_stream_effort(
             &self.provider,
@@ -183,6 +296,31 @@ impl but::Fournisseur for FournisseurPont {
             Ok(s) => s,
             Err(e) => {
                 let err = classer_erreur(e);
+                if let Some(pool) = &self.credential_pool {
+                    let mut pool = pool.write().await;
+                    let key = pool
+                        .entries
+                        .iter()
+                        .find(|entry| {
+                            entry.provider == self.provider
+                                && crate::secrets::substituer(&entry.api_key) == api_key
+                        })
+                        .map(|e| e.api_key.clone());
+                    if let Some(key) = key {
+                        if matches!(err.status, 401 | 403) {
+                            pool.marquer_invalide(&self.provider, &key);
+                        }
+                        if err.status == 429 {
+                            let now = chrono::Utc::now().timestamp();
+                            let reset = err
+                                .retry_after
+                                .as_deref()
+                                .and_then(|s| s.parse::<i64>().ok())
+                                .map(|s| now + s.max(1));
+                            pool.marquer_rate_limited(&self.provider, &key, reset, now);
+                        }
+                    }
+                }
                 // Le fournisseur vient de dire qu'il ne prend pas d'image. On
                 // le retient pour ce modele, et l'erreur repart classee comme
                 // reessayable: la tentative suivante partira sans l'image, et
@@ -233,7 +371,8 @@ impl but::Fournisseur for FournisseurPont {
                 return Err(but::ErreurFournisseur {
                     status: 0,
                     retry_after: None,
-                    corps: "Provider stream interrupted before a complete response was received".into(),
+                    corps: "Provider stream interrupted before a complete response was received"
+                        .into(),
                 });
             }
             if chunk.finish_reason.is_some() {
@@ -269,6 +408,13 @@ impl but::Fournisseur for FournisseurPont {
                 });
             }
         }
+        if finish.is_none() {
+            return Err(but::ErreurFournisseur {
+                status: 0,
+                retry_after: None,
+                corps: "Provider stream ended without a terminal event".into(),
+            });
+        }
         let usage = if tok_entree > 0 || tok_sortie > 0 {
             Some(but::Usage {
                 entree: tok_entree as u32,
@@ -281,7 +427,11 @@ impl but::Fournisseur for FournisseurPont {
         // Calls: native (API) otherwise parsed from text (fallback rail for weak models).
         let mut appels: Vec<but::Appel> = match natifs {
             Some(tcs) if !tcs.is_empty() => tcs.into_iter().map(appel_depuis_toolcall).collect(),
-            _ => {
+            _ if self.text_tools
+                && ((texte.trim().starts_with("<tool_call")
+                    && texte.trim().ends_with("</tool_call>"))
+                    || serde_json::from_str::<serde_json::Value>(texte.trim()).is_ok()) =>
+            {
                 let mut tcs = parse_tool_calls(&texte);
                 if tcs.is_empty() {
                     // Second rail: raw JSON without tags (fenced ```json block, bare
@@ -290,6 +440,7 @@ impl but::Fournisseur for FournisseurPont {
                 }
                 tcs.into_iter().map(appel_depuis_toolcall).collect()
             }
+            _ => Vec::new(),
         };
 
         // stop_reason computed on the REAL calls (before injecting the synthetic plan).
@@ -535,7 +686,7 @@ fn classer_stop(finish: Option<&str>, appels: &[but::Appel]) -> but::StopReason 
         Some("length") | Some("max_tokens") => but::StopReason::Longueur,
         Some("tool_calls") | Some("tool_use") => but::StopReason::Outils,
         _ if !appels.is_empty() => but::StopReason::Outils,
-        Some("stop") | Some("end_turn") | None => but::StopReason::FinTour,
+        Some("stop") | Some("end_turn") => but::StopReason::FinTour,
         _ => but::StopReason::Autre,
     }
 }
@@ -583,6 +734,7 @@ pub(crate) fn retirer_bloc(t: &str, tag: &str) -> String {
 const OUTILS_DELEGATION: &[&str] = &["delegate", "delegate_task", "deleguer", "spawn_specialist"];
 
 struct OutilsPont<'a> {
+    run_id: Option<String>,
     registry: &'a AbeilleRegistry,
     config: &'a EssaimConfig,
     reglages: &'a but::Reglages,
@@ -699,6 +851,9 @@ impl OutilsPont<'_> {
         let (tx_prive, mut rx_prive) = tokio::sync::broadcast::channel::<ChatEvent>(64);
         tokio::spawn(async move { while rx_prive.recv().await.is_ok() {} });
         let four = FournisseurPont {
+            routes: routes_secours(self.config),
+            route_active: Arc::new(0.into()),
+            context_tokens: self.config.context_max_tokens,
             provider: self.config.provider.clone(),
             model: self.config.model.clone(),
             api_key: self.config.api_key.clone(),
@@ -711,6 +866,7 @@ impl OutilsPont<'_> {
             // Sub-agent = auxiliary effort: a scout on ONE focused angle must not
             // burn the deep-reasoning budget of the parent, times N scouts.
             effort: self.config.reasoning_effort_aux.clone(),
+            text_tools: protocole_texte_pour(self.config),
         };
         let mut disabled = self.disabled.clone();
         for d in OUTILS_DELEGATION {
@@ -724,6 +880,7 @@ impl OutilsPont<'_> {
         let numero = self.delegations.load(std::sync::atomic::Ordering::Relaxed);
         let identite = format!("{role:?}#{numero}");
         let outils_enfant = OutilsPont {
+            run_id: self.run_id.clone(),
             registry: self.registry,
             config: self.config,
             reglages: self.reglages,
@@ -831,7 +988,10 @@ impl but::Outils for OutilsPont<'_> {
             return self.deleguer(appel).await;
         }
 
-        let mut ctx = ContextExecution::default();
+        let mut ctx = ContextExecution {
+            run_id: self.run_id.clone(),
+            ..Default::default()
+        };
         if let Some(wd) = &self.working_dir {
             ctx.working_dir = wd.clone();
         }
@@ -1084,14 +1244,14 @@ impl but::Outils for OutilsPont<'_> {
     /// Éclaireuses run on ISOLATED contexts: several scouts dispatched in the same
     /// turn are safe to run concurrently (parallel fan-out, Claude Code style).
     fn concurrence_sure(&self, appel: &but::Appel) -> bool {
-        self.idempotent(&appel.nom) || OUTILS_DELEGATION.contains(&appel.nom.as_str())
+        self.idempotent(&appel.nom)
     }
 
     /// Delegation runs a whole sub-agent (up to 30 passes) and approval popups wait
     /// on a human: they must NOT be bounded by the default per-tool timeout.
     fn timeout_secs(&self, nom: &str) -> Option<u64> {
         if OUTILS_DELEGATION.contains(&nom) {
-            Some(0) // unbounded: the child has its own pass ceiling
+            Some(1800) // whole-child deadline, including auxiliary calls
         } else {
             None // Reglages::timeout_outil_secs
         }
@@ -1255,8 +1415,18 @@ fn est_lecture_seule(nom: &str) -> bool {
 /// it must never count as safe for concurrency either (`concurrence_sure`
 /// does not call this, only `idempotent_pour_vigie` does).
 const ACTIONS_NAVIGATEUR_LECTURE_SEULE: &[&str] = &[
-    "navigate", "back", "forward", "read", "find", "screenshot", "console", "network", "cookies",
-    "tabs", "wait", "resize",
+    "navigate",
+    "back",
+    "forward",
+    "read",
+    "find",
+    "screenshot",
+    "console",
+    "network",
+    "cookies",
+    "tabs",
+    "wait",
+    "resize",
 ];
 
 /// Idempotent for the vigie specifically ([`Outils::idempotent_pour_vigie`]):
@@ -1480,7 +1650,7 @@ impl but::Source for SourcePont {
         }
     }
 
-    async fn consigner(&self, node_id: &str, fait: &str) {
+    async fn consigner(&self, node_id: &str, fait: &str) -> anyhow::Result<()> {
         // Model-independent guard: consolidation must NEVER write into the domains
         // managed by the system (`system.*` = identity/behavior/capabilities, `capacities.*`
         // = skills/forged_tools/MCP). The LLM sometimes dumped its own tool list there (already in
@@ -1494,12 +1664,12 @@ impl but::Source for SourcePont {
             || n.starts_with("capabilities")
         {
             tracing::debug!(node_id = %node_id, "Consolidation: write into a reserved domain ignored");
-            return;
+            anyhow::bail!("Reserved memory domain: {node_id}");
         }
-        let _ = self
-            .mem
+        self.mem
             .write(MemoryItem::new(node_id, fait).with_source("butinage-consolidation"))
-            .await;
+            .await?;
+        Ok(())
     }
 }
 
@@ -1976,6 +2146,9 @@ pub async fn lancer_curateur_arriere_plan(
     tokio::spawn(async move { while rx_prive.recv().await.is_ok() {} });
 
     let four = FournisseurPont {
+        routes: routes_secours(&config),
+        route_active: Arc::new(0.into()),
+        context_tokens: config.context_max_tokens,
         provider: config.provider.clone(),
         // Auxiliary model if configured (small/fast, does not compete with the chat KV-cache).
         model: config
@@ -1990,6 +2163,7 @@ pub async fn lancer_curateur_arriere_plan(
         tx: tx_prive.clone(),
         credential_pool: config.credential_pool.clone(),
         effort: config.reasoning_effort_aux.clone(), // background reviewer
+        text_tools: protocole_texte_pour(&config),
     };
     let emet = EmetteurPont::parent(tx_prive.clone());
     let outils = OutilsCurateur {
@@ -2320,13 +2494,9 @@ mod tests_image_outil {
             Message::utilisateur_multimodal("[1 image(s) rendue(s) par browser.]", vec![capture()]),
         ];
         let out = convertir_messages(&msgs);
-        let n = out
-            .iter()
-            .filter(|m| image_du_message(m).is_some())
-            .count();
+        let n = out.iter().filter(|m| image_du_message(m).is_some()).count();
         assert_eq!(n, 1, "exactement un message doit porter l'image: {out:#?}");
     }
-
 }
 
 #[cfg(test)]
@@ -2449,12 +2619,18 @@ mod tests_profil_pour {
     fn un_nom_inconnu_est_traite_comme_robuste_sans_override() {
         // The real incident: a custom local build the name guesser has never
         // heard of is trusted like a frontier model, by default.
-        assert_eq!(profil_pour(&cfg("openai", "ornith-9b", false)), but::ProfilModele::Robuste);
+        assert_eq!(
+            profil_pour(&cfg("openai", "ornith-9b", false)),
+            but::ProfilModele::Robuste
+        );
     }
 
     #[test]
     fn l_override_explicite_gagne_meme_sur_un_nom_inconnu() {
-        assert_eq!(profil_pour(&cfg("openai", "ornith-9b", true)), but::ProfilModele::Fragile);
+        assert_eq!(
+            profil_pour(&cfg("openai", "ornith-9b", true)),
+            but::ProfilModele::Fragile
+        );
     }
 
     #[test]
@@ -2463,12 +2639,18 @@ mod tests_profil_pour {
         // practice), but the override must still be unconditional: it is an
         // explicit statement from the user, not a second guess to weigh
         // against the provider's own signal.
-        assert_eq!(profil_pour(&cfg("anthropic", "claude", true)), but::ProfilModele::Fragile);
+        assert_eq!(
+            profil_pour(&cfg("anthropic", "claude", true)),
+            but::ProfilModele::Fragile
+        );
     }
 
     #[test]
     fn le_nom_connu_reste_fragile_sans_override() {
-        assert_eq!(profil_pour(&cfg("ollama", "gemma3:2b", false)), but::ProfilModele::Fragile);
+        assert_eq!(
+            profil_pour(&cfg("ollama", "gemma3:2b", false)),
+            but::ProfilModele::Fragile
+        );
     }
 }
 
@@ -2752,13 +2934,17 @@ pub async fn executer_avec_bilan(
         None => None,
     };
     let reglages = but::Reglages {
+        budget_tokens: config.mission_budget_tokens,
+        reserve_sortie: (config.max_tokens as usize)
+            .max(1024)
+            .min(config.context_max_tokens as usize / 2),
         plafond_passes: config.max_iterations.max(1),
-        context_max_tokens: (config.context_max_tokens as usize).max(8_000),
+        context_max_tokens: (config.context_max_tokens as usize).max(256),
         // Le plafond des observations suit la fenetre du modele au lieu d'etre
         // fige: c'est ce qui evite de lire un fichier en cinq morceaux sur un
         // modele qui pourrait l'avaler d'un coup.
         max_chars_observation: but::plafond_observation(
-            (config.context_max_tokens as usize).max(8_000),
+            (config.context_max_tokens as usize).max(256),
         ),
         chemin_carnet: chemin_carnet.clone(),
         systeme,
@@ -2784,6 +2970,11 @@ pub async fn executer_avec_bilan(
     });
 
     let mut carnet = but::Carnet::ouvrir(prompt_utilisateur, mode, chrono::Utc::now());
+    carnet.controle.working_dir = session
+        .working_dir
+        .clone()
+        .or_else(|| std::env::current_dir().ok())
+        .map(|p| p.to_string_lossy().into_owned());
     // Conversational memory: re-inject the session's previous turns BEFORE the
     // current message. Without this, the engine opened a blank notebook: amnesia on every message
     // (blatant on Telegram: it "forgets" the previous question). `nb_prelude` = number of
@@ -2813,6 +3004,9 @@ pub async fn executer_avec_bilan(
     ));
 
     let four = FournisseurPont {
+        routes: routes_secours(&config),
+        route_active: Arc::new(0.into()),
+        context_tokens: config.context_max_tokens,
         provider: config.provider.clone(),
         model: config.model.clone(),
         api_key: config.api_key.clone(),
@@ -2823,11 +3017,13 @@ pub async fn executer_avec_bilan(
         tx: tx.clone(),
         credential_pool: config.credential_pool.clone(),
         effort: config.reasoning_effort.clone(),
+        text_tools: protocole_texte_pour(&config),
     };
     // Approval channel (UI popup) shared with the tools via Mutex (sequential mutating
     // execution: no contention). `None` => Ask tools executed without confirmation.
     let approval_mx = approval_rx.map(tokio::sync::Mutex::new);
     let outils = OutilsPont {
+        run_id: Some(session.id.to_string()),
         registry,
         config,
         reglages: &reglages,
@@ -3002,28 +3198,28 @@ pub async fn executer_avec_bilan(
                 .collect::<Vec<_>>()
                 .join("_");
             // Le markdown de la reponse SURVIT.
-             //
-             // Il etait ecrase par un `split_whitespace().join(" ")`, et l'episode
-             // arrivait dans la memoire en un pave illisible. Le meme geste se
-             // retrouvait a l'ecriture du flux et a l'export OKF: partout ou une
-             // reponse d'agent etait conservee, sa structure etait detruite en
-             // chemin. C'est d'autant plus dommage qu'OKF, le format d'echange que
-             // la memoire sait exporter, EST du markdown: on aplatissait a
-             // l'ecriture ce qu'on pretendait faire voyager.
-             let extrait = couper_proprement(bilan.texte.trim(), 400);
+            //
+            // Il etait ecrase par un `split_whitespace().join(" ")`, et l'episode
+            // arrivait dans la memoire en un pave illisible. Le meme geste se
+            // retrouvait a l'ecriture du flux et a l'export OKF: partout ou une
+            // reponse d'agent etait conservee, sa structure etait detruite en
+            // chemin. C'est d'autant plus dommage qu'OKF, le format d'echange que
+            // la memoire sait exporter, EST du markdown: on aplatissait a
+            // l'ecriture ce qu'on pretendait faire voyager.
+            let extrait = couper_proprement(bilan.texte.trim(), 400);
             // Only what a FUTURE turn can act on. The pass count, the web-call count
             // and the session uuid were carried on every recalled episode and none of
             // them is actionable: the model cannot look a session up by id, and the
             // counters describe how the answer was produced, not what it said.
             // La PREMIERE ligne garde sa forme en pipes, et ce n'est pas de la
-             // nostalgie: elle sert de cle de deduplication au rappel
-             // (`cle_episode` lit ce qui suit `Mission: ` jusqu'au premier ` | `).
-             // Le resultat, lui, passe en dessous, ou il peut enfin etre du markdown.
-             let contenu = format!(
-                 "Mission: {} | outcome: {}\n\n{extrait}",
-                 couper_proprement(prompt_utilisateur, 200),
-                 fin_str(&bilan.fin),
-             );
+            // nostalgie: elle sert de cle de deduplication au rappel
+            // (`cle_episode` lit ce qui suit `Mission: ` jusqu'au premier ` | `).
+            // Le resultat, lui, passe en dessous, ou il peut enfin etre du markdown.
+            let contenu = format!(
+                "Mission: {} | outcome: {}\n\n{extrait}",
+                couper_proprement(prompt_utilisateur, 200),
+                fin_str(&bilan.fin),
+            );
             let item = laruche_memoire::MemoryItem::new(
                 format!(
                     "episodes.{date}.{}",
@@ -3084,9 +3280,12 @@ pub async fn reprendre_carnet(
     config: &EssaimConfig,
     tx: &broadcast::Sender<ChatEvent>,
     memoire: &Option<Arc<dyn MemoireCognitive>>,
-) -> Result<String> {
-    let raw = std::fs::read_to_string(chemin)?;
-    let mut carnet: but::Carnet = serde_json::from_str(&raw)?;
+) -> Result<but::Bilan> {
+    let _admission = but::cycle::BailMission::acquerir(&chemin.with_file_name(format!(
+        "{}.resume",
+        chemin.file_name().unwrap_or_default().to_string_lossy()
+    )))?;
+    let mut carnet = but::Carnet::charger(chemin)?;
 
     // Same "small model" guard as executer: dynamic selection if narrow context.
     let cfg_local;
@@ -3131,13 +3330,17 @@ pub async fn reprendre_carnet(
         None => None,
     };
     let reglages = but::Reglages {
-        plafond_passes: config.max_iterations.max(1),
-        context_max_tokens: (config.context_max_tokens as usize).max(8_000),
+        budget_tokens: config.mission_budget_tokens,
+        reserve_sortie: (config.max_tokens as usize)
+            .max(1024)
+            .min(config.context_max_tokens as usize / 2),
+        plafond_passes: carnet.passe.saturating_add(config.max_iterations.max(1)),
+        context_max_tokens: (config.context_max_tokens as usize).max(256),
         // Le plafond des observations suit la fenetre du modele au lieu d'etre
         // fige: c'est ce qui evite de lire un fichier en cinq morceaux sur un
         // modele qui pourrait l'avaler d'un coup.
         max_chars_observation: but::plafond_observation(
-            (config.context_max_tokens as usize).max(8_000),
+            (config.context_max_tokens as usize).max(256),
         ),
         chemin_carnet: Some(chemin.to_path_buf()),
         systeme,
@@ -3149,6 +3352,9 @@ pub async fn reprendre_carnet(
         ..but::Reglages::default()
     };
     let four = FournisseurPont {
+        routes: routes_secours(&config),
+        route_active: Arc::new(0.into()),
+        context_tokens: config.context_max_tokens,
         provider: config.provider.clone(),
         model: config.model.clone(),
         api_key: config.api_key.clone(),
@@ -3159,12 +3365,14 @@ pub async fn reprendre_carnet(
         tx: tx.clone(),
         credential_pool: config.credential_pool.clone(),
         effort: config.reasoning_effort.clone(),
+        text_tools: protocole_texte_pour(&config),
     };
     let outils = OutilsPont {
+        run_id: Some(carnet.id.clone()),
         registry,
         config,
         reglages: &reglages,
-        working_dir: None,
+        working_dir: carnet.controle.working_dir.as_ref().map(PathBuf::from),
         disabled: config.disabled_tools.clone(),
         tx: tx.clone(),
         approval: None,
@@ -3208,7 +3416,7 @@ pub async fn reprendre_carnet(
     let _ = tx.send(ChatEvent::Done {
         full_response: bilan.texte.clone(),
     });
-    Ok(bilan.texte)
+    Ok(bilan)
 }
 
 #[cfg(test)]
@@ -3499,7 +3707,10 @@ mod tests_rappel {
         assert_eq!(out.matches("Chasse au firmware").count(), 1, "titre");
         assert!(!out.contains("DOUBLON"), "le corps du doublon part aussi");
         assert!(out.contains("- GitHub: rien"), "le corps du premier survi");
-        assert!(out.contains("Un corps a garder"), "l'episode suivant est intact");
+        assert!(
+            out.contains("Un corps a garder"),
+            "l'episode suivant est intact"
+        );
     }
 
     #[test]

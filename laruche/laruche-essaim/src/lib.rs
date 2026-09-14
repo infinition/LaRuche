@@ -39,8 +39,8 @@ pub mod evenements;
 pub mod fatigue;
 pub mod feed_journal;
 pub mod hooks;
-pub mod images;
 pub mod i18n;
+pub mod images;
 pub mod job_queue;
 pub mod mcp_client;
 pub mod memoire_hotes;
@@ -85,3 +85,6 @@ pub use subagent::{
     cascade_providers, config_agent_specialise, config_sous_agent, dispatcher_pertinent,
     lancer_sous_agent, AgentRole, ProviderConfig, SubagentResult,
 };
+
+/// Durable runtime contracts shared with the node scheduler.
+pub use laruche_butinage as butinage;

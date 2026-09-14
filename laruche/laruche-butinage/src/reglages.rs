@@ -39,6 +39,9 @@ impl ProfilModele {
 /// Settings of a butinage.
 #[derive(Debug, Clone)]
 pub struct Reglages {
+    pub budget_partage: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// Space reserved for the next model output.
+    pub reserve_sortie: usize,
     /// Hard ceiling on passes (absolute anti-runaway).
     pub plafond_passes: usize,
     /// Hard bound on sterile relances (weak-model rails: truncation, malformed tool,
@@ -132,7 +135,7 @@ pub struct Reglages {
 /// entiere en une observation.
 pub fn plafond_observation(context_max_tokens: usize) -> usize {
     const CHARS_PAR_TOKEN: usize = 4;
-    const PLANCHER: usize = 24_000;
+    const PLANCHER: usize = 256;
     const PLAFOND: usize = 400_000;
     (context_max_tokens / 4 * CHARS_PAR_TOKEN).clamp(PLANCHER, PLAFOND)
 }
@@ -140,6 +143,8 @@ pub fn plafond_observation(context_max_tokens: usize) -> usize {
 impl Default for Reglages {
     fn default() -> Self {
         Self {
+            budget_partage: std::sync::Arc::new(0.into()),
+            reserve_sortie: 1024,
             plafond_passes: 100,
             relance_max: 3,
             min_web_exploration: 12,
@@ -193,20 +198,18 @@ mod tests_plafond {
         assert_eq!(plafond_observation(128_000), 128_000);
         assert_eq!(plafond_observation(256_000), 256_000);
 
-        // Le plancher protege un modele mal declare: sans lui, une fenetre
-        // annoncee a mille jetons rendait les lectures inutilisables.
-        assert_eq!(plafond_observation(1_000), 24_000);
-        assert_eq!(plafond_observation(0), 24_000);
+        // Les petites fenetres ne doivent pas recevoir une observation de 24k caracteres.
+        assert_eq!(plafond_observation(1_000), 1_000);
+        assert_eq!(plafond_observation(0), 256);
 
         // Le plafond empeche une seule observation d'avaler la conversation, ce
         // qui declencherait une compaction plus couteuse que les allers-retours
         // qu'on voulait eviter.
         assert_eq!(plafond_observation(2_000_000), 400_000);
 
-        // Et il ne descend jamais sous l'ancienne constante: personne ne doit
-        // se retrouver avec MOINS qu'avant ce changement.
+        // Une observation reste bornee par la fenetre declaree.
         for fenetre in [8_000, 32_000, 128_000, 1_000_000] {
-            assert!(plafond_observation(fenetre) >= 24_000, "fenetre {fenetre}");
+            assert!(plafond_observation(fenetre) <= fenetre, "fenetre {fenetre}");
         }
     }
 }

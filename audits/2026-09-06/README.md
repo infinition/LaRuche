@@ -1,4 +1,4 @@
-# Audit du harness agentique de LaRuche — 6 septembre 2026
+# Audit du harness agentique de LaRuche - 6 septembre 2026
 
 LaRuche dispose d'une base exploitable : moteur ReAct séparé des adaptateurs, décisions testables, outils abstraits, contrôle des répétitions, mémoire et checkpoints. Mon avis est de conserver cette base et de renforcer ses contrats. Les principales failles se trouvent entre les composants : une propriété testée dans le moteur n'est pas forcément préservée par son adaptateur ou par le chemin de reprise.
 
@@ -34,7 +34,7 @@ Ce projet a son propre lockfile. Les cinq reproductions initiales ont toutes ré
 | `witness_compaction_keeps_old_question_and_loses_current_mission` | La compaction extractive conserve une ancienne question et supprime la demande courante du transcript. |
 | `witness_abort_then_resume_repeats_completed_side_effect` | Interrompre après un effet et avant le checkpoint, puis reprendre, produit l'effet une deuxième fois. |
 
-## 1. P1 — Ne plus confondre fin de tour et mission accomplie
+## 1. P1 - Ne plus confondre fin de tour et mission accomplie
 
 **Constat démontré.** [boussole.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-butinage/src/cap/boussole.rs:165>) ignore le plan inachevé pour terminer un tour textuel. Après épuisement des relances, même une réponse vide ou malformée peut rejoindre `Accomplie`. [cycle.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-butinage/src/cycle.rs:381>) appelle ensuite `itineraire.finaliser()`, qui transforme les étapes ouvertes en `NonApplicable`.
 
@@ -46,7 +46,7 @@ Pour une mission longue, définir des critères de succès : livrable présent, 
 
 Ne pas simplement relancer à l'infini tant que le plan est ouvert : prévoir un nombre borné de tentatives de récupération, puis conserver un état bloqué ou partiel fidèle.
 
-## 2. P1 — Le checkpoint de tour ne protège pas les effets des outils
+## 2. P1 - Le checkpoint de tour ne protège pas les effets des outils
 
 **Constat démontré.** Les outils s'exécutent dans [recolte.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-butinage/src/recolte.rs:178>), puis le checkpoint arrive en fin de passe dans [cycle.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-butinage/src/cycle.rs:450>). Un arrêt entre ces deux moments perd la connaissance de l'effet déjà appliqué. La déduplication intra-passe ne couvre pas une nouvelle exécution après reprise.
 
@@ -58,9 +58,9 @@ Le journal seul ne garantit pas « exactement une fois » pour une API distante.
 
 Les échecs de checkpoint sont actuellement seulement journalisés. Pour une mission promettant une reprise durable, une panne de stockage doit devenir visible et empêcher l'accumulation de nouvelles mutations non enregistrées.
 
-## 3. P1 — Les erreurs en cours de streaming n'atteignent pas correctement les retries
+## 3. P1 - Les erreurs en cours de streaming n'atteignent pas correctement les retries
 
-**Constat de code.** Les transports retournent `Stream<Item = OllamaChunk>`, sans variante d'erreur dans le flux. Les branches d'erreur réseau de [providers.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/providers.rs:1419>) — également Anthropic vers 1791 et Codex vers 2001 — écrivent un log puis quittent la tâche de lecture. Le pont finit alors son accumulation et peut retourner `Ok(ReponseModele)` ; un `finish_reason` absent peut devenir `FinTour` dans [classer_stop](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/butinage_pont.rs:526>).
+**Constat de code.** Les transports retournent `Stream<Item = OllamaChunk>`, sans variante d'erreur dans le flux. Les branches d'erreur réseau de [providers.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/providers.rs:1419>) - également Anthropic vers 1791 et Codex vers 2001 - écrivent un log puis quittent la tâche de lecture. Le pont finit alors son accumulation et peut retourner `Ok(ReponseModele)` ; un `finish_reason` absent peut devenir `FinTour` dans [classer_stop](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/butinage_pont.rs:526>).
 
 Il existe des protections pour certains EOF propres sans événement terminal. Elles ne couvrent pas toutes les erreurs de lecture. Une réponse partielle peut donc être traitée comme une réponse achevée.
 
@@ -70,7 +70,7 @@ Le chemin [Ollama](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/
 
 Les tâches de lecture démarrées avec `tokio::spawn` doivent aussi avoir une durée de vie rattachée à l'appel : abandonner le consommateur ne suffit pas à arrêter immédiatement une tâche bloquée sur le réseau.
 
-## 4. P1 — La compaction contourne les protections de l'appel principal
+## 4. P1 - La compaction contourne les protections de l'appel principal
 
 **Constat démontré.** [escale.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-butinage/src/escale.rs:90>) appelle directement `fournisseur.repondre(...).await` ; la consolidation fait de même vers 223. Ces appels ne passent pas par le wrapper de retry, timeout et annulation de `cycle.rs`.
 
@@ -82,7 +82,7 @@ Pour un modèle local lent, séparer délai de démarrage, délai sans activité
 
 La sémantique de `tokio::time::timeout` porte sur la future annulée ; elle ne constitue pas une transaction annulant les effets externes déjà produits. Voir la [documentation Tokio](https://docs.rs/tokio/latest/tokio/time/fn.timeout.html). Le message d'un timeout d'outil devrait donc pouvoir dire « résultat inconnu », plutôt qu'affirmer systématiquement que l'opération a été annulée.
 
-## 5. P1 — L'ancre de contexte peut être la mauvaise mission
+## 5. P1 - L'ancre de contexte peut être la mauvaise mission
 
 **Constat démontré pour le repli extractif.** Le pont réinjecte l'historique de session avant la demande courante dans [butinage_pont.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/butinage_pont.rs:2773>). La compaction choisit le *premier* message utilisateur comme ancre ; la troncature protège le début de l'historique. Ce premier message peut concerner une ancienne demande.
 
@@ -94,7 +94,7 @@ La compaction devrait proposer un nouvel état puis le valider avant de remplace
 
 Le ledger de découvertes constitue un bon début, mais ses 40 entrées FIFO de 400 caractères peuvent perdre des faits anciens et tronquer une URL. Stocker fait, source, preuve et importance dans des champs distincts ; sélectionner un sous-ensemble pour le prompt sans supprimer l'archive.
 
-## 6. P1 — Le failover annoncé n'est pas branché sur la boucle principale
+## 6. P1 - Le failover annoncé n'est pas branché sur la boucle principale
 
 **Constat de code.** `fallback_models` est configurable, mais le fournisseur du pont reste un couple provider/modèle fixe. [appeler_modele](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-butinage/src/cycle.rs:734>) passe `false` pour rotation et déroutement, avec un commentaire supposant leur prise en charge par l'adaptateur.
 
@@ -106,7 +106,7 @@ Le transport compatible OpenAI renvoie aussi `retry_after: None` dans son erreur
 
 Réessayer une erreur transitoire avec délai borné et jitter ; respecter les indications de reprise ; réparer un dépassement de contexte ; traiter les paramètres incompatibles une fois ; ne pas répéter une erreur déterministe identique. Lors d'un changement de fournisseur, reconstruire les messages selon son protocole et son identité de modèle.
 
-## 7. P1 — Le parsing tolérant peut transformer du texte explicatif en action
+## 7. P1 - Le parsing tolérant peut transformer du texte explicatif en action
 
 **Constat de code.** [butinage_pont.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/butinage_pont.rs:274>) essaie les tool calls textuels dès qu'aucun appel natif n'est présent, sans conditionner ce repli au profil natif. [parsing.rs](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/parsing.rs:201>) recherche même des objets JSON à l'intérieur de la prose.
 
@@ -116,7 +116,7 @@ Un modèle expliquant un exemple `{"name":"file_write","arguments":...}` peut do
 
 Le parseur brut possède aussi un comptage d'accolades non conscient des chaînes, et une déduplication par nom d'outil qui peut supprimer deux appels légitimes aux arguments différents. Réutiliser un parseur JSON réel et dédupliquer selon une identité d'opération adaptée.
 
-## 8. P2 — La validation JSON Schema est partielle
+## 8. P2 - La validation JSON Schema est partielle
 
 **Constat de code.** [valider_et_normaliser_args](</C:/DEV/coding/Github/laruche-v2/laruche/laruche-essaim/src/abeille.rs:481>) normalise certaines valeurs puis vérifie les propriétés requises et les types de premier niveau. Ce n'est pas une validation récursive : `enum`, bornes, contraintes des éléments de tableaux, objets imbriqués ou unions ne sont pas garantis par cette fonction. Des outils peuvent ajouter leurs propres contrôles, mais le contrat commun ne les assure pas.
 
@@ -124,9 +124,9 @@ Les commandes interceptées par `analyser`, comme `mission_accomplie`, ont encor
 
 **Correction :** normalisation syntaxique limitée puis validation récursive avec un dialecte de schéma défini et testé. Renvoyer un diagnostic court, précis et exploitable : chemin de propriété, valeur reçue, type attendu. Ne pas inventer un argument métier manquant. Faire valider les commandes de contrôle par un contrat équivalent.
 
-## 9. P2 — Le budget ne couvre pas l'ensemble du travail
+## 9. P2 - Le budget ne couvre pas l'ensemble du travail
 
-**Constat de code.** La jauge inclut les schémas, ce qui est bien. Mais la troncature dure ne les reçoit pas, et le bloc final assemblé — découvertes, contexte volatil, nouvelles capacités — n'est pas entièrement compté avant envoi. La réservation de sortie n'est pas exprimée dans cette décision.
+**Constat de code.** La jauge inclut les schémas, ce qui est bien. Mais la troncature dure ne les reçoit pas, et le bloc final assemblé - découvertes, contexte volatil, nouvelles capacités - n'est pas entièrement compté avant envoi. La réservation de sortie n'est pas exprimée dans cette décision.
 
 Le pont principal laisse `budget_tokens` à sa valeur par défaut, zéro. Les appels auxiliaires ne l'alimentent pas. Les enfants héritent de paramètres, mais leurs dépenses ne sont pas débitées d'une enveloppe partagée avec le parent.
 
@@ -134,7 +134,7 @@ Pour une fenêtre de 8 000 tokens, le plancher d'observation de 24 000 caractèr
 
 **Correction :** budgéter la requête finale complète, réserver la sortie et une marge, puis plafonner chaque observation selon la place réellement disponible. Utiliser le tokenizer ou l'estimation fournie par le backend lorsqu'elle est disponible. Partager un budget de mission incluant enfants, retries, compaction et supervision ; débiter chaque tentative et conserver les coûts inconnus comme estimés.
 
-## 10. P1/P2 — La reprise applicative ne restitue pas encore tout l'état
+## 10. P1/P2 - La reprise applicative ne restitue pas encore tout l'état
 
 **Constats de code complémentaires :**
 

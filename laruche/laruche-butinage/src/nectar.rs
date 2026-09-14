@@ -14,5 +14,5 @@ pub trait Source: Send + Sync {
     async fn rappeler(&self, requete: &str) -> Option<String>;
 
     /// Records a durable fact under a dotted node identifier (`domaine.sujet`).
-    async fn consigner(&self, node_id: &str, fait: &str);
+    async fn consigner(&self, node_id: &str, fait: &str) -> anyhow::Result<()>;
 }

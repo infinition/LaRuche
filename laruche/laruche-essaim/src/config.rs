@@ -4,9 +4,30 @@
 use laruche_permissions::{PermissionMode, PermissionRule};
 use serde::{Deserialize, Serialize};
 
+/// Explicitly authorized fallback destination. Credentials may reference the vault.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfilSecours {
+    pub provider: String,
+    pub model: String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default)]
+    pub api_base: Option<String>,
+    #[serde(default)]
+    pub ollama_url: Option<String>,
+    pub context_max_tokens: u32,
+    #[serde(default)]
+    pub text_tools: bool,
+}
+
 /// Configuration for the Essaim agent engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EssaimConfig {
+    #[serde(default)]
+    pub fallback_profiles: Vec<ProfilSecours>,
+    /// Total input/output token envelope for one mission; zero is explicitly unlimited.
+    #[serde(default)]
+    pub mission_budget_tokens: u64,
     /// Ollama API URL (default: http://127.0.0.1:11434)
     pub ollama_url: String,
     /// Default model for inference
@@ -278,6 +299,8 @@ impl Default for EssaimConfig {
             model: "gemma4:e4b".to_string(),
             modele_faible: false,
             fallback_models: vec![],
+            fallback_profiles: vec![],
+            mission_budget_tokens: 0,
             max_iterations: 100,
             temperature: 0.7,
             max_tokens: 0, // 0 = no limit (natural model stop)
@@ -357,8 +380,7 @@ pub fn definir_halo(actif: bool) {
 /// au demarrage, a partir de la meme regle que le plafond des observations,
 /// sinon un `file_read` plus genereux serait de toute facon rabote en aval et
 /// personne ne comprendrait pourquoi.
-static BUDGET_LECTURE: std::sync::atomic::AtomicUsize =
-    std::sync::atomic::AtomicUsize::new(24_000);
+static BUDGET_LECTURE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(24_000);
 
 /// Le bureau de l'agent: la ou ses outils travaillent par defaut.
 ///

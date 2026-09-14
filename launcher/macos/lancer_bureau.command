@@ -63,7 +63,7 @@ fi
 # Pour ouvrir une ruche distante sans démarrer de nœud local :
 # export LARUCHE_URL=http://192.168.1.20:8419
 
-printf '\n=== LARUCHE — APPLICATION DE BUREAU ===\nFoyer : %s\n' "$foyer"
+printf '\n=== LARUCHE - APPLICATION DE BUREAU ===\nFoyer : %s\n' "$foyer"
 echo "=== Build du nœud et de la coque (le premier lancement peut être long) ==="
 cargo build --release
 

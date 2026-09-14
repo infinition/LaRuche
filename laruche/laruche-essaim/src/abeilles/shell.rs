@@ -155,7 +155,7 @@ impl Abeille for ShellExec {
         // Both direct and Docker processes stream their output to the chat as they run.
         let use_docker = std::env::var("ESSAIM_SANDBOX_DOCKER").unwrap_or_default() == "1"
             && which::which("docker").is_ok();
-        let (mut process, timeout_secs) = if use_docker {
+        let (mut process, default_timeout) = if use_docker {
             tracing::info!(command = %command, "Executing in Docker sandbox");
             let mut process = Command::new("docker");
             process.args([
@@ -187,6 +187,10 @@ impl Abeille for ShellExec {
             process.current_dir(&ctx.working_dir);
             (process, 300)
         };
+        let timeout_secs = args["timeout_secs"]
+            .as_u64()
+            .unwrap_or(default_timeout)
+            .clamp(1, 3600);
         process
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

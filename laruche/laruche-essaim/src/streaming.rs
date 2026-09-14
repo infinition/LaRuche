@@ -7,7 +7,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::brain::ToolCall;
 
 /// A single chunk from Ollama's streaming response.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OllamaChunk {
     pub text: String,
     pub done: bool,
@@ -96,35 +96,20 @@ pub async fn ollama_chat_stream(
         .send()
         .await?;
 
-    // If chat endpoint fails, fallback to /api/generate (without tools)
     if !response.status().is_success() {
-        if tools.is_some() {
-            // Retry without tools for older models
-            let mut fallback_body = chat_body.clone();
-            fallback_body.as_object_mut().map(|obj| obj.remove("tools"));
-            response = client
-                .post(format!("{}/api/chat", ollama_url))
-                .json(&fallback_body)
-                .send()
-                .await?;
+        let status = response.status().as_u16();
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        let body = response.text().await.unwrap_or_default();
+        return Err(crate::providers::ProviderError {
+            status,
+            retry_after,
+            body,
         }
-        if !response.status().is_success() {
-            // Final fallback to generate
-            let generate_body = serde_json::json!({
-                "model": model,
-                "prompt": messages.iter()
-                    .filter_map(|m| m["content"].as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                "stream": true,
-                "options": options,
-            });
-            response = client
-                .post(format!("{}/api/generate", ollama_url))
-                .json(&generate_body)
-                .send()
-                .await?;
-        }
+        .into());
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
@@ -136,7 +121,7 @@ pub async fn ollama_chat_stream(
         // multibyte chars split at a chunk boundary.
         let mut buf: Vec<u8> = Vec::new();
         loop {
-            match response.chunk().await {
+            match tokio::select! { _ = tx.closed() => return, chunk = response.chunk() => chunk } {
                 Ok(Some(bytes)) => {
                     buf.extend_from_slice(&bytes);
                     while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
@@ -232,6 +217,13 @@ pub async fn ollama_chat_stream(
                 Ok(None) => break,
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading Ollama stream");
+                    let _ = tx
+                        .send(OllamaChunk {
+                            finish_reason: Some("stream_error".into()),
+                            done: true,
+                            ..Default::default()
+                        })
+                        .await;
                     break;
                 }
             }

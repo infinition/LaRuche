@@ -125,6 +125,7 @@ impl ResultatAbeille {
 /// Execution context passed to each Abeille: contains sandbox limits and config.
 #[derive(Debug, Clone)]
 pub struct ContextExecution {
+    pub run_id: Option<String>,
     /// Allowed base directories for file operations
     pub allowed_dirs: Vec<PathBuf>,
     /// Allowed shell commands (if empty, all are blocked)
@@ -148,6 +149,7 @@ pub struct ContextExecution {
 impl Default for ContextExecution {
     fn default() -> Self {
         Self {
+            run_id: None,
             allowed_dirs: vec![],
             shell_allowlist: vec![],
             disabled_tools: vec![],
@@ -589,7 +591,31 @@ pub fn valider_et_normaliser_args(
             }
         }
     }
-    Ok(())
+    // Compile locally: network and filesystem reference resolvers are disabled.
+    static VALIDATORS: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<jsonschema::Validator>>>,
+    > = std::sync::OnceLock::new();
+    let key = schema.to_string();
+    let cache = VALIDATORS.get_or_init(Default::default);
+    let validator = {
+        let mut cache = cache.lock().map_err(|_| "Schema cache unavailable")?;
+        if let Some(v) = cache.get(&key) {
+            v.clone()
+        } else {
+            let v = std::sync::Arc::new(
+                jsonschema::validator_for(schema)
+                    .map_err(|e| format!("Invalid tool schema: {e}"))?,
+            );
+            if cache.len() >= 128 {
+                cache.clear();
+            }
+            cache.insert(key, v.clone());
+            v
+        }
+    };
+    validator
+        .validate(args)
+        .map_err(|e| format!("{}: {}", e.instance_path(), e.masked()))
 }
 
 #[cfg(test)]
@@ -821,4 +847,26 @@ fn custom_origin_deserializes_as_forged_for_compatibility() {
     let origin: ToolOrigin = serde_json::from_str("\"custom\"").unwrap();
     assert_eq!(origin, ToolOrigin::Forged);
     assert_eq!(serde_json::to_string(&origin).unwrap(), "\"forged\"");
+}
+
+#[cfg(test)]
+mod recursive_schema_tests {
+    use super::valider_et_normaliser_args;
+    use serde_json::json;
+    #[test]
+    fn nested_constraints_and_local_references_are_enforced() {
+        let schema = json!({"type":"object", "required":["payload"],
+            "$defs":{"payload":{"type":"object","required":["level"],"additionalProperties":false,
+                "properties":{"level":{"type":"integer","minimum":1,"maximum":3}}}},
+            "properties":{"payload":{"$ref":"#/$defs/payload"}}});
+        for payload in [
+            json!({"level":0}),
+            json!({"level":4}),
+            json!({}),
+            json!({"level":2,"extra":true}),
+        ] {
+            assert!(valider_et_normaliser_args(&schema, &mut json!({"payload":payload})).is_err());
+        }
+        assert!(valider_et_normaliser_args(&schema, &mut json!({"payload":{"level":2}})).is_ok());
+    }
 }

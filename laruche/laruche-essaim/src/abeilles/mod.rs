@@ -1,9 +1,9 @@
 //! Built-in Abeilles (tools) for the Essaim agent.
 
 pub mod browser;
+pub mod calendrier;
 #[cfg(feature = "camera")]
 pub mod camera;
-pub mod calendrier;
 pub mod clarify;
 pub mod git;
 pub mod image_search;
@@ -42,8 +42,8 @@ pub mod mixture;
 pub mod plan_mode;
 pub mod read_extract;
 pub mod recherche_fichiers;
-pub mod reload_mcp;
 pub mod reload_forged_tools;
+pub mod reload_mcp;
 pub mod research_mode;
 pub mod run_script;
 pub mod shell;
@@ -232,6 +232,9 @@ pub fn enregistrer_delegation(
 /// Call this with an Arc<JobQueue> shared across the application.
 pub fn enregistrer_jobs(registry: &AbeilleRegistry, queue: Arc<JobQueue>) {
     registry.enregistrer(Box::new(job::SubmitJob {
+        queue: queue.clone(),
+    }));
+    registry.enregistrer(Box::new(job::CancelJob {
         queue: queue.clone(),
     }));
     registry.enregistrer(Box::new(job::CheckJobStatus { queue }));

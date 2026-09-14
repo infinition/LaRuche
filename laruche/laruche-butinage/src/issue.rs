@@ -156,10 +156,7 @@ impl Bilan {
 
     /// Did the butinage yield a real answer (vs error/ceiling)?
     pub fn est_succes(&self) -> bool {
-        matches!(
-            self.fin,
-            FinDeVol::Accomplie | FinDeVol::Clarification(_)
-        )
+        matches!(self.fin, FinDeVol::Accomplie)
     }
 }
 

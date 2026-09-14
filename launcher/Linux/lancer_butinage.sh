@@ -64,11 +64,11 @@ export LARUCHE_MEMOIRE_BACKEND=sqlite
 export LARUCHE_NO_BROWSER=1
 # export RUCHE_CURATEUR=1
 
-printf '\n=== BUTINAGE — mémoire SQLite ===\nFoyer : %s\n' "$foyer"
+printf '\n=== BUTINAGE - mémoire SQLite ===\nFoyer : %s\n' "$foyer"
 echo "=== Build de laruche-node (le premier lancement peut être long) ==="
 cargo build --release -p laruche-node
 
-echo "=== Démarrage du serveur — Ctrl+C pour arrêter ==="
+echo "=== Démarrage du serveur - Ctrl+C pour arrêter ==="
 # Attend une réponse HTTP avant d'ouvrir un seul onglet. La sonde est arrêtée
 # automatiquement si le serveur s'arrête ou si le lancement échoue.
 (

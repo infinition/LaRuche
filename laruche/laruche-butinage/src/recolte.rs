@@ -14,8 +14,8 @@
 //!   derail when the expected tool turn is missing from the context);
 //! - the cancellation flag is honored between calls.
 
-use crate::carnet::Carnet;
 use crate::cap::vigie::{Signal, Vigie};
+use crate::carnet::Carnet;
 use crate::evenement::{Emetteur, Evenement};
 use crate::issue::{Appel, Bilan, FinDeVol};
 use crate::messagerie::{Message, Piece};
@@ -63,24 +63,72 @@ pub fn partitionner(appels: &[Appel], outils: &dyn Outils) -> Vec<(bool, Vec<usi
 
 /// Executes a call bounded by the effective timeout (per-tool override, otherwise the
 /// reglages default; `0` = unbounded). A timeout becomes an observable failure.
-async fn executer_borne(outils: &dyn Outils, appel: &Appel, defaut_secs: u64) -> ResultatOutil {
+async fn executer_borne(
+    outils: &dyn Outils,
+    appel: &Appel,
+    defaut_secs: u64,
+    annulation: Option<&AtomicBool>,
+) -> ResultatOutil {
     let secs = outils.timeout_secs(&appel.nom).unwrap_or(defaut_secs);
-    if secs == 0 {
-        return outils.executer(appel).await;
+    let future = outils.executer(appel);
+    tokio::pin!(future);
+    let started = tokio::time::Instant::now();
+    loop {
+        tokio::select! {
+            result = &mut future => return result,
+            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                if annule(annulation) || (secs > 0 && started.elapsed().as_secs() >= secs) {
+                    return ResultatOutil::indetermine(format!(
+                        "Tool `{}` wait interrupted or timed out. Its external outcome is unknown; do not repeat a mutation without reconciliation.", appel.nom
+                    ));
+                }
+            }
+        }
     }
-    match tokio::time::timeout(std::time::Duration::from_secs(secs), outils.executer(appel)).await
+}
+
+async fn executer_journalise(
+    carnet: &mut Carnet,
+    reglages: &Reglages,
+    outils: &dyn Outils,
+    appel: &Appel,
+    index: usize,
+    annulation: Option<&AtomicBool>,
+) -> anyhow::Result<ResultatOutil> {
+    let key = format!("{}:{}:{index}", carnet.id, carnet.passe);
+    if let Some(previous) = carnet.controle.executions.get(&key) {
+        anyhow::ensure!(
+            previous.appel.signature() == appel.signature(),
+            "Operation identity mismatch"
+        );
+        return Ok(previous.resultat.clone().unwrap_or_else(|| ResultatOutil::indetermine(
+            format!("Operation {key} started before interruption. Reconcile externally; it will not be replayed.")
+        )));
+    }
+    let lecture = outils.idempotent(&appel.nom);
+    if !lecture
+        && carnet
+            .controle
+            .executions
+            .values()
+            .any(|e| !e.lecture && e.resultat.as_ref().is_none_or(|r| r.incertain))
     {
-        Ok(r) => r,
-        // The wait was abandoned here. That says nothing about the other side:
-        // the write may have landed, the message may have been sent. Announcing
-        // an abort invited the model to simply run the call again.
-        Err(_) => ResultatOutil::indetermine(format!(
-            "Tool `{}` did not answer within {secs}s. It was NOT cancelled and may \
-             still have taken effect: read the resulting state before retrying, and \
-             prefer a narrower scope or another tool.",
-            appel.nom
-        )),
+        return Ok(ResultatOutil::echec("An unresolved external effect blocks further mutations. Use clarify to request reconciliation."));
     }
+    carnet.controle.executions.insert(
+        key.clone(),
+        crate::mission::Execution {
+            appel: appel.clone(),
+            lecture,
+            resultat: None,
+        },
+    );
+    carnet.checkpoint(reglages)?;
+    let result = executer_borne(outils, appel, reglages.timeout_outil_secs, annulation).await;
+    carnet.controle.executions.get_mut(&key).unwrap().resultat = Some(result.clone());
+    carnet.archiver(reglages, &serde_json::json!({"event":"operation_result", "operation_id":key,"call":appel,"result":result}))?;
+    carnet.checkpoint(reglages)?;
+    Ok(result)
 }
 
 fn annule(flag: Option<&AtomicBool>) -> bool {
@@ -88,7 +136,6 @@ fn annule(flag: Option<&AtomicBool>) -> bool {
 }
 
 fn bilan_interrompu(carnet: &mut Carnet) -> Bilan {
-    carnet.itineraire.finaliser();
     Bilan::nouveau(
         "Interrupted by the user.",
         FinDeVol::Interrompue,
@@ -128,7 +175,11 @@ pub async fn recolter(
 
     for (sur, idxs) in partitionner(appels, outils) {
         if annule(annulation) {
-            return Moisson { arret: Some(bilan_interrompu(carnet)), executes, observations };
+            return Moisson {
+                arret: Some(bilan_interrompu(carnet)),
+                executes,
+                observations,
+            };
         }
         if sur && parallele && idxs.len() > 1 {
             // ── Parallel batch (read-only) ──
@@ -154,16 +205,24 @@ pub async fn recolter(
             let mut resultats: HashMap<usize, (ResultatOutil, u64)> = HashMap::new();
             for groupe in a_lancer.chunks(MAX_PARALLELE) {
                 if annule(annulation) {
-                    return Moisson { arret: Some(bilan_interrompu(carnet)), executes, observations };
+                    return Moisson {
+                        arret: Some(bilan_interrompu(carnet)),
+                        executes,
+                        observations,
+                    };
                 }
                 for &i in groupe {
-                    emet.emettre(Evenement::AppelOutil { nom: appels[i].nom.clone() });
+                    emet.emettre(Evenement::AppelOutil {
+                        nom: appels[i].nom.clone(),
+                    });
                 }
                 let futs = groupe.iter().map(|&i| {
                     let appel = &appels[i];
                     async move {
                         let t0 = Instant::now();
-                        let res = executer_borne(outils, appel, reglages.timeout_outil_secs).await;
+                        let res =
+                            executer_borne(outils, appel, reglages.timeout_outil_secs, annulation)
+                                .await;
                         (i, res, t0.elapsed().as_millis() as u64)
                     }
                 });
@@ -185,7 +244,11 @@ pub async fn recolter(
                     if let Some(bilan) =
                         appliquer(&appels[i], res, ms, carnet, reglages, outils, vigie, emet)
                     {
-                        return Moisson { arret: Some(bilan), executes, observations };
+                        return Moisson {
+                            arret: Some(bilan),
+                            executes,
+                            observations,
+                        };
                     }
                 }
             }
@@ -193,7 +256,11 @@ pub async fn recolter(
             // ── Sequential (mutating, approval, or non-parallel profile) ──
             for &i in &idxs {
                 if annule(annulation) {
-                    return Moisson { arret: Some(bilan_interrompu(carnet)), executes, observations };
+                    return Moisson {
+                        arret: Some(bilan_interrompu(carnet)),
+                        executes,
+                        observations,
+                    };
                 }
                 let appel = &appels[i];
                 if doublons.contains(&i) {
@@ -204,21 +271,46 @@ pub async fn recolter(
                     pousser_blocage(carnet, appel, &msg, emet);
                     continue;
                 }
-                emet.emettre(Evenement::AppelOutil { nom: appel.nom.clone() });
+                emet.emettre(Evenement::AppelOutil {
+                    nom: appel.nom.clone(),
+                });
                 let t0 = Instant::now();
-                let res = executer_borne(outils, appel, reglages.timeout_outil_secs).await;
+                let res = match executer_journalise(carnet, reglages, outils, appel, i, annulation)
+                    .await
+                {
+                    Ok(r) => r,
+                    Err(e) => {
+                        return Moisson {
+                            arret: Some(Bilan::nouveau(
+                                e.to_string(),
+                                FinDeVol::Erreur(e.to_string()),
+                                carnet.passe,
+                            )),
+                            executes,
+                            observations,
+                        }
+                    }
+                };
                 let ms = t0.elapsed().as_millis() as u64;
                 executes += 1;
                 observations.push((appel.clone(), res.clone(), outils.concurrence_sure(appel)));
                 if let Some(bilan) =
                     appliquer(appel, res, ms, carnet, reglages, outils, vigie, emet)
                 {
-                    return Moisson { arret: Some(bilan), executes, observations };
+                    return Moisson {
+                        arret: Some(bilan),
+                        executes,
+                        observations,
+                    };
                 }
             }
         }
     }
-    Moisson { arret: None, executes, observations }
+    Moisson {
+        arret: None,
+        executes,
+        observations,
+    }
 }
 
 /// Caps an observation to `max` characters, keeping head + tail (the head carries the
@@ -234,10 +326,7 @@ pub fn plafonner_observation(s: &str, max: usize) -> String {
     let tete = max * 3 / 4;
     let queue = max / 4;
     let debut: String = s.chars().take(tete).collect();
-    let fin: String = s
-        .chars()
-        .skip(n.saturating_sub(queue))
-        .collect();
+    let fin: String = s.chars().skip(n.saturating_sub(queue)).collect();
     format!(
         "{debut}\n\n[... observation truncated: {} of {n} characters shown. Narrow the \
          query (pagination, filters, offsets) if you need the elided middle. ...]\n\n{fin}",
@@ -258,6 +347,13 @@ fn appliquer(
     vigie: &mut Vigie,
     emet: &dyn Emetteur,
 ) -> Option<Bilan> {
+    if carnet
+        .historique
+        .iter()
+        .any(|m| m.appel_id.as_deref() == Some(appel.id.as_str()))
+    {
+        return None;
+    }
     carnet.recolte_web += outils.poids_web(appel);
     let signal = vigie.apres_appel(
         &appel.nom,
@@ -266,15 +362,21 @@ fn appliquer(
         outils.idempotent_pour_vigie(appel),
         res.empreinte(),
     );
-    emet.emettre(Evenement::ResultatOutil { nom: appel.nom.clone(), ok: res.ok, ms });
+    emet.emettre(Evenement::ResultatOutil {
+        nom: appel.nom.clone(),
+        ok: res.ok,
+        ms,
+    });
 
     let mut observation = plafonner_observation(&res.sortie, reglages.max_chars_observation);
     if let Signal::Avertir(m) | Signal::Poser(m) = &signal {
         observation.push_str(&format!("\n\n[vigie: {m}]"));
     }
-    carnet
-        .historique
-        .push(Message::observation_liee(&appel.nom, &appel.id, observation));
+    carnet.historique.push(Message::observation_liee(
+        &appel.nom,
+        &appel.id,
+        observation,
+    ));
 
     // L'image produite par l'outil, POSEE APRES l'observation, dans un message
     // utilisateur.
@@ -310,7 +412,6 @@ fn appliquer(
     }
 
     if let Signal::Poser(motif) = signal {
-        carnet.itineraire.finaliser();
         return Some(Bilan::nouveau(
             "Stopped: sterile loop detected by the vigie.",
             FinDeVol::BoucleSterile(motif),
@@ -321,17 +422,23 @@ fn appliquer(
 }
 
 fn pousser_blocage(carnet: &mut Carnet, appel: &Appel, msg: &str, emet: &dyn Emetteur) {
-    carnet
-        .historique
-        .push(Message::observation_liee(&appel.nom, &appel.id, format!("Blocked: {msg}")));
-    emet.emettre(Evenement::ResultatOutil { nom: appel.nom.clone(), ok: false, ms: 0 });
+    carnet.historique.push(Message::observation_liee(
+        &appel.nom,
+        &appel.id,
+        format!("Blocked: {msg}"),
+    ));
+    emet.emettre(Evenement::ResultatOutil {
+        nom: appel.nom.clone(),
+        ok: false,
+        ms: 0,
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::carnet::ModeMission;
     use crate::cap::vigie::SeuilsVigie;
+    use crate::carnet::ModeMission;
     use crate::evenement::Silencieux;
     use crate::reglages::ProfilModele;
     use async_trait::async_trait;
@@ -356,6 +463,60 @@ mod tests {
             tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
             ResultatOutil::ok("jamais")
         }
+    }
+
+    #[tokio::test]
+    async fn journal_reuses_completed_effect_and_never_replays_unknown_effect() {
+        struct Counter(std::sync::atomic::AtomicUsize);
+        #[async_trait]
+        impl Outils for Counter {
+            async fn executer(&self, _: &Appel) -> ResultatOutil {
+                self.0.fetch_add(1, Ordering::Relaxed);
+                ResultatOutil::ok("written")
+            }
+        }
+        let tools = Counter(std::sync::atomic::AtomicUsize::new(0));
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        let path = std::env::temp_dir().join(format!("journal-{}.json", uuid::Uuid::new_v4()));
+        let settings = Reglages {
+            chemin_carnet: Some(path.clone()),
+            ..Reglages::default()
+        };
+        let call = Appel::nouveau("write", json!({"path":"a"}));
+        assert!(
+            executer_journalise(&mut carnet, &settings, &tools, &call, 0, None)
+                .await
+                .unwrap()
+                .ok
+        );
+        let mut restored = Carnet::charger(&path).unwrap();
+        assert!(
+            executer_journalise(&mut restored, &settings, &tools, &call, 0, None)
+                .await
+                .unwrap()
+                .ok
+        );
+        assert_eq!(tools.0.load(Ordering::Relaxed), 1);
+        let key = format!("{}:{}:1", restored.id, restored.passe);
+        restored.controle.executions.insert(
+            key,
+            crate::mission::Execution {
+                appel: call.clone(),
+                lecture: false,
+                resultat: None,
+            },
+        );
+        restored.checkpoint(&settings).unwrap();
+        let mut restored = Carnet::charger(&path).unwrap();
+        assert!(
+            executer_journalise(&mut restored, &settings, &tools, &call, 1, None)
+                .await
+                .unwrap()
+                .incertain
+        );
+        assert_eq!(tools.0.load(Ordering::Relaxed), 1);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("events.jsonl"));
     }
 
     fn t0() -> chrono::DateTime<chrono::Utc> {
@@ -385,11 +546,21 @@ mod tests {
             Appel::nouveau("web_c", json!({})),
         ];
         let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
-        let reglages = Reglages { profil: ProfilModele::Robuste, ..Reglages::default() };
+        let reglages = Reglages {
+            profil: ProfilModele::Robuste,
+            ..Reglages::default()
+        };
         let mut vigie = Vigie::nouvelle(ProfilModele::Robuste.seuils_vigie());
-        let moisson =
-            recolter(&appels, &mut carnet, &reglages, &OutilsMock, &mut vigie, &Silencieux, None)
-                .await;
+        let moisson = recolter(
+            &appels,
+            &mut carnet,
+            &reglages,
+            &OutilsMock,
+            &mut vigie,
+            &Silencieux,
+            None,
+        )
+        .await;
         assert!(moisson.arret.is_none());
         assert_eq!(moisson.executes, 3);
         assert_eq!(carnet.recolte_web, 3);
@@ -412,10 +583,21 @@ mod tests {
             Appel::nouveau("web_b", json!({})),
         ];
         let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
-        let reglages = Reglages { profil: ProfilModele::Fragile, ..Reglages::default() };
+        let reglages = Reglages {
+            profil: ProfilModele::Fragile,
+            ..Reglages::default()
+        };
         let mut vigie = Vigie::nouvelle(ProfilModele::Fragile.seuils_vigie());
-        recolter(&appels, &mut carnet, &reglages, &OutilsMock, &mut vigie, &Silencieux, None)
-            .await;
+        recolter(
+            &appels,
+            &mut carnet,
+            &reglages,
+            &OutilsMock,
+            &mut vigie,
+            &Silencieux,
+            None,
+        )
+        .await;
         assert_eq!(carnet.recolte_web, 2);
     }
 
@@ -423,17 +605,31 @@ mod tests {
     async fn outil_pendu_est_borne_par_le_timeout() {
         let appels = vec![Appel::nouveau("lent", json!({}))];
         let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
-        let reglages = Reglages { timeout_outil_secs: 1, ..Reglages::default() };
+        let reglages = Reglages {
+            timeout_outil_secs: 1,
+            ..Reglages::default()
+        };
         let mut vigie = Vigie::nouvelle(SeuilsVigie::default());
-        let moisson =
-            recolter(&appels, &mut carnet, &reglages, &OutilsLent, &mut vigie, &Silencieux, None)
-                .await;
+        let moisson = recolter(
+            &appels,
+            &mut carnet,
+            &reglages,
+            &OutilsLent,
+            &mut vigie,
+            &Silencieux,
+            None,
+        )
+        .await;
         assert!(moisson.arret.is_none());
         assert_eq!(moisson.executes, 1);
         // a tool_result is still reinjected (never omitted), and it must not
         // claim the call was cancelled: the remote side may well have run it.
         let obs = carnet.historique.last().unwrap();
-        assert!(obs.contenu.contains("did not answer"), "got: {}", obs.contenu);
+        assert!(
+            obs.contenu.contains("outcome is unknown"),
+            "got: {}",
+            obs.contenu
+        );
         assert!(!obs.contenu.contains("aborted"), "got: {}", obs.contenu);
     }
 
@@ -459,7 +655,12 @@ mod tests {
         .await;
         assert!(moisson.arret.is_none());
         assert_eq!(moisson.executes, 0, "a blocked call is not an execution");
-        assert!(carnet.historique.last().unwrap().contenu.starts_with("Blocked:"));
+        assert!(carnet
+            .historique
+            .last()
+            .unwrap()
+            .contenu
+            .starts_with("Blocked:"));
     }
 
     #[tokio::test]
@@ -472,21 +673,46 @@ mod tests {
             Appel::nouveau("web_b", json!({})),
         ];
         let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
-        let reglages = Reglages { profil: ProfilModele::Robuste, ..Reglages::default() };
+        let reglages = Reglages {
+            profil: ProfilModele::Robuste,
+            ..Reglages::default()
+        };
         let mut vigie = Vigie::nouvelle(ProfilModele::Robuste.seuils_vigie());
-        let moisson =
-            recolter(&appels, &mut carnet, &reglages, &OutilsMock, &mut vigie, &Silencieux, None)
-                .await;
+        let moisson = recolter(
+            &appels,
+            &mut carnet,
+            &reglages,
+            &OutilsMock,
+            &mut vigie,
+            &Silencieux,
+            None,
+        )
+        .await;
         assert_eq!(moisson.executes, 2, "the duplicate must not execute");
-        let obs: Vec<&Message> = carnet.historique.iter().filter(|m| m.outil.is_some()).collect();
+        let obs: Vec<&Message> = carnet
+            .historique
+            .iter()
+            .filter(|m| m.outil.is_some())
+            .collect();
         assert_eq!(obs.len(), 3, "every call still gets an observation");
         assert!(obs[1].contenu.contains("duplicate call"));
         // sequential path too (Fragile profile)
         let mut carnet2 = Carnet::ouvrir("m", ModeMission::Standard, t0());
-        let reglages2 = Reglages { profil: ProfilModele::Fragile, ..Reglages::default() };
+        let reglages2 = Reglages {
+            profil: ProfilModele::Fragile,
+            ..Reglages::default()
+        };
         let mut vigie2 = Vigie::nouvelle(ProfilModele::Fragile.seuils_vigie());
-        let m2 = recolter(&appels, &mut carnet2, &reglages2, &OutilsMock, &mut vigie2, &Silencieux, None)
-            .await;
+        let m2 = recolter(
+            &appels,
+            &mut carnet2,
+            &reglages2,
+            &OutilsMock,
+            &mut vigie2,
+            &Silencieux,
+            None,
+        )
+        .await;
         assert_eq!(m2.executes, 2);
     }
 

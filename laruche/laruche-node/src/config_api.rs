@@ -7,7 +7,9 @@ use axum::response::Json;
 use std::sync::Arc;
 
 /// {profile, model} options to pick from.
-pub(crate) async fn api_get_channel_models(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+pub(crate) async fn api_get_channel_models(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
     let profiles = state.profiles.read().await;
     let mut options = Vec::new();
     for (pid, p) in &profiles.profiles {
@@ -56,7 +58,9 @@ pub(crate) async fn api_save_channel_model(
 }
 
 /// GET /api/config/provider: get current LLM provider settings.
-pub(crate) async fn api_get_provider_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+pub(crate) async fn api_get_provider_config(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
     Json(serde_json::json!({
         "provider": ec.provider,
@@ -65,6 +69,7 @@ pub(crate) async fn api_get_provider_config(State(state): State<Arc<AppState>>) 
         "model": ec.model,
         "ollama_url": ec.ollama_url,
         "fallback_models": ec.fallback_models.join(", "),
+        "mission_budget_tokens": ec.mission_budget_tokens,
         "review_model": ec.review_model,
         "max_tokens": ec.max_tokens,
         "temperature": ec.temperature,
@@ -135,7 +140,9 @@ pub(crate) async fn api_get_context_stats(
     }))
 }
 
-pub(crate) async fn api_get_compaction_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+pub(crate) async fn api_get_compaction_config(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
     Json(serde_json::json!({
         "context_max_messages": ec.context_max_messages,
@@ -169,7 +176,9 @@ pub(crate) async fn api_set_compaction_config(
 }
 
 /// GET /api/config/runtime: HOT-adjustable generation levers (no restart).
-pub(crate) async fn api_get_runtime_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+pub(crate) async fn api_get_runtime_config(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
     Json(serde_json::json!({
         "max_iterations": ec.max_iterations,
@@ -251,6 +260,24 @@ pub(crate) async fn api_save_provider_config(
         if !url.is_empty() {
             cg.ollama_url = url.to_string();
         }
+    }
+    if let Some(routes) = body.get("fallback_profiles") {
+        match serde_json::from_value::<Vec<laruche_essaim::config::ProfilSecours>>(routes.clone()) {
+            Ok(routes)
+                if routes.len() <= 8
+                    && routes.iter().all(|r| {
+                        !r.model.trim().is_empty()
+                            && !r.provider.trim().is_empty()
+                            && r.context_max_tokens >= 256
+                    }) =>
+            {
+                cg.fallback_profiles = routes
+            }
+            _ => return Json(serde_json::json!({"error":"invalid fallback_profiles"})),
+        }
+    }
+    if let Some(budget) = body["mission_budget_tokens"].as_u64() {
+        cg.mission_budget_tokens = budget;
     }
     if let Some(fm) = body["fallback_models"].as_str() {
         cg.fallback_models = fm

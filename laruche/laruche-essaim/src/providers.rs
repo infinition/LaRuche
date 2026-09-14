@@ -365,7 +365,9 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
                 if taille(&reduit) <= limite {
                     break;
                 }
-                let Some(texte) = reduit["messages"][i]["content"].as_str().map(str::to_string)
+                let Some(texte) = reduit["messages"][i]["content"]
+                    .as_str()
+                    .map(str::to_string)
                 else {
                     break;
                 };
@@ -597,7 +599,7 @@ fn diagnostiquer_corps(erreur: &str, corps_brut: &str, messages: &[serde_json::V
     ]
     .iter()
     .any(|m| motif.contains(m));
-    if corps_en_cause {
+    if corps_en_cause && std::env::var("LARUCHE_DEBUG_PAYLOADS").as_deref() == Ok("1") {
         let chemin = std::env::temp_dir().join(format!(
             "laruche-corps-refuse-{}.json",
             chrono::Utc::now().format("%Y%m%d-%H%M%S")
@@ -1171,6 +1173,11 @@ async fn openai_chat_stream(
     tracing::info!(target: "provider", url = %url, model = %model, status = %response.status(), "openai-compatible request sent");
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
         let body_text = response.text().await.unwrap_or_default();
         // Carry the SIZE of what we sent into the error. When a provider answers
         // "failed to parse the request body ... at column N", the only question that
@@ -1189,7 +1196,7 @@ async fn openai_chat_stream(
         return Err(ProviderError {
             status: status.as_u16(),
             body: diagnostic,
-            retry_after: None,
+            retry_after,
         }
         .into());
     }
@@ -1215,7 +1222,7 @@ async fn openai_chat_stream(
         let mut terminal_reason: Option<String> = None;
 
         loop {
-            match response.chunk().await {
+            match tokio::select! { _ = tx.closed() => return, chunk = response.chunk() => chunk } {
                 Ok(Some(bytes)) => {
                     buffer.extend_from_slice(&bytes);
                     while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
@@ -1227,13 +1234,25 @@ async fn openai_chat_stream(
                         }
                         if line.is_empty() || line == "data: [DONE]" {
                             if line == "data: [DONE]" {
-                                let incomplete_tools = terminal_reason.is_none() && !tool_call_acc.is_empty();
-                                let tool_calls = if incomplete_tools { None } else {
+                                let incomplete_tools =
+                                    terminal_reason.is_none() && !tool_call_acc.is_empty();
+                                let tool_calls = if incomplete_tools {
+                                    None
+                                } else {
                                     finaliser_tool_calls(&mut tool_call_acc)
                                 };
                                 // [DONE] closes transport; it must not replace a native terminal reason.
                                 let finish_reason = terminal_reason.clone().or_else(|| {
-                                    Some(if incomplete_tools { "stream_error" } else if content_streamed { "length" } else { "stop" }.to_string())
+                                    Some(
+                                        if incomplete_tools {
+                                            "stream_error"
+                                        } else if content_streamed {
+                                            "length"
+                                        } else {
+                                            "stop"
+                                        }
+                                        .to_string(),
+                                    )
                                 });
                                 let _ = tx
                                     .send(OllamaChunk {
@@ -1381,8 +1400,11 @@ async fn openai_chat_stream(
                 Ok(None) => {
                     // A stream without a native terminal event is incomplete. Never
                     // execute partially assembled tool calls from that response.
-                    let finish_reason = Some(terminal_reason.clone()
-                        .unwrap_or_else(|| "stream_error".to_string()));
+                    let finish_reason = Some(
+                        terminal_reason
+                            .clone()
+                            .unwrap_or_else(|| "stream_error".to_string()),
+                    );
                     let tool_calls = None;
                     let _ = tx
                         .send(OllamaChunk {
@@ -1400,12 +1422,18 @@ async fn openai_chat_stream(
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading OpenAI stream");
-                    let _ = tx.send(OllamaChunk {
-                        text: String::new(), done: true,
-                        finish_reason: Some("stream_error".to_string()),
-                        eval_count: None, eval_duration: None, prompt_eval_count: None,
-                        tool_calls: None, reasoning: None,
-                    }).await;
+                    let _ = tx
+                        .send(OllamaChunk {
+                            text: String::new(),
+                            done: true,
+                            finish_reason: Some("stream_error".to_string()),
+                            eval_count: None,
+                            eval_duration: None,
+                            prompt_eval_count: None,
+                            tool_calls: None,
+                            reasoning: None,
+                        })
+                        .await;
                     return;
                 }
             }
@@ -1615,11 +1643,16 @@ async fn _anthropic_send_request(
 
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
         let body_text = response.text().await.unwrap_or_default();
         return Err(ProviderError {
             status: status.as_u16(),
             body: body_text,
-            retry_after: None,
+            retry_after,
         }
         .into());
     }
@@ -1643,7 +1676,7 @@ async fn _anthropic_send_request(
         // Whether any visible text was received, for the raw-disconnect case below.
         let mut contenu_recu = false;
         loop {
-            match response.chunk().await {
+            match tokio::select! { _ = tx.closed() => return, chunk = response.chunk() => chunk } {
                 Ok(Some(bytes)) => {
                     buffer.extend_from_slice(&bytes);
                     while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
@@ -1711,12 +1744,15 @@ async fn _anthropic_send_request(
                                 // "max_tokens" cutoff must reach classer_stop() as a
                                 // truncation, not a normal end of turn.
                                 let finish_reason = if done {
-                                    Some(match vrai_stop_reason.as_deref() {
-                                        Some("max_tokens") => "length",
-                                        Some("tool_use") => "tool_calls",
-                                        Some("end_turn") | Some("stop_sequence") => "stop",
-                                        _ => "stop",
-                                    }.to_string())
+                                    Some(
+                                        match vrai_stop_reason.as_deref() {
+                                            Some("max_tokens") => "length",
+                                            Some("tool_use") => "tool_calls",
+                                            Some("end_turn") | Some("stop_sequence") => "stop",
+                                            _ => "stop",
+                                        }
+                                        .to_string(),
+                                    )
                                 } else {
                                     None
                                 };
@@ -1778,6 +1814,13 @@ async fn _anthropic_send_request(
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading Anthropic stream");
+                    let _ = tx
+                        .send(OllamaChunk {
+                            finish_reason: Some("stream_error".into()),
+                            done: true,
+                            ..Default::default()
+                        })
+                        .await;
                     return;
                 }
             }
@@ -1911,7 +1954,7 @@ async fn codex_chat_stream(
         // OR incomplete). Used to tell a real disconnect from a clean finish.
         let mut fin_vue = false;
         loop {
-            match response.chunk().await {
+            match tokio::select! { _ = tx.closed() => return, chunk = response.chunk() => chunk } {
                 Ok(Some(bytes)) => {
                     buffer.extend_from_slice(&bytes);
                     while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
@@ -1988,6 +2031,13 @@ async fn codex_chat_stream(
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "Error reading Codex stream");
+                    let _ = tx
+                        .send(OllamaChunk {
+                            finish_reason: Some("stream_error".into()),
+                            done: true,
+                            ..Default::default()
+                        })
+                        .await;
                     return;
                 }
             }
@@ -2144,18 +2194,29 @@ mod tests {
         ];
 
         let rendu = construire_messages_openai(&transcript, modele);
-        assert_eq!(rendu[1]["reasoning_content"], "je vais chercher", "tour avec outil");
-        assert_eq!(rendu[3]["reasoning_content"], "je regarde l'image", "tour avec image");
+        assert_eq!(
+            rendu[1]["reasoning_content"], "je vais chercher",
+            "tour avec outil"
+        );
+        assert_eq!(
+            rendu[3]["reasoning_content"], "je regarde l'image",
+            "tour avec image"
+        );
         assert_eq!(rendu[4]["reasoning_content"], "je conclus", "tour simple");
         // La forme du message reste celle attendue par OpenAI.
         assert_eq!(rendu[1]["tool_calls"][0]["function"]["name"], "web_search");
-        assert!(rendu[3]["content"].is_array(), "les pieces jointes restent en parts");
+        assert!(
+            rendu[3]["content"].is_array(),
+            "les pieces jointes restent en parts"
+        );
         // Le message d'outil ne porte jamais de raisonnement.
         assert!(rendu[2].get("reasoning_content").is_none());
 
         // Et rien ne part a un AUTRE fournisseur, sur aucune des trois formes.
         let ailleurs = construire_messages_openai(&transcript, "gpt-4o");
-        assert!(ailleurs.iter().all(|m| m.get("reasoning_content").is_none()));
+        assert!(ailleurs
+            .iter()
+            .all(|m| m.get("reasoning_content").is_none()));
     }
     use super::*;
 
@@ -2196,14 +2257,20 @@ mod tests {
             ]
         });
         let avant = json_ascii(&serde_json::to_string(&body).unwrap()).len();
-        assert!(avant > 150_000, "la forme doit reproduire le corps refuse, got {avant}");
+        assert!(
+            avant > 150_000,
+            "la forme doit reproduire le corps refuse, got {avant}"
+        );
 
         let apres = reduire_sous_budget(&body, 76_800).unwrap();
         let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
         assert!(corps <= 76_800, "le corps doit tenir, got {corps}");
 
         let premier = apres["messages"][1]["content"].as_str().unwrap();
-        assert!(premier.starts_with(enonce), "l'enonce doit survivre en tete");
+        assert!(
+            premier.starts_with(enonce),
+            "l'enonce doit survivre en tete"
+        );
         assert!(premier.contains("cut to fit the request budget"));
     }
 

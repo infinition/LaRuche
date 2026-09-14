@@ -17,67 +17,67 @@
 pub(crate) const CANAL_MEMOIRE: &str = "memory";
 
 mod abeilles_local;
+mod apps;
 mod arbitre_memoire;
+mod auth_api;
 mod auth_user;
-mod themes_api;
+mod background;
+mod blueprints_api;
+mod changes_api;
+mod channels_api;
+mod config_api;
+mod credentials_api;
+mod deliberation_api;
+mod discord_api;
+mod doctor_api;
+mod episodes_api;
+mod events_api;
+mod feed_api;
+mod forged_tools_api;
+mod helpers;
+mod kanban_api;
+mod knowledge_api;
 mod livres_api;
+mod local_api;
 mod local_inference;
 mod mcp;
-mod missions;
-mod outbox;
-mod profiles;
-mod secrets_vault;
-mod sync;
-mod systray;
-mod tui;
-mod config_api;
-mod forged_tools_api;
-mod voice_api;
-mod profiles_api;
-mod knowledge_api;
-mod web;
-mod slack_api;
-mod local_api;
-mod ws_chat;
-mod episodes_api;
-mod ws_navigateur;
-mod discord_api;
-mod channels_api;
-mod auth_api;
-mod events_api;
-mod credentials_api;
-mod settings_api;
-mod deliberation_api;
-mod doctor_api;
-mod kanban_api;
-mod watchers_api;
-mod skills_api;
-mod missions_api;
-mod sessions_api;
-mod memory_api;
-mod feed_api;
-mod mesh_api;
-mod changes_api;
-mod memory_crud_api;
-mod tools_api;
-mod openai_api;
-mod swarm_api;
 mod mcp_api;
 mod mcp_pare_feu;
-mod status_api;
-mod blueprints_api;
-mod reine_api;
-mod voice_config;
-mod totp;
-mod state;
-mod helpers;
-mod router;
-mod background;
+mod memory_api;
+mod memory_crud_api;
+mod mesh_api;
+mod missions;
+mod missions_api;
 mod okf_git;
-mod apps;
+mod openai_api;
+mod outbox;
+mod profiles;
+mod profiles_api;
+mod reine_api;
+mod router;
+mod secrets_vault;
+mod sessions_api;
+mod settings_api;
+mod skills_api;
+mod slack_api;
+mod state;
+mod status_api;
+mod swarm_api;
+mod sync;
+mod systray;
+mod themes_api;
+mod tools_api;
+mod totp;
+mod tui;
+mod voice_api;
+mod voice_config;
+mod watchers_api;
+mod web;
+mod ws_chat;
+mod ws_navigateur;
 
-pub(crate) use state::*;
 pub(crate) use helpers::*;
+pub(crate) use state::*;
 
 use anyhow::Result;
 use axum::{
@@ -116,7 +116,6 @@ use std::collections::VecDeque;
 
 // Web asset serving (SPA shell, CSS, concatenated JS) and i18n language-file
 // injection live in `web.rs` (handlers: web::spa_page / app_css / app_js / lang_file).
-
 
 /// What a fresh install sees first.
 ///
@@ -190,7 +189,10 @@ fn ensure_self_signed_cert() -> Option<(String, String)> {
     let certified = rcgen::generate_simple_self_signed(sans).ok()?;
     std::fs::write(cert_path, certified.cert.pem()).ok()?;
     std::fs::write(key_path, certified.key_pair.serialize_pem()).ok()?;
-    info!(cert = cert_path, "generated self-signed TLS certificate for HTTPS");
+    info!(
+        cert = cert_path,
+        "generated self-signed TLS certificate for HTTPS"
+    );
     Some((cert_path.to_string(), key_path.to_string()))
 }
 
@@ -212,14 +214,18 @@ async fn serve_with_optional_tls(app: axum::Router, addr: String, tls: Option<(S
             Err(e) => {
                 error!(error = %e, "Failed to load TLS cert/key; falling back to HTTP");
                 match tokio::net::TcpListener::bind(&addr).await {
-                    Ok(l) => { let _ = axum::serve(l, make).await; }
+                    Ok(l) => {
+                        let _ = axum::serve(l, make).await;
+                    }
                     Err(e) => error!(error = %e, addr = %addr, "Failed to bind HTTP fallback"),
                 }
             }
         }
     } else {
         match tokio::net::TcpListener::bind(&addr).await {
-            Ok(l) => { let _ = axum::serve(l, make).await; }
+            Ok(l) => {
+                let _ = axum::serve(l, make).await;
+            }
             Err(e) => error!(error = %e, addr = %addr, "Failed to bind HTTP listener"),
         }
     }
@@ -277,7 +283,10 @@ pub(crate) fn registre_livre(cible: &std::path::Path) -> std::collections::HashM
         .unwrap_or_default()
 }
 
-pub(crate) fn ecrire_registre(cible: &std::path::Path, reg: &std::collections::HashMap<String, String>) {
+pub(crate) fn ecrire_registre(
+    cible: &std::path::Path,
+    reg: &std::collections::HashMap<String, String>,
+) {
     if let Ok(t) = serde_json::to_string_pretty(reg) {
         let _ = std::fs::write(cible.join(".livres.json"), t);
     }
@@ -319,7 +328,10 @@ fn tenir_a_jour(livre: &include_dir::Dir<'_>, cible: &str) {
     }
     if ajoutes > 0 || majs > 0 {
         ecrire_registre(racine, &reg);
-        info!(dossier = cible, ajoutes, majs, "capacites livrees mises a jour");
+        info!(
+            dossier = cible,
+            ajoutes, majs, "capacites livrees mises a jour"
+        );
     }
 }
 
@@ -422,7 +434,11 @@ fn amorcer(livre: &include_dir::Dir<'_>, cible: &str) {
     match livre.extract(racine) {
         Ok(()) => {
             let n = std::fs::read_dir(racine).map(|d| d.count()).unwrap_or(0);
-            info!(dossier = cible, entrees = n, "foyer neuf: contenu livre depose");
+            info!(
+                dossier = cible,
+                entrees = n,
+                "foyer neuf: contenu livre depose"
+            );
         }
         Err(e) => {
             error!(dossier = cible, error = %e, "amorcage impossible: la ruche demarrera sans");
@@ -433,10 +449,7 @@ fn amorcer(livre: &include_dir::Dir<'_>, cible: &str) {
 /// Moves legacy command manifests into the Forged Tools layout without overwriting
 /// an existing canonical tool. Entries that collide stay in the old folder and are
 /// still loaded through the compatibility reader.
-fn migrer_outils_herites_depuis(
-    source: &std::path::Path,
-    destination: &std::path::Path,
-) -> usize {
+fn migrer_outils_herites_depuis(source: &std::path::Path, destination: &std::path::Path) -> usize {
     if !source.is_dir() {
         return 0;
     }
@@ -466,10 +479,9 @@ fn migrer_outils_herites_depuis(
             warn!(error = %error, path = %old_folder.display(), "legacy Forged Tool folder could not be moved");
             continue;
         }
-        if let Err(error) = std::fs::rename(
-            new_folder.join("plugin.json"),
-            new_folder.join("tool.json"),
-        ) {
+        if let Err(error) =
+            std::fs::rename(new_folder.join("plugin.json"), new_folder.join("tool.json"))
+        {
             let rollback = std::fs::rename(&new_folder, &old_folder);
             warn!(
                 error = %error,
@@ -577,7 +589,11 @@ fn foyer() -> std::path::PathBuf {
     // Windows : %APPDATA%\LaRuche
     // macOS   : ~/Library/Application Support/LaRuche
     // Linux   : ~/.local/share/laruche  (XDG_DATA_HOME), en minuscules par usage
-    let nom = if cfg!(target_os = "linux") { "laruche" } else { "LaRuche" };
+    let nom = if cfg!(target_os = "linux") {
+        "laruche"
+    } else {
+        "LaRuche"
+    };
     dirs::data_dir().map(|d| d.join(nom)).unwrap_or(ici)
 }
 
@@ -631,7 +647,10 @@ async fn main() -> Result<()> {
         std::path::Path::new("forged_tools"),
     );
     if migrated_tools > 0 {
-        info!(tools = migrated_tools, "legacy tool folders migrated to Forged Tools");
+        info!(
+            tools = migrated_tools,
+            "legacy tool folders migrated to Forged Tools"
+        );
     }
 
     // Un foyer neuf doit arriver equipe: sans cela la ruche demarre sans aucune
@@ -646,7 +665,6 @@ async fn main() -> Result<()> {
     tenir_a_jour(&SKILLS_LIVRES, "skills");
     tenir_a_jour(&FORGED_TOOLS_LIVRES, "forged_tools");
     tenir_a_jour(&MCP_LIVRES, "mcp");
-
 
     info!(name = %config.node_name, tier = ?config.tier, "Starting LaRuche node");
 
@@ -803,7 +821,8 @@ async fn main() -> Result<()> {
                 }),
                 api_key: config.api_key.clone(),
                 models: vec![config.default_model.clone()],
-                visibilite: Default::default(), allowed_peers: Vec::new(),
+                visibilite: Default::default(),
+                allowed_peers: Vec::new(),
                 max_context_length: match config.provider.as_str() {
                     "anthropic" => 200000,
                     "openai" => 128000,
@@ -901,8 +920,15 @@ async fn main() -> Result<()> {
     let _ = profiles::save_profiles(&profiles_path, &profiles_cfg);
 
     // Derive EssaimConfig from active profile
-    let (prof_provider, prof_model, prof_api_key, prof_api_base, prof_ollama_url, prof_max_context_len, prof_modele_faible) =
-        profiles::active_to_essaim_fields(&profiles_cfg);
+    let (
+        prof_provider,
+        prof_model,
+        prof_api_key,
+        prof_api_base,
+        prof_ollama_url,
+        prof_max_context_len,
+        prof_modele_faible,
+    ) = profiles::active_to_essaim_fields(&profiles_cfg);
 
     let cron_arc = Arc::new(RwLock::new(CronScheduler::new(std::path::Path::new(
         "cron-tasks.json",
@@ -1051,6 +1077,12 @@ async fn main() -> Result<()> {
     if let Some(v) = persistent.dynamic_context_threshold {
         essaim_config.dynamic_context_threshold = v;
     }
+    if let Some(routes) = persistent.fallback_profiles {
+        essaim_config.fallback_profiles = routes;
+    }
+    if let Some(budget) = persistent.mission_budget_tokens {
+        essaim_config.mission_budget_tokens = budget;
+    }
     if let Some(ref models) = persistent.fallback_models {
         essaim_config.fallback_models = models.clone();
     }
@@ -1095,35 +1127,38 @@ async fn main() -> Result<()> {
     // SqliteBackend est compile dans le binaire de toute facon: le defaut ne coute rien
     // et correspond a ce que tout le monde attend. Le mode volatile reste accessible,
     // mais il faut desormais le demander.
-    let memoire: Arc<dyn laruche_memoire::MemoireCognitive> =
-        match std::env::var("LARUCHE_MEMOIRE_BACKEND").as_deref() {
-            Ok("sidecar") => Arc::new(laruche_memoire::SidecarBackend::loopback()),
-            Ok("memory") | Ok("native") | Ok("inmemory") => {
-                warn!("memory backend: IN-MEMORY (volatile) - nothing will be persisted");
-                Arc::new(laruche_memoire::NativeBackend::new())
-            }
-            _ => {
-                // Embedder ALWAYS wired (semantic recall by default): LARUCHE_EMBED_URL
-                // (Ollama `/api/embed` OR llama.cpp/OpenAI-compat `/v1/embeddings` -
-                // format auto-detected), falling back to the local Ollama default.
-                // HttpEmbedder opens a circuit breaker when the server is down, so a
-                // missing embedder costs ~nothing and recall degrades to FTS5.
-                let url = std::env::var("LARUCHE_EMBED_URL")
-                    .ok()
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
-                let model = std::env::var("LARUCHE_EMBED_MODEL")
-                    .unwrap_or_else(|_| "nomic-embed-text".to_string());
-                info!(url = %url, model = %model, "memory embedder: semantic recall active (auto-detected format)");
-                Arc::new(
-                    laruche_memoire::SqliteBackend::open_with_embedder(
-                        "memoire.db",
-                        Arc::new(laruche_memoire::HttpEmbedder::new(url, model)),
-                    )
-                    .expect("opening memoire.db (SQLite+FTS5+embeddings)"),
+    let memoire: Arc<dyn laruche_memoire::MemoireCognitive> = match std::env::var(
+        "LARUCHE_MEMOIRE_BACKEND",
+    )
+    .as_deref()
+    {
+        Ok("sidecar") => Arc::new(laruche_memoire::SidecarBackend::loopback()),
+        Ok("memory") | Ok("native") | Ok("inmemory") => {
+            warn!("memory backend: IN-MEMORY (volatile) - nothing will be persisted");
+            Arc::new(laruche_memoire::NativeBackend::new())
+        }
+        _ => {
+            // Embedder ALWAYS wired (semantic recall by default): LARUCHE_EMBED_URL
+            // (Ollama `/api/embed` OR llama.cpp/OpenAI-compat `/v1/embeddings` -
+            // format auto-detected), falling back to the local Ollama default.
+            // HttpEmbedder opens a circuit breaker when the server is down, so a
+            // missing embedder costs ~nothing and recall degrades to FTS5.
+            let url = std::env::var("LARUCHE_EMBED_URL")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+            let model = std::env::var("LARUCHE_EMBED_MODEL")
+                .unwrap_or_else(|_| "nomic-embed-text".to_string());
+            info!(url = %url, model = %model, "memory embedder: semantic recall active (auto-detected format)");
+            Arc::new(
+                laruche_memoire::SqliteBackend::open_with_embedder(
+                    "memoire.db",
+                    Arc::new(laruche_memoire::HttpEmbedder::new(url, model)),
                 )
-            }
-        };
+                .expect("opening memoire.db (SQLite+FTS5+embeddings)"),
+            )
+        }
+    };
     // Backfill: items written while the embedder was down get their embeddings
     // (semantic recall would otherwise never see them). Deferred a little so the
     // local embed server has time to come up; the breaker makes failures cheap.
@@ -1197,10 +1232,15 @@ async fn main() -> Result<()> {
         .await
     {
         Ok(n) if n > 0 => {
-            tracing::info!(noeuds = n, "migration capacities.plugins -> capacities.forged_tools")
+            tracing::info!(
+                noeuds = n,
+                "migration capacities.plugins -> capacities.forged_tools"
+            )
         }
         Ok(_) => {}
-        Err(e) => tracing::warn!(error = %e, "forged tools migration skipped (backend without support)"),
+        Err(e) => {
+            tracing::warn!(error = %e, "forged tools migration skipped (backend without support)")
+        }
     }
     let _ = memoire.supprimer_sous_arbre("tools").await; // purge the remaining legacy projection
 
@@ -1238,10 +1278,17 @@ async fn main() -> Result<()> {
                 .await;
         }
         if !ids.is_empty() {
-            info!(node = contenant, items = ids.len(), "boot: swept items parked on a container node");
+            info!(
+                node = contenant,
+                items = ids.len(),
+                "boot: swept items parked on a container node"
+            );
         }
     }
-    info!(t_ms = boot_t0.elapsed().as_millis() as u64, "boot: legacy tools migration done");
+    info!(
+        t_ms = boot_t0.elapsed().as_millis() as u64,
+        "boot: legacy tools migration done"
+    );
 
     // Map nodes (virtual .md files). Created empty if absent (idempotent).
     // `capacities.*` = tool ecosystem (protected); `system.*` = editable prompt/SOUL base.
@@ -1257,11 +1304,7 @@ async fn main() -> Result<()> {
             "Forged Tools",
             "User-forged tools declared by JSON manifests",
         ),
-        (
-            "capacities.mcp",
-            "MCP",
-            "Tools served by MCP servers",
-        ),
+        ("capacities.mcp", "MCP", "Tools served by MCP servers"),
         ("capacities.skills", "Skills", "Learned OKF procedures"),
         (
             "system",
@@ -1328,7 +1371,10 @@ async fn main() -> Result<()> {
     // copy under `web_research` put TWO overlapping entries in the prompt catalog,
     // which is exactly what makes a model hesitate and pick the wrong one.
 
-    info!(t_ms = boot_t0.elapsed().as_millis() as u64, "boot: map nodes + seed done");
+    info!(
+        t_ms = boot_t0.elapsed().as_millis() as u64,
+        "boot: map nodes + seed done"
+    );
 
     // Index the tool registry into the map (capacities.*) RIGHT FROM startup, incrementally,
     // so any new tool is visible in memory and semantically retrievable.
@@ -1338,7 +1384,10 @@ async fn main() -> Result<()> {
     {
         tracing::warn!(error = %e, "tool indexing at startup skipped");
     }
-    info!(t_ms = boot_t0.elapsed().as_millis() as u64, "boot: tool indexing done");
+    info!(
+        t_ms = boot_t0.elapsed().as_millis() as u64,
+        "boot: tool indexing done"
+    );
 
     // Phase 1: flat-file layer: disk → SQL sync of skills (skills/<slug>/SKILL.md),
     // in the BACKGROUND. Unchanged files are no-ops (incremental), but a real
@@ -1349,7 +1398,10 @@ async fn main() -> Result<()> {
         let t0 = boot_t0;
         tokio::spawn(async move {
             changes_api::sync_skills_disk_to_sql(&mem_sync).await;
-            info!(t_ms = t0.elapsed().as_millis() as u64, "boot: skills disk->SQL sync done (background)");
+            info!(
+                t_ms = t0.elapsed().as_millis() as u64,
+                "boot: skills disk->SQL sync done (background)"
+            );
         });
     }
 
@@ -1363,8 +1415,7 @@ async fn main() -> Result<()> {
         let memoire_mcp = memoire.clone();
         tokio::spawn(async move {
             let (count, mcp_clients) =
-                charger_mcp_servers(std::path::Path::new("mcp_servers.json"), &registry_mcp)
-                    .await;
+                charger_mcp_servers(std::path::Path::new("mcp_servers.json"), &registry_mcp).await;
             let mcp_clients = Arc::new(mcp_clients);
             registry_mcp.enregistrer(Box::new(
                 laruche_essaim::abeilles::mcp_resources::McpListResources {
@@ -1447,7 +1498,10 @@ async fn main() -> Result<()> {
     let mut loaded_users = auth_user::load_all_users(users_dir);
     let deduped = auth_user::dedupe_users(&mut loaded_users, users_dir);
     if deduped > 0 {
-        info!(removed = deduped, "Deduplicated legacy duplicate accounts (old enroll bug)");
+        info!(
+            removed = deduped,
+            "Deduplicated legacy duplicate accounts (old enroll bug)"
+        );
     }
     if !loaded_users.is_empty() {
         info!(count = loaded_users.len(), "Users loaded from disk");
@@ -1574,7 +1628,9 @@ async fn main() -> Result<()> {
     // with the process.
     let _ = crate::abeilles_local::ETAT_NOEUD.set(state.clone());
     for kind in ["app_list", "app_guide", "app_open", "app_call", "app_wait"] {
-        state.essaim_registry.enregistrer(Box::new(apps::tools::AppTool(kind)));
+        state
+            .essaim_registry
+            .enregistrer(Box::new(apps::tools::AppTool(kind)));
     }
 
     // Persist the state RIGHT AWAY: the shutdown save only runs on a clean exit
@@ -1648,7 +1704,9 @@ async fn main() -> Result<()> {
     let bind_ip = if bind_lan { "0.0.0.0" } else { "127.0.0.1" };
     let addr = format!("{bind_ip}:{}", config.api_port);
     let scheme = if std::env::var("LARUCHE_HTTPS").as_deref() == Ok("1")
-        || std::env::var("LARUCHE_TLS_CERT").map(|s| !s.is_empty()).unwrap_or(false)
+        || std::env::var("LARUCHE_TLS_CERT")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false)
     {
         "https"
     } else {
@@ -1701,8 +1759,12 @@ async fn main() -> Result<()> {
     // self-signed cert (localhost + 127.0.0.1 + LAN IP), so the browser microphone works
     // from other devices on the network (a secure context), not just localhost.
     let (tls_cert, tls_key) = {
-        let cert = std::env::var("LARUCHE_TLS_CERT").ok().filter(|s| !s.is_empty());
-        let key = std::env::var("LARUCHE_TLS_KEY").ok().filter(|s| !s.is_empty());
+        let cert = std::env::var("LARUCHE_TLS_CERT")
+            .ok()
+            .filter(|s| !s.is_empty());
+        let key = std::env::var("LARUCHE_TLS_KEY")
+            .ok()
+            .filter(|s| !s.is_empty());
         if cert.is_some() && key.is_some() {
             (cert, key)
         } else if std::env::var("LARUCHE_HTTPS").as_deref() == Ok("1") {
@@ -1844,7 +1906,11 @@ fn purger_carnets_au_boot() {
             .and_then(|m| m.modified().ok())
             .and_then(|t| now.duration_since(t).ok())
             .unwrap_or_default();
-        if age > max_age {
+        let terminal = std::fs::read_to_string(&p)
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .is_some_and(|v| v["controle"]["etat"] == "accomplie");
+        if age > max_age && terminal {
             if std::fs::remove_file(&p).is_ok() {
                 purges += 1;
             }
@@ -1990,7 +2056,10 @@ mod tests_depot_livre {
     #[test]
     fn le_travail_de_l_utilisateur_ne_se_perd_jamais() {
         // Modifie depuis notre depot.
-        assert_eq!(decider(Some("aaa"), Some("zzz"), "bbb"), Depot::NePasToucher);
+        assert_eq!(
+            decider(Some("aaa"), Some("zzz"), "bbb"),
+            Depot::NePasToucher
+        );
         // Present mais inconnu du registre: c'est le cas d'un foyer existant a la
         // toute premiere mise a jour. On ne devine pas, on ne remplace pas.
         assert_eq!(decider(None, Some("zzz"), "bbb"), Depot::NePasToucher);
@@ -1998,7 +2067,10 @@ mod tests_depot_livre {
 
     #[test]
     fn rien_a_faire_quand_c_est_deja_la_bonne_version() {
-        assert_eq!(decider(Some("bbb"), Some("bbb"), "bbb"), Depot::NePasToucher);
+        assert_eq!(
+            decider(Some("bbb"), Some("bbb"), "bbb"),
+            Depot::NePasToucher
+        );
         assert_eq!(decider(None, Some("bbb"), "bbb"), Depot::NePasToucher);
     }
 

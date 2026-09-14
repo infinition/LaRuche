@@ -154,6 +154,8 @@ pub(crate) struct PersistentState {
     /// Models used only by the Mixture tool when no explicit candidates are supplied.
     #[serde(default)]
     pub(crate) fallback_models: Option<Vec<String>>,
+    pub(crate) mission_budget_tokens: Option<u64>,
+    pub(crate) fallback_profiles: Option<Vec<laruche_essaim::config::ProfilSecours>>,
     /// Optional model used by cognitive-memory enrichment.
     #[serde(default)]
     pub(crate) review_model: Option<String>,
@@ -248,7 +250,9 @@ impl ActiveContextStats {
                     self.running = true;
                 }
             }
-            ChatEvent::ToolCall { name, args, agent, .. } => {
+            ChatEvent::ToolCall {
+                name, args, agent, ..
+            } => {
                 if self.streaming_response_open {
                     self.messages = self.messages.saturating_add(1);
                     self.streaming_response_open = false;
@@ -262,7 +266,12 @@ impl ActiveContextStats {
                 }
                 self.running = true;
             }
-            ChatEvent::ToolResult { name, result, agent, .. } => {
+            ChatEvent::ToolResult {
+                name,
+                result,
+                agent,
+                ..
+            } => {
                 self.messages = self.messages.saturating_add(1);
                 // A SUB-AGENT's tool result never enters the main context: it runs on
                 // an isolated context and only its compact report comes back. Counting
@@ -288,8 +297,7 @@ impl ActiveContextStats {
                     let garde = |v: u32| ((v as u64 * apres) / avant) as u32;
                     self.extra_tokens = garde(self.extra_tokens);
                     self.base_tokens = garde(self.base_tokens);
-                    self.streamed_chars =
-                        ((self.streamed_chars as u64 * apres) / avant) as usize;
+                    self.streamed_chars = ((self.streamed_chars as u64 * apres) / avant) as usize;
                     self.messages = apres as u32;
                 }
             }
@@ -475,7 +483,10 @@ impl GardeTravail {
         if let Ok(mut m) = travaux.write() {
             m.insert(id, travail);
         }
-        Self { id, travaux: travaux.clone() }
+        Self {
+            id,
+            travaux: travaux.clone(),
+        }
     }
 }
 
@@ -596,7 +607,8 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         disabled_tools: state.essaim_config.read().await.disabled_tools.clone(),
         disabled_skills: state.essaim_config.read().await.disabled_skills.clone(),
         permission_mode: Some(
-            settings_api::permission_mode_to_str(state.essaim_config.read().await.permission_mode).to_string(),
+            settings_api::permission_mode_to_str(state.essaim_config.read().await.permission_mode)
+                .to_string(),
         ),
         saved_at: chrono::Utc::now().to_rfc3339(),
         cookie_secret: Some(auth_user::cookie_secret_to_base64(&state.cookie_secret)),
@@ -604,9 +616,7 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         compaction_threshold: Some(state.essaim_config.read().await.compaction_threshold),
         context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
         curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
-        episodes_retention_jours: Some(
-            state.essaim_config.read().await.episodes_retention_jours,
-        ),
+        episodes_retention_jours: Some(state.essaim_config.read().await.episodes_retention_jours),
         halo_actif: Some(state.essaim_config.read().await.halo_actif),
         mcp_server_actif: Some(state.essaim_config.read().await.mcp_server_actif),
         mcp_pare_feu_actif: Some(state.essaim_config.read().await.mcp_pare_feu_actif),
@@ -618,6 +628,8 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         max_tokens: Some(state.essaim_config.read().await.max_tokens),
         tool_selection_limit: Some(state.essaim_config.read().await.tool_selection_limit),
         dynamic_context_threshold: Some(state.essaim_config.read().await.dynamic_context_threshold),
+        fallback_profiles: Some(state.essaim_config.read().await.fallback_profiles.clone()),
+        mission_budget_tokens: Some(state.essaim_config.read().await.mission_budget_tokens),
         fallback_models: Some(state.essaim_config.read().await.fallback_models.clone()),
         review_model: state.essaim_config.read().await.review_model.clone(),
         home_channel: state.essaim_config.read().await.home_channel.clone(),

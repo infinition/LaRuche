@@ -191,7 +191,10 @@ mod tests_portee_supersede {
 fn subtree_like(prefix: &str) -> String {
     format!(
         "{}.%",
-        prefix.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+        prefix
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_")
     )
 }
 
@@ -332,6 +335,27 @@ impl SqliteBackend {
                id INTEGER PRIMARY KEY,
                op TEXT NOT NULL, node_id TEXT, content TEXT, ts INTEGER NOT NULL);",
         )?;
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS embedding_metadata (id INTEGER PRIMARY KEY CHECK(id=1), identity TEXT NOT NULL)")?;
+        if let Some(embedder) = &embedder {
+            let transaction = conn.unchecked_transaction()?;
+            let old: Option<String> = transaction
+                .query_row(
+                    "SELECT identity FROM embedding_metadata WHERE id=1",
+                    [],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            let identity = embedder.identite();
+            if old.as_deref() != Some(identity.as_str()) {
+                // Keep every fact and FTS entry. Backfill repopulates vectors in the new space.
+                transaction.execute(
+                    "UPDATE items SET embedding=NULL WHERE embedding IS NOT NULL",
+                    [],
+                )?;
+                transaction.execute("INSERT INTO embedding_metadata(id,identity) VALUES(1,?1) ON CONFLICT(id) DO UPDATE SET identity=excluded.identity", [&identity])?;
+            }
+            transaction.commit()?;
+        }
         // Migration: last-modified timestamp (ignore error if already present).
         let _ = conn.execute("ALTER TABLE items ADD COLUMN updated_at INTEGER", []);
         let _ = conn.execute("ALTER TABLE nodes ADD COLUMN updated_at INTEGER", []);
@@ -341,7 +365,10 @@ impl SqliteBackend {
         // Value & usage signals (priority decay: ranking, never deletion).
         let _ = conn.execute("ALTER TABLE items ADD COLUMN importance REAL", []);
         let _ = conn.execute("ALTER TABLE items ADD COLUMN confidence REAL", []);
-        let _ = conn.execute("ALTER TABLE items ADD COLUMN access_count INTEGER DEFAULT 0", []);
+        let _ = conn.execute(
+            "ALTER TABLE items ADD COLUMN access_count INTEGER DEFAULT 0",
+            [],
+        );
         let _ = conn.execute("ALTER TABLE items ADD COLUMN accessed_at INTEGER", []);
         // Repair: drop FTS rows whose item no longer exists. Past hard deletes left them
         // behind, and because rowids get reused each orphan is a landmine that makes one
@@ -516,7 +543,11 @@ impl MemoireCognitive for SqliteBackend {
                 let (id, node, content, blob, imp, acces, maj) = row?;
                 let sem = cosine(qv, &blob_to_vec(&blob));
                 let hay = format!("{node} {content}").to_lowercase();
-                let lex = if qtoks.iter().any(|t| hay.contains(t)) { 0.3 } else { 0.0 };
+                let lex = if qtoks.iter().any(|t| hay.contains(t)) {
+                    0.3
+                } else {
+                    0.0
+                };
                 // RELEVANCE gates; the value/usage bonus only RE-RANKS relevant
                 // hits (a fresh but off-topic item must never surface).
                 //
@@ -562,19 +593,16 @@ impl MemoireCognitive for SqliteBackend {
                  AND i.node_id NOT LIKE 'capacities.%' AND i.node_id NOT LIKE 'system.%' \
                  ORDER BY bm25(items_fts) LIMIT ?2",
             )?;
-            let rows = stmt.query_map(
-                rusqlite::params![match_expr, (limit * 3) as i64],
-                |r| {
-                    Ok((
-                        r.get::<_, i64>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                        r.get::<_, Option<f32>>(3)?,
-                        r.get::<_, i64>(4)?,
-                        r.get::<_, Option<i64>>(5)?,
-                    ))
-                },
-            )?;
+            let rows = stmt.query_map(rusqlite::params![match_expr, (limit * 3) as i64], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<f32>>(3)?,
+                    r.get::<_, i64>(4)?,
+                    r.get::<_, Option<i64>>(5)?,
+                ))
+            })?;
             // Base below a strong semantic match, above a weak one: exact wording
             // competes without drowning meaning.
             let base = if qvec.is_some() { 0.55 } else { 1.0 };
@@ -762,7 +790,10 @@ impl MemoireCognitive for SqliteBackend {
                             "UPDATE items SET status='superseded', updated_at=?1 WHERE id=?2",
                             rusqlite::params![now(), id],
                         )?;
-                        conn.execute("DELETE FROM items_fts WHERE rowid=?1", rusqlite::params![id])?;
+                        conn.execute(
+                            "DELETE FROM items_fts WHERE rowid=?1",
+                            rusqlite::params![id],
+                        )?;
                         conn.execute(
                             "INSERT INTO mutations(op,node_id,content,ts,src) VALUES('supersede',?1,?2,?3,?4)",
                             rusqlite::params![
@@ -906,11 +937,7 @@ impl MemoireCognitive for SqliteBackend {
             rusqlite::params![
                 "delete",
                 existing.0,
-                format!(
-                    "{}: {}",
-                    reason.unwrap_or("delete_via_laruche"),
-                    existing.1
-                ),
+                format!("{}: {}", reason.unwrap_or("delete_via_laruche"), existing.1),
                 now(),
                 reason
             ],
@@ -960,11 +987,7 @@ impl MemoireCognitive for SqliteBackend {
             rusqlite::params![
                 action,
                 existing.0,
-                format!(
-                    "{}: {}",
-                    reason.unwrap_or("review_via_laruche"),
-                    existing.1
-                ),
+                format!("{}: {}", reason.unwrap_or("review_via_laruche"), existing.1),
                 now()
             ],
         )?;
@@ -1114,7 +1137,10 @@ impl MemoireCognitive for SqliteBackend {
         let conn = self.conn.lock().unwrap();
         let like = format!(
             "%{}%",
-            pattern.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+            pattern
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_")
         );
         let mut stmt = conn.prepare(
             "SELECT id, node_id, content FROM items WHERE status='active' AND content LIKE ?1 ESCAPE '\\' ORDER BY id DESC LIMIT ?2",
@@ -1230,8 +1256,9 @@ impl MemoireCognitive for SqliteBackend {
         let nodes: Vec<(String, String, String)> = match prefix.map(|p| p.trim_matches('.')) {
             Some(p) if !p.is_empty() => {
                 let like = subtree_like(p);
-                let mut nstmt = conn
-                    .prepare("SELECT id, label, one_liner FROM nodes WHERE id=?1 OR id LIKE ?2 ESCAPE '\\'")?;
+                let mut nstmt = conn.prepare(
+                    "SELECT id, label, one_liner FROM nodes WHERE id=?1 OR id LIKE ?2 ESCAPE '\\'",
+                )?;
                 let v: Vec<(String, String, String)> = nstmt
                     .query_map(rusqlite::params![p, like], |r| {
                         Ok((r.get(0)?, r.get(1)?, r.get(2)?))
@@ -1391,9 +1418,18 @@ impl MemoireCognitive for SqliteBackend {
 
         if id == "orphans" || id.starts_with("orphans.") {
             // Hard delete for orphans
-            let _ = conn.execute("DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'", rusqlite::params![id, like]);
-            conn.execute("DELETE FROM items WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'", rusqlite::params![id, like])?;
-            conn.execute("DELETE FROM nodes WHERE id = ?1 OR id LIKE ?2 ESCAPE '\\'", rusqlite::params![id, like])?;
+            let _ = conn.execute(
+                "DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'",
+                rusqlite::params![id, like],
+            );
+            conn.execute(
+                "DELETE FROM items WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'",
+                rusqlite::params![id, like],
+            )?;
+            conn.execute(
+                "DELETE FROM nodes WHERE id = ?1 OR id LIKE ?2 ESCAPE '\\'",
+                rusqlite::params![id, like],
+            )?;
             return Ok(json!({"deleted": id, "hard_delete": true}));
         }
 
@@ -1648,11 +1684,21 @@ mod tests_okf_markdown {
                    \x20 _(source: butinage)_\n\
                    - Un autre fait, sur une ligne.\n";
         let (_, items) = parse_okf(doc, "f");
-        assert_eq!(items.len(), 2, "la liste imbriquee ne doit pas devenir des items");
+        assert_eq!(
+            items.len(),
+            2,
+            "la liste imbriquee ne doit pas devenir des items"
+        );
         assert!(items[0].contains("### Verifications"), "le titre survit");
-        assert!(items[0].contains("- GitHub API : 0 resultat"), "la puce imbriquee survit");
+        assert!(
+            items[0].contains("- GitHub API : 0 resultat"),
+            "la puce imbriquee survit"
+        );
         assert!(items[0].contains("- archive.org : rien"));
-        assert!(!items[0].contains("source:"), "la decoration d'export n'est pas du contenu");
+        assert!(
+            !items[0].contains("source:"),
+            "la decoration d'export n'est pas du contenu"
+        );
         assert_eq!(items[1], "Un autre fait, sur une ligne.");
     }
 
@@ -1668,7 +1714,10 @@ mod tests_okf_markdown {
         let (id, items) = parse_okf(doc, "tables.orders");
         assert_eq!(id, "tables.orders", "sans `id:`, le chemin fait foi");
         assert_eq!(items.len(), 1);
-        assert!(items[0].contains("[customers](/tables/customers.md)"), "le lien OKF survit");
+        assert!(
+            items[0].contains("[customers](/tables/customers.md)"),
+            "le lien OKF survit"
+        );
     }
 }
 

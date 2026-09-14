@@ -32,10 +32,16 @@ fn event_json_avec_session(event: &laruche_essaim::ChatEvent, session_id: Uuid) 
 /// Silencieux si la session n'a pas de run: demander l'arret de ce qui est deja
 /// fini est sans consequence, et c'est le cas normal d'un double clic.
 async fn arreter_run(state: &Arc<AppState>, session_id: Uuid) {
+    laruche_essaim::job_queue::cancel_owner(&session_id.to_string());
     if let Some(handle) = state.runs_actifs.write().await.remove(&session_id) {
         handle.abort();
     }
-    if let Some(stats) = state.active_context_stats.write().await.get_mut(&session_id) {
+    if let Some(stats) = state
+        .active_context_stats
+        .write()
+        .await
+        .get_mut(&session_id)
+    {
         stats.running = false;
     }
 }
@@ -641,8 +647,11 @@ pub(crate) async fn ws_chat_connection(
         // Inscrit des le lancement: c'est ce qui permet a une AUTRE connexion, celle
         // d'apres un rechargement de page, de l'arreter. Le handle sort du registre
         // tout seul quand la tache finit.
-        state.runs_actifs.write().await.insert(session_id, react_handle.abort_handle());
-
+        state
+            .runs_actifs
+            .write()
+            .await
+            .insert(session_id, react_handle.abort_handle());
 
         // Forward events to WebSocket + listen for approvals from client
         let mut done = false;

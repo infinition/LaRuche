@@ -1,186 +1,231 @@
-//! Queue of long-running jobs for the agent.
-//!
-//! Lets the agent launch long scripts in the background
-//! and come back later to check their status (polling pattern).
-//!
-//! # Usage
-//! 1. Agent calls `submit_job` with a script, receives a `job_id`
-//! 2. Agent continues its reasoning (other tools, thinking...)
-//! 3. Agent calls `check_job_status(job_id)` to see progress
-//! 4. When the job is done, the agent retrieves the result
-
+//! Durable background jobs using the same guarded shell executor as foreground tools.
+use crate::abeille::{Abeille, ContextExecution};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Instant;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-/// Status of a background job.
 #[derive(Debug, Clone)]
 pub enum JobStatus {
-    /// Running
     Running {
         started: Instant,
         progress: Option<f32>,
     },
-    /// Completed successfully
     Completed {
         output: String,
-        elapsed: std::time::Duration,
+        elapsed: Duration,
     },
-    /// Failed
     Failed {
         error: String,
-        elapsed: std::time::Duration,
+        elapsed: Duration,
     },
 }
 
-/// Long-running job manager (thread-safe, shared across tools).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Record {
+    id: String,
+    owner: Option<String>,
+    working_dir: PathBuf,
+    state: String,
+    output: String,
+    started: i64,
+    finished: Option<i64>,
+    elapsed_ms: u64,
+}
+
+type Cancellations = Mutex<HashMap<String, (Option<String>, tokio::sync::watch::Sender<bool>)>>;
+fn cancellations() -> &'static Cancellations {
+    static ALL: OnceLock<Cancellations> = OnceLock::new();
+    ALL.get_or_init(Default::default)
+}
+pub fn cancel_owner(owner: &str) {
+    if let Ok(all) = cancellations().lock() {
+        for (run, sender) in all.values() {
+            if run.as_deref() == Some(owner) {
+                let _ = sender.send(true);
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct JobQueue {
-    jobs: Arc<RwLock<HashMap<String, JobStatus>>>,
+    jobs: Arc<RwLock<HashMap<String, Record>>>,
+    root: Arc<PathBuf>,
 }
-
 impl JobQueue {
     pub fn new() -> Self {
-        Self {
-            jobs: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self::with_root(PathBuf::from("sessions/jobs"))
     }
-
-    /// Submits a shell script in the background.
-    /// Returns a `job_id` the agent can use to check the status.
-    pub async fn submit(&self, script: &str, label: Option<&str>) -> String {
-        let job_id = format!(
-            "job_{}_{}",
-            label.unwrap_or("script"),
-            uuid::Uuid::new_v4()
-                .to_string()
-                .split('-')
-                .next()
-                .unwrap_or("x")
-        );
-        let jobs = self.jobs.clone();
-        let id = job_id.clone();
-        let script = script.to_string();
-
-        // Write "Running" into the HashMap
-        {
-            let mut w = jobs.write().await;
-            w.insert(
-                id.clone(),
-                JobStatus::Running {
-                    started: Instant::now(),
-                    progress: None,
-                },
-            );
-        }
-
-        // Launch in the background
-        tokio::spawn(async move {
-            let start = Instant::now();
-
-            // Execution via tokio::process::Command
-            let mut command = if cfg!(windows) {
-                let mut cmd = tokio::process::Command::new("cmd");
-                cmd.arg("/C").arg(&script);
-                cmd
-            } else {
-                let mut cmd = tokio::process::Command::new("sh");
-                cmd.arg("-c").arg(&script);
-                cmd
-            };
-            let output = command.output().await;
-
-            let mut w = jobs.write().await;
-            match output {
-                Ok(out) => {
-                    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                    let combined = if stderr.is_empty() {
-                        stdout
-                    } else {
-                        format!("[stdout]\n{stdout}\n[stderr]\n{stderr}")
-                    };
-                    if out.status.success() {
-                        w.insert(
-                            id.clone(),
-                            JobStatus::Completed {
-                                output: combined,
-                                elapsed: start.elapsed(),
-                            },
-                        );
-                    } else {
-                        w.insert(
-                            id.clone(),
-                            JobStatus::Failed {
-                                error: format!(
-                                    "Exit {}: {}",
-                                    out.status.code().unwrap_or(-1),
-                                    combined.chars().take(500).collect::<String>()
-                                ),
-                                elapsed: start.elapsed(),
-                            },
-                        );
-                    }
+    pub fn with_root(root: PathBuf) -> Self {
+        let mut jobs = HashMap::new();
+        if let Ok(entries) = std::fs::read_dir(&root) {
+            for entry in entries.flatten() {
+                if entry.path().extension().is_none_or(|e| e != "json") {
+                    continue;
                 }
-                Err(e) => {
-                    w.insert(
-                        id.clone(),
-                        JobStatus::Failed {
-                            error: e.to_string(),
-                            elapsed: start.elapsed(),
-                        },
-                    );
+                if let Ok(raw) = std::fs::read_to_string(entry.path()) {
+                    if let Ok(mut record) = serde_json::from_str::<Record>(&raw) {
+                        if record.state == "running" {
+                            record.state = "failed".into();
+                            record.output = "Process interrupted or owner restarted; external outcome unknown. Do not replay blindly.".into();
+                        }
+                        jobs.insert(record.id.clone(), record);
+                    }
                 }
             }
+        }
+        Self {
+            jobs: Arc::new(RwLock::new(jobs)),
+            root: Arc::new(root),
+        }
+    }
+    fn persist(&self, record: &Record) -> anyhow::Result<()> {
+        use std::io::Write;
+        std::fs::create_dir_all(self.root.as_path())?;
+        let path = self.root.join(format!("{}.json", record.id));
+        let tmp = path.with_extension("tmp");
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(serde_json::to_string(record)?.as_bytes())?;
+        file.sync_all()?;
+        std::fs::rename(tmp, path)?;
+        Ok(())
+    }
+    pub async fn submit_in_context(
+        &self,
+        script: &str,
+        _label: Option<&str>,
+        ctx: &ContextExecution,
+    ) -> anyhow::Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let record = Record {
+            id: id.clone(),
+            owner: ctx.run_id.clone(),
+            working_dir: ctx.working_dir.clone(),
+            state: "running".into(),
+            output: String::new(),
+            started: chrono::Utc::now().timestamp(),
+            finished: None,
+            elapsed_ms: 0,
+        };
+        let mut jobs = self.jobs.write().await;
+        anyhow::ensure!(
+            jobs.values().filter(|j| j.state == "running").count() < 4,
+            "Background job capacity reached (4)"
+        );
+        self.persist(&record)?;
+        jobs.insert(id.clone(), record.clone());
+        drop(jobs);
+        let (cancel, mut rx) = tokio::sync::watch::channel(false);
+        cancellations()
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Cancellation registry unavailable"))?
+            .insert(id.clone(), (ctx.run_id.clone(), cancel));
+        let queue = self.clone();
+        let context = ctx.clone();
+        let script = script.to_string();
+        tokio::spawn(async move {
+            let started = Instant::now();
+            let future = crate::abeilles::shell::ShellExec.executer(
+                serde_json::json!({"command":script, "timeout_secs":3600}),
+                &context,
+            );
+            tokio::pin!(future);
+            let mut record = record;
+            match tokio::select! {
+                result = &mut future => Some(result),
+                _ = rx.changed() => None,
+            } {
+                Some(Ok(result)) if result.success => {
+                    record.state = "completed".into();
+                    record.output = result.output;
+                }
+                Some(Ok(result)) => {
+                    record.state = "failed".into();
+                    record.output = result.error.unwrap_or(result.output);
+                }
+                Some(Err(e)) => {
+                    record.state = "failed".into();
+                    record.output = e.to_string();
+                }
+                None => {
+                    record.state = "failed".into();
+                    record.output =
+                        "Cancelled; reconcile any external effects before retrying.".into();
+                }
+            }
+            record.finished = Some(chrono::Utc::now().timestamp());
+            record.elapsed_ms = started.elapsed().as_millis() as u64;
+            if let Err(e) = queue.persist(&record) {
+                record.state = "failed".into();
+                record.output = format!("Result could not be persisted, outcome unknown: {e}");
+            }
+            if let Ok(mut all) = cancellations().lock() {
+                all.remove(&record.id);
+            }
+            queue.jobs.write().await.insert(record.id.clone(), record);
         });
-
-        job_id
+        Ok(id)
     }
-
-    /// Checks a job's status.
-    pub async fn check(&self, job_id: &str) -> Option<JobStatus> {
-        let r = self.jobs.read().await;
-        r.get(job_id).cloned()
+    pub async fn cancel(&self, id: &str, owner: Option<&str>) -> bool {
+        let jobs = self.jobs.read().await;
+        if !jobs.get(id).is_some_and(|r| r.owner.as_deref() == owner) {
+            return false;
+        }
+        cancellations()
+            .lock()
+            .ok()
+            .and_then(|all| all.get(id).map(|(_, sender)| sender.send(true).is_ok()))
+            .unwrap_or(false)
     }
-
-    /// Number of running jobs.
-    #[allow(dead_code)]
+    pub async fn check(&self, id: &str) -> Option<JobStatus> {
+        let jobs = self.jobs.read().await;
+        let r = jobs.get(id)?;
+        let elapsed = Duration::from_millis(r.elapsed_ms);
+        Some(match r.state.as_str() {
+            "running" => JobStatus::Running {
+                started: Instant::now()
+                    .checked_sub(Duration::from_secs(
+                        (chrono::Utc::now().timestamp() - r.started).max(0) as u64,
+                    ))
+                    .unwrap_or_else(Instant::now),
+                progress: None,
+            },
+            "completed" => JobStatus::Completed {
+                output: r.output.clone(),
+                elapsed,
+            },
+            _ => JobStatus::Failed {
+                error: r.output.clone(),
+                elapsed,
+            },
+        })
+    }
     pub async fn running_count(&self) -> usize {
-        let r = self.jobs.read().await;
-        r.values()
-            .filter(|s| matches!(s, JobStatus::Running { .. }))
+        self.jobs
+            .read()
+            .await
+            .values()
+            .filter(|r| r.state == "running")
             .count()
     }
-
-    /// Cleans up finished jobs older than 1h.
-    #[allow(dead_code)]
     pub async fn nettoyer(&self) -> usize {
-        let mut w = self.jobs.write().await;
-        let _now = Instant::now();
-        let stale: Vec<String> =
-            w.iter()
-                .filter_map(|(id, status)| {
-                    let elapsed = match status {
-                        JobStatus::Completed { elapsed, .. }
-                        | JobStatus::Failed { elapsed, .. } => *elapsed,
-                        _ => return None,
-                    };
-                    if elapsed > std::time::Duration::from_secs(3600) {
-                        Some(id.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-        let count = stale.len();
-        for id in stale {
-            w.remove(&id);
+        let now = chrono::Utc::now().timestamp();
+        let mut jobs = self.jobs.write().await;
+        let stale: Vec<_> = jobs
+            .values()
+            .filter(|r| r.finished.is_some_and(|t| now - t > 3600))
+            .map(|r| r.id.clone())
+            .collect();
+        for id in &stale {
+            jobs.remove(id);
+            let _ = std::fs::remove_file(self.root.join(format!("{id}.json")));
         }
-        count
+        stale.len()
     }
 }
-
 impl Default for JobQueue {
     fn default() -> Self {
         Self::new()
@@ -190,27 +235,29 @@ impl Default for JobQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, timeout, Duration};
-
     #[tokio::test]
-    async fn submit_execute_une_commande_shell_portable() {
-        let queue = JobQueue::new();
-        let job_id = queue.submit("echo laruche_job_ok", Some("test")).await;
-
-        let status = timeout(Duration::from_secs(5), async {
-            loop {
-                match queue.check(&job_id).await {
-                    Some(JobStatus::Completed { output, .. }) => break output,
-                    Some(JobStatus::Failed { error, .. }) => panic!("{error}"),
-                    Some(JobStatus::Running { .. }) | None => {
-                        sleep(Duration::from_millis(50)).await;
-                    }
-                }
+    async fn job_uses_working_directory_and_persists_result() {
+        let root = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&root).unwrap();
+        let queue = JobQueue::with_root(root.join("jobs"));
+        let ctx = ContextExecution {
+            working_dir: root.clone(),
+            ..Default::default()
+        };
+        let id = queue
+            .submit_in_context("echo laruche_job_ok", Some("test"), &ctx)
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while matches!(queue.check(&id).await, Some(JobStatus::Running { .. })) {
+                tokio::time::sleep(Duration::from_millis(20)).await;
             }
         })
         .await
-        .expect("shell job timeout");
-
-        assert!(status.contains("laruche_job_ok"));
+        .unwrap();
+        assert!(
+            matches!(JobQueue::with_root(root.join("jobs")).check(&id).await, Some(JobStatus::Completed { output, .. }) if output.contains("laruche_job_ok"))
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

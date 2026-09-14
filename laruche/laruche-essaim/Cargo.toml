@@ -67,6 +67,7 @@ arboard = { version = "3.6.1", default-features = false, optional = true }
 # d'objets, 55 secondes de compilation. La CI Linux installe deja `clang`, dont
 # les liaisons V4L2 ont besoin.
 nokhwa = { version = "0.10.11", default-features = false, features = ["input-native", "decoding"], optional = true }
+jsonschema = { version = "0.56.0", default-features = false }
 
 [features]
 default = ["gui-control", "camera"]

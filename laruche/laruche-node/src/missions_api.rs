@@ -2,8 +2,8 @@
 
 use crate::*;
 use axum::extract::State;
-use axum::response::Json;
 use axum::http::StatusCode;
+use axum::response::Json;
 use std::sync::Arc;
 
 /// GET /api/cron - list scheduled tasks.
@@ -290,7 +290,9 @@ pub(crate) async fn api_delete_cron(
 /// POST /api/cron/:id/run - immediately runs a cron's prompt (spawn).
 // --- Missions ("La Reine") --------------------------------------------------
 /// GET /api/missions - lists long-running missions.
-pub(crate) async fn api_list_missions(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+pub(crate) async fn api_list_missions(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
     Json(serde_json::json!(state.missions.read().await.list()))
 }
 
@@ -345,9 +347,17 @@ pub(crate) async fn api_create_mission(
             )
             .await;
         for (suffixe, label, resume) in [
-            ("findings", "Findings", "Lasting sourced facts, one per item"),
+            (
+                "findings",
+                "Findings",
+                "Lasting sourced facts, one per item",
+            ),
             ("questions", "Open questions", "What is still unresolved"),
-            ("synthese", "Synthesis", "Readable overview of the case so far"),
+            (
+                "synthese",
+                "Synthesis",
+                "Readable overview of the case so far",
+            ),
         ] {
             let _ = state
                 .memoire
@@ -387,7 +397,19 @@ pub(crate) async fn api_create_mission(
 
 /// Runs ONE mission iteration (reused by the API AND the cadence daemon): the agent reads
 /// the accumulated state under `missions.<slug>`, advances one step and writes its findings there.
-pub(crate) async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Mission) -> u32 {
+pub(crate) async fn lancer_iteration_mission(
+    state: Arc<AppState>,
+    mission: missions::Mission,
+) -> u32 {
+    let lock_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, mission.slug.as_bytes());
+    let lease_path = std::path::PathBuf::from("sessions/missions").join(lock_id.to_string());
+    let lease = match laruche_essaim::butinage::cycle::BailMission::acquerir(&lease_path) {
+        Ok(lease) => lease,
+        Err(e) => {
+            tracing::info!(error = %e, "Mission iteration already admitted");
+            return mission.iterations;
+        }
+    };
     let slug = mission.slug.clone();
     let node_id = format!("missions.{}", slug);
     let etat = match state.memoire.read_node(&node_id).await {
@@ -410,17 +432,24 @@ pub(crate) async fn lancer_iteration_mission(state: Arc<AppState>, mission: miss
     let channel = mission.channel.clone();
     let run_state = state.clone();
     tokio::spawn(async move {
+        let _lease = lease;
         // Mission provider/model (otherwise global default).
         let mut cfg = run_state.essaim_config.read().await.clone();
         if let Some(pid) = &profile_id {
-            profiles_api::appliquer_profil(&run_state, &mut cfg, pid, model_override.as_deref()).await;
+            profiles_api::appliquer_profil(&run_state, &mut cfg, pid, model_override.as_deref())
+                .await;
         } else if let Some(m) = &model_override {
             cfg.model = m.clone();
         }
         // Origin channel -> a cron created by the mission will reply there; also used as delivery target.
         cfg.origin_channel = channel.clone();
         // Anti-replication: a mission iteration does not create scheduled tasks.
-        for t in ["cron_create", "watcher_create", "mission_create", "kanban_create"] {
+        for t in [
+            "cron_create",
+            "watcher_create",
+            "mission_create",
+            "kanban_create",
+        ] {
             if !cfg.disabled_tools.iter().any(|d| d == t) {
                 cfg.disabled_tools.push(t.to_string());
             }
@@ -444,9 +473,15 @@ pub(crate) async fn lancer_iteration_mission(state: Arc<AppState>, mission: miss
         // LaReine Tier 1 (only when enabled): review the iteration's output and re-do the work
         // if it falls short, using the mission's own config, then deliver the approved version.
         let result = match result {
-            Ok(bilan) => {
-                Ok(crate::reine_api::revue_mission(&run_state, &mut session, &cfg, &prompt, &bilan, &tx).await)
-            }
+            Ok(bilan) => Ok(crate::reine_api::revue_mission(
+                &run_state,
+                &mut session,
+                &cfg,
+                &prompt,
+                &bilan,
+                &tx,
+            )
+            .await),
             err => err,
         };
         run_state
@@ -458,8 +493,11 @@ pub(crate) async fn lancer_iteration_mission(state: Arc<AppState>, mission: miss
         if let (Some(ch), Ok(bilan)) = (channel.as_ref(), &result) {
             let txt = bilan.trim();
             if !txt.is_empty() {
-                livrer_telegram(ch, &format!("📋 Mission \"{slug}\" - iteration {iteration}:\n\n{txt}"))
-                    .await;
+                livrer_telegram(
+                    ch,
+                    &format!("📋 Mission \"{slug}\" - iteration {iteration}:\n\n{txt}"),
+                )
+                .await;
             }
         }
     });
@@ -512,6 +550,9 @@ pub(crate) async fn api_carnet_resume(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
+    if Uuid::parse_str(&id).is_err() {
+        return Json(serde_json::json!({"error":"invalid notebook id"}));
+    }
     let path = std::path::Path::new("sessions")
         .join("butinage")
         .join(format!("{id}.carnet.json"));
@@ -534,17 +575,29 @@ pub(crate) async fn api_carnet_resume(
         )
         .await
         {
-            Ok(txt) => {
+            Ok(bilan) => {
+                let status = if bilan.est_succes() {
+                    "succeeded"
+                } else {
+                    "suspended or failed"
+                };
                 laruche_essaim::feed_journal::record(
                     "LaRuche",
                     "mission",
-                    "resumed and finished a notebook",
+                    status,
                     id_spawn,
                     chrono::Utc::now(),
                 );
                 if let Some(ch) = cfg.home_channel.as_ref() {
-                    livrer_telegram(ch, &format!("✅ Notebook resumed - finished:\n\n{}", txt.trim()))
-                        .await;
+                    livrer_telegram(
+                        ch,
+                        &format!(
+                            "Notebook resumed ({status}, {:?}):\n\n{}",
+                            bilan.fin,
+                            bilan.texte.trim()
+                        ),
+                    )
+                    .await;
                 }
             }
             Err(e) => warn!(error = %e, "Notebook resume failed"),
@@ -755,7 +808,10 @@ pub(crate) async fn api_decompose_mission(
 ///
 /// Extracted so the HTTP endpoint and the `run_now` tool share ONE implementation:
 /// a second copy is how `/mcp` and `/api/mcp` silently drifted apart.
-pub(crate) fn lancer_tache_cron(run_state: Arc<AppState>, task: laruche_essaim::cron::ScheduledTask) {
+pub(crate) fn lancer_tache_cron(
+    run_state: Arc<AppState>,
+    task: laruche_essaim::cron::ScheduledTask,
+) {
     tokio::spawn(async move {
         let mut cfg = run_state.essaim_config.read().await.clone();
         if let Some(p) = task.provider.clone() {

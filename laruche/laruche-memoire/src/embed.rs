@@ -16,6 +16,10 @@ use std::sync::atomic::{AtomicI64, AtomicU8, Ordering};
 /// Produces an embedding vector for a text.
 #[async_trait]
 pub trait Embedder: Send + Sync {
+    /// Identity of the vector space, changed whenever model or normalization changes.
+    fn identite(&self) -> String {
+        std::any::type_name::<Self>().to_string()
+    }
     async fn embed(&self, text: &str) -> Result<Vec<f32>>;
 }
 
@@ -81,7 +85,10 @@ impl HttpEmbedder {
             .and_then(|v| v.as_array())
             .or_else(|| body["embedding"].as_array())
             .ok_or_else(|| anyhow!("unexpected ollama embed response"))?;
-        Ok(arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
+        Ok(arr
+            .iter()
+            .filter_map(|v| v.as_f64().map(|f| f as f32))
+            .collect())
     }
 
     async fn essayer_openai(&self, text: &str) -> Result<Vec<f32>> {
@@ -97,16 +104,24 @@ impl HttpEmbedder {
             .and_then(|a| a.first())
             .and_then(|d| d["embedding"].as_array())
             .ok_or_else(|| anyhow!("unexpected openai embed response"))?;
-        Ok(arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
+        Ok(arr
+            .iter()
+            .filter_map(|v| v.as_f64().map(|f| f as f32))
+            .collect())
     }
 }
 
 #[async_trait]
 impl Embedder for HttpEmbedder {
+    fn identite(&self) -> String {
+        format!("http:{}:{}:v1", self.url, self.model)
+    }
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
         let now = chrono::Utc::now().timestamp();
         if self.down_until.load(Ordering::Relaxed) > now {
-            return Err(anyhow!("embedder circuit open (server down, retrying later)"));
+            return Err(anyhow!(
+                "embedder circuit open (server down, retrying later)"
+            ));
         }
         let mode = self.mode.load(Ordering::Relaxed);
         let res = match mode {
@@ -169,6 +184,9 @@ mod tests {
         assert!(e.embed("test").await.is_err());
         let t0 = std::time::Instant::now();
         assert!(e.embed("test").await.is_err());
-        assert!(t0.elapsed().as_millis() < 100, "breaker must reject instantly");
+        assert!(
+            t0.elapsed().as_millis() < 100,
+            "breaker must reject instantly"
+        );
     }
 }

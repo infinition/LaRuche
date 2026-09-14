@@ -26,6 +26,10 @@ pub enum ModeMission {
 /// The crash-resumable state of a butinage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Carnet {
+    #[serde(default = "version_carnet")]
+    pub version: u32,
+    #[serde(default)]
+    pub controle: crate::mission::ControleMission,
     pub id: String,
     pub mission: String,
     pub mode: ModeMission,
@@ -74,11 +78,21 @@ pub struct Carnet {
     pub maj_le: chrono::DateTime<chrono::Utc>,
 }
 
+fn version_carnet() -> u32 {
+    1
+}
+
 impl Carnet {
     /// New carnet for a mission. `now` is injected (clocks are not
     /// deterministic; the caller supplies the instant, useful for tests).
-    pub fn ouvrir(mission: impl Into<String>, mode: ModeMission, now: chrono::DateTime<chrono::Utc>) -> Self {
+    pub fn ouvrir(
+        mission: impl Into<String>,
+        mode: ModeMission,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Self {
         Self {
+            version: version_carnet(),
+            controle: Default::default(),
             id: uuid::Uuid::new_v4().to_string(),
             mission: mission.into(),
             mode,
@@ -99,6 +113,32 @@ impl Carnet {
     }
 
     /// Cumulative token spend (input + output), the budget signal.
+    /// Persist before and after effects. Storage failure is fatal to this run.
+    pub fn checkpoint(&mut self, reglages: &crate::Reglages) -> Result<()> {
+        if let Some(path) = &reglages.chemin_carnet {
+            self.sauver(path, chrono::Utc::now())?;
+        }
+        Ok(())
+    }
+
+    pub fn archiver(&self, reglages: &crate::Reglages, event: &serde_json::Value) -> Result<()> {
+        if let Some(path) = &reglages.chemin_carnet {
+            use std::io::Write;
+            let path = path.with_extension("events.jsonl");
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)?;
+            serde_json::to_writer(&mut file, event)?;
+            file.write_all(b"\n")?;
+            file.sync_data()?;
+        }
+        Ok(())
+    }
+
     pub fn tokens_total(&self) -> u64 {
         self.tokens_entree_total + self.tokens_sortie_total
     }
@@ -185,7 +225,10 @@ impl Carnet {
         externaliser_pieces(&mut copie, chemin)?;
         let json = serde_json::to_string_pretty(&copie).context("serializing the carnet")?;
         let tmp = chemin.with_extension("json.tmp");
-        std::fs::write(&tmp, json).with_context(|| format!("writing {}", tmp.display()))?;
+        use std::io::Write;
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(json.as_bytes())?;
+        file.sync_all()?;
         std::fs::rename(&tmp, chemin)
             .with_context(|| format!("renaming {} -> {}", tmp.display(), chemin.display()))?;
         Ok(())
@@ -196,6 +239,11 @@ impl Carnet {
         let json = std::fs::read_to_string(chemin)
             .with_context(|| format!("reading {}", chemin.display()))?;
         let mut carnet: Self = serde_json::from_str(&json).context("deserializing the carnet")?;
+        anyhow::ensure!(
+            carnet.version == 1,
+            "Unsupported notebook version {}",
+            carnet.version
+        );
         rehydrater_pieces(&mut carnet, chemin);
         Ok(carnet)
     }
@@ -223,10 +271,12 @@ fn hash_piece(data: &str) -> String {
 /// the in-memory carnet keeps its real data.
 fn externaliser_pieces(carnet: &mut Carnet, chemin: &Path) -> Result<()> {
     let dossier = dossier_pieces(chemin);
-    let pieces = carnet
-        .pieces
-        .iter_mut()
-        .chain(carnet.historique.iter_mut().flat_map(|m| m.pieces.iter_mut()));
+    let pieces = carnet.pieces.iter_mut().chain(
+        carnet
+            .historique
+            .iter_mut()
+            .flat_map(|m| m.pieces.iter_mut()),
+    );
     for p in pieces {
         if p.data.len() <= PIECE_SIDECAR_MIN || p.data.starts_with(PIECE_MARQUEUR) {
             continue;
@@ -308,7 +358,8 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("butinage-test-{}", uuid::Uuid::new_v4()));
         let chemin = dir.join("carnet.json");
         let mut c = Carnet::ouvrir("mission longue", ModeMission::Exploration, t0());
-        c.itineraire.definir(vec!["étape 1".into(), "étape 2".into()]);
+        c.itineraire
+            .definir(vec!["étape 1".into(), "étape 2".into()]);
         c.itineraire.marquer(0, StatutEtape::Terminee);
         c.passe = 42;
         c.recolte_web = 7;
@@ -336,21 +387,30 @@ mod tests {
             data: grosse.clone(),
         };
         let mut c = Carnet::ouvrir("mission multimodale", ModeMission::Standard, t0());
-        c.historique.push(crate::messagerie::Message::utilisateur_multimodal(
-            "voici l'image",
-            vec![piece],
-        ));
+        c.historique
+            .push(crate::messagerie::Message::utilisateur_multimodal(
+                "voici l'image",
+                vec![piece],
+            ));
         c.sauver(&chemin, t0()).unwrap();
 
         // The in-memory carnet keeps its real data (only the saved clone is marked).
         assert_eq!(c.historique[0].pieces[0].data, grosse);
         // The checkpoint JSON does NOT embed the payload.
         let json = std::fs::read_to_string(&chemin).unwrap();
-        assert!(!json.contains(&grosse), "payload externalized to the sidecar");
+        assert!(
+            !json.contains(&grosse),
+            "payload externalized to the sidecar"
+        );
         assert!(json.contains("@@piece:"));
         // A second save re-uses the same sidecar file (single file, no duplicate).
         c.sauver(&chemin, t0()).unwrap();
-        assert_eq!(std::fs::read_dir(chemin.with_extension("pieces")).unwrap().count(), 1);
+        assert_eq!(
+            std::fs::read_dir(chemin.with_extension("pieces"))
+                .unwrap()
+                .count(),
+            1
+        );
         // Reload rehydrates the exact payload.
         let repris = Carnet::charger(&chemin).unwrap();
         assert_eq!(repris.historique[0].pieces[0].data, grosse);

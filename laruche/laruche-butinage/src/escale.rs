@@ -33,7 +33,8 @@ fn cible_recents(jauge: &Jauge, garder_recents: usize) -> Option<usize> {
 /// if a compaction occurred (for the UI), otherwise `None`.
 pub fn peut_etre(carnet: &mut Carnet, jauge: &Jauge, garder_recents: usize) -> Option<Evenement> {
     let cible = cible_recents(jauge, garder_recents)?;
-    compacter(&mut carnet.historique, cible).map(|(avant, apres)| Evenement::Escale { avant, apres })
+    compacter(&mut carnet.historique, cible)
+        .map(|(avant, apres)| Evenement::Escale { avant, apres })
 }
 
 const PROMPT_COMPACTION: &str = "You are compacting the working context of an autonomous agent \
@@ -77,12 +78,15 @@ pub async fn compacter_intelligent(
         &rendu_historique(&carnet.historique[..split]),
         max_chars_rendu,
     );
-    let messages = vec![Message::systeme(PROMPT_COMPACTION), Message::utilisateur(rendu)];
+    let messages = vec![
+        Message::systeme(PROMPT_COMPACTION),
+        Message::utilisateur(rendu),
+    ];
     match fournisseur.repondre(&messages, &[]).await {
-        Ok(r) if !r.texte.trim().is_empty() => {
+        Ok(r) if r.stop == crate::StopReason::FinTour && !r.texte.trim().is_empty() => {
             let ancre = carnet.historique[..split]
                 .iter()
-                .find(|m| m.role == Role::Utilisateur)
+                .rfind(|m| m.role == Role::Utilisateur && !m.interne)
                 .cloned();
             let resume = Message::systeme(format!(
                 "[Compacted context: {} earlier messages summarized]\n{}",
@@ -97,7 +101,10 @@ pub async fn compacter_intelligent(
             nouveau.push(resume);
             nouveau.extend(queue);
             carnet.historique = nouveau;
-            Some(Evenement::Escale { avant, apres: carnet.historique.len() })
+            Some(Evenement::Escale {
+                avant,
+                apres: carnet.historique.len(),
+            })
         }
         // Auxiliary call failed or empty: deterministic fallback, never skip the pass.
         _ => compacter(&mut carnet.historique, cible)
@@ -113,7 +120,10 @@ pub fn compacter(historique: &mut Vec<Message>, garder_recents: usize) -> Option
     }
     let split = aligner_sur_tour(historique, avant - garder_recents);
     let milieu = &historique[..split];
-    let ancre = milieu.iter().find(|m| m.role == Role::Utilisateur).cloned();
+    let ancre = milieu
+        .iter()
+        .rfind(|m| m.role == Role::Utilisateur && !m.interne)
+        .cloned();
     let resume = Message::systeme(resumer(milieu));
     let queue: Vec<Message> = historique[split..].to_vec();
 
@@ -210,6 +220,9 @@ pub async fn consolider(
         Message::utilisateur(rendu),
     ];
     let reponse = fournisseur.repondre(&messages, &[]).await.ok()?;
+    if reponse.stop != crate::StopReason::FinTour {
+        return None;
+    }
     let faits = parse_faits(&reponse.texte);
     if faits.is_empty() {
         // Extraction produced nothing usable. Keep the full history rather than wiping it:
@@ -220,7 +233,12 @@ pub async fn consolider(
         return None;
     }
     for (node_id, content) in &faits {
-        source.consigner(node_id, content).await;
+        if let Err(e) = source.consigner(node_id, content).await {
+            emet.emettre(Evenement::Statut(format!(
+                "Memory persistence failed, keeping context: {e}"
+            )));
+            return None;
+        }
     }
 
     let avant = carnet.historique.len();
@@ -228,7 +246,7 @@ pub async fn consolider(
     let pieces_ancre = carnet
         .historique
         .iter()
-        .find(|m| m.role == Role::Utilisateur)
+        .rfind(|m| m.role == Role::Utilisateur && !m.interne)
         .map(|m| m.pieces.clone())
         .unwrap_or_default();
     // Last few turns (non-internal): the immediate thread survives the reset.
@@ -265,7 +283,10 @@ pub async fn consolider(
     ];
     nouveau.extend(queue);
     carnet.historique = nouveau;
-    Some(Evenement::Escale { avant, apres: carnet.historique.len() })
+    Some(Evenement::Escale {
+        avant,
+        apres: carnet.historique.len(),
+    })
 }
 
 /// Renders the history as flat text for extraction/compaction.
@@ -359,7 +380,11 @@ mod tests {
         assert_eq!(avant, 21);
         // shifted split=17: anchor + summary + 4 kept = 6
         assert_eq!(apres, 6);
-        assert_ne!(h[2].role, Role::Observation, "kept tail must not start with an orphan observation");
+        assert_ne!(
+            h[2].role,
+            Role::Observation,
+            "kept tail must not start with an orphan observation"
+        );
     }
 
     #[test]
@@ -440,7 +465,11 @@ mod tests {
                 _m: &[Message],
                 _s: &[serde_json::Value],
             ) -> Result<ReponseModele, ErreurFournisseur> {
-                Err(ErreurFournisseur { status: 500, retry_after: None, corps: "down".into() })
+                Err(ErreurFournisseur {
+                    status: 500,
+                    retry_after: None,
+                    corps: "down".into(),
+                })
             }
         }
         let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
@@ -467,10 +496,13 @@ mod tests {
         let txt = "Voici les faits :\n[{\"node_id\":\"research.x\",\"content\":\"A\"}, \
                    {\"node_id\":\"\",\"content\":\"vide\"}, {\"node_id\":\"decisions.y\",\"content\":\"B\"}]\nVoilà.";
         let f = parse_faits(txt);
-        assert_eq!(f, vec![
-            ("research.x".to_string(), "A".to_string()),
-            ("decisions.y".to_string(), "B".to_string()),
-        ]);
+        assert_eq!(
+            f,
+            vec![
+                ("research.x".to_string(), "A".to_string()),
+                ("decisions.y".to_string(), "B".to_string()),
+            ]
+        );
     }
 
     #[test]
