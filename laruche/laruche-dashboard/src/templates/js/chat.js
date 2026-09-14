@@ -1916,11 +1916,19 @@ LaRuche.Chat = (function(){
   // hauteur qui n'etait pas encore la bonne, et la fin restait sous le bord.
   // Trois guetteurs couvrent les trois cas.
   var _chatStick = true, _chatScrollBound = false, _chatBtn = null;
-  var _chatProgJusqua = 0, _chatTickPlanifie = false;
-  // scrollHeight, scrollTop et clientHeight ne tombent pas juste au pixel (zoom,
-  // sous-pixels, barre de defilement): sans cette tolerance, "tout en bas" n'est
-  // jamais atteint et la fleche ne disparait plus jamais.
+  var _chatTickPlanifie = false, _chatAnimation = null, _chatGeneration = 0;
+  var _chatPositionGeste = null;
+  // La derniere position que NOUS avons posee. Un evenement de defilement
+  // rapporte une position, jamais son auteur: la comparer est ce qui reste
+  // pour distinguer les notres de celles du lecteur.
+  var _chatPositionEcrite = null;
   var TOLERANCE_BAS = 6;
+
+  function _chatEcrire(c, valeur){
+    var borne=Math.max(0,Math.min(valeur,Math.max(0,c.scrollHeight-c.clientHeight)));
+    _chatPositionEcrite=Math.round(borne);
+    c.scrollTop=borne;
+  }
 
   function _chatAuBas(c){ return (c.scrollHeight - c.scrollTop - c.clientHeight) <= TOLERANCE_BAS; }
 
@@ -1929,42 +1937,68 @@ LaRuche.Chat = (function(){
     if(_chatBtn) _chatBtn.classList.toggle('visible', !_chatStick);
   }
 
-  // Un defilement que NOUS provoquons ne doit pas passer pour un geste humain.
-  //
-  // Seul le retour LISSE a besoin d'une garde: pendant son animation, les
-  // positions intermediaires ne sont pas le bas, et sans elle le fil se
-  // decrocherait au milieu du geste qui devait l'y ramener.
-  //
-  // Le recollage instantane, lui, n'en veut surtout pas. Il atterrit toujours
-  // en bas, donc l'evenement qu'il declenche donne le bon verdict tout seul. Une
-  // garde de temps y etait meme nuisible: pendant un flux, elle s'ouvrait a
-  // chaque jeton et finissait par avaler le defilement de l'utilisateur qui
-  // remontait lire, exactement ce qu'elle etait censee proteger.
-  function _chatColler(lisse){
-    var c=document.getElementById('chatContainer'); if(!c) return;
-    if(lisse) _chatProgJusqua = Date.now() + 800;
-    var avant = c.style.scrollBehavior;
-    c.style.scrollBehavior = lisse ? 'smooth' : 'auto';
-    c.scrollTop = c.scrollHeight;
-    if(lisse){
-      setTimeout(function(){ c.style.scrollBehavior = avant; }, 800);
-      return;
-    }
-    // Deuxieme passe apres la mise en page: entre les deux, une image ou un bloc
-    // de code a pu prendre sa hauteur definitive.
-    requestAnimationFrame(function(){
-      c.scrollTop = c.scrollHeight;
-      c.style.scrollBehavior = avant;
-    });
+  function _chatAnnulerAnimation(){
+    _chatGeneration++;
+    if(_chatAnimation !== null) cancelAnimationFrame(_chatAnimation);
+    _chatAnimation = null;
   }
 
-  // Coalesce par image: pendant un flux les mutations arrivent par dizaines, et
-  // il ne sert a rien de recalculer la hauteur a chacune.
+  // A scroll event cannot distinguish reader input from layout changes.
+  // Detach only on navigation, never because a new message moved the bottom.
+  function _chatNavigation(event){
+    var c=document.getElementById('chatContainer'); if(!c) return;
+    var direction=event.deltaY || 0;
+    if(event.type==='keydown'){
+      if(event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey ||
+          event.target.closest('input,textarea,select,button,[contenteditable="true"]')) return;
+      var keys={ArrowUp:-1,PageUp:-1,Home:-1,ArrowDown:1,PageDown:1,End:1,' ':event.shiftKey?-1:1};
+      direction=keys[event.key] || 0;
+      if(!direction) return;
+    }
+    if(event.type==='wheel' && (!direction || event.ctrlKey)) return;
+    for(var node=event.target; node && node!==c; node=node.parentElement){
+      if(/(auto|scroll)/.test(getComputedStyle(node).overflowY) && node.scrollHeight>node.clientHeight &&
+          (!direction || (direction<0 ? node.scrollTop>0 : node.scrollTop+node.clientHeight<node.scrollHeight-1))) return;
+    }
+    if(c.scrollHeight<=c.clientHeight || (direction>0 && _chatAuBas(c) && _chatStick)) return;
+    _chatSuspendre(c);
+  }
+
+  function _chatSuspendre(c){
+    _chatPositionGeste=c.scrollTop;
+    _chatStick=false;
+    _chatAnnulerAnimation();
+    _chatMajFleche();
+  }
+
+  function _chatColler(lisse){
+    var c=document.getElementById('chatContainer'); if(!c || !_chatStick) return;
+    _chatAnnulerAnimation();
+    c.style.scrollBehavior='auto';
+    if(!lisse || document.visibilityState==='hidden' || window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      _chatEcrire(c,c.scrollHeight);
+      return;
+    }
+    var generation=_chatGeneration, depart=c.scrollTop, debut=null;
+    function pas(now){
+      if(!_chatStick || generation!==_chatGeneration) return;
+      if(debut===null) debut=now;
+      var part=Math.min(1,(now-debut)/240);
+      var cible=Math.max(0,c.scrollHeight-c.clientHeight);
+      _chatEcrire(c,depart+(cible-depart)*(1-Math.pow(1-part,3)));
+      _chatAnimation=part<1 ? requestAnimationFrame(pas) : null;
+    }
+    _chatAnimation=requestAnimationFrame(pas);
+  }
+
   function _chatPlanifierColle(){
-    if(!_chatStick || _chatTickPlanifie) return;
-    _chatTickPlanifie = true;
+    if(!_chatStick) return;
+    // Hidden pages do not receive animation frames. Reattach synchronously.
+    if(document.visibilityState==='hidden'){ _chatColler(false); return; }
+    if(_chatTickPlanifie) return;
+    _chatTickPlanifie=true;
     requestAnimationFrame(function(){
-      _chatTickPlanifie = false;
+      _chatTickPlanifie=false;
       if(_chatStick) _chatColler(false);
     });
   }
@@ -1972,42 +2006,52 @@ LaRuche.Chat = (function(){
   function _bindChatScroll(){
     if(_chatScrollBound) return;
     var c=document.getElementById('chatContainer'); if(!c) return;
-
-    c.addEventListener('scroll', function(){
-      if(Date.now() < _chatProgJusqua) return;
-      var avant = _chatStick;
-      _chatStick = _chatAuBas(c);
-      if(avant !== _chatStick) _chatMajFleche();
-    }, {passive:true});
-
-    // 1. Le DOM bouge: message ajoute, jeton concatene, sortie d'outil.
-    if(window.MutationObserver){
-      new MutationObserver(_chatPlanifierColle)
-        .observe(c, {childList:true, subtree:true, characterData:true});
-    }
-    // 2. La zone change de taille: fenetre redimensionnee, ou zone de saisie qui
-    //    grandit sous le fil et lui prend de la hauteur.
-    if(window.ResizeObserver){
-      new ResizeObserver(_chatPlanifierColle).observe(c);
-    }
-    // 3. Une image finit de charger. `load` ne remonte pas la hierarchie, on
-    //    l'ecoute donc en phase de capture.
-    c.addEventListener('load', _chatPlanifierColle, true);
-
-    var btn = document.getElementById('chatJumpBtn');
-    if(btn) btn.addEventListener('click', function(){
-      _chatStick = true;
+    c.addEventListener('scroll',function(){
+      var auBas=_chatAuBas(c);
+      if(_chatStick===auBas) return;
+      // Se raccrocher au bas est juste quel qu'en soit l'auteur. Decrocher ne
+      // l'est pas: nos propres ecritures produisent des evenements sans arret,
+      // et seul un defilement qui n'est pas le notre en a le droit. C'est ce
+      // qui couvre le seul geste que ni la molette ni le clavier n'annoncent:
+      // tirer la barre de defilement.
+      if(!auBas){
+        if(_chatPositionEcrite!==null && Math.abs(Math.round(c.scrollTop)-_chatPositionEcrite)<=2) return;
+        _chatAnnulerAnimation();
+      }
+      _chatStick=auBas;
+      _chatPositionGeste=auBas ? null : c.scrollTop;
       _chatMajFleche();
-      _chatColler(true);
+    },{passive:true});
+    c.addEventListener('wheel',_chatNavigation,{passive:true});
+    c.addEventListener('touchmove',_chatNavigation,{passive:true});
+    c.addEventListener('keydown',_chatNavigation);
+    // Observe the messages too: transitions, code layout and images can grow
+    // the content without changing the scroller's own dimensions.
+    var resize=window.ResizeObserver ? new ResizeObserver(_chatPlanifierColle) : null;
+    if(resize){ resize.observe(c); Array.from(c.children).forEach(function(n){resize.observe(n);}); }
+    if(window.MutationObserver){
+      new MutationObserver(function(records){
+        if(resize) records.forEach(function(record){
+          if(record.target!==c) return;
+          record.removedNodes.forEach(function(n){if(n.nodeType===1) resize.unobserve(n);});
+          record.addedNodes.forEach(function(n){if(n.nodeType===1) resize.observe(n);});
+        });
+        _chatPlanifierColle();
+      }).observe(c,{childList:true,subtree:true,characterData:true});
+    }
+    c.addEventListener('load',_chatPlanifierColle,true);
+    document.addEventListener('visibilitychange',function(){if(_chatStick) _chatColler(false);});
+    var btn=document.getElementById('chatJumpBtn');
+    if(btn) btn.addEventListener('click',function(){
+      _chatStick=true; _chatPositionGeste=null; _chatMajFleche(); _chatColler(true);
     });
-
-    _chatScrollBound = true;
+    _chatScrollBound=true;
     _chatMajFleche();
   }
 
-  function scrollToBottom(force) {
+  function scrollToBottom(force){
     _bindChatScroll();
-    if(force){ _chatStick = true; _chatMajFleche(); }
+    if(force){ _chatStick=true; _chatPositionGeste=null; _chatMajFleche(); }
     if(!_chatStick) return;
     _chatPlanifierColle();
   }
@@ -2674,6 +2718,7 @@ LaRuche.Chat = (function(){
     var msgs=document.querySelectorAll('#chatContainer .message');
     for(var i=0;i<msgs.length;i++){
       if((msgs[i].textContent||'').toLowerCase().indexOf(t)!==-1){
+        _chatSuspendre(document.getElementById('chatContainer'));
         msgs[i].scrollIntoView({behavior:'smooth',block:'center'});
         msgs[i].classList.add('msg-highlight');
         (function(el){ setTimeout(function(){ el.classList.remove('msg-highlight'); }, 2600); })(msgs[i]);
