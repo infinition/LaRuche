@@ -31,6 +31,61 @@
   installable, stockage prive, clavier, tactile, icone et vue detachable. Le catalogue
   affiche maintenant les icones declarees par les Apps actives.
 
+### Ajoute
+
+- **Un controle de mission qui survit a un redemarrage.** Criteres, consignes, etat,
+  effets incertains, repertoire de travail et empreintes des skills consultes sont
+  ecrits dans le carnet. Une reprise repart de l'etat reel.
+- **Un journal des operations.** Chaque appel d'outil est inscrit avant son execution,
+  son resultat apres. A la reprise, une operation terminee est reutilisee; une
+  operation commencee sans resultat devient incertaine et n'est pas rejouee. Une
+  lecture ne suffit pas a lever cette incertitude, et les mutations suivantes
+  attendent une reconciliation.
+- **Un verrou exclusif par carnet et par iteration de mission.** Deux reprises du meme
+  etat ne peuvent plus partir ensemble. Le verrou tombe avec le processus.
+- **Des routes de secours completes**, `fallback_profiles`: provider, modele, endpoint,
+  fenetre et protocole d'outils, huit au maximum, essayees dans l'ordre. Un nom de
+  modele seul ne suffisait pas a changer de fournisseur. Les anciens
+  `fallback_models` restent acceptes.
+- **Un budget de jetons par mission**, `mission_budget_tokens`: une enveloppe partagee
+  par les relances, la compaction et les sous-agents. Zero garde le mode sans plafond
+  de jetons; les limites de passes et de delais restent actives.
+- **Des jobs persistants**: contexte de travail, proprietaire, admission bornee, sortie
+  bornee, et annulation par `cancel_job`. Un job retrouve en cours au redemarrage est
+  signale comme interrompu, jamais relance tout seul.
+- **Les routes de secours et le budget de mission dans les Parametres.** Ils
+  n'existaient que dans l'API. Une cle ecrite en clair ne redescend jamais dans le
+  navigateur: le formulaire montre la reference du coffre, et un champ laisse vide
+  conserve la cle deja enregistree.
+
+### Corrige
+
+- **Un arret, une demande de clarification ou une reponse vide pouvait valoir
+  reussite.** Les etapes ouvertes d'un plan sont conservees, et la fin porte ce qui
+  manquait.
+- **La compaction echappait aux protections de l'appel principal.** Les appels
+  auxiliaires au modele passent par les memes delai, annulation et reservation de
+  budget, et les enfants partagent le compteur en cours.
+- **Une erreur en cours de flux devenait une reponse normale.** Les erreurs de lecture
+  sont remontees, une fin de flux sans marqueur terminal n'est plus un succes, et
+  Ollama ne bascule plus sur `generate` a la moindre erreur HTTP.
+- **Du texte explicatif pouvait devenir une action.** Les actions textuelles sont
+  reservees au protocole texte declare, et les schemas d'arguments sont valides
+  recursivement, contraintes imbriquees comprises.
+- **Une reprise ne restituait pas tout l'etat.** Le carnet est relu avec ses images
+  externalisees et son repertoire de travail. Les carnets non termines ne sont plus
+  supprimes au bout de trois jours.
+- **Un changement d'identite d'embedder laissait d'anciens vecteurs en place.** Ils
+  sont invalides sans supprimer les faits stockes.
+- **Un chemin d'App avec lettre de lecteur passait hors de Windows.**
+  `C:/Windows/x` etait lu comme un nom relatif ordinaire sur macOS et Linux. Le
+  fichier restait dans le dossier de l'App, mais le verdict dependait du systeme.
+- **Un test de securite ne s'executait jamais.** L'attribut `#[test]` etait ecrit deux
+  fois sur la fonction precedente, ce qui avalait celui du controle d'en-tete CSP.
+- **`reload_mcp` manquait a la procedure de connexion MCP**, alors qu'enregistrer un
+  serveur ne le connecte pas et ne rend aucun de ses outils disponible. Le manuel des
+  crons expliquait encore comment se passer de `run_now`, qui existe.
+
 ### Compatibilite
 
 - Les anciens paquets `.laruche-addon`, manifestes `addon.json`, routes `/api/addons`

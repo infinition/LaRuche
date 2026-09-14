@@ -7,7 +7,7 @@ tools: [file_read]
 
 # LaRuche, expliquee par elle-meme
 
-Ce skill embarque le wiki complet de LaRuche, 30 pages, 145 Ko de markdown. C'est
+Ce skill embarque le wiki complet de LaRuche, 30 pages, 154 Ko de markdown. C'est
 la MEME source que le site publie: `wiki/` a la racine du depot, dont `docs/wiki.html`
 et ce dossier sont deux sorties generees par `scripts/build_wiki.py`. Ce qui est ecrit
 ici fait donc foi. Ne repondez jamais de memoire sur le fonctionnement de LaRuche:
@@ -70,7 +70,7 @@ vous ne les demandez pas.
 | **Reference** | | |
 | `wiki/reference/Configuration.md` | Configuration | Two layers: supported environment variables set at launch, and the Settings UI for everything that can change live. |
 | `wiki/reference/Providers-and-Profiles.md` | Providers and profiles | Most confusion about "which model am I actually talking to" comes from one idea that is never stated: **the active model is a... |
-| `wiki/reference/Tools.md` | Tools | LaRuche registers 89 built-in tools in a default node build. |
+| `wiki/reference/Tools.md` | Tools | A default node build registers over a hundred built-in tools. |
 | `wiki/reference/Evals.md` | Knowing whether an engine change helped | Prompts and loops are the easiest part of an agent to change and the hardest part to judge. |
 | `wiki/reference/Brand-Glossary.md` | Brand Glossary | The hive speaks French. The brand vocabulary is part of LaRuche's identity and stays French in the code, the UI, and the docs;... |
 

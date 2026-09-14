@@ -77,12 +77,45 @@ headless deployments:
 See [Providers and profiles](Providers-and-Profiles) for what a profile actually is, why
 the active model is a pair rather than a name, and how a peer hive becomes a provider.
 
+### Mission budget and fallback routes
+
+Both live in Settings under General, in the Advanced block, and both go through
+`POST /api/config/provider`.
+
+`mission_budget_tokens` is the total input plus output envelope for one mission. It is
+shared: retries, compaction, validation calls and sub-agents all draw from it, so a
+mission budget bounds the mission and not one call. `0` keeps the engine running with no
+token ceiling; the pass and timeout limits still apply either way.
+
+`fallback_profiles` is a list of at most eight complete routes, tried in order when the
+main one fails. Each route declares:
+
+| Field | Meaning |
+|---|---|
+| `provider` | The dialect to speak on this route |
+| `model` | The model to ask for |
+| `context_max_tokens` | This route's real window, at least 256 |
+| `api_key` | Optional. A vault reference such as `@@NAME` is resolved at call time |
+| `api_base` | Optional. The endpoint for this route |
+| `ollama_url` | Optional. The Ollama endpoint for this route |
+| `text_tools` | Optional. `true` when this route needs the text tool protocol |
+
+A route is a full destination rather than a model name, because changing provider changes
+the endpoint, the authentication and the shape of the request. A cloud route has to be
+written out; nothing is inferred from the main provider. The older `fallback_models`
+list, a comma-separated set of model names on the current provider, still works.
+
+Write a credential as a vault reference rather than a literal. A literal key is stored,
+but it is never sent back to the browser: the Settings form shows an empty field for it
+and keeps what is stored when you save. To remove such a key, remove the route.
+
 ## Settings UI
 
 All live, no restart:
 
 - **General**: generation parameters (max passes, temperature, max tokens, dynamic tool
-  limit), context and compaction thresholds, curator and agent reactions.
+  limit), context and compaction thresholds, curator and agent reactions. Its Advanced
+  block also holds the mission token budget and the fallback routes described below.
 - **Providers**: model endpoints, context sizes, per-channel model assignment.
 - **LaReine**: Autonomous, Hybrid and Human in the loop modes, response and live-task
   supervision, judge provider, context window, rework limit, confidence threshold,

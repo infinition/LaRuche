@@ -15,8 +15,8 @@ intent like any other tool, so connecting a large server does not flood every co
 
 ## LaRuche as an MCP server
 
-The node exposes an MCP endpoint at `POST /mcp`. Any MCP-capable client (Claude Code,
-an IDE, another agent framework) can connect and use the hive's capabilities:
+The node exposes an MCP endpoint at `POST /mcp`. Any MCP-capable client (a coding
+agent, an IDE, another agent framework) can connect and use the hive's capabilities:
 
 - query the cognitive memory,
 - trigger agentic runs,

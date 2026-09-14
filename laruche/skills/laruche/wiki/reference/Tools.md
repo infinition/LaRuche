@@ -1,8 +1,9 @@
 # Tools
 
-LaRuche registers 89 built-in tools in a default node build. `computer` and `camera`
+A default node build registers over a hundred built-in tools. `computer` and `camera`
 are present when default features are enabled. Forged Tools and MCP servers can add more at
-runtime. The Capabilities page shows the exact registry for the running node.
+runtime. The Capabilities page shows the exact registry for the running node, which is the
+only count worth trusting: this page names the tools, it does not tally them.
 
 A tool is a callable capability. An abeille is an agent. Older Rust type names such as
 `AbeilleRegistry` remain in the code for compatibility, but they do not define the
@@ -44,6 +45,10 @@ passes through secret masking.
 | `computer` | Control desktop applications through accessibility refs or screen coordinates. |
 | `camera` | List cameras or capture one still frame. |
 | `file_watch` | Check whether a file changed after a given timestamp. |
+
+`browser` supersedes an older pair, `browser_navigate` and `browser_screenshot`, which
+spawned a throwaway Chrome per call. Their code is still compiled but no longer
+registered, so they are not callable.
 
 ### `browser`
 
@@ -146,6 +151,11 @@ recording. Each capture requires approval.
 | `memory_update_node` | Rename or update a node. |
 | `memory_suggest_nodes` | Suggest destinations for uncategorized items. |
 | `memory_consolidate` | Merge related items with model-assisted review. |
+
+Cognitive memory replaced an earlier flat knowledge base, `knowledge_add` and
+`knowledge_search`. That module is still compiled but no longer registered: recall goes
+through `memory_search`, which reads a graph of nodes rather than a list of embedded
+strings.
 | `skill_list` | List skills stored in cognitive memory. |
 | `skill_view` | Read one skill. |
 | `skill_create` | Propose or create a skill. |
@@ -166,8 +176,11 @@ recording. Each capture requires approval.
 | `watcher_create` | Create a watcher with a validated compiled rule. |
 | `watcher_list` | List watchers and their state. |
 | `watcher_delete` | Delete a watcher. |
+| `watcher_toggle` | Pause or resume a watcher without deleting its rule. |
 | `kanban_create` | Add a kanban task. |
 | `kanban_list` | List kanban tasks. |
+| `kanban_next` | Return the next actionable task, dependencies resolved. |
+| `kanban_complete` | Mark a task done and unblock its children. |
 | `calendar_add` | Add a calendar event. |
 | `calendar_list` | List calendar events. |
 | `mesh_send` | Send a message to another hive. |
@@ -187,6 +200,13 @@ recording. Each capture requires approval.
 | `research_mode` | Declare deep-research mode to the engine. |
 | `plan_mode` | Create or update long-run planning state. |
 | `finding` | Record a verified finding in the run ledger. |
+| `submit_job` | Run a shell script in the background and return a job id. |
+| `check_job_status` | Read a background job's state and output. |
+| `cancel_job` | Stop a background job owned by this run. |
+
+A job id is not a result. `cancel_job` stops the job from continuing; it does not undo
+what the job already did, so a cancelled mutation leaves an outcome to establish rather
+than an outcome to assume.
 
 The [Table Ronde](Table-Ronde) uses the same model profiles and a mission-specific
 whitelist of registered tools through dedicated API routes. It adds a constitution,
@@ -208,7 +228,35 @@ is an interface-level workflow, not one extra tool name in the default registry.
 | `mcp_add` | Add an external MCP server. |
 | `mcp_remove` | Remove an MCP server. |
 | `mcp_list` | List configured MCP servers. |
+| `reload_mcp` | Reload the server list and connect to it. |
+| `list_mcp_resources` | List resources exposed by connected servers. |
+| `read_mcp_resource` | Read one resource by URI. |
 
 Tools provided by connected MCP servers join the registry dynamically and therefore do
-not appear in the fixed list above. MCP resources are available through dynamically
-registered resource tools when a server exposes them.
+not appear in the fixed list above.
+
+`mcp_add` and `mcp_remove` write configuration; they do not connect or disconnect.
+`reload_mcp` is what reads the list and opens the connections, and it answers with the
+number of tools that became available. Until it runs, a freshly added server exposes
+nothing.
+
+## Apps
+
+| Tool | Purpose |
+|---|---|
+| `app_list` | Discover installed Apps and their connected views. |
+| `app_guide` | Read an App's purpose, guide and declared actions. |
+| `app_open` | Open an App view in the user's panel. |
+| `app_wait` | Wait for an App runtime to report ready. |
+| `app_call` | Invoke one declared action of an App. |
+
+These operate on installed Apps, never on external websites. They require an
+authenticated web-user context: an agent cannot pass a user id as an argument. Discovery,
+opening and each individual action are separate permissions, granted per App and per
+agent, and checked on the server.
+
+`app_guide` returns the schemas one action at a time, because all of them at once do not
+fit in a single observation. Text written by an App is documentation from an untrusted
+source; it is never treated as an instruction. See
+[Apps and Forged Tools](Apps-and-Forged-Tools) for the packaging format and
+[Developing Apps](Developing-Apps) for the SDK.

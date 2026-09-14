@@ -30,25 +30,53 @@ supervision.laruche-app
 
 The current host supports these permissions:
 
-| Permission | Purpose |
+| Permission | Risk | Purpose |
+|---|---|---|
+| `storage.private` | low | Persistent storage isolated by App and user |
+| `ui.locale.read` | low | Read the current interface language |
+| `ui.theme.read` | low | Read the current interface theme |
+| `agents.invoke` | high | Ask an authorized agent to work, which spends model tokens |
+| `network.fetch` | high | Reach only the hosts the package declares |
+| `laruche.memory` | high | Read cognitive memory and propose facts to it |
+| `laruche.files` | high | Read and write files inside the App's own folder |
+
+Permissions must be declared in `app.json`, and the consent screen greys out any name the
+node does not actually enforce. A checkbox that grants nothing is worse than no checkbox,
+because the user believes they decided something.
+
+The App SDK exposes private storage and controlled UI operations such as changing a tab
+title, marking it dirty, requesting detachment and closing the view.
+
+## What an App gives the agent
+
+An App declares **actions** in its manifest, each with a name, a description, a JSON Schema
+and a read-only hint. Those actions are how an agent operates the App, through the five
+`app_*` tools described in [Tools](Tools): discover, read the guide, open a view, wait for
+it to be ready, then call one action.
+
+Three things are separate permissions, granted per App and per agent and checked on the
+server rather than in the page: discovering the App, opening its views, and each individual
+action. An agent that may read a notebook is not thereby allowed to write to it.
+
+The manifest also reserves backend declarations for MCP stdio and WASI. Those remain
+inactive: a manifest may describe them for forward compatibility, but no App supervises a
+backend process today.
+
+## The reference Apps
+
+All four live under `examples/apps/` and build into an installable `.laruche-app` archive
+without compiling LaRuche. Their READMEs carry the exact commands.
+
+| App | What it demonstrates |
 |---|---|
-| `storage.private` | Persistent storage isolated by App and user |
-| `ui.locale.read` | Read the current interface language |
-| `ui.theme.read` | Read the current interface theme |
+| **2048** | The whole surface at its smallest: isolated SDK bridge, private saved games, keyboard and touch input, detachable views, and an agent that can take one turn, play on `Auto`, or pause |
+| **Checkers** | An 8x8 game with strict turn ownership, so an agent that plays out of turn is refused by the engine rather than trusted |
+| **WASM Lab** | A browser WebAssembly module inside the App sandbox, computing `19 + 23 = 42` in a real runtime |
+| **DS Studio** | The largest one: a Python notebook an agent drives through more than twenty declared actions, with datasets, charts, kept results and a notebook library |
 
-Permissions must be declared in `app.json` and are granted when the App is enabled. The App
-SDK exposes private storage and controlled UI operations such as changing a tab title,
-marking it dirty, requesting detachment and closing the view.
-
-The manifest already reserves backend and contribution declarations for MCP stdio, WASI,
-tools, events and jobs. Backend supervision and agent-facing contributions are not active in
-the current implementation. A manifest may describe them for forward compatibility, but an
-App cannot yet expose a new agent tool through that path.
-
-The repository includes a dependency-free 2048 reference App under
-`examples/apps/2048`. It exercises installation, the isolated SDK bridge, private persistent
-storage, theme and locale context, keyboard and touch input, and detachable views. Its README
-shows how to build the installable `.laruche-app` archive without compiling LaRuche.
+DS Studio is the useful one to read when designing your own actions. It shows an App whose
+state is worth more than its view: the agent adds a cell, runs it, reads the result, and
+what it produced survives the conversation.
 
 ## Forged Tools
 

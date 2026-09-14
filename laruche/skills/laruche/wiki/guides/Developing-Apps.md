@@ -11,13 +11,23 @@ From the repository root:
 ```powershell
 node examples/apps/2048/test/game.test.js
 python examples/apps/2048/build.py
+python examples/apps/checkers/build.py
 python examples/apps/wasm-demo/build.py
+python examples/apps/ds-studio/build.py
 ```
 
 In LaRuche, open **Apps**, click **Installer**, select an archive from the example's `dist/`
-directory and enable it. Open its view from the left rail. **2048** supports keyboard and
-touch controls and private saved games. **WASM Lab** computes `19 + 23 = 42` inside a real
-WebAssembly module.
+directory and enable it. Open its view from the left rail.
+
+| App | What to look at |
+|---|---|
+| **2048** | Keyboard and touch controls, private saved games, and an agent that can take one turn |
+| **Checkers** | Turn ownership enforced by the engine, so an agent playing out of turn is refused |
+| **WASM Lab** | `19 + 23 = 42` computed inside a real WebAssembly module |
+| **DS Studio** | A Python notebook driven through more than twenty declared actions |
+
+Start from 2048 to read the whole surface at its smallest, and from DS Studio to see what
+a serious action set looks like.
 
 **Panneau** opens the App in LaRuche's resizable side panel, which remains visible when you
 navigate to Chat. On mobile it uses the same bottom sheet as detached Settings. **Fenêtre**
@@ -201,7 +211,7 @@ The state action needs agent-to-App permission too. Author the App's own handler
 
 Contexts are keyed by user, App, agent and session id. They are bounded and held in memory,
 not persisted across server restarts. Agent definitions and permissions are disk-persistent.
-The reference **2048 1.1.0** has an agent selector, **Un tour**, **Auto** and **Pause**. Pause
+The reference **2048** has an agent selector, **Un tour**, **Auto** and **Pause**. Pause
 lets the current turn finish but cancels the next scheduled turn. Grant opening, `game.state`
 and `game.move`, approve `agents.invoke`, and select an allowed agent before using it.
 
@@ -272,8 +282,8 @@ is not an authorization mechanism, in either protocol.
 - Agent calls: four simultaneous model requests per node, 30 requests/minute per user,
   120-second model timeout, 256 contexts, 16 history messages/48 KiB per context. Maximum
   model response: 48 KiB. No budget accounting or automatic LLM repair loop is provided yet.
-- Event subscriptions, supervised native/WASI backends, the Data Science notebook, and the
-  checkers App are not implemented. Browser WASM remains distinct from Wasmtime/WASI.
+- Event subscriptions and supervised native/WASI backends are not implemented. Browser WASM
+  remains distinct from Wasmtime/WASI.
 
 Run `cargo test -p laruche-node apps::` from the Rust workspace and
 `node examples/apps/test/agent-bridge.test.cjs` from the repository root (requires Playwright,

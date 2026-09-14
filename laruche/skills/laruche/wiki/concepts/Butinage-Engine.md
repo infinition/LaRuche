@@ -167,6 +167,8 @@ The defaults are deliberately finite:
 | Model call timeout | 600 seconds |
 | Tool call timeout | 300 seconds |
 | Run token budget | Unlimited unless configured |
+| Mission token budget | `mission_budget_tokens`, 0 for none |
+| Fallback routes | Up to 8, none by default |
 
 Rate limits and transient provider failures use their own counters. Rejected or blocked
 tool calls cannot consume the entire pass ceiling forever. Near a pass or token limit,
@@ -189,6 +191,57 @@ usage, mission mode and Vigie counters. A page reload can reattach to the live j
 a process interruption, a compatible notebook can resume the run with memory recall and
 the exploration protocol restored when needed. The notebook is deleted after a clean
 success and retained after an incomplete stop for inspection or continuation.
+
+The notebook also carries mission control: acceptance criteria, standing instructions,
+the run's state, its working directory, the fingerprints of the skills it consulted, and
+any effect whose outcome is unknown. A resume restores that, not just the transcript, so
+the run continues under the constraints it was given rather than under whatever the model
+remembers of them.
+
+## The operation log, and what an unknown outcome costs
+
+A tool call is written down before it runs and its result is written down after. That
+ordering is the whole point: a crash between the two leaves a record saying the call
+STARTED and nothing saying how it ended.
+
+On resume, the engine uses that record:
+
+- an operation with a recorded result is reused, never executed a second time;
+- an operation that started without a result is marked uncertain and is NOT replayed.
+
+An uncertain mutation blocks the mutations that would follow it, and a plain read does
+not clear it. Reading a file proves what the file says now, not that the write which may
+or may not have happened is the one that put it there. Clearing the block takes a
+reconciliation: evidence that identifies the resource and its state. Until then the run
+says what it does not know instead of guessing.
+
+A tool timeout is treated the same way. A cancelled future is not a cancelled remote
+operation, so a timed-out call reports an unknown outcome rather than claiming nothing
+happened.
+
+Concurrent resumes are refused rather than serialized. A notebook and a mission iteration
+each take an exclusive lock for the duration of the run, released when the process ends,
+so two attempts to resume the same state cannot both proceed.
+
+## One door for every model call
+
+Compaction, validation and sub-agent calls go through the same guard as the main call:
+the same deadline, the same cancellation signal, the same budget reservation. An
+auxiliary call that hangs is a call that times out, and one that spends tokens spends
+them from the mission's envelope. Children share the running counter with their parent,
+so a mission budget is a mission budget and not a per-call one.
+
+## Fallback routes
+
+A fallback is a complete route, not a model name: provider, model, endpoint,
+authentication, context window and tool protocol. Changing provider means rebuilding the
+request for that provider, which a bare name cannot describe. Up to eight routes are
+tried in order.
+
+A route with a smaller window is not silently handed a request that does not fit: the
+engine refuses that route and moves on rather than dropping protected context to make it
+fit. Credentials that come back invalid or rate-limited are marked in the pool, so the
+next choice is informed by what just failed.
 
 ## Model profiles
 
