@@ -425,7 +425,6 @@ mod tests {
         assert_eq!(att[1]["data"], "AAAA");
     }
 
-    #[test]
     /// Le cas mesure sur DeepSeek: une capture qui passe le controle PAR IMAGE
     /// et fait quand meme deborder la requete. C'est le corps entier qui compte.
     #[test]

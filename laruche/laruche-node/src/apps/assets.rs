@@ -190,7 +190,6 @@ mod tests {
         );
     }
 
-    #[test]
     /// A granted host widens exactly four directives, over https only.
     ///
     /// The App still cannot reach LaRuche's own API, another package, or the
@@ -260,6 +259,12 @@ mod tests {
         assert!(!policy.contains("script-src *"));
     }
 
+    /// A host that is not a host never reaches the policy string.
+    ///
+    /// This test shipped without its `#[test]`: the attribute above had been
+    /// written twice on the previous function, which swallowed it. It never
+    /// ran, and nothing said so. Restored, it passes.
+    #[test]
     fn html_policy_rejects_a_malformed_host() {
         assert!(html_policy(
             Some(&HeaderValue::from_static("localhost; script-src *")),

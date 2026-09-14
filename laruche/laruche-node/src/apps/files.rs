@@ -189,6 +189,17 @@ fn safe_relative(path: &str) -> Result<PathBuf, FileError> {
     if trimmed.chars().any(|c| c.is_control()) {
         return Err(FileError::Invalid("path has a control character".into()));
     }
+    // A drive letter is a `Prefix` component on Windows only. Everywhere else
+    // `C:/Windows/x` parses as an ordinary relative name, so the same request
+    // would be refused on one machine and written to `<root>/C:/Windows/x` on
+    // another. An App must not depend on the node's operating system to know
+    // what it is allowed to write, so the head is checked by hand.
+    let tete = trimmed.split('/').next().unwrap_or_default();
+    if matches!(tete.as_bytes(), [lettre, b':', ..] if lettre.is_ascii_alphabetic()) {
+        return Err(FileError::Invalid(
+            "path must be relative, with no drive letter".into(),
+        ));
+    }
     let candidate = PathBuf::from(&trimmed);
     let mut depth = 0usize;
     let mut clean = PathBuf::new();
@@ -471,6 +482,12 @@ mod tests {
         base
     }
 
+    /// The same names are refused on every platform.
+    ///
+    /// A drive letter only becomes a `Prefix` component on Windows: `C:/...`
+    /// used to pass this check on macOS and Linux, where it reads as a plain
+    /// relative name. The path stayed inside the App folder, so nothing
+    /// escaped, but the verdict depended on the node's operating system.
     #[test]
     fn un_chemin_qui_sort_de_l_arbre_est_refuse() {
         for mauvais in [
@@ -478,6 +495,8 @@ mod tests {
             "a/../../escape.txt",
             "/etc/passwd",
             "C:/Windows/system32/x.txt",
+            "c:x.txt",
+            "//serveur/partage/x.txt",
             "",
             "   ",
         ] {
