@@ -7,7 +7,7 @@ tools: [file_read]
 
 # LaRuche, expliquee par elle-meme
 
-Ce skill embarque le wiki complet de LaRuche, 30 pages, 154 Ko de markdown. C'est
+Ce skill embarque le wiki complet de LaRuche, 31 pages, 160 Ko de markdown. C'est
 la MEME source que le site publie: `wiki/` a la racine du depot, dont `docs/wiki.html`
 et ce dossier sont deux sorties generees par `scripts/build_wiki.py`. Ce qui est ecrit
 ici fait donc foi. Ne repondez jamais de memoire sur le fonctionnement de LaRuche:
@@ -40,6 +40,7 @@ vous ne les demandez pas.
 |---|---|---|
 | **Overview** | | |
 | `wiki/Home.md` | LaRuche Wiki | Welcome to the hive. LaRuche is a local-first AI agent with a desktop application, a server node and a lightweight LAN client. |
+| `wiki/Tour.md` | A tour of LaRuche | The rest of this wiki explains how LaRuche works. |
 | `wiki/FAQ.md` | FAQ | No. With llama.cpp or Ollama, a local embedding model and local speech backends, the engine, memory, automation and voice run... |
 | `wiki/Security.md` | Security | LaRuche's security model starts from an honest premise: the model will eventually do something wrong. |
 | **Getting started** | | |

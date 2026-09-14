@@ -111,6 +111,10 @@ and keeps what is stored when you save. To remove such a key, remove the route.
 
 ## Settings UI
 
+[The provider section: endpoint, model, context size and the auxiliary models.]
+[Channels: Telegram, Discord and Slack, each with its own tokens and options.]
+[The vault: secrets are stored by name, referenced in prompts and masked in output.]
+
 All live, no restart:
 
 - **General**: generation parameters (max passes, temperature, max tokens, dynamic tool

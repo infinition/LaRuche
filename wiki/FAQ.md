@@ -59,6 +59,30 @@ The key lives in the encrypted vault and is substituted into requests at executi
 time. The model, the context, and the session files only ever see `@@KEY_NAME` or
 `[SECRET:KEY_NAME]`. See [Secrets](Secrets).
 
+## What is ready, and what is not?
+
+The core works and is what the rest of this wiki documents: the engine and its loop,
+cognitive memory, watchers, crons and missions, native computer and browser control, the
+skill library, Apps and Forged Tools, the secrets vault.
+
+Treat these as experimental. The Miel mesh, which federates several hives, is usable but
+young. The advanced tiers of LaReine's supervision, and the training exports built on its
+reviews, are still moving. Backend declarations in an App manifest, for MCP stdio and
+WASI, parse but supervise nothing yet.
+
+Two limits are worth knowing before trusting a long unattended run. A tool whose outcome
+became unknown, after a crash or a timeout, blocks the mutations that would follow it and
+waits for a human to reconcile it; that is deliberate, but it is not automatic. And the
+token budget is a reservation, not a billing guarantee.
+
+## What extends it?
+
+Four paths, none of which require rebuilding the engine. Skills are markdown and teach a
+procedure. Forged Tools are a JSON manifest plus a command, and add one callable tool.
+MCP servers bring their own tools into the registry at runtime. Apps are installable
+interfaces that can also declare actions an agent may call. See
+[Apps and Forged Tools](Apps-and-Forged-Tools) and [MCP](MCP).
+
 ## What is the license?
 
 MPL-2.0. Use it, modify it, embed it; changes to MPL-licensed files must stay open.

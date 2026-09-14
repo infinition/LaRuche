@@ -7,23 +7,27 @@ server node and a lightweight LAN client. Its main systems are written in Rust: 
 agent engine, cognitive memory, automation, supervision, native computer control and
 the Miel mesh.
 
+New here? [A tour of LaRuche](Tour) shows what it actually does, with recordings and
+screenshots, before this wiki explains how.
+
 ## Current inventory
 
 | Area | Included |
 |---|---|
 | Rust workspace | 17 packages |
-| Default node registry | 89 tools |
-| Bundled skill library | 38 skills |
+| Default node registry | over a hundred tools |
+| Bundled skill library | 40 skills |
 | Executables | `laruche`, `laruche-node`, `laruche-cli` |
 | Optional companions | Python voice service, Chrome extension, VS Code extension |
-| Cargo test inventory | 741 tests |
 
 Forged Tools and MCP servers can add tools at runtime. Apps add installable interface views
 with explicit permissions and private storage. The Capabilities page in a running node shows
-the effective registry after feature flags, disabled tools and extensions have been applied.
+the effective registry after feature flags, disabled tools and extensions have been applied,
+and is the only tool count worth quoting.
 
 ## Getting started
 
+- [A tour of LaRuche](Tour) - what it does, in recordings and screenshots
 - [Installation](Installation) - installers, portable builds, source and Docker
 - [Desktop App](Desktop-App) - full application, LAN client and the three executables
 - [Quick Start](Quick-Start) - first boot, onboarding, first conversations

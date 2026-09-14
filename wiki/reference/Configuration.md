@@ -111,6 +111,10 @@ and keeps what is stored when you save. To remove such a key, remove the route.
 
 ## Settings UI
 
+![The provider section: endpoint, model, context size and the auxiliary models.](media/settings-provider.webp)
+![Channels: Telegram, Discord and Slack, each with its own tokens and options.](media/settings-canaux.webp)
+![The vault: secrets are stored by name, referenced in prompts and masked in output.](media/settings-secrets.webp)
+
 All live, no restart:
 
 - **General**: generation parameters (max passes, temperature, max tokens, dynamic tool
