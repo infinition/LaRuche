@@ -392,9 +392,18 @@ button, select, input, textarea {
 /* Le bloc sur lequel l'agent travaille. Un halo, pas un deplacement: la vue
    a deja suivi, ce liseré dit seulement lequel des blocs a l'ecran est celui
    qui bouge. Assez discret pour ne pas lutter avec une cellule en erreur. */
-.cell.is-active {
-  border-left-color: var(--amber);
+.cell.is-active { border-left-color: var(--amber); }
+
+/* Le halo se pose sur la partie qui bouge, pas sur la cellule entiere: le
+   code pendant qu'il s'execute, puis chaque sortie a mesure qu'elle arrive.
+   La transition porte sur l'ombre, donc passer d'un bloc au suivant se voit
+   comme un deplacement et non comme un clignotement. */
+.is-focus-bloc {
   box-shadow: 0 0 0 1px var(--halo), 0 0 18px -4px var(--halo);
+  border-radius: var(--radius-sm);
+}
+.cell .editor, .cell .output, .cell .note-preview {
+  transition: box-shadow 220ms ease;
 }
 
 .cell.is-running { border-left-color: var(--amber); }

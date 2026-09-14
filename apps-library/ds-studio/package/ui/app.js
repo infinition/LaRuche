@@ -661,7 +661,7 @@
       }
     }
 
-    if (stickToBottom && FOLLOW_EVENTS[event.type]) followAgent(event.cellId);
+    if (FOLLOW_EVENTS[event.type]) followAgent(event.cellId, event.type);
   }
 
   function notebookPane() {
@@ -682,6 +682,36 @@
    * que ni la molette ni le clavier ne signalent. */
   var dernierePositionEcrite = null;
 
+  var animationSuivi = null;
+
+  /* Un glissement anime, mais fait a la main.
+   *
+   * `scroll-behavior: smooth` emet des evenements pendant toute la duree, et
+   * aucun ne porte la position d'arrivee: chacun passerait pour un geste du
+   * lecteur. En animant nous-memes, chaque etape est ecrite par
+   * `ecrirePosition`, donc reconnue comme la notre. */
+  function glisserVers(pane, cible) {
+    if (animationSuivi) { cancelAnimationFrame(animationSuivi); animationSuivi = null; }
+    var depart = pane.scrollTop;
+    var delta = cible - depart;
+    var immobile = Math.abs(delta) < 2;
+    var sansAnimation = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    /* Masquee, la page ne recoit plus de trames: l'animation ne partirait
+     * jamais. Personne ne regarde, on se place d'un coup. */
+    var masquee = document.visibilityState === 'hidden';
+    if (immobile || sansAnimation || masquee) { ecrirePosition(pane, cible); return; }
+    var duree = Math.min(280, Math.max(120, Math.abs(delta) * 0.5));
+    var debut = null;
+    function pas(instant) {
+      if (debut === null) debut = instant;
+      var part = Math.min(1, (instant - debut) / duree);
+      var adouci = part < 0.5 ? 2 * part * part : 1 - Math.pow(-2 * part + 2, 2) / 2;
+      ecrirePosition(pane, depart + delta * adouci);
+      animationSuivi = part < 1 ? requestAnimationFrame(pas) : null;
+    }
+    animationSuivi = requestAnimationFrame(pas);
+  }
+
   function ecrirePosition(pane, valeur) {
     var maximum = Math.max(0, pane.scrollHeight - pane.clientHeight);
     var borne = Math.max(0, Math.min(valeur, maximum));
@@ -692,12 +722,17 @@
   function updateStickiness() {
     var pane = notebookPane();
     if (!pane) return;
-    /* Consommee une fois: une ecriture ne produit qu'un evenement. Sans cela,
-     * un lecteur qui s'arrete pile ou nous venions d'ecrire resterait ignore
-     * aussi longtemps qu'il n'en bouge pas. */
-    var attendue = dernierePositionEcrite;
+    /* La position attendue tient jusqu'a ce qu'une AUTRE arrive. La consommer
+     * au premier evenement etait une erreur: nos ecritures en produisent
+     * souvent plusieurs, et le deuxieme passait pour un geste du lecteur. Pire,
+     * comme le suivi cadre desormais un bloc et non le bas du carnet, ce
+     * deuxieme evenement relisait une position qui n'est pas le bas et coupait
+     * le suivi. C'est ce qui arrivait des que le carnet depassait un ecran. */
+    if (dernierePositionEcrite !== null &&
+        Math.abs(Math.round(pane.scrollTop) - dernierePositionEcrite) <= 2) return;
+    /* Le lecteur a repris la main, meme au milieu d'un de nos glissements. */
+    if (animationSuivi) { cancelAnimationFrame(animationSuivi); animationSuivi = null; }
     dernierePositionEcrite = null;
-    if (attendue !== null && Math.abs(Math.round(pane.scrollTop) - attendue) <= 1) return;
     stickToBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight <= STICK_THRESHOLD;
     majBoutonSuivi();
   }
@@ -758,52 +793,88 @@
 
   var MARGE_SUIVI = 12;
 
+  /* Toujours cale en haut. Centrer laissait autant de vide au-dessus qu'en
+   * dessous, alors que ce qui arrive, une sortie, un tableau, un graphique,
+   * arrive PAR LE BAS: la place utile est celle qui reste sous le bloc. */
   function positionPour(pane, target) {
     var boite = target.getBoundingClientRect();
     var volet = pane.getBoundingClientRect();
-    var haut = pane.scrollTop + (boite.top - volet.top);
-    var visible = pane.clientHeight;
-    var cible = boite.height <= visible - 2 * MARGE_SUIVI
-      ? haut - (visible - boite.height) / 2
-      : haut - MARGE_SUIVI;
-    return Math.max(0, Math.min(cible, pane.scrollHeight - visible));
+    var haut = pane.scrollTop + (boite.top - volet.top) - MARGE_SUIVI;
+    return Math.max(0, Math.min(haut, pane.scrollHeight - pane.clientHeight));
+  }
+
+  /* Une cellule n'est pas UN bloc, c'est un empilement: le code, puis ses
+   * sorties, texte, tableau, graphique. Viser la cellule entiere quand une
+   * sortie arrive cadre le code, et le graphique reste juste hors champ. On
+   * vise donc la partie qui vient de bouger. */
+  function cibleDuSuivi(cellId, type) {
+    var cellule = cellId && document.querySelector('[data-cell-id="' + cellId + '"]');
+    if (!cellule) return null;
+    if (type === 'cell.output' || type === 'cell.outputs') {
+      var sorties = cellule.querySelectorAll('[data-role="outputs"] > *');
+      if (sorties.length) return sorties[sorties.length - 1];
+    }
+    if (type === 'cell.start' || type === 'cell.queued') {
+      var edite = cellule.querySelector('[data-role="editor"]');
+      if (edite && !edite.hidden) return edite;
+    }
+    return cellule;
   }
 
   /* Le halo dit ou l'agent travaille, sans deplacer quoi que ce soit. */
-  function marquerActive(cellId) {
-    var precedent = document.querySelector('.cell.is-active');
-    if (precedent && precedent.getAttribute('data-cell-id') !== cellId) {
-      precedent.classList.remove('is-active');
-    }
+  /* La cible du suivi est retenue, pas seulement appliquee.
+   *
+   * Un redessin complet reconstruit toutes les cellules et effacait le halo,
+   * puis replacait la vue au bas du carnet: le cadrage qu'on venait de poser
+   * disparaissait sans que rien ne le dise. Retenir la cible permet de la
+   * reposer apres chaque rendu, quel que soit ce qui l'a declenche. */
+  var suiviCellId = null;
+
+  function reappliquerSuivi() {
+    if (!suiviCellId) return;
+    var cellule = document.querySelector('[data-cell-id="' + suiviCellId + '"]');
+    if (cellule) cellule.classList.add('is-active');
+  }
+
+  function marquerActive(cellId, bloc) {
+    suiviCellId = cellId || null;
+    document.querySelectorAll('.cell.is-active').forEach(function(n){
+      if (n.getAttribute('data-cell-id') !== cellId) n.classList.remove('is-active');
+    });
+    document.querySelectorAll('.is-focus-bloc').forEach(function(n){
+      if (n !== bloc) n.classList.remove('is-focus-bloc');
+    });
     if (!cellId) return;
-    var actuel = document.querySelector('[data-cell-id="' + cellId + '"]');
-    if (actuel) actuel.classList.add('is-active');
+    var cellule = document.querySelector('[data-cell-id="' + cellId + '"]');
+    if (cellule) cellule.classList.add('is-active');
+    /* Le halo fin va sur la partie qui bouge; la cellule ne garde qu'un
+     * liseré, pour qu'on voie a la fois ou on est et ce qui travaille. */
+    if (bloc && bloc !== cellule) bloc.classList.add('is-focus-bloc');
   }
 
   /* Deux trames d'attente: la cellule qui declenche ceci est mise en page a la
    * premiere, donc sa hauteur n'est connue qu'a la seconde. */
-  function followAgent(cellId) {
+  function followAgent(cellId, type) {
     var pane = notebookPane();
     if (!pane) return;
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){
-        marquerActive(cellId);
-        if (!stickToBottom) return;
-        var target = cellId && document.querySelector('[data-cell-id="' + cellId + '"]');
-        /* Toujours instantane. Un defilement anime emet des evenements pendant
-         * toute sa duree, et chacun rapporterait une position intermediaire
-         * que rien ne distinguerait d'un geste du lecteur. */
-        ecrirePosition(pane, target ? positionPour(pane, target) : pane.scrollHeight);
-        /* Le volet n'est peut-etre pas le seul a defiler. Dans le panneau
-         * lateral l'App vit dans un iframe, et si la coque y depasse la hauteur
-         * disponible, c'est le DOCUMENT qui defile: regler `scrollTop` du volet
-         * ne deplace alors rien de ce que le lecteur voit. `scrollIntoView`
-         * remonte toute la chaine des ancetres defilants, et `nearest` ne
-         * bouge que ceux qui en ont besoin, donc il ne defait pas la position
-         * qu'on vient de poser. */
-        if (target) target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      });
-    });
+
+    function poser() {
+      var target = cibleDuSuivi(cellId, type);
+      marquerActive(cellId, target);
+      if (!stickToBottom) return;
+      glisserVers(pane, target ? positionPour(pane, target) : pane.scrollHeight);
+    }
+
+    /* Tout de suite, PUIS une fois la mise en page retombee.
+     *
+     * Attendre une trame pour agir etait le defaut de fond: une trame
+     * d'animation n'arrive pas quand la page est masquee, et un navigateur les
+     * bride fortement des que l'onglet passe en arriere-plan. Le suivi restait
+     * alors muet, alors que le halo et la position se posent tres bien sans.
+     * Les deux trames servent a affiner quand la hauteur du bloc n'etait pas
+     * encore connue, pas a decider s'il faut suivre. */
+    poser();
+    requestAnimationFrame(function(){ requestAnimationFrame(poser); });
     majBoutonSuivi();
   }
 
@@ -818,7 +889,7 @@
     stickToBottom = true;
     majBoutonSuivi();
     var actif = document.querySelector('.cell.is-active');
-    followAgent(actif ? actif.getAttribute('data-cell-id') : null);
+    followAgent(actif ? actif.getAttribute('data-cell-id') : null, null);
   }
 
   function renderLibrary() {
@@ -865,7 +936,13 @@
     /* Vider la liste colle le volet en haut. On rend au lecteur la position
      * qu'il avait, sauf s'il suivait l'agent: dans ce cas la position d'avant
      * est deja perimee, c'est la fin du carnet qu'il veut voir. */
-    if (pane) ecrirePosition(pane, stickToBottom ? pane.scrollHeight : previousTop);
+    reappliquerSuivi();
+    if (!pane) return;
+    if (!stickToBottom) { ecrirePosition(pane, previousTop); return; }
+    /* On suit: la position d'avant est perimee. On revise la cible retenue
+     * plutot que de sauter au bas, sinon un redessin defait le cadrage. */
+    var retenue = suiviCellId && document.querySelector('[data-cell-id="' + suiviCellId + '"]');
+    ecrirePosition(pane, retenue ? positionPour(pane, retenue) : pane.scrollHeight);
   }
 
   function renderCell(cellId, options) {
