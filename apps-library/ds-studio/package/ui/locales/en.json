@@ -163,5 +163,6 @@
   "zoomIn": "Zoom in",
   "zoomOut": "Zoom out",
   "zoomReset": "Back to 100%",
-  "inspectorToggle": "Collapse or expand the panel"
+  "inspectorToggle": "Collapse or expand the panel",
+  "followAgent": "Follow the agent"
 }

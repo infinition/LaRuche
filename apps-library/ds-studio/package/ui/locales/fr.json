@@ -163,5 +163,6 @@
   "zoomIn": "Agrandir",
   "zoomOut": "Reduire",
   "zoomReset": "Revenir a 100%",
-  "inspectorToggle": "Replier ou deplier le volet"
+  "inspectorToggle": "Replier ou deplier le volet",
+  "followAgent": "Suivre l'agent"
 }

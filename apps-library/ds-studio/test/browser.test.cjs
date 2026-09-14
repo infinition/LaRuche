@@ -808,6 +808,35 @@ const SCENARIO = `
       document.getElementById('tabVars').click();
       await sleep(120);
       check('choisir un onglet deplie le volet', !volet.classList.contains('is-collapsed'));
+      /* Supprimer le dernier carnet etait refuse et son bouton restait grise:
+         il ne restait qu'a vider les cellules une par une. Le geste doit rendre
+         un carnet vide. */
+      check('le bouton supprimer reste actif sur le dernier carnet',
+        !document.getElementById('deleteNotebookBtn').disabled);
+      /* On redescend a un seul carnet: les etapes precedentes en ont cree
+         plusieurs, et le cas a couvrir est celui du dernier. */
+      for (var garde = 0; garde < 12; garde++) {
+        var liste = (await window.__harness.call('notebook.list')).result;
+        var restants = liste.notebooks || liste;
+        if (restants.length <= 1) break;
+        var etatBoucle = (await window.__harness.call('notebook.state')).result;
+        var aOter = restants.find(function(n){ return (n.id || n.notebookId) !== (etatBoucle.notebookId || etatBoucle.id); });
+        await window.__harness.call('notebook.delete',
+          { notebookId: aOter.id || aOter.notebookId, revision: etatBoucle.revision });
+        await sleep(120);
+      }
+      var seul = (await window.__harness.call('notebook.state')).result;
+      var idSeul = seul.notebookId || seul.id;
+      var efface = (await window.__harness.call('notebook.delete',
+        { notebookId: idSeul, revision: seul.revision })).result;
+      await sleep(400);
+      var repart = (await window.__harness.call('notebook.state')).result;
+      check('supprimer le dernier carnet en rend un autre',
+        (repart.notebookId || repart.id) !== idSeul, efface && efface.activeId);
+      check('le carnet rendu est vide',
+        repart.cells.length === 1 && !String(repart.cells[0].source || '').trim(),
+        repart.cells.length + ' cellule(s)');
+
     } catch (error) {
       check('suivi du carnet teste', false, String(error && error.stack || error));
     }
@@ -832,6 +861,19 @@ function serve(port) {
           response.writeHead(204).end();
           if (onReport) onReport(reportPayload);
         });
+        return;
+      }
+
+      /* L'App tourne dans un iframe, comme dans le panneau lateral de LaRuche.
+         En page pleine, le document absorbait des defilements que le volet du
+         carnet recoit vraiment ici: le suivi de l'agent y paraissait correct
+         alors qu'il se coupait des la deuxieme cellule ajoutee. */
+      if (request.url === '/frame.html') {
+        response.writeHead(200, { 'Content-Type': TYPES['.html'] });
+        response.end('<!doctype html><meta charset="utf-8"><title>hote</title>' +
+          '<style>html,body{margin:0;height:100%;overflow:hidden;background:#000}' +
+          'iframe{display:block;width:100%;height:100%;border:0}</style>' +
+          '<iframe src="/index.html" sandbox="allow-scripts allow-same-origin"></iframe>');
         return;
       }
 
@@ -879,7 +921,7 @@ function wrapScenario() {
 
   const harness = await serve(0);
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-studio-smoke-'));
-  const url = 'http://127.0.0.1:' + harness.port + '/index.html';
+  const url = 'http://127.0.0.1:' + harness.port + '/frame.html';
 
   const child = spawn(browser, [
     '--headless=new',

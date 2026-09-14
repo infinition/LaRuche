@@ -590,7 +590,10 @@
   async function deleteNotebook(id) {
     var entry = findEntry(id);
     if (!entry) throw new Error('No notebook with id "' + id + '"');
-    if (library.notebooks.length === 1) throw new Error('The last notebook cannot be deleted');
+    /* Supprimer le dernier carnet etait refuse, et le bouton restait grise: il
+     * ne restait qu'a vider les cellules une par une. Le geste veut dire
+     * "reparts de zero", alors on le prend au mot et on rend un carnet vide. */
+    var dernier = library.notebooks.length === 1;
 
     var count = entry.chunks || chunkCounts[id] || 1;
     library.notebooks = library.notebooks.filter(function(item){ return item.id !== id; });
@@ -602,7 +605,14 @@
       }
     }
 
-    if (id === notebook.id) {
+    if (dernier) {
+      var neuf = Notebooks.create({ title: '' });
+      neuf.kernelId = kernel ? kernel.id : null;
+      neuf.addCell({ source: '' });
+      adoptNotebook(neuf);
+      registerInLibrary(neuf);
+      if (kernel && kernel.reset) await kernel.reset();
+    } else if (id === notebook.id) {
       var next = library.notebooks[0];
       var loaded = sdk ? await loadStored(next.id) : null;
       adoptNotebook(loaded || Notebooks.create({ title: next.title }));
@@ -660,27 +670,36 @@
 
   /* Le suivi ne doit juger que ce que le LECTEUR a fait.
    *
-   * Redessiner la liste vide le conteneur, ce qui ramene le defilement en
-   * haut, puis le remet ou il etait. Ces deux ecritures emettent chacune un
-   * evenement `scroll`, et ils arrivent AVANT les trames de `followAgent`.
-   * Le suivi se coupait donc tout seul des que le carnet depassait un ecran:
-   * la position relue etait le haut du carnet, jamais le bas, et l'agent
-   * pouvait ecrire dix cellules sans que la vue bouge.
+   * Un drapeau leve pendant nos ecritures ne suffit pas. Vider le conteneur
+   * colle le defilement en haut, et l'evenement que cela produit peut arriver
+   * une ou deux trames plus tard, quand le drapeau est deja retombe. Relu a ce
+   * moment, le carnet parait remonte tout en haut, et le suivi se coupe seul:
+   * c'est exactement ce qui se passait des que le carnet depassait un ecran.
    *
-   * Le drapeau couvre nos propres ecritures. Il tombe dans une trame
-   * d'animation, et non apres un delai: la specification place la livraison
-   * des evenements de defilement avant les rappels de trame, donc ce qui nous
-   * appartient est deja passe quand il se leve. */
-  var ownScroll = false;
-  function releaseOwnScroll() {
-    requestAnimationFrame(function(){ ownScroll = false; });
+   * On compare donc a la valeur qu'on a ecrite. Un evenement qui rapporte
+   * cette position-la est le notre, quel que soit le moment ou il arrive. Un
+   * autre vient du lecteur, y compris quand il tire la barre de defilement,
+   * que ni la molette ni le clavier ne signalent. */
+  var dernierePositionEcrite = null;
+
+  function ecrirePosition(pane, valeur) {
+    var maximum = Math.max(0, pane.scrollHeight - pane.clientHeight);
+    var borne = Math.max(0, Math.min(valeur, maximum));
+    dernierePositionEcrite = Math.round(borne);
+    pane.scrollTop = borne;
   }
 
   function updateStickiness() {
-    if (ownScroll) return;
     var pane = notebookPane();
     if (!pane) return;
+    /* Consommee une fois: une ecriture ne produit qu'un evenement. Sans cela,
+     * un lecteur qui s'arrete pile ou nous venions d'ecrire resterait ignore
+     * aussi longtemps qu'il n'en bouge pas. */
+    var attendue = dernierePositionEcrite;
+    dernierePositionEcrite = null;
+    if (attendue !== null && Math.abs(Math.round(pane.scrollTop) - attendue) <= 1) return;
     stickToBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight <= STICK_THRESHOLD;
+    majBoutonSuivi();
   }
 
   /* Suit l'endroit ou l'agent travaille, et le montre par son debut.
@@ -771,15 +790,35 @@
         marquerActive(cellId);
         if (!stickToBottom) return;
         var target = cellId && document.querySelector('[data-cell-id="' + cellId + '"]');
-        ownScroll = true;
         /* Toujours instantane. Un defilement anime emet des evenements pendant
-         * toute sa duree, et le drapeau serait retombe au milieu: la position
-         * relue aurait alors coupe le suivi que ce defilement etait en train
-         * de servir. */
-        pane.scrollTop = target ? positionPour(pane, target) : pane.scrollHeight;
-        releaseOwnScroll();
+         * toute sa duree, et chacun rapporterait une position intermediaire
+         * que rien ne distinguerait d'un geste du lecteur. */
+        ecrirePosition(pane, target ? positionPour(pane, target) : pane.scrollHeight);
+        /* Le volet n'est peut-etre pas le seul a defiler. Dans le panneau
+         * lateral l'App vit dans un iframe, et si la coque y depasse la hauteur
+         * disponible, c'est le DOCUMENT qui defile: regler `scrollTop` du volet
+         * ne deplace alors rien de ce que le lecteur voit. `scrollIntoView`
+         * remonte toute la chaine des ancetres defilants, et `nearest` ne
+         * bouge que ceux qui en ont besoin, donc il ne defait pas la position
+         * qu'on vient de poser. */
+        if (target) target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       });
     });
+    majBoutonSuivi();
+  }
+
+  /* Quand le suivi est lache, rien ne le disait et rien ne permettait de le
+   * reprendre sans faire defiler jusqu'en bas a la main. */
+  function majBoutonSuivi() {
+    var bouton = element('followBtn');
+    if (bouton) bouton.hidden = stickToBottom;
+  }
+
+  function reprendreSuivi() {
+    stickToBottom = true;
+    majBoutonSuivi();
+    var actif = document.querySelector('.cell.is-active');
+    followAgent(actif ? actif.getAttribute('data-cell-id') : null);
   }
 
   function renderLibrary() {
@@ -794,7 +833,8 @@
       option.selected = entry.id === notebook.id;
       select.appendChild(option);
     });
-    element('deleteNotebookBtn').disabled = library.notebooks.length < 2;
+    /* Toujours actif: sur le dernier carnet, il le remplace par un carnet vide. */
+    element('deleteNotebookBtn').disabled = false;
   }
 
   function renderAll() {
@@ -814,9 +854,6 @@
     var container = element('cells');
     var pane = notebookPane();
     var previousTop = pane ? pane.scrollTop : 0;
-    /* Leve avant de vider: le vidage ramene le defilement en haut de lui-meme,
-     * et cet evenement-la nous appartient aussi. */
-    if (pane) ownScroll = true;
     container.textContent = '';
     notebook.cells.forEach(function(cell){
       container.appendChild(buildCell(cell));
@@ -828,10 +865,7 @@
     /* Vider la liste colle le volet en haut. On rend au lecteur la position
      * qu'il avait, sauf s'il suivait l'agent: dans ce cas la position d'avant
      * est deja perimee, c'est la fin du carnet qu'il veut voir. */
-    if (pane) {
-      pane.scrollTop = stickToBottom ? pane.scrollHeight : previousTop;
-      releaseOwnScroll();
-    }
+    if (pane) ecrirePosition(pane, stickToBottom ? pane.scrollHeight : previousTop);
   }
 
   function renderCell(cellId, options) {
@@ -1883,6 +1917,7 @@
 
     notebookPane().addEventListener('scroll', updateStickiness, { passive: true });
 
+    element('followBtn').addEventListener('click', reprendreSuivi);
     element('zoomInBtn').addEventListener('click', function(){ decalerZoom(1); });
     element('zoomOutBtn').addEventListener('click', function(){ decalerZoom(-1); });
     element('zoomValue').addEventListener('click', function(){ appliquerZoom(100, true); });

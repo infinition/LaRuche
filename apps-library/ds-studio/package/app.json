@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "id": "dev.laruche.ds-studio",
   "name": "DS Studio",
-  "version": "1.7.7",
+  "version": "1.7.8",
   "description": "Carnets d'analyse de donnees pilotables par un agent : cellules, tableaux, graphiques, resultats conserves et bibliotheque de carnets.",
   "publisher": {
     "name": "LaRuche"

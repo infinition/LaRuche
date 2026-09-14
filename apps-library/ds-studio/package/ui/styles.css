@@ -803,6 +803,24 @@ th.sorted-desc::after { content: " ↓"; color: var(--amber); }
 .inspector.is-collapsed .tab-toggle { transform: rotate(180deg); }
 .tab-toggle:hover { color: var(--text); }
 
+/* Apparait des que le suivi est lache, au-dessus du carnet et sans rien
+   recouvrir d'utile. */
+.follow-btn {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  z-index: 5;
+  padding: 6px 12px;
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.follow-btn:hover { background: var(--surface-2); }
+
 .zoom-group { display: flex; align-items: center; gap: 2px; }
 .zoom-value {
   min-width: 46px;
