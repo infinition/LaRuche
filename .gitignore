@@ -137,3 +137,5 @@ scripts/import_*_skills.py
 
 # Cles privees locales, hors des dossiers charges et jamais versionnees
 .private/
+
+/audits/
