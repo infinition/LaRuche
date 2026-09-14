@@ -1988,14 +1988,48 @@ LaRuche.Memory = (function(){
     try { localStorage.setItem('lr_mem_vu', String(_vusJusqua)); } catch(e){}
   }
 
+  /* Ce que le lecteur a deplie, garde hors du DOM.
+   *
+   * La file est relue toutes les vingt secondes et la liste etait reconstruite
+   * a chaque fois. Une proposition ouverte pour etre lue se refermait donc
+   * toute seule au milieu de la lecture, sans que rien ne l'explique. */
+  var propositionsDepliees = {};
+  var signatureRendue = null;
+
+  function basculerProposition(id) {
+    if (propositionsDepliees[id]) delete propositionsDepliees[id];
+    else propositionsDepliees[id] = true;
+    var bloc = document.querySelector('.mem-prop-item[data-prop-id="' + id + '"]');
+    if (!bloc) return;
+    var complet = bloc.querySelector('.mem-prop-full');
+    var fleche = bloc.querySelector('.mem-prop-chevron');
+    if (complet) complet.style.display = propositionsDepliees[id] ? '' : 'none';
+    if (fleche) fleche.textContent = propositionsDepliees[id] ? '\u25b4' : '\u25be';
+  }
+
   function renderProposalsPanel(pend) {
     var panel = document.getElementById('memProposalsPanel');
     var list = document.getElementById('memProposalsList');
     var count = document.getElementById('memProposalsCount');
     if(!panel || !list) return;
-    if(!pend.length){ panel.style.display='none'; list.innerHTML=''; return; }
+    if(!pend.length){
+      panel.style.display='none'; list.innerHTML=''; signatureRendue=null;
+      propositionsDepliees={}; return;
+    }
     panel.style.display='';
     if(count) count.textContent = String(pend.length);
+    /* Rien de nouveau, rien a refaire. Redessiner a l'identique coute la
+       position du defilement et le texte que l'on est en train de selectionner,
+       en plus de ce qui est deplie. */
+    var signature = pend.map(function(p){
+      return [p.id, p.status, p.target, p.preview, p.full].join('\u0001');
+    }).join('\u0002');
+    if (signature === signatureRendue && list.childNodes.length) return;
+    signatureRendue = signature;
+    /* Une proposition decidee ou disparue ne doit pas laisser son etat. */
+    var vivantes = {};
+    pend.forEach(function(p){ if (propositionsDepliees[p.id]) vivantes[p.id] = true; });
+    propositionsDepliees = vivantes;
     list.innerHTML = pend.map(function(p){
       var rc = p.risk==='Critique'?'var(--red)':(p.risk==='Sensible'?'var(--amber)':'var(--green)');
       // When it was proposed. The backend has always sent `created_at`; not showing it
@@ -2017,12 +2051,13 @@ LaRuche.Memory = (function(){
       // Full content on demand: nobody should approve a memory write from a
       // truncated one-liner. The preview toggles the complete proposed text.
       var aFull = p.full && p.full !== p.preview;
-      return '<div class="mem-prop-item">'+
+      var ouvert = !!propositionsDepliees[p.id];
+      return '<div class="mem-prop-item" data-prop-id="'+esc(String(p.id))+'">'+
         '<span class="mem-prop-dot" style="color:'+rc+'">●</span>'+
         '<div class="mem-prop-main">'+
           '<div class="mem-prop-target">'+esc(p.target||p.type||'')+'</div>'+
-          (p.preview?'<div class="mem-prop-preview"'+(aFull?' style="cursor:pointer" title="'+LaRuche.i18n.t('reine.queueVoirTout')+'" onclick="var f=this.parentElement.querySelector(\'.mem-prop-full\');if(f)f.style.display=(f.style.display===\'none\'?\'\':\'none\')"':'')+'>'+esc(p.preview)+(aFull?' <span style="color:var(--amber)">▾</span>':'')+'</div>':'')+
-          (aFull?'<pre class="mem-prop-full" style="display:none;white-space:pre-wrap;max-height:260px;overflow:auto;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:10px;margin:4px 0">'+esc(p.full)+'</pre>':'')+
+          (p.preview?'<div class="mem-prop-preview"'+(aFull?' data-prop-toggle="1" style="cursor:pointer" title="'+esc(LaRuche.i18n.t('reine.queueVoirTout'))+'"':'')+'>'+esc(p.preview)+(aFull?' <span class="mem-prop-chevron" style="color:var(--amber)">'+(ouvert?'\u25b4':'\u25be')+'</span>':'')+'</div>':'')+
+          (aFull?'<pre class="mem-prop-full" style="display:'+(ouvert?'':'none')+';white-space:pre-wrap;max-height:260px;overflow:auto;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:10px;margin:4px 0">'+esc(p.full)+'</pre>':'')+
           (meta?'<div class="mem-prop-meta">'+meta+'</div>':'')+
         '</div>'+
         '<div class="mem-prop-actions">'+
@@ -2031,6 +2066,15 @@ LaRuche.Memory = (function(){
         '</div>'+
       '</div>';
     }).join('');
+    if (!list.dataset.plieBranche) {
+      list.dataset.plieBranche = '1';
+      list.addEventListener('click', function(event){
+        var bascule = event.target.closest('[data-prop-toggle]');
+        if (!bascule) return;
+        var bloc = bascule.closest('.mem-prop-item');
+        if (bloc) basculerProposition(bloc.dataset.propId);
+      });
+    }
   }
 
   function approveProposal(id){
