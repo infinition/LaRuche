@@ -1506,7 +1506,7 @@
   function renderMarkdown(source) {
     var lines = String(source || '').split('\n');
     var html = '';
-    var inList = false;
+    var inList = false;   /* false, ou le nom de la balise ouverte */
     var inCode = false;
 
     lines.forEach(function(line){
@@ -1524,18 +1524,26 @@
         html += '<h' + level + '>' + inline(heading[2]) + '</h' + level + '>';
         return;
       }
-      if (/^\s*([-*])\s+/.test(line)) {
-        if (!inList) { html += '<ul>'; inList = true; }
-        html += '<li>' + inline(line.replace(/^\s*[-*]\s+/, '')) + '</li>';
+      var puce = /^\s*([-*])\s+/.test(line);
+      var numero = /^\s*\d+[.)]\s+/.test(line);
+      if (puce || numero) {
+        var balise = puce ? 'ul' : 'ol';
+        if (inList && inList !== balise) { html += '</' + inList + '>'; inList = false; }
+        if (!inList) { html += '<' + balise + '>'; inList = balise; }
+        html += '<li>' + inline(line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, '')) + '</li>';
         return;
       }
-      if (inList) { html += '</ul>'; inList = false; }
+      if (inList) { html += '</' + inList + '>'; inList = false; }
+      if (/^\s*>\s?/.test(line)) {
+        html += '<blockquote>' + inline(line.replace(/^\s*>\s?/, '')) + '</blockquote>';
+        return;
+      }
       if (/^\s*---+\s*$/.test(line)) { html += '<hr>'; return; }
       if (!line.trim()) return;
       html += '<p>' + inline(line) + '</p>';
     });
 
-    if (inList) html += '</ul>';
+    if (inList) html += '</' + inList + '>';
     if (inCode) html += '</code></pre>';
     return html || '<p class="muted">' + escapeHtml(t('emptyNote')) + '</p>';
   }
@@ -1544,7 +1552,11 @@
     return escapeHtml(text)
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+      .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+      /* Le libelle seul: une App ne doit pas fabriquer de lien sortant depuis
+         du texte que l'agent a ecrit. */
+      .replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, '$1');
   }
 
   /* --------------------------------------------------------- Side panels */

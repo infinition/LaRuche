@@ -773,9 +773,24 @@ const SCENARIO = `
       check('dezoomer change l echelle de la coque',
         getComputedStyle(document.querySelector('.shell')).zoom !== avantZoom,
         avantZoom + ' -> ' + getComputedStyle(document.querySelector('.shell')).zoom);
-      check('la coque remplit toujours la fenetre apres dezoom',
-        Math.abs(document.querySelector('.shell').getBoundingClientRect().height - window.innerHeight) < 8,
-        Math.round(document.querySelector('.shell').getBoundingClientRect().height) + ' pour ' + window.innerHeight);
+      var coque = document.querySelector('.shell').getBoundingClientRect();
+      check('la coque remplit toujours la hauteur apres dezoom',
+        Math.abs(coque.height - window.innerHeight) < 8,
+        Math.round(coque.height) + ' pour ' + window.innerHeight);
+      /* Dezoomer donne de la largeur logique, et la mise en page doit s'en
+         servir. Un seuil mesure a la fenetre ne le voit pas: a 60% dans un
+         panneau de 600 px l'App dispose de 1000 px et restait en une colonne. */
+      for (var z = 0; z < 4; z++) { document.getElementById('zoomOutBtn').click(); }
+      await sleep(220);
+      var facteur = parseFloat(getComputedStyle(document.querySelector('.shell')).zoom) || 1;
+      var logique = window.innerWidth / facteur;
+      var direction = getComputedStyle(document.querySelector('.layout')).flexDirection;
+      check('la mise en page suit la largeur logique, pas la fenetre',
+        logique >= 900 ? direction === 'row' : direction === 'column',
+        Math.round(logique) + 'px logiques -> ' + direction);
+      check('la coque remplit toujours la largeur apres dezoom',
+        Math.abs(coque.width - window.innerWidth) < 8,
+        Math.round(coque.width) + ' pour ' + window.innerWidth);
       document.getElementById('zoomValue').click();
       await sleep(120);
       check('le libelle revient a 100%', document.getElementById('zoomValue').textContent === '100%',

@@ -169,6 +169,13 @@ button, select, input, textarea {
   zoom: var(--zoom, 1);
   height: calc(100dvh / var(--zoom, 1));
   max-height: calc(100% / var(--zoom, 1));
+  /* Les seuils de mise en page se mesurent a la coque, pas a la fenetre. Une
+     requete media voit toujours la fenetre non zoomee: a 60% dans un panneau
+     de 600 px, l'App dispose de 1000 px logiques et restait pourtant en une
+     colonne, sans jamais utiliser la largeur que le dezoom venait de lui
+     donner. Un conteneur, lui, se mesure dans son propre repere. */
+  container-type: inline-size;
+  container-name: studio;
   min-width: 0;
   padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
            max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
@@ -513,11 +520,38 @@ button, select, input, textarea {
 
 .note-preview > :first-child { margin-top: 0; }
 .note-preview > :last-child { margin-bottom: 0; }
-.note-preview h2 { font-size: 17px; margin: 8px 0 4px; }
-.note-preview h3 { font-size: 15px; margin: 8px 0 4px; }
-.note-preview h4, .note-preview h5 { font-size: 13px; margin: 6px 0 4px; }
-.note-preview p { margin: 4px 0; }
-.note-preview ul { margin: 4px 0; padding-left: 20px; }
+/* La hierarchie doit se lire d'un coup d'oeil. Les tailles precedentes
+   allaient de 17 a 13 px pour un texte courant a 13: un titre de niveau 3 ne
+   se distinguait d'un paragraphe que par sa graisse. */
+.note-preview h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 14px 0 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--line);
+}
+.note-preview h3 { font-size: 18px; font-weight: 700; margin: 12px 0 6px; }
+.note-preview h4 { font-size: 15px; font-weight: 650; margin: 10px 0 4px; }
+.note-preview h5 {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 10px 0 4px;
+}
+.note-preview p { margin: 6px 0; line-height: 1.55; }
+.note-preview ul, .note-preview ol { margin: 6px 0; padding-left: 22px; line-height: 1.55; }
+.note-preview li { margin: 2px 0; }
+.note-preview strong { font-weight: 700; color: var(--text); }
+.note-preview del { color: var(--muted); }
+.note-preview blockquote {
+  margin: 8px 0;
+  padding: 4px 0 4px 12px;
+  border-left: 3px solid var(--line-strong);
+  color: var(--muted);
+}
 .note-preview code { font-family: var(--mono); font-size: 12px; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
 .note-preview hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 
@@ -986,19 +1020,24 @@ th.sorted-desc::after { content: " ↓"; color: var(--amber); }
 /* ------------------------------------------------------------ Responsive */
 
 /* From this width the inspector becomes a column instead of a bottom sheet. */
-@media (min-width: 900px) {
+@container studio (min-width: 900px) {
   .layout { flex-direction: row; }
   .notebook-pane { padding-right: 4px; }
   .inspector { width: 330px; flex: none; max-height: none; }
 }
 
-@media (min-width: 1400px) {
-  .shell { max-width: 1500px; margin: 0 auto; width: 100%; }
+@container studio (min-width: 1400px) {
   .inspector { width: 380px; }
 }
 
+/* Celle-ci porte sur la coque elle-meme, qu'une requete de conteneur ne peut
+   pas styler: elle reste mesuree a la fenetre. */
+@media (min-width: 1400px) {
+  .shell { max-width: 1500px; margin: 0 auto; width: 100%; }
+}
+
 /* Panel and phone: the gutter collapses and controls grow to a touch size. */
-@media (max-width: 520px) {
+@container studio (max-width: 520px) {
   .cell { padding: 7px; gap: 6px; }
   .cell-gutter { width: 30px; }
   .toolbar-end { margin-left: 0; width: 100%; }
