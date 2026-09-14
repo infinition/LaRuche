@@ -756,32 +756,49 @@ pub(crate) async fn run(
     messages.push(json!({"role":"user","content":body.prompt}));
     let ollama = state.essaim_config.read().await.ollama_url.clone();
     let api_key = laruche_essaim::secrets::substituer(&profile.api_key);
+    let budget = agent.max_tokens;
+    /* Un tour d'App choisit une action dans une liste fournie. Laisser un
+       modele pensant y depenser son budget de raisonnement, c'est le laisser
+       finir sans rien ecrire: le texte revenait vide, et l'appelant ne voyait
+       qu'un echec de fournisseur. */
+    let effort = if body.act { Some("minimal") } else { None };
     let request = async {
         use futures_util::StreamExt;
-        let mut stream = laruche_essaim::providers::provider_chat_stream(
+        let mut stream = laruche_essaim::providers::provider_chat_stream_effort(
             &profile.provider,
             &agent.model,
             &messages,
             agent.temperature,
-            agent.max_tokens,
+            budget,
             &api_key,
             Some(&profile.base_url),
             &ollama,
             None,
+            effort,
         )
         .await
         .map_err(|e| e.to_string())?;
         let mut output = String::new();
+        let mut pensee = String::new();
         while let Some(chunk) = stream.next().await {
             output.push_str(&chunk.text);
+            if let Some(r) = chunk.reasoning.as_deref() {
+                pensee.push_str(r);
+            }
             if output.len() > 48_000 {
-                return Err("Model output too large".to_string());
+                return Err("model output too large".to_string());
             }
         }
         if output.trim().is_empty() {
-            return Err("Model returned no text".into());
+            return Err(if pensee.trim().is_empty() {
+                "the model returned no text".to_string()
+            } else {
+                format!(
+                    "the model spent its {budget}-token budget thinking and wrote no answer.                      Raise this agent's token limit, or choose a model that answers directly"
+                )
+            });
         }
-        Ok(output)
+        Ok((output, pensee))
     };
     tokio::pin!(request);
     let deadline = tokio::time::sleep(Duration::from_secs(120));
@@ -789,7 +806,7 @@ pub(crate) async fn run(
     let mut check = tokio::time::interval(Duration::from_millis(500));
     let output = loop {
         tokio::select! {
-            result=&mut request=>break result.map_err(|_|error(StatusCode::BAD_GATEWAY,"Provider request failed"))?,
+            result=&mut request=>break result.map_err(|raison|error(StatusCode::BAD_GATEWAY,format!("Provider request failed: {raison}")))?,
             _=&mut deadline=>return Err(error(StatusCode::GATEWAY_TIMEOUT,"Agent timed out")),
             _=check.tick()=>if !run_allowed(&state,owner,&body).await{return Err(error(StatusCode::FORBIDDEN,"Permission revoked; generation cancelled"));}
         }
@@ -797,13 +814,21 @@ pub(crate) async fn run(
     if !run_allowed(&state, owner, &body).await {
         return Err(error(StatusCode::FORBIDDEN, "Permission revoked"));
     }
+    let (output, pensee) = output;
     if !body.fresh_state {
         conversation
             .messages
             .push(json!({"role":"user","content":body.prompt}));
-        conversation
-            .messages
-            .push(json!({"role":"assistant","content":output}));
+        /* DeepSeek refuse le tour suivant si on ne lui rend pas le
+           raisonnement qu'il vient d'emettre. Il n'etait pas conserve, donc
+           toute conversation d'App a deux tours mourait sur son propre
+           message d'erreur. On le rend au seul modele qui l'a produit. */
+        conversation.messages.push(json!({
+            "role": "assistant",
+            "content": output,
+            "reasoning_model": agent.model,
+            "reasoning_content": pensee,
+        }));
         while conversation.messages.len() > 16
             || conversation
                 .messages
