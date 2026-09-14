@@ -113,7 +113,7 @@
     agents:Object.freeze({
       list:function(){return call('agents.list',{}).then(function(r){return r.agents;});},
       run:function(agentId,sessionId,prompt){return call('agents.run',{agentId:agentId,sessionId:sessionId,prompt:prompt});},
-      act:function(agentId,sessionId,stateAction,prompt){return call('agents.run',{agentId:agentId,sessionId:sessionId,stateAction:stateAction,prompt:prompt||'',act:true});},
+      act:function(agentId,sessionId,stateAction,prompt,options){options=options||{};return call('agents.run',{agentId:agentId,sessionId:sessionId,stateAction:stateAction,prompt:prompt||'',act:true,allowedActions:options.allowedActions||[],freshState:!!options.freshState,expectedRevision:options.expectedRevision});},
       reset:function(agentId,sessionId){return call('agents.run',{agentId:agentId,sessionId:sessionId,prompt:'',reset:true});}
     }),
     memory:Object.freeze({

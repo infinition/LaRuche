@@ -171,7 +171,7 @@ spends model tokens.
 |---|---|
 | `agents.list()` | The agents this App may invoke |
 | `agents.run(agentId, sessionId, prompt)` | The agent's answer |
-| `agents.act(agentId, sessionId, stateAction, prompt)` | The answer, the agent having first read the App's state through `stateAction` |
+| `agents.act(agentId, sessionId, stateAction, prompt, options)` | The answer, the agent having first read the App's state through `stateAction` |
 | `agents.reset(agentId, sessionId)` | Nothing, the session's history is cleared |
 
 `sessionId` separates conversations: two views, two users or two games each keep their
@@ -181,6 +181,19 @@ restart; the agents themselves and their permissions are on disk.
 `act` is the one to reach for in a game or an editor. Passing the state action means the
 agent reads the current position from the App rather than from whatever it remembers,
 and `stateAction` needs its own agent permission like any other action.
+
+Its `options` shape a turn that repeats:
+
+| Option | What it does |
+|---|---|
+| `allowedActions` | Narrows the choice to these action names, on top of the permissions already granted. At most 32 names |
+| `freshState` | Sends the state and the App's description without the conversation history or the full guide, so a long game does not carry every earlier turn. A turn sent this way is also allowed a faster rhythm |
+| `expectedRevision` | Refuses the turn before spending a single token if the App has moved on since. What the user did while the agent was thinking wins |
+
+Without `freshState`, a turn carries the history and the whole guide, and shares the
+ordinary limit of thirty model requests a minute per user. With it, the request is small
+enough that the limit is a hundred and twenty, which is what lets an App play a whole
+game turn by turn.
 
 These calls are slow by nature, which is why their timeout is 175 seconds rather than 10.
 

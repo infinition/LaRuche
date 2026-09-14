@@ -259,12 +259,84 @@ pub fn parse_plan(text: &str) -> Option<Vec<PlanItem>> {
         return None;
     }
     let json_str = text[start + "<plan>".len()..end].trim();
-    serde_json::from_str::<Vec<PlanItem>>(json_str).ok()
+    if let Ok(items) = serde_json::from_str::<Vec<PlanItem>>(json_str) {
+        return Some(items);
+    }
+    // Observed from DeepSeek: an extra '[' before each item, sometimes with
+    // no final ']'. Recover only the array punctuation. Every object must be
+    // complete valid JSON with an explicit task and status; never accept a
+    // valid prefix of a truncated plan or infer completion from prose.
+    let mut rest = json_str.strip_prefix('[')?.trim_start();
+    let mut items = Vec::new();
+    loop {
+        if !items.is_empty() {
+            rest = rest.strip_prefix('[').unwrap_or(rest).trim_start();
+        }
+        if !rest.starts_with('{') {
+            return None;
+        }
+        let (_, end) = plage_objet_json(rest)?;
+        items.push(serde_json::from_str::<PlanItem>(&rest[..end]).ok()?);
+        rest = rest[end..].trim();
+        if rest.is_empty() || rest == "]" {
+            return Some(items);
+        }
+        rest = rest.strip_prefix(',')?.trim_start();
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn plan_recupere_les_crochets_repetes_sans_changer_les_statuts() {
+        let items = parse_plan(
+            r#"<plan>
+[{"task":"Ouvrir DS Studio", "status":"done"},
+[{"task":"Exécuter les démos", "status":"done"},
+[{"task":"Vérifier l'état persisté", "status":"pending"}]
+</plan>"#,
+        )
+        .unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].status, "done");
+        assert_eq!(items[1].status, "done");
+        assert_eq!(items[2].status, "pending");
+        let sans_fermeture = parse_plan(
+            r#"<plan>[{"task":"A", "status":"done"},
+[{"task":"B", "status":"done"}</plan>"#,
+        )
+        .unwrap();
+        assert_eq!(sans_fermeture.len(), 2);
+    }
+
+    #[test]
+    fn plan_refuse_les_objets_tronques_et_ne_garde_pas_un_prefixe() {
+        for text in [
+            r#"<plan>[{"task":"A", "status":"done"}, [{"task":"B"</plan>"#,
+            r#"<plan>[{"task":"A", "status":"done"}, [{"task":"B"}]</plan>"#,
+            r#"<plan>[{"task":"A", "status":"done"},</plan>"#,
+            r#"<plan>[{"task":"A", "status":"done"}] texte parasite</plan>"#,
+            r#"<plan>Tout est terminé</plan>"#,
+        ] {
+            assert!(parse_plan(text).is_none(), "{text}");
+        }
+    }
+
+    #[test]
+    fn plan_preserve_les_crochets_et_guillemets_dans_les_titres() {
+        let items = parse_plan(
+            r#"<plan>[{"task":"Vérifier [x] et \"done\"", "status":"in_progress"},
+[{"task":"Objet {a}", "status":"blocked"}]</plan>"#,
+        )
+        .unwrap();
+        assert_eq!(items[0].task, "Vérifier [x] et \"done\"");
+        assert_eq!(items[0].status, "in_progress");
+        assert_eq!(items[1].task, "Objet {a}");
+        assert_eq!(items[1].status, "blocked");
+        assert_eq!(parse_plan("<plan>[]</plan>").unwrap().len(), 0);
+    }
 
     #[test]
     fn parse_tool_call_style_attributs_gemma() {

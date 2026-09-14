@@ -63,7 +63,7 @@ LaRuche.Apps = (function(){
   var docked = null;
   var supportedCapabilities = ['storage.private','ui.theme.read','ui.locale.read','agents.invoke','laruche.files','laruche.memory','network.fetch'];
   var hostId = crypto.randomUUID();
-  var hostTimer = null;
+  var hostTimer = null, hostSyncBusy = false, hostAgentRequests = 0;
   var hostConfig = {agents:[],policies:{}};
   var bridgeMaxBytes = 64 * 1024;
   var detachedBridges = new Set();
@@ -306,7 +306,10 @@ LaRuche.Apps = (function(){
     }
     if(method==='agents.run'){
       requireCapability(bridge,'agents.invoke');
-      return hostApi('/api/apps/agents/run',{hostId:hostId,instanceId:bridge.instanceId,appId:bridge.app.id,agentId:params.agentId,sessionId:params.sessionId,prompt:params.prompt,reset:!!params.reset,act:!!params.act,stateAction:params.stateAction||null});
+      hostAgentRequests++;
+      if(hostTimer){clearTimeout(hostTimer);hostTimer=null;}
+      syncHost();
+      return hostApi('/api/apps/agents/run',{hostId:hostId,instanceId:bridge.instanceId,appId:bridge.app.id,agentId:params.agentId,sessionId:params.sessionId,prompt:params.prompt,reset:!!params.reset,act:!!params.act,stateAction:params.stateAction||null,allowedActions:params.allowedActions||[],freshState:!!params.freshState,expectedRevision:params.expectedRevision}).finally(function(){hostAgentRequests--;});
     }
     if(method.indexOf('memory.')===0){
       return backendMemory(bridge,method,params||{});
@@ -507,6 +510,8 @@ LaRuche.Apps = (function(){
   });
 
   function syncHost(){
+    if(hostSyncBusy)return;
+    hostSyncBusy=true;hostTimer=null;
     var instances=liveBridges().map(function(b){return {instanceId:b.instanceId,appId:b.app.id,version:b.app.activeVersion,viewId:b.view.id,ready:b.appReady,status:b.appStatus,progress:b.progress};});
     hostApi('/api/apps/host/sync',{hostId:hostId,instances:instances}).then(function(data){
       hostConfig=data.config;
@@ -516,7 +521,7 @@ LaRuche.Apps = (function(){
       data.commands.forEach(function(command){
         executeHostCommand(command).then(function(result){return hostApi('/api/apps/host/reply',{hostId:hostId,id:command.id,result:result});}).catch(function(error){return hostApi('/api/apps/host/reply',{hostId:hostId,id:command.id,error:String(error.message||error).slice(0,1000)}).catch(function(){});});
       });
-    }).catch(function(){}).finally(function(){hostTimer=setTimeout(syncHost,1000);});
+    }).catch(function(){}).finally(function(){hostSyncBusy=false;hostTimer=setTimeout(syncHost,hostAgentRequests?100:1000);});
   }
   function executeHostCommand(command){
     var payload=command.payload;
