@@ -1,7 +1,7 @@
 ---
 type: skill
 name: configure-laruche
-description: Set up or change how this LaRuche is configured - LLM provider, Telegram/Discord/Slack, secrets vault, accounts, MCP server, memory, LaReine.
+description: Set up or change how this LaRuche is configured, from provider to accounts
 tools: [shell_exec, memory_read_node, memory_write, skill_view]
 ---
 

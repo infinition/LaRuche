@@ -234,6 +234,22 @@ depends on the order watchers happen to be polled in. The cost is one tick of la
 on a correlation, which is the right trade: an alert a minute late is fine, an alert
 that fires at random is not.
 
+## Pausing one
+
+`watcher_toggle` with `id` and `active`. `false` pauses it, `true` starts it again. The
+target, the rule and the action are kept untouched, so a paused watcher comes back
+exactly as it was.
+
+Prefer it to `watcher_delete` whenever the watcher is right but badly timed: noisy during
+a migration, irrelevant while the user is away, firing on a machine that is down. Deleting
+means rebuilding the rule later from memory, and a rule rebuilt from memory is a rule
+that observes something slightly different.
+
+Delete when the watcher is WRONG or the need is over. Pause when the need will come back.
+
+A paused watcher still appears in `watcher_list`, with `active: false`. That is the
+answer to "why did it stop telling me?" more often than a broken rule is.
+
 ## Removing one, and checking a file by hand
 
 `watcher_delete` with `id` removes a watcher. Get the id from `watcher_list`; there is no

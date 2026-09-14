@@ -24,6 +24,15 @@ SKILLS = os.path.join(ROOT, "skills")
 MANIFEST = os.path.join(SKILLS, "TOOL-COVERAGE.md")
 
 TOOL_NAME = re.compile(r'fn nom\(&self\) -> &str \{\s*"([a-z][a-z0-9_]+)"')
+# A tool whose `nom` returns a field, registered by looping over a literal list. The five
+# App tools share one type and differ only by that string, so the pattern above never saw
+# them: `app_call` and its four siblings were invisible to this check for as long as they
+# have existed. The loop counts only when it registers something, otherwise every `for x
+# in ["a", "b"]` in the codebase would be read as a tool list.
+TOOL_LOOP = re.compile(
+    r'for \w+ in \[((?:\s*"[a-z][a-z0-9_]+"\s*,?)+)\]\s*\{(?:[^{}]|\{[^{}]*\})*?\benregistrer\('
+)
+TOOL_IN_LOOP = re.compile(r'"([a-z][a-z0-9_]+)"')
 
 
 def read(path):
@@ -39,7 +48,10 @@ def registered_tools():
         for folder, _, files in os.walk(base):
             for name in files:
                 if name.endswith(".rs"):
-                    found.update(TOOL_NAME.findall(read(os.path.join(folder, name))))
+                    text = read(os.path.join(folder, name))
+                    found.update(TOOL_NAME.findall(text))
+                    for bloc in TOOL_LOOP.findall(text):
+                        found.update(TOOL_IN_LOOP.findall(bloc))
     return sorted(found)
 
 

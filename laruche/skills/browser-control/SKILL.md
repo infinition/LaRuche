@@ -1,7 +1,7 @@
 ---
 type: skill
 name: browser-control
-description: Drive a real web browser to navigate, read, find, click, fill, press keys, hover, scroll, wait, screenshot, and read its console and network.
+description: Drive a real web browser: navigate, read, find, click, fill, screenshot
 tools: [browser]
 ---
 

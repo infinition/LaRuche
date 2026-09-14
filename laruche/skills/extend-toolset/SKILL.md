@@ -115,17 +115,30 @@ Procedure:
 
 `forged_tool_delete` with `name` removes one, and reloads what remains by itself.
 
+`reload_forged_tools` rescans the whole `forged_tools/` directory. You do not need it
+after `forged_tool_create` or `forged_tool_delete`, which reload by themselves. You DO
+need it whenever a manifest reached the disk another way: the user edited
+`forged_tools/<name>/tool.json` in an editor, a file was copied in, a script generated
+one. Until it runs, the folder and the registry disagree, and the registry is what gets
+called. It returns how many tools are loaded, which is how you confirm the new one
+arrived rather than assuming it did.
+
 ## Connecting an MCP server
 
 1. `mcp_list` to see what is already connected.
 2. `mcp_add` with `name` and `command`, plus `args` if the server needs them.
-3. `mcp_list` again to confirm it is up. A server that fails to start still appears in
+3. `reload_mcp`. This is not optional. `mcp_add` only WRITES the server to
+   `mcp_servers.json`; it does not connect to it, and none of its tools exist until this
+   runs. It returns how many tools became available, so a return of zero is the signal
+   that the server started and exposed nothing, or did not start at all.
+4. `mcp_list` again to confirm it is up. A server that fails to start still appears in
    configuration, so verify rather than assume.
-4. `list_mcp_resources` shows what it exposes: URI, name, MIME type, description.
-5. `read_mcp_resource` with `server_name` and `uri` reads one. The URI must come from
+5. `list_mcp_resources` shows what it exposes: URI, name, MIME type, description.
+6. `read_mcp_resource` with `server_name` and `uri` reads one. The URI must come from
    `list_mcp_resources`; do not guess URIs.
 
-`mcp_remove` with `name` disconnects one.
+`mcp_remove` with `name` disconnects one. Run `reload_mcp` after it too: removal is also
+a config write, and the connection outlives it until the reload.
 
 ## Traps
 

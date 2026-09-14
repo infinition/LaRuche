@@ -121,16 +121,24 @@ Replace it, in this order, so a failure cannot leave the user with nothing sched
 Creating before deleting means a crash between the two leaves a duplicate, which the user
 can see and remove. Deleting first means a crash leaves silence, which nobody notices.
 
-## Running one now, without a run-now tool
+## Running one now
 
-`cron_list` returns the schedule but NOT the prompt, so there is nothing to replay unless
-you already have it.
+`run_now` with `kind` and `target`. `kind` is `cron` or `mission`; `target` is the cron
+name or id from `cron_list`, or the mission slug. It asks for approval, because it runs a
+full agent turn with the scheduled item's own configuration, which can send messages and
+write files.
 
-1. If the task was created in this session, you have the prompt. Execute it directly as
-   an instruction.
-2. Otherwise ask the user what it was meant to do, or read it from the Cron page of the
-   dashboard. Do not invent a plausible prompt and run it: a scheduled task can send
-   messages and write files.
+It fires the task as the scheduler would, with the stored prompt. That matters: you never
+have to reconstruct the prompt yourself, and `cron_list` does not return it. Do not
+invent a plausible prompt and execute it by hand instead.
+
+`run_now` returns as soon as the run STARTS. It is not the result. The run continues in
+the background and reports on its own channel, so a successful call proves the task
+fired, not that it did anything useful. Check the channel, or the artefact the task was
+meant to produce, before telling the user it worked.
+
+Use it right after `cron_create` to verify a new task actually does what the user asked,
+while they are still there to correct it.
 
 ## Traps
 

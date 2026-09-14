@@ -1,7 +1,7 @@
 ---
 type: skill
 name: web-research
-description: Answer a factual question from the web, or enumerate what exists (files, mirrors, sources), with cross-checked sources.
+description: Answer a factual question from the web, or enumerate what exists, with sources
 ---
 
 # Web research

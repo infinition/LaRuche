@@ -37,6 +37,15 @@ SOURCES = [
 ]
 
 TOOL_NAME = re.compile(r'fn nom\(&self\) -> &str \{\s*"([a-z][a-z0-9_]+)"')
+# A tool whose `nom` returns a field, registered by looping over a literal list. The five
+# App tools share one type and differ only by that string, so the pattern above never saw
+# them: `app_call` and its four siblings were invisible to this check for as long as they
+# have existed. The loop counts only when it registers something, otherwise every `for x
+# in ["a", "b"]` in the codebase would be read as a tool list.
+TOOL_LOOP = re.compile(
+    r'for \w+ in \[((?:\s*"[a-z][a-z0-9_]+"\s*,?)+)\]\s*\{(?:[^{}]|\{[^{}]*\})*?\benregistrer\('
+)
+TOOL_IN_LOOP = re.compile(r'"([a-z][a-z0-9_]+)"')
 SCHEMA_FN = re.compile(r"fn schema\(&self\)[^{]*\{(.*?)\n    \}", re.S)
 READ_FIELDS = {"type", "name", "description", "prerequisites", "enabled", "tools", "scripts"}
 DESCRIPTION_BUDGET = 80
@@ -64,6 +73,12 @@ def tool_schemas():
                 if not filename.endswith(".rs"):
                     continue
                 text = read(os.path.join(folder, filename))
+                for bloc in TOOL_LOOP.findall(text):
+                    # Registered from a list: one shared type, no schema block to slice.
+                    # The name is what matters here, so the argument set stays empty and
+                    # no skill is flagged for describing arguments this cannot see.
+                    for nom in TOOL_IN_LOOP.findall(bloc):
+                        schemas.setdefault(nom, set())
                 marks = [(m.start(), m.group(1)) for m in TOOL_NAME.finditer(text)]
                 for index, (start, name) in enumerate(marks):
                     stop = marks[index + 1][0] if index + 1 < len(marks) else len(text)
@@ -238,6 +253,13 @@ def main():
     # not on vendor names as such. `openai` is deliberately absent: it is the name of a
     # Python package and of the wire protocol llama.cpp's server speaks, so a llama-cpp
     # page that says "OpenAI-compatible API" is being accurate, not borrowing an identity.
+    #
+    # `anthropic` is absent for exactly the same reason, and only since the wiki became a
+    # skill. It is a literal value of the `provider` setting and the name of a message
+    # format LaRuche implements. A reference page cannot document a value the user has to
+    # type without printing it, and rewriting it would make the page wrong. The agent name
+    # built on top of it stays banned: that one IS an identity, and nothing in this
+    # repository needs to name it.
     # Le tiret cadratin, par point de code et jamais en clair.
     #
     # Ecrit en clair, il s'est fait remplacer par un simple trait d'union le
@@ -249,7 +271,7 @@ def main():
     EM_DASH = chr(0x2014)
 
     foreign = re.compile(
-        r"claude|anthropic|chatgpt|copilot|cursor\.(?:so|com)|codeium",
+        r"claude|chatgpt|copilot|cursor\.(?:so|com)|codeium",
         re.I,
     )
     for folder, _, files in os.walk(SKILLS):

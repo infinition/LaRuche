@@ -75,6 +75,23 @@ fabrication.
 If it is still running when you are otherwise finished, say so explicitly instead of
 claiming completion.
 
+## cancel_job
+
+`cancel_job` with `job_id`. It asks for approval, because stopping work is a decision.
+
+It stops the job from continuing. It does NOT undo what the job already did. A script
+that had written half its files keeps those files; a script that had already called a
+remote API has already called it. Cancelling is a way to stop spending, not a way to
+return to the state before the job started.
+
+So after a cancel, read the state before you report anything: list the directory the
+script was writing to, or query the service it was calling. If you cannot establish what
+it managed to do, say exactly that. An unknown outcome is a result, and reporting it as
+"cancelled, nothing happened" is the fabrication this whole page is about.
+
+Cancel when the job is provably pointless: its input was wrong, the user changed their
+mind, or a faster path is already finished. A job that is merely slow is not a reason.
+
 ## Traps
 
 - **The delegate cannot see this conversation.** The single most common failure. Every

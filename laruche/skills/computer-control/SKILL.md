@@ -1,7 +1,7 @@
 ---
 type: skill
 name: computer-control
-description: Drive the machine itself, mouse, keyboard and screen, for desktop applications and native dialogs. Works without vision through the accessibility tree.
+description: Drive the machine itself, mouse, keyboard and screen, without needing vision
 tools: [computer]
 ---
 
