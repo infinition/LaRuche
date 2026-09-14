@@ -340,6 +340,7 @@ button, select, input, textarea {
   min-width: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  overflow-anchor: none;
   -webkit-overflow-scrolling: touch;
 }
 

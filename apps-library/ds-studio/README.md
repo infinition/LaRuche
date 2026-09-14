@@ -297,3 +297,28 @@ transactionnelle multi-cles resistante a une coupure pendant l'ecriture, export
 d'images via actions, Worker avec interruption dure, validation du runtime Pyodide
 et execution sans navigateur. Les telechargements de fichiers et d'images sont deja
 disponibles manuellement dans l'interface du carnet.
+
+### Correctif 1.7.11, suivi de l'agent
+
+Le suivi ne se coupe plus sur un simple evenement `scroll` provoque par un
+rendu ou un changement de dimensions. La molette, le clavier et le tactile
+rendent la main au lecteur tout de suite. La barre de defilement, elle,
+n'emet aucun de ces evenements: elle est reconnue en comparant la position
+recue a la derniere que le carnet a posee lui-meme.
+
+Un clic dans le vide du carnet n'est pas une navigation. Il etait lu comme
+tel, et c'est ce qui coupait le suivi en pleine demonstration sans que rien
+ne l'explique. Il ne pouvait pas non plus servir a detecter un glissement de
+barre: sur macOS la barre est en superposition et ne reserve aucune gouttiere,
+donc aucune geometrie ne la distingue d'un clic ordinaire.
+
+La cible conserve sa sortie apres un redessin complet, les anciennes
+animations sont annulees, et le cadrage tient compte du zoom.
+
+Test de regression dedie, dans un iframe Chrome visible, avec des sorties
+injectees via le modele du carnet (sans dependance a l'execution Python) :
+
+```sh
+DS_FOLLOW_ONLY=1 node apps-library/ds-studio/test/browser.test.cjs
+DS_FOLLOW_ONLY=1 DS_WINDOW=440,900 node apps-library/ds-studio/test/browser.test.cjs
+```

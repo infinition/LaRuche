@@ -371,6 +371,7 @@ const SCENARIO = `
       check('follows the agent to the bottom', distance() < 60, distance());
 
       /* Reader scrolls up: the follow must stop. */
+      pane.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
       pane.scrollTop = 0;
       pane.dispatchEvent(new Event('scroll'));
       await sleep(60);
@@ -389,6 +390,43 @@ const SCENARIO = `
       await window.__harness.call('cell.add', { source: 'print("retour en bas")', revision: back.revision });
       await sleep(250);
       check('following resumes at the bottom', distance() < 60, distance());
+      var bouton = document.getElementById('followBtn');
+      check('the follow button hides while following', bouton.hidden, 'visible');
+
+      /* A click on the notebook background is not navigation. It used to be
+       * read as one, and it is what silently cut the follow mid-demo. */
+      var cadre = pane.getBoundingClientRect();
+      pane.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, button: 0,
+        clientX: cadre.left + 40, clientY: cadre.top + cadre.height / 2
+      }));
+      await sleep(60);
+      var apresClic = (await window.__harness.call('notebook.state')).result;
+      await window.__harness.call('cell.add', { source: 'print("apres un clic")', revision: apresClic.revision });
+      await sleep(250);
+      check('a click in the empty area does not cut the follow', distance() < 60, distance());
+      check('the follow button stays hidden after a click', bouton.hidden, 'visible');
+
+      /* Dragging the scrollbar emits no wheel, no touch and no key: only the
+       * position changes. It must still hand control back. */
+      pane.scrollTop = 0;
+      pane.dispatchEvent(new Event('scroll'));
+      await sleep(60);
+      check('dragging the scrollbar releases the follow', !bouton.hidden, 'hidden');
+      var pendantGlissement = pane.scrollTop;
+      var tire = (await window.__harness.call('notebook.state')).result;
+      await window.__harness.call('cell.add', { source: 'print("barre tiree")', revision: tire.revision });
+      await sleep(250);
+      check('a cell added after a scrollbar drag does not yank the view',
+        Math.abs(pane.scrollTop - pendantGlissement) < 20, pane.scrollTop + ' vs ' + pendantGlissement);
+
+      /* And the button hands it back. Following frames the block being worked
+       * on, which is not always the very bottom, so what is checked is that the
+       * view left the top and the button stood down. */
+      bouton.click();
+      await sleep(300);
+      check('the follow button reattaches', bouton.hidden && pane.scrollTop > 100,
+        'hidden ' + bouton.hidden + ', scrollTop ' + pane.scrollTop);
 
       /* 11. Persistence: chunks written, none over the per-value cap. */
       await waitFor(function(){
@@ -703,6 +741,7 @@ const SCENARIO = `
         ' | largeur ' + window.innerWidth);
 
       /* Le lecteur remonte: le suivi doit lacher et ne plus rien imposer. */
+      pane.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
       pane.scrollTop = 0;
       pane.dispatchEvent(new Event('scroll'));
       await sleep(80);
@@ -909,7 +948,7 @@ function serve(port) {
 
 /* The scenario runs after the App's own scripts, which are deferred. */
 function wrapScenario() {
-  return 'window.addEventListener("load", function(){ setTimeout(function(){' + SCENARIO + '}, 0); });';
+  return 'window.addEventListener("load", function(){ setTimeout(function(){' + (process.env.DS_FOLLOW_ONLY ? fs.readFileSync(path.join(__dirname, 'follow.scenario.js'), 'utf8') : SCENARIO) + '}, 0); });';
 }
 
 (async function main() {

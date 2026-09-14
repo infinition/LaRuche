@@ -8,9 +8,13 @@ Run from the repository root:
 
     python apps-library/check_dist.py
 
-Exit code 0 when every archive matches the source beside it and carries its
-manifest version, 1 otherwise. An App with no archive at all is reported too:
-its `dist/` is simply not built yet.
+Exit code 0 when every App's current archive matches the source beside it, 1
+otherwise. An App with no archive for its manifest version is reported too: it
+is simply not built yet.
+
+Archives of earlier versions are listed and not compared. They are snapshots of
+the source as it was then, so they differ on purpose, and one still installed
+somewhere is exactly what a version number is for.
 """
 
 import hashlib
@@ -64,10 +68,11 @@ def main() -> int:
     for app in apps:
         version = json.loads((app / "package" / "app.json").read_text(encoding="utf-8"))["version"]
         archives = sorted((app / "dist").glob("*.laruche-app")) if (app / "dist").is_dir() else []
-        if not archives:
+        courantes = [a for a in archives if version in a.name]
+        if not courantes:
             print("%-12s v%-8s not built" % (app.name, version))
-            continue
-        for archive in archives:
+            problemes += 1
+        for archive in courantes:
             ecarts, generes = verifier(archive, app / "package")
             etat = "ok" if not ecarts else "STALE"
             print("%-12s v%-8s %-6s %s" % (app.name, version, etat, archive.name))
@@ -76,12 +81,15 @@ def main() -> int:
             for genere in generes:
                 print("               built into the archive: " + genere)
             problemes += len(ecarts)
+        for ancienne in archives:
+            if ancienne not in courantes:
+                print("%-12s %-9s %-6s %s" % ("", "", "past", ancienne.name))
 
     print()
     if problemes:
-        print("%d difference(s). Rebuild with the App's build.py." % problemes)
+        print("%d point(s) to settle. Rebuild with the App's build.py." % problemes)
         return 1
-    print("every archive matches the source beside it")
+    print("every App's current archive matches the source beside it")
     return 0
 
 

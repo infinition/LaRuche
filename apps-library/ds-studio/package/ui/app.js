@@ -522,7 +522,11 @@
       timeoutMs: 12000,
       onJobChange: function(){ paintToolbar(); }
     });
+    annulerSuiviAnime();
+    suiviCellId = null;
+    suiviType = null;
     stickToBottom = true;
+    majBoutonSuivi();
     registerInLibrary(notebook);
     element('notebookTitle').value = notebook.title;
     renderAll();
@@ -657,6 +661,7 @@
         target.scrollIntoView({ block: 'nearest' });
         var editor = target.querySelector('[data-role="editor"]');
         if (editor) editor.focus();
+        noterPosition(notebookPane());
         return;
       }
     }
@@ -668,28 +673,43 @@
     return document.querySelector('.notebook-pane');
   }
 
-  /* Le suivi ne doit juger que ce que le LECTEUR a fait.
-   *
-   * Un drapeau leve pendant nos ecritures ne suffit pas. Vider le conteneur
-   * colle le defilement en haut, et l'evenement que cela produit peut arriver
-   * une ou deux trames plus tard, quand le drapeau est deja retombe. Relu a ce
-   * moment, le carnet parait remonte tout en haut, et le suivi se coupe seul:
-   * c'est exactement ce qui se passait des que le carnet depassait un ecran.
-   *
-   * On compare donc a la valeur qu'on a ecrite. Un evenement qui rapporte
-   * cette position-la est le notre, quel que soit le moment ou il arrive. Un
-   * autre vient du lecteur, y compris quand il tire la barre de defilement,
-   * que ni la molette ni le clavier ne signalent. */
-  var dernierePositionEcrite = null;
-
+  // A scroll event reports a position, never who moved it. Navigation input
+  // hands control back at once; for the rest, see updateStickiness.
   var animationSuivi = null;
+  var generationSuivi = 0;
 
-  /* Un glissement anime, mais fait a la main.
-   *
-   * `scroll-behavior: smooth` emet des evenements pendant toute la duree, et
-   * aucun ne porte la position d'arrivee: chacun passerait pour un geste du
-   * lecteur. En animant nous-memes, chaque etape est ecrite par
-   * `ecrirePosition`, donc reconnue comme la notre. */
+  function annulerSuiviAnime() {
+    generationSuivi += 1;
+    if (animationSuivi !== null) cancelAnimationFrame(animationSuivi);
+    animationSuivi = null;
+  }
+
+  function navigationLecteur(event) {
+    var pane = notebookPane();
+    var direction = event.deltaY || 0;
+    if (event.type === 'keydown') {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey ||
+          event.target.closest('textarea, input, select, button, [contenteditable="true"]')) return;
+      var directions = { ArrowUp: -1, PageUp: -1, Home: -1,
+        ArrowDown: 1, PageDown: 1, End: 1, ' ': event.shiftKey ? -1 : 1 };
+      direction = directions[event.key] || 0;
+      if (!direction) return;
+    }
+    if (event.type === 'wheel' && (!direction || event.ctrlKey)) return;
+    // A table/editor that can consume the gesture keeps its own scrolling.
+    for (var node = event.target; node && node !== pane; node = node.parentElement) {
+      var overflow = getComputedStyle(node).overflowY;
+      if (/(auto|scroll)/.test(overflow) && node.scrollHeight > node.clientHeight &&
+          (!direction || (direction < 0 ? node.scrollTop > 0 :
+            node.scrollTop + node.clientHeight < node.scrollHeight - 1))) return;
+    }
+    if (pane.scrollHeight <= pane.clientHeight) return;
+    annulerSuiviAnime();
+    stickToBottom = false;
+    majBoutonSuivi();
+  }
+
+  // Animate explicitly so a navigation gesture or a newer target can cancel it.
   function glisserVers(pane, cible) {
     if (animationSuivi) { cancelAnimationFrame(animationSuivi); animationSuivi = null; }
     var depart = pane.scrollTop;
@@ -712,6 +732,16 @@
     animationSuivi = requestAnimationFrame(pas);
   }
 
+  /* La derniere position que NOUS avons posee. Un evenement de defilement
+   * rapporte une position, jamais son auteur: la comparer est ce qui reste
+   * pour les distinguer. Elle ne se consomme pas, car une ecriture qui ne
+   * deplace rien n'emet aucun evenement. */
+  var dernierePositionEcrite = null;
+
+  function noterPosition(pane) {
+    if (pane) dernierePositionEcrite = Math.round(pane.scrollTop);
+  }
+
   function ecrirePosition(pane, valeur) {
     var maximum = Math.max(0, pane.scrollHeight - pane.clientHeight);
     var borne = Math.max(0, Math.min(valeur, maximum));
@@ -722,31 +752,25 @@
   function updateStickiness() {
     var pane = notebookPane();
     if (!pane) return;
-    /* La position attendue tient jusqu'a ce qu'une AUTRE arrive. La consommer
-     * au premier evenement etait une erreur: nos ecritures en produisent
-     * souvent plusieurs, et le deuxieme passait pour un geste du lecteur. Pire,
-     * comme le suivi cadre desormais un bloc et non le bas du carnet, ce
-     * deuxieme evenement relisait une position qui n'est pas le bas et coupait
-     * le suivi. C'est ce qui arrivait des que le carnet depassait un ecran. */
-    if (dernierePositionEcrite !== null &&
-        Math.abs(Math.round(pane.scrollTop) - dernierePositionEcrite) <= 2) return;
-    /* Le lecteur a repris la main, meme au milieu d'un de nos glissements. */
-    if (animationSuivi) { cancelAnimationFrame(animationSuivi); animationSuivi = null; }
-    dernierePositionEcrite = null;
-    stickToBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight <= STICK_THRESHOLD;
+    var auBas = pane.scrollHeight - pane.scrollTop - pane.clientHeight <= STICK_THRESHOLD;
+    if (stickToBottom === auBas) return;
+    /* Se raccrocher au bas est juste quel qu'en soit l'auteur: le bas est
+     * exactement la position ou suivre est ce qu'on veut.
+     *
+     * Decrocher, non. C'est la consequence lourde, et nos propres ecritures en
+     * produisent sans arret, puisque cadrer un bloc c'est justement quitter le
+     * bas. Seul un defilement qui n'est pas le notre en a le droit, et ce test
+     * couvre le seul geste que ni la molette ni le clavier n'annoncent: tirer
+     * la barre de defilement. */
+    if (!auBas) {
+      if (dernierePositionEcrite !== null &&
+          Math.abs(Math.round(pane.scrollTop) - dernierePositionEcrite) <= 2) return;
+      annulerSuiviAnime();
+    }
+    stickToBottom = auBas;
     majBoutonSuivi();
   }
 
-  /* Suit l'endroit ou l'agent travaille, et le montre par son debut.
-   *
-   * Viser le bas du carnet ne marche que si la derniere cellule tient dans le
-   * volet. Un graphique ou un grand tableau est plus haut que lui: on se
-   * retrouvait alors calle sur sa fin, sans jamais voir ce qui venait
-   * d'apparaitre. Centrer une cellule trop haute a le meme defaut, en montrant
-   * son milieu.
-   *
-   * Donc: une cellule qui tient est centree, une cellule trop haute est
-   * alignee par son haut, et on ne descend jamais plus bas que necessaire. */
   /* Zoom de l'interface.
    *
    * Un graphique large ne rentre pas dans un panneau etroit, et le reduire
@@ -796,10 +820,20 @@
   /* Toujours cale en haut. Centrer laissait autant de vide au-dessus qu'en
    * dessous, alors que ce qui arrive, une sortie, un tableau, un graphique,
    * arrive PAR LE BAS: la place utile est celle qui reste sous le bloc. */
+  /* Montre un bloc par son debut.
+   *
+   * Viser le bas du carnet ne marche que si la derniere cellule tient dans le
+   * volet. Un graphique ou un grand tableau est plus haut que lui: on se
+   * retrouvait calle sur sa fin, sans jamais voir ce qui venait d'apparaitre.
+   * Centrer une cellule trop haute a le meme defaut, en montrant son milieu.
+   * Donc: le haut du bloc, une marge au-dessus, et jamais plus bas que
+   * necessaire. */
   function positionPour(pane, target) {
     var boite = target.getBoundingClientRect();
     var volet = pane.getBoundingClientRect();
-    var haut = pane.scrollTop + (boite.top - volet.top) - MARGE_SUIVI;
+    // Rects use visual pixels, scrollTop uses the pane's unzoomed pixels.
+    var scale = pane.offsetWidth ? volet.width / pane.offsetWidth : 1;
+    var haut = pane.scrollTop + (boite.top - volet.top) / scale - MARGE_SUIVI;
     return Math.max(0, Math.min(haut, pane.scrollHeight - pane.clientHeight));
   }
 
@@ -814,7 +848,7 @@
       var sorties = cellule.querySelectorAll('[data-role="outputs"] > *');
       if (sorties.length) return sorties[sorties.length - 1];
     }
-    if (type === 'cell.start' || type === 'cell.queued') {
+    if (type === 'cell.start' || type === 'cell.queued' || type === 'cell.update') {
       var edite = cellule.querySelector('[data-role="editor"]');
       if (edite && !edite.hidden) return edite;
     }
@@ -829,11 +863,12 @@
    * disparaissait sans que rien ne le dise. Retenir la cible permet de la
    * reposer apres chaque rendu, quel que soit ce qui l'a declenche. */
   var suiviCellId = null;
+  var suiviType = null;
 
   function reappliquerSuivi() {
     if (!suiviCellId) return;
     var cellule = document.querySelector('[data-cell-id="' + suiviCellId + '"]');
-    if (cellule) cellule.classList.add('is-active');
+    if (cellule) marquerActive(suiviCellId, cibleDuSuivi(suiviCellId, suiviType));
   }
 
   function marquerActive(cellId, bloc) {
@@ -858,7 +893,11 @@
     var pane = notebookPane();
     if (!pane) return;
 
+    annulerSuiviAnime();
+    var generation = generationSuivi;
+    suiviType = type;
     function poser() {
+      if (generation !== generationSuivi) return;
       var target = cibleDuSuivi(cellId, type);
       marquerActive(cellId, target);
       if (!stickToBottom) return;
@@ -888,8 +927,7 @@
   function reprendreSuivi() {
     stickToBottom = true;
     majBoutonSuivi();
-    var actif = document.querySelector('.cell.is-active');
-    followAgent(actif ? actif.getAttribute('data-cell-id') : null, null);
+    followAgent(suiviCellId, suiviType);
   }
 
   function renderLibrary() {
@@ -925,6 +963,7 @@
     var container = element('cells');
     var pane = notebookPane();
     var previousTop = pane ? pane.scrollTop : 0;
+    annulerSuiviAnime();
     container.textContent = '';
     notebook.cells.forEach(function(cell){
       container.appendChild(buildCell(cell));
@@ -941,7 +980,7 @@
     if (!stickToBottom) { ecrirePosition(pane, previousTop); return; }
     /* On suit: la position d'avant est perimee. On revise la cible retenue
      * plutot que de sauter au bas, sinon un redessin defait le cadrage. */
-    var retenue = suiviCellId && document.querySelector('[data-cell-id="' + suiviCellId + '"]');
+    var retenue = cibleDuSuivi(suiviCellId, suiviType);
     ecrirePosition(pane, retenue ? positionPour(pane, retenue) : pane.scrollHeight);
   }
 
@@ -958,7 +997,7 @@
     var editor = replacement.querySelector('[data-role="editor"]');
     if (editor) autosize(editor);
     if (caret && editor) {
-      editor.focus();
+      editor.focus({ preventScroll: true });
       editor.setSelectionRange(caret.start, caret.end);
     }
   }
@@ -1992,7 +2031,19 @@
     pane.addEventListener('input', onCellInput);
     pane.addEventListener('keydown', onCellKeydown);
 
-    notebookPane().addEventListener('scroll', updateStickiness, { passive: true });
+    var scrollPane = notebookPane();
+    scrollPane.addEventListener('scroll', updateStickiness, { passive: true });
+    scrollPane.addEventListener('wheel', navigationLecteur, { passive: true });
+    scrollPane.addEventListener('touchmove', navigationLecteur, { passive: true });
+    scrollPane.addEventListener('keydown', navigationLecteur);
+    var resizeSuivi = new ResizeObserver(function(){
+      if (stickToBottom && suiviCellId) followAgent(suiviCellId, suiviType);
+    });
+    resizeSuivi.observe(scrollPane);
+    resizeSuivi.observe(element('cells'));
+    document.addEventListener('visibilitychange', function(){
+      if (stickToBottom) followAgent(suiviCellId, suiviType);
+    });
 
     element('followBtn').addEventListener('click', reprendreSuivi);
     element('zoomInBtn').addEventListener('click', function(){ decalerZoom(1); });
