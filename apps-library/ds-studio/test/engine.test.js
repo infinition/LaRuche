@@ -1,6 +1,6 @@
 'use strict';
 /* Engine tests: table verbs, delimited reading, notebook language, charts.
- * Run with: node examples/apps/ds-studio/test/engine.test.js */
+ * Run with: node apps-library/ds-studio/test/engine.test.js */
 
 var assert = require('node:assert/strict');
 var Frames = require('../package/ui/lib/frame.js');

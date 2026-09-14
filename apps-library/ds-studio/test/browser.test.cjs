@@ -6,7 +6,7 @@
  * it, poll the job, and check that a chart and a table actually rendered.
  *
  * Needs a Chrome or Edge binary. Set CHROME_PATH to point at one.
- * Run with: node examples/apps/ds-studio/test/browser.test.cjs
+ * Run with: node apps-library/ds-studio/test/browser.test.cjs
  */
 
 'use strict';

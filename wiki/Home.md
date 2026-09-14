@@ -74,4 +74,5 @@ and is the only tool count worth quoting.
 | Memory database | `memoire.db` in the hive data directory |
 | Memory time-travel repo | `memoire-okf/` (dedicated git repository) |
 | Skills | markdown files in the hive data directory, editable from the UI or on disk |
+| Apps library | `apps-library/` in the repository, one folder per App |
 | Roadmap | `ROADMAP.md` in the repository |

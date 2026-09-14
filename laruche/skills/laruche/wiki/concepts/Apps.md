@@ -126,7 +126,7 @@ permissions again, having seen what the new version asks for.
 
 ## The reference Apps
 
-All four live under `examples/apps/` and build into an installable `.laruche-app` archive
+All four live under `apps-library/` and build into an installable `.laruche-app` archive
 without compiling LaRuche.
 
 | App | What it demonstrates |

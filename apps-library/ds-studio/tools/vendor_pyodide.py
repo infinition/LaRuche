@@ -13,13 +13,13 @@ the installer would reject.
 
 Usage, from the repository root:
 
-    python examples/apps/ds-studio/tools/vendor_pyodide.py
-    python examples/apps/ds-studio/tools/vendor_pyodide.py --packages numpy pandas
-    python examples/apps/ds-studio/tools/vendor_pyodide.py --clean
+    python apps-library/ds-studio/tools/vendor_pyodide.py
+    python apps-library/ds-studio/tools/vendor_pyodide.py --packages numpy pandas
+    python apps-library/ds-studio/tools/vendor_pyodide.py --clean
 
 Then rebuild:
 
-    python examples/apps/ds-studio/build.py
+    python apps-library/ds-studio/build.py
 
 Without this step the App still works: it starts its built-in kernel instead,
 and reports which one is running.
@@ -212,7 +212,7 @@ def main() -> int:
     )
 
     print("\nVendored. The App will start the Python kernel on next load.")
-    print("Next: python examples/apps/ds-studio/build.py")
+    print("Next: python apps-library/ds-studio/build.py")
     return 0
 
 

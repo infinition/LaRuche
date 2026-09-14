@@ -1,7 +1,7 @@
 'use strict';
 /* Checks that no user-facing string is hardcoded and that both catalogues
  * cover every key the interface asks for.
- * Run with: node examples/apps/ds-studio/test/i18n.test.js */
+ * Run with: node apps-library/ds-studio/test/i18n.test.js */
 
 var assert = require('node:assert/strict');
 var fs = require('node:fs');

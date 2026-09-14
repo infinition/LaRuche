@@ -24,11 +24,11 @@ LaRuche. It covers:
 From the repository root:
 
 ```powershell
-node examples/apps/2048/test/game.test.js
-python examples/apps/2048/build.py
+node apps-library/2048/test/game.test.js
+python apps-library/2048/build.py
 ```
 
-The archive is written to `examples/apps/2048/dist/`. Open LaRuche, select **Apps**, choose
+The archive is written to `apps-library/2048/dist/`. Open LaRuche, select **Apps**, choose
 **Installer**, then enable 2048. The game state and best score survive navigation and node
 restarts through `storage.private`.
 

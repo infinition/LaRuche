@@ -12,9 +12,9 @@ is supplied by a separate runtime. Optional `CHROME_PATH` selects a browser;
 ## Bidirectional bridge
 
 ```powershell
-python examples/apps/2048/build.py
-python examples/apps/checkers/build.py
-node examples/apps/test/agent-bridge.test.cjs
+python apps-library/2048/build.py
+python apps-library/checkers/build.py
+node apps-library/test/agent-bridge.test.cjs
 ```
 
 Uses a controlled local streaming provider, not a real LLM. Covers installation consent,
@@ -29,7 +29,7 @@ Supply an independently built DS Studio package using the `dev.laruche.ds-studio
 contract. The test consumes the archive as-is and does not modify the App source:
 
 ```powershell
-node examples/apps/test/ds-persistence.test.cjs C:/Packages/dev.laruche.ds-studio-1.3.0.laruche-app
+node apps-library/test/ds-persistence.test.cjs C:/Packages/dev.laruche.ds-studio-1.3.0.laruche-app
 ```
 
 Checks actual manifest validation, the opaque iframe (direct localStorage is unavailable),

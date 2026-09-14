@@ -6,8 +6,8 @@ and starts without any download.
 To run real Python instead, fill this directory from the repository root:
 
 ```powershell
-python examples/apps/ds-studio/tools/vendor_pyodide.py
-python examples/apps/ds-studio/build.py
+python apps-library/ds-studio/tools/vendor_pyodide.py
+python apps-library/ds-studio/build.py
 ```
 
 The App detects `studio-manifest.json` here at startup and switches to the

@@ -7,10 +7,10 @@ download. The tiny module is generated from documented WASM bytes by the build s
 From the repository root:
 
 ```powershell
-python examples/apps/wasm-demo/build.py
+python apps-library/wasm-demo/build.py
 ```
 
-Install `examples/apps/wasm-demo/dist/laruche-wasm-demo-1.0.0.laruche-app`, enable **WASM Lab**,
+Install `apps-library/wasm-demo/dist/laruche-wasm-demo-1.0.0.laruche-app`, enable **WASM Lab**,
 then open it. The initial result should be **42** and the status **WebAssembly actif**.
 Both **Panneau** and **Fenêtre** support the same module.
 

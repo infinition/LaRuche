@@ -1,6 +1,6 @@
 'use strict';
 /* Notebook model, job scheduler, dataset store and persistence budgets.
- * Run with: node examples/apps/ds-studio/test/notebook.test.js */
+ * Run with: node apps-library/ds-studio/test/notebook.test.js */
 
 var assert = require('node:assert/strict');
 var Notebook = require('../package/ui/notebook.js');

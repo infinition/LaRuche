@@ -28,11 +28,11 @@ Application de Jeu de Dames 8x8 autonome concue pour le bac a sable LaRuche.
 Depuis la racine du depot :
 
 ```powershell
-node examples/apps/checkers/test/game.test.js
-python examples/apps/checkers/build.py
+node apps-library/checkers/test/game.test.js
+python apps-library/checkers/build.py
 ```
 
-L'archive `.laruche-app` est generee dans `examples/apps/checkers/dist/`.
+L'archive `.laruche-app` est generee dans `apps-library/checkers/dist/`.
 
 ## Installation dans LaRuche
 

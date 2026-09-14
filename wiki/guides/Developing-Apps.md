@@ -15,11 +15,11 @@ model and how a version is chosen.
 From the repository root:
 
 ```powershell
-node examples/apps/2048/test/game.test.js
-python examples/apps/2048/build.py
-python examples/apps/checkers/build.py
-python examples/apps/wasm-demo/build.py
-python examples/apps/ds-studio/build.py
+node apps-library/2048/test/game.test.js
+python apps-library/2048/build.py
+python apps-library/checkers/build.py
+python apps-library/wasm-demo/build.py
+python apps-library/ds-studio/build.py
 ```
 
 In LaRuche, open **Apps**, click **Installer**, select an archive from the example's `dist/`
@@ -43,7 +43,7 @@ Panels are not automatically restored after a browser reload.
 
 ## Create your own App
 
-Start with `examples/apps/2048/package/` or the smaller `examples/apps/wasm-demo/package/`.
+Start with `apps-library/2048/package/` or the smaller `apps-library/wasm-demo/package/`.
 Keep your source in a separate directory with this layout:
 
 ```text
@@ -85,7 +85,7 @@ native **Fenêtre** button for a direct user gesture.
 Package your source without compiling the host:
 
 ```powershell
-python examples/apps/package_app.py C:/Dev/my-app --output C:/Dev/my-app-dist
+python apps-library/package_app.py C:/Dev/my-app --output C:/Dev/my-app-dist
 ```
 
 Install the resulting `.laruche-app` through the UI. For an update, increment the manifest's
@@ -294,7 +294,7 @@ is not an authorization mechanism, in either protocol.
   remains distinct from Wasmtime/WASI.
 
 Run `cargo test -p laruche-node apps::` from the Rust workspace and
-`node examples/apps/test/agent-bridge.test.cjs` from the repository root (requires Playwright,
+`node apps-library/test/agent-bridge.test.cjs` from the repository root (requires Playwright,
 a Chromium installation and a built debug node). The browser test starts an isolated data
 home and controlled local provider. It tests the real SDK, consent UI, agent library, action
 dispatch, separate contexts/users and live revocation, without using a real model/account.

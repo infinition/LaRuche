@@ -4,7 +4,7 @@
  * kernel boots in a browser, long after the commit, as a traceback nobody links
  * back to this file.
  *
- * Run with: node examples/apps/ds-studio/test/preamble.test.js */
+ * Run with: node apps-library/ds-studio/test/preamble.test.js */
 
 var assert = require('node:assert/strict');
 var fs = require('node:fs');

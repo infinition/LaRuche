@@ -8,7 +8,7 @@ const os=require('node:os');
 const net=require('node:net');
 const {spawn}=require('node:child_process');
 const {randomUUID}=require('node:crypto');
-const root=path.resolve(__dirname,'../../..');
+const root=path.resolve(__dirname,'../..');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,label){const end=Date.now()+45000;while(Date.now()<end){if(await fn())return;await sleep(250);}throw new Error('Timed out: '+label);}
 

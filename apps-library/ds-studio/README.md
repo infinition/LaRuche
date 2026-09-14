@@ -51,8 +51,8 @@ pandas et numpy. Meme vocabulaire de sortie, et les figures matplotlib sont
 capturees en PNG. Il faut l'embarquer avant le build :
 
 ```powershell
-python examples/apps/ds-studio/tools/vendor_pyodide.py
-python examples/apps/ds-studio/build.py
+python apps-library/ds-studio/tools/vendor_pyodide.py
+python apps-library/ds-studio/build.py
 ```
 
 L'app detecte le runtime au demarrage et bascule. Si Python est embarque mais ne
@@ -150,11 +150,11 @@ les catalogues restent alignes.
 Depuis la racine du depot :
 
 ```powershell
-node examples/apps/ds-studio/test/engine.test.js      # 55 verifications
-node examples/apps/ds-studio/test/notebook.test.js    # 38 verifications
-node examples/apps/ds-studio/test/i18n.test.js        # catalogues alignes
-node examples/apps/ds-studio/test/browser.test.cjs    # 100 verifications, Chrome
-python examples/apps/ds-studio/build.py
+node apps-library/ds-studio/test/engine.test.js      # 55 verifications
+node apps-library/ds-studio/test/notebook.test.js    # 38 verifications
+node apps-library/ds-studio/test/i18n.test.js        # catalogues alignes
+node apps-library/ds-studio/test/browser.test.cjs    # 100 verifications, Chrome
+python apps-library/ds-studio/build.py
 ```
 
 Le test navigateur sert l'app sur un serveur local avec un faux SDK, puis la
@@ -288,7 +288,7 @@ Le guide demande aussi de verifier unites, monnaies, doublons, valeurs manquante
 periode partielle et provenance avant une comparaison. Il interdit de presenter le
 dataset de demonstration comme les donnees demandees par l'utilisateur.
 
-Le test `examples/apps/test/ds-persistence.test.cjs` utilise le vrai hote et un foyer
+Le test `apps-library/test/ds-persistence.test.cjs` utilise le vrai hote et un foyer
 temporaire. Il valide sauvegarde, redemarrage, tableaux, graphique et dataset, ainsi
 que les nouvelles actions. Voir le README de ce dossier pour les prerequis.
 

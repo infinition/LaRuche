@@ -4,7 +4,7 @@ const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');const path=require('node:path');const os=require('node:os');
 const http=require('node:http');const net=require('node:net');const {spawn}=require('node:child_process');const {randomUUID}=require('node:crypto');
-const root=path.resolve(__dirname,'../../..');
+const root=path.resolve(__dirname,'../..');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await sleep(250);}throw new Error('Timed out: '+label);}
 (async()=>{
@@ -42,7 +42,7 @@ async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await
     async function post(endpoint,data){const r=await api.post(base+endpoint,{data});const value=await r.json();assert(r.ok(),endpoint+' '+JSON.stringify(value));return value;}
     await post('/api/auth/enroll',{display_name:'App owner',password:randomUUID()});
     const gameVersion=require('../2048/package/app.json').version;
-    const archive=path.join(root,'examples/apps/2048/dist/laruche-2048-'+gameVersion+'.laruche-app');
+    const archive=path.join(root,'apps-library/2048/dist/laruche-2048-'+gameVersion+'.laruche-app');
     const install=await api.post(base+'/api/apps/install',{data:fs.readFileSync(archive),headers:{'Content-Type':'application/zip'}});assert(install.ok());
     const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(base+'/#apps/overview');
@@ -102,7 +102,7 @@ async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await
 
     // The human selected black, so the model must be white and may play first.
     const checkers=require('../checkers/package/app.json');
-    const checkersArchive=path.join(root,'examples/apps/checkers/dist/'+checkers.id+'-'+checkers.version+'.laruche-app');
+    const checkersArchive=path.join(root,'apps-library/checkers/dist/'+checkers.id+'-'+checkers.version+'.laruche-app');
     const ci=await api.post(base+'/api/apps/install',{data:fs.readFileSync(checkersArchive),headers:{'Content-Type':'application/zip'}});assert(ci.ok());
     await post('/api/apps/'+checkers.id+'/enable',{grantedPermissions:checkers.permissions.required.concat(['agents.invoke'])});
     await post('/api/apps/'+checkers.id+'/storage',{op:'set',key:'checkers.state.v1',value:{board:require('../checkers/package/ui/game.js').createBoard(),turn:'white',humanSide:'black',opponentMode:'agent',moves:0,over:false,winner:null}});
